@@ -1,0 +1,176 @@
+[project]
+name = "oe_annotator"
+version = "0.1.0"
+description = "A desktop application to assist in translation from Old English/Anglo Saxon to Modern English"
+readme = "README.md"
+requires-python = ">=3.14"
+authors = [
+    { name = "Chris Malek", email = "cmalek@placodermi.org" },
+]
+maintainers = [
+    { name = "Chris Malek", email = "cmalek@placodermi.org" },
+]
+classifiers = [
+    "Development Status :: 2 - Alpha",
+    "Intended Audience :: Administrators",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3.14",
+]
+dependencies = [
+    "docx>=0.2.4",
+    "PySide6>=6.6.0",
+    "python-docx>=1.1.0",
+    "markdown>=3.5.0",
+]
+
+[dependency-groups]
+dev = [
+    "pyinstaller>=6.0.0",
+]
+docs = [
+    "sphinx>7",                                         # https://github.com/sphinx-doc/sphinx
+    "sphinx-rtd-theme>=3.0.2",                          # https://github.com/readthedocs/sphinx_rtd_theme
+    # We use our own version of sphinx-terraform that fixes a bug in the
+    # upstream version that has yet to be merged as of Jan 2024.
+    "sphinx-terraform",                                 # https://gitlab.com/cmalek1/sphinx-terraform
+    "sphinxcontrib-django",                             # https://github.com/sphinx-doc/sphinxcontrib-django
+    "sphinxcontrib-jsonglobaltoc==0.1.5",               # https://github.com/caltechads/sphinxcontrib-jsonglobaltoc
+]
+test = [
+    "coverage>=7.6.12",                                 # https://github.com/nedbat/coveragepy
+    "django-coverage-plugin==3.1.0",                    # https://github.com/nedbat/django_coverage_plugin
+    "testfixtures~=8.0",                                # https://github.com/Simplistix/testfixtures
+    "unittest-xml-reporting==3.2.0",                    # https://github.com/xmlrunner/unittest-xml-reporting
+]
+
+[project.urls]
+Repository = "https://github.com/cmalek/oe_annotator"
+
+[tool.uv]
+python-preference = "only-system"
+default-groups = ["docs", "test"]
+
+[build-system]
+requires = [
+    "setuptools >= 75",
+    "wheel >= 0.29.0",
+]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+
+[tool.coverage.report]
+show_missing = false
+skip_covered = true
+
+[tool.doc8]
+max-line-length = 88
+
+[tool.mypy]
+plugins = []
+exclude = [
+    "^build",
+    "migrations/.*\\.py",
+]
+
+
+[[tool.mypy.overrides]]
+module = "sphinx_rtd_theme.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "storages.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "structlog.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "tabulate.*"
+ignore_missing_imports = true
+
+[tool.ruff]
+# Same as Black.
+line-length = 88
+indent-width = 4
+target-version = "py314"
+src = ["directory"]
+# https://docs.astral.sh/ruff/settings/#exclude
+# https://docs.astral.sh/ruff/settings/#extend-exclude
+extend-exclude = ["tests", "htmlcov"]
+
+[tool.ruff.format]
+# Like Black, use double quotes for strings.
+quote-style = "double"
+
+# Like Black, indent with spaces, rather than tabs.
+indent-style = "space"
+
+# Like Black, respect magic trailing commas.
+skip-magic-trailing-comma = false
+
+# Like Black, automatically detect the appropriate line ending.
+line-ending = "auto"
+
+# Enable auto-formatting of code examples in docstrings. Markdown,
+# reStructuredText code/literal blocks and doctests are all supported.
+#
+# This is currently disabled by default, but it is planned for this
+# to be opt-out in the future.
+docstring-code-format = false
+
+# Set the line length limit used when formatting code snippets in
+# docstrings.
+#
+# This only has an effect when the `docstring-code-format` setting is
+# enabled.
+docstring-code-line-length = "dynamic"
+
+[tool.ruff.lint]
+select = ["ALL"]
+
+# Allow fix for all enabled rules (when `--fix`) is provided.
+fixable = ["ALL"]
+unfixable = []
+
+# Allow unused variables when underscore-prefixed.
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+ignore = [
+    #### Ignore entire modules
+    "ANN",      # flake8-annotations
+    "COM",      # flake8-commas
+    "C90",      # mccabe complexity
+    "TID",      # flake8-tidy-imports
+    #### Ignore specific rules
+    "CPY001",   # ignore missing copyright notices
+    "D100",     # Missing docstring in public module
+    "D101",     # Missing docstring in public class
+    "D102",     # Missing docstring in public method
+    "D103",     # Missing docstring in public function
+    "D104",     # Missing docstring in public package
+    "D105",     # Missing docstring in magic method
+    "D106",     # Missing docstring in public nested class
+    "D107",     # Missing docstring in __init__ method
+    "D200",     # One-line docstring should fit on one line
+    "D203",     # 1 blank required before class docstring
+    "D205",     # 1 blank line required between summary line and description
+    "D211",     # No blank lines allowed before class docstring
+    "D212",     # Multi-line docstring summary should start at the first line
+    "D400",     # First line should end with a period
+    "D401",     # First line of docstring should be in imperative mood
+    "D415",     # First line should end with a period, question mark, or exclamation point
+    "E402",     # Module level import not at top of cell
+    "FIX002",   # Line contains TODO, consider resolving the issue
+    "G004",     # Logging statement uses string formatting
+    "ISC001",   # Checks for implicitly concatenated strings on a single line
+    "S603",     # subprocess call: check for execution of untrusted input
+    "S607",     # Starting a process with a partial executable path
+    "SIM102",   # Don't try to combine nested ifs
+    "SLF001",   # Ignore access to attributes starting with a single _. Django's Model._meta is used all over the place.
+    "TD002",    # Missing author in TODO; try: # TODO(<author_name>): ... or # TODO @<author_name>:
+    "TD003",    # Missing issue link on the line following this TODO
+    "TRY003",   # Avoid specifying long messages outside the exception class
+]
