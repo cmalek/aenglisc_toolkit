@@ -57,6 +57,9 @@ class SentenceCard(QWidget):
         self.annotations: dict[int, Annotation] = {
             cast("int", token.id): token.annotation for token in self.tokens
         }
+        # Track current highlight position to clear it later
+        self._current_highlight_start: int | None = None
+        self._current_highlight_length: int | None = None
         self._setup_ui()
         self._setup_shortcuts()
 
@@ -142,6 +145,7 @@ class SentenceCard(QWidget):
 
         # Token annotation grid
         self.token_table.annotation_requested.connect(self._open_annotation_modal)
+        self.token_table.token_selected.connect(self._highlight_token_in_text)
         layout.addWidget(self.token_table)
         self.set_tokens(self.tokens)
 
@@ -276,6 +280,9 @@ class SentenceCard(QWidget):
 
     def _on_oe_text_changed(self) -> None:
         """Handle Old English text change."""
+        # Clear highlights when text is edited
+        self._clear_highlight()
+
         if not self.db or not self.command_manager or not self.sentence.id:
             return
 
@@ -311,6 +318,91 @@ class SentenceCard(QWidget):
             )
             if self.command_manager.execute(command):
                 self.sentence.text_modern = new_text
+
+    def _clear_highlight(self) -> None:
+        """
+        Clear any existing highlight in the oe_text_edit.
+        """
+        # Clear extra selections (temporary highlights)
+        self.oe_text_edit.setExtraSelections([])
+        self._current_highlight_start = None
+        self._current_highlight_length = None
+
+    def _highlight_token_in_text(self, token: Token) -> None:
+        """
+        Highlight the corresponding token in the oe_text_edit.
+
+        Args:
+            token: Token to highlight
+
+        """
+        # Clear any existing highlight first
+        self._clear_highlight()
+
+        # Get the text from the editor
+        text = self.oe_text_edit.toPlainText()
+        if not text:
+            return
+
+        # Get the token surface text
+        surface = token.surface
+        if not surface:
+            return
+
+        # Find all occurrences of the surface text
+        occurrences = []
+        start = 0
+        while True:
+            pos = text.find(surface, start)
+            if pos == -1:
+                break
+            occurrences.append(pos)
+            start = pos + 1
+
+        # If no occurrences found, return
+        if not occurrences:
+            return
+
+        # Use order_index to determine which occurrence to highlight
+        # Count how many tokens with the same surface appear before this one
+        same_surface_count = 0
+        for t in self.tokens:
+            if t.order_index >= token.order_index:
+                break
+            if t.surface == surface:
+                same_surface_count += 1
+
+        # Select the occurrence at the same_surface_count index
+        if same_surface_count < len(occurrences):
+            highlight_pos = occurrences[same_surface_count]
+        else:
+            # Fallback to first occurrence if index is out of range
+            highlight_pos = occurrences[0]
+
+        # Create cursor and highlight the text using extraSelections
+        cursor = QTextCursor(self.oe_text_edit.document())
+        cursor.setPosition(highlight_pos)
+        cursor.movePosition(
+            QTextCursor.MoveOperation.Right,
+            QTextCursor.MoveMode.KeepAnchor,
+            len(surface),
+        )
+
+        # Apply highlight format
+        char_format = QTextCharFormat()
+        # Use a yellow background color
+        char_format.setBackground(QColor(200, 200, 0, 100))
+
+        # Use extraSelections for temporary highlighting
+        extra_selection = QTextEdit.ExtraSelection()
+        extra_selection.cursor = cursor  # type: ignore[attr-defined]
+        extra_selection.format = char_format  # type: ignore[attr-defined]
+
+        self.oe_text_edit.setExtraSelections([extra_selection])
+
+        # Store position for reference
+        self._current_highlight_start = highlight_pos
+        self._current_highlight_length = len(surface)
 
     def _save_annotation(self, annotation: Annotation) -> None:
         """
