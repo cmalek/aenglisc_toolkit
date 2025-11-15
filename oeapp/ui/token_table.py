@@ -338,3 +338,7 @@ class TokenTable(QWidget):
         # If the token index is valid, select the row.
         if 0 <= token_index < len(self.tokens):
             self.table.selectRow(token_index)
+            # Ensure the selected row is scrolled into view
+            item = self.table.item(token_index, 0)
+            if item:
+                self.table.scrollToItem(item)

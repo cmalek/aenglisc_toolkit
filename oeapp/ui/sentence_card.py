@@ -2,7 +2,16 @@
 
 from typing import TYPE_CHECKING, cast
 
-from PySide6.QtGui import QFont, QKeySequence, QShortcut
+from PySide6.QtCore import QPoint, Signal
+from PySide6.QtGui import (
+    QColor,
+    QFont,
+    QKeySequence,
+    QMouseEvent,
+    QShortcut,
+    QTextCharFormat,
+    QTextCursor,
+)
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -25,6 +34,17 @@ if TYPE_CHECKING:
     from oeapp.models.sentence import Sentence
     from oeapp.models.token import Token
     from oeapp.services.db import Database
+
+
+class ClickableTextEdit(QTextEdit):
+    """QTextEdit that emits a signal when clicked."""
+
+    clicked = Signal(QPoint)
+
+    def mousePressEvent(self, event: QMouseEvent) -> None:  # noqa: N802
+        """Handle mouse press event and emit clicked signal."""
+        super().mousePressEvent(event)
+        self.clicked.emit(event.position().toPoint())
 
 
 class SentenceCard(QWidget):
@@ -136,11 +156,12 @@ class SentenceCard(QWidget):
         oe_label.setFont(QFont("Arial", 14))
         layout.addWidget(oe_label)
 
-        self.oe_text_edit = QTextEdit()
+        self.oe_text_edit = ClickableTextEdit()
         self.oe_text_edit.setText(self.sentence.text_oe)
         self.oe_text_edit.setFont(QFont("Times New Roman", 18))
         self.oe_text_edit.setPlaceholderText("Enter Old English text...")
         self.oe_text_edit.textChanged.connect(self._on_oe_text_changed)
+        self.oe_text_edit.clicked.connect(self._on_oe_text_clicked)
         layout.addWidget(self.oe_text_edit)
 
         # Token annotation grid
@@ -277,6 +298,144 @@ class SentenceCard(QWidget):
 
         # Update token table display
         self.token_table.update_annotation(annotation)
+
+    def _on_oe_text_clicked(self, position: QPoint) -> None:
+        """
+        Handle click on Old English text to select corresponding token.
+
+        Args:
+            position: Mouse click position in widget coordinates
+
+        """
+        # Get cursor at click position
+        cursor = self.oe_text_edit.cursorForPosition(position)
+        cursor_pos = cursor.position()
+
+        # Get the plain text
+        text = self.oe_text_edit.toPlainText()
+        if not text or not self.tokens:
+            return
+
+        # Find which token contains this cursor position
+        # We need to map cursor position to token by finding which token's
+        # surface text spans that position
+        token_index = self._find_token_at_position(text, cursor_pos)
+        if token_index is not None:
+            self.token_table.select_token(token_index)
+
+    def _find_token_at_position(self, text: str, position: int) -> int | None:
+        """
+        Find the token index that contains the given character position.
+
+        Args:
+            text: The full sentence text
+            position: Character position in the text
+
+        Returns:
+            Token index if found, None otherwise
+
+        """
+        if not self.tokens:
+            return None
+
+        # Build a mapping of token positions in the text
+        token_positions: list[tuple[int, int, int]] = []  # (start, end, token_index)
+
+        for token_idx, token in enumerate(self.tokens):
+            surface = token.surface
+            if not surface:
+                continue
+
+            token_start = self._find_token_occurrence(text, token, surface)
+            if token_start is None:
+                continue
+
+            token_end = token_start + len(surface)
+            token_positions.append((token_start, token_end, token_idx))
+
+        # Find which token contains the position
+        for start, end, token_idx in token_positions:
+            if start <= position < end:
+                return token_idx
+
+        # If position is not within any token, find the nearest token
+        # (useful for whitespace between tokens)
+        return self._find_nearest_token(token_positions, position)
+
+    def _find_token_occurrence(
+        self, text: str, token: Token, surface: str
+    ) -> int | None:
+        """
+        Find the occurrence position of a token's surface text in the sentence.
+
+        Args:
+            text: The full sentence text
+            token: The token to find
+            surface: The surface text of the token
+
+        Returns:
+            Character position of the token occurrence, or None if not found
+
+        """
+        # Find all occurrences of this surface text
+        occurrences = []
+        start = 0
+        while True:
+            pos = text.find(surface, start)
+            if pos == -1:
+                break
+            occurrences.append(pos)
+            start = pos + 1
+
+        if not occurrences:
+            return None
+
+        # Use order_index to determine which occurrence this token represents
+        # Count how many tokens with the same surface appear before this one
+        same_surface_count = 0
+        for t in self.tokens:
+            if t.order_index >= token.order_index:
+                break
+            if t.surface == surface:
+                same_surface_count += 1
+
+        # Select the occurrence at the same_surface_count index
+        if same_surface_count < len(occurrences):
+            return occurrences[same_surface_count]
+        # Fallback to first occurrence if index is out of range
+        return occurrences[0]
+
+    def _find_nearest_token(
+        self, token_positions: list[tuple[int, int, int]], position: int
+    ) -> int | None:
+        """
+        Find the nearest token to the given position.
+
+        Args:
+            token_positions: List of (start, end, token_index) tuples
+            position: Character position in the text
+
+        Returns:
+            Token index of nearest token, or None if no tokens found
+
+        """
+        nearest_token = None
+        min_distance = float("inf")
+        for start, end, token_idx in token_positions:
+            # Check distance to start and end of token
+            if position < start:
+                distance = start - position
+            elif position >= end:
+                distance = position - end + 1
+            else:
+                # Position is within token (shouldn't happen here, but handle it)
+                return token_idx
+
+            if distance < min_distance:
+                min_distance = distance
+                nearest_token = token_idx
+
+        return nearest_token
 
     def _on_oe_text_changed(self) -> None:
         """Handle Old English text change."""
