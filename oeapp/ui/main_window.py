@@ -135,6 +135,8 @@ class MainWindow(QMainWindow):
         self.command_manager: CommandManager | None = None
         #: Filter service
         self.filter_service: FilterService | None = None
+        #: Main window actions
+        self.action_service = MainWindowActions(self)
 
         # Build the main window
         self.build()
@@ -196,13 +198,15 @@ class MainWindow(QMainWindow):
         """
         # J/K for next/previous sentence
         next_sentence_shortcut = QShortcut(QKeySequence("J"), self)
-        next_sentence_shortcut.activated.connect(self._next_sentence)
+        next_sentence_shortcut.activated.connect(self.action_service.next_sentence)
         prev_sentence_shortcut = QShortcut(QKeySequence("K"), self)
-        prev_sentence_shortcut.activated.connect(self._prev_sentence)
+        prev_sentence_shortcut.activated.connect(self.action_service.prev_sentence)
 
         # T for focus translation
         focus_translation_shortcut = QShortcut(QKeySequence("T"), self)
-        focus_translation_shortcut.activated.connect(self._focus_translation)
+        focus_translation_shortcut.activated.connect(
+            self.action_service.focus_translation
+        )
 
         # Undo/Redo shortcuts
         undo_shortcut = QShortcut(QKeySequence("Ctrl+Z"), self)
@@ -211,68 +215,6 @@ class MainWindow(QMainWindow):
         redo_shortcut.activated.connect(self._redo)
         redo_shortcut_alt = QShortcut(QKeySequence("Ctrl+Shift+R"), self)
         redo_shortcut_alt.activated.connect(self._redo)
-
-    def _next_sentence(self) -> None:
-        """
-        Navigate to next sentence.
-
-        - If no sentence card is focused, the first sentence card is focused.
-        - If the last sentence card is focused, the last sentence card is focused.
-
-        """
-        if not self.sentence_cards:
-            self.sentence_cards[0].token_table.table.setFocus()
-            self.sentence_cards[0].token_table.select_token(0)
-            return
-        # Find currently focused sentence card
-        current_index = -1
-        for i, card in enumerate(self.sentence_cards):
-            if card.hasFocus() or card.token_table.table.hasFocus():
-                current_index = i
-                break
-        if current_index >= 0 and current_index < len(self.sentence_cards) - 1:
-            self.sentence_cards[current_index + 1].token_table.table.setFocus()
-            self.sentence_cards[current_index + 1].token_table.select_token(0)
-
-    def _prev_sentence(self) -> None:
-        """
-        Navigate to previous sentence.
-
-        - If no sentence card is focused, the last sentence card is focused.
-        - If the first sentence card is focused, the first sentence card is focused.
-
-        """
-        if not self.sentence_cards:
-            self.sentence_cards[-1].token_table.table.setFocus()
-            self.sentence_cards[-1].token_table.select_token(0)
-            return
-        # Find currently focused sentence card
-        current_index = -1
-        for i, card in enumerate(self.sentence_cards):
-            if card.hasFocus() or card.token_table.table.hasFocus():
-                current_index = i
-                break
-        if current_index > 0:
-            self.sentence_cards[current_index - 1].token_table.table.setFocus()
-            self.sentence_cards[current_index - 1].token_table.select_token(0)
-
-    def _focus_translation(self) -> None:
-        """
-        Focus translation field of current sentence.
-
-        - If there is no sentence card focused, do nothing.
-        - If no sentence card is focused, the translation field of the last
-          sentence card is focused.
-        - If the translation field of the last sentence card is focused, the
-          translation field of the first sentence card is focused.
-
-        """
-        if not self.sentence_cards:
-            return
-        for card in self.sentence_cards:
-            if card.hasFocus() or card.token_table.table.hasFocus():
-                card.translation_edit.setFocus()
-                break
 
     def _undo(self) -> None:
         """
@@ -649,4 +591,90 @@ class MainWindow(QMainWindow):
                     card.token_table.select_token(token_idx)
                     # Open annotation modal
                     card._open_annotation_modal()
+                break
+
+
+class MainWindowActions:
+    """
+    Main window actions.  We separate the work from the UI to make the code more
+    readable and maintainable.
+
+    Args:
+        main_window: Main window instance
+
+    """
+
+    def __init__(self, main_window: MainWindow) -> None:
+        """
+        Initialize main window actions.
+        """
+        self.main_window = main_window
+        #: Database
+        self.db = main_window.db
+        #: Current project ID
+        self.current_project_id = main_window.current_project_id
+        #: Sentence cards
+        self.sentence_cards = main_window.sentence_cards
+        #: Autosave service
+        self.autosave_service = main_window.autosave_service
+        #: Command manager
+        self.command_manager = main_window.command_manager
+        #: Filter service
+
+    def next_sentence(self) -> None:
+        """
+        Navigate to next sentence.
+
+        - If no sentence card is focused, the first sentence card is focused.
+        - If the last sentence card is focused, the last sentence card is focused.
+
+        """
+        if not self.sentence_cards:
+            self.sentence_cards[0].focus()
+            return
+        # Find currently focused sentence card
+        current_index = -1
+        for i, card in enumerate(self.sentence_cards):
+            if card.has_focus:
+                current_index = i
+                break
+        if current_index >= 0 and current_index < len(self.sentence_cards) - 1:
+            self.sentence_cards[current_index + 1].focus()
+
+    def prev_sentence(self) -> None:
+        """
+        Navigate to previous sentence.
+
+        - If no sentence card is focused, the last sentence card is focused.
+        - If the first sentence card is focused, the first sentence card is focused.
+
+        """
+        if not self.sentence_cards:
+            self.sentence_cards[-1].focus()
+            return
+        # Find currently focused sentence card
+        current_index = -1
+        for i, card in enumerate(self.sentence_cards):
+            if card.has_focus:
+                current_index = i
+                break
+        if current_index > 0:
+            self.sentence_cards[current_index - 1].focus()
+
+    def focus_translation(self) -> None:
+        """
+        Focus translation field of current sentence.
+
+        - If there is no sentence card focused, do nothing.
+        - If no sentence card is focused, the translation field of the last
+          sentence card is focused.
+        - If the translation field of the last sentence card is focused, the
+          translation field of the first sentence card is focused.
+
+        """
+        if not self.sentence_cards:
+            return
+        for card in self.sentence_cards:
+            if card.has_focus:
+                card.focus_translation()
                 break

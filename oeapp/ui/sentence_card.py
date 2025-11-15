@@ -60,6 +60,20 @@ class SentenceCard(QWidget):
         self._setup_ui()
         self._setup_shortcuts()
 
+    @property
+    def has_focus(self) -> bool:
+        """
+        Check if this sentence card has focus.
+        """
+        return any(
+            [
+                self.hasFocus(),
+                self.token_table.has_focus,
+                self.translation_edit.hasFocus(),
+                self.oe_text_edit.hasFocus(),
+            ]
+        )
+
     def _setup_shortcuts(self):
         """
         Set up keyboard shortcuts.
@@ -83,18 +97,15 @@ class SentenceCard(QWidget):
 
     def _next_token(self) -> None:
         """Navigate to next token."""
-        current_row = self.token_table.table.currentRow()
+        current_row = self.token_table.current_row
         if current_row < len(self.tokens) - 1:
             self.token_table.select_token(current_row + 1)
 
     def _prev_token(self):
         """Navigate to previous token."""
-        current_row = self.token_table.table.currentRow()
-        if current_row > 0:
+        current_row = self.token_table.current_row
+        if current_row > 1 and self.tokens:
             self.token_table.select_token(current_row - 1)
-        elif current_row == -1 and self.tokens:
-            # If nothing selected, select first token
-            self.token_table.select_token(0)
 
     def _setup_ui(self):
         """Set up the UI layout."""
@@ -419,3 +430,23 @@ class SentenceCard(QWidget):
         self.sentence_number_label.setText(f"[{sentence.display_order}]")
         self.oe_text_edit.setText(sentence.text_oe)
         self.translation_edit.setPlainText(sentence.text_modern or "")
+
+    def focus(self) -> None:
+        """
+        Focus this sentence card.
+        """
+        self.token_table.table.setFocus()
+        self.token_table.select_token(0)
+
+    def focus_translation(self) -> None:
+        """
+        Focus translation field.
+        """
+        self.translation_edit.setFocus()
+
+    def unfocus(self) -> None:
+        """
+        Unfocus this sentence card.
+        """
+        self.token_table.table.clearFocus()
+        self.token_table.select_token(0)
