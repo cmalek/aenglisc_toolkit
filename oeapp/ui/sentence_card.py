@@ -1,6 +1,6 @@
 """Sentence card UI component."""
 
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, ClassVar, cast
 
 from PySide6.QtCore import QPoint, Signal
 from PySide6.QtGui import (
@@ -61,6 +61,35 @@ class SentenceCard(QWidget):
 
     """
 
+    # Color maps for highlighting
+    POS_COLORS: ClassVar[dict[str | None, QColor]] = {
+        "N": QColor(173, 216, 230),  # Light blue for Noun
+        "V": QColor(255, 182, 193),  # Light pink for Verb
+        "A": QColor(144, 238, 144),  # Light green for Adjective
+        "R": QColor(255, 165, 0),  # Orange for Pronoun
+        "D": QColor(221, 160, 221),  # Plum for Determiner/Article
+        "B": QColor(175, 238, 238),  # Pale turquoise for Adverb
+        "C": QColor(255, 20, 147),  # Deep pink for Conjunction
+        "E": QColor(255, 255, 0),  # Yellow for Preposition
+        "I": QColor(255, 192, 203),  # Pink for Interjection
+        None: QColor(255, 255, 255),  # White (no highlight) for unannotated
+    }
+
+    CASE_COLORS: ClassVar[dict[str | None, QColor]] = {
+        "n": QColor(173, 216, 230),  # Light blue for Nominative
+        "a": QColor(144, 238, 144),  # Light green for Accusative
+        "g": QColor(255, 255, 153),  # Light yellow for Genitive
+        "d": QColor(255, 200, 150),  # Light orange for Dative
+        "i": QColor(255, 182, 193),  # Light pink for Instrumental
+        None: QColor(255, 255, 255),  # White (no highlight) for unannotated
+    }
+
+    NUMBER_COLORS: ClassVar[dict[str | None, QColor]] = {
+        "s": QColor(173, 216, 230),  # Light blue for Singular
+        "p": QColor(255, 127, 127),  # Light coral for Plural
+        None: QColor(255, 255, 255),  # White (no highlight) for unannotated
+    }
+
     def __init__(
         self,
         sentence: Sentence,
@@ -80,6 +109,8 @@ class SentenceCard(QWidget):
         # Track current highlight position to clear it later
         self._current_highlight_start: int | None = None
         self._current_highlight_length: int | None = None
+        # Track current highlight mode (None, 'pos', 'case', 'number')
+        self._current_highlight_mode: str | None = None
         self._setup_ui()
         self._setup_shortcuts()
 
@@ -130,7 +161,7 @@ class SentenceCard(QWidget):
         if current_row > 1 and self.tokens:
             self.token_table.select_token(current_row - 1)
 
-    def _setup_ui(self):
+    def _setup_ui(self):  # noqa: PLR0915
         """Set up the UI layout."""
         layout = QVBoxLayout(self)
         layout.setSpacing(10)
@@ -151,10 +182,30 @@ class SentenceCard(QWidget):
         header_layout.addWidget(self.delete_button)
         layout.addLayout(header_layout)
 
-        # Old English text line (editable)
+        # Old English text line (editable) with toggle buttons
+        oe_label_layout = QHBoxLayout()
         oe_label = QLabel("Old English:")
         oe_label.setFont(QFont("Arial", 14))
-        layout.addWidget(oe_label)
+        oe_label_layout.addWidget(oe_label)
+        oe_label_layout.addStretch()
+
+        # Toggle buttons for highlighting
+        self.pos_toggle_button = QPushButton("Highlight POS")
+        self.pos_toggle_button.setCheckable(True)
+        self.pos_toggle_button.clicked.connect(self._on_pos_toggle)
+        oe_label_layout.addWidget(self.pos_toggle_button)
+
+        self.case_toggle_button = QPushButton("Highlight Case")
+        self.case_toggle_button.setCheckable(True)
+        self.case_toggle_button.clicked.connect(self._on_case_toggle)
+        oe_label_layout.addWidget(self.case_toggle_button)
+
+        self.number_toggle_button = QPushButton("Highlight Number")
+        self.number_toggle_button.setCheckable(True)
+        self.number_toggle_button.clicked.connect(self._on_number_toggle)
+        oe_label_layout.addWidget(self.number_toggle_button)
+
+        layout.addLayout(oe_label_layout)
 
         self.oe_text_edit = ClickableTextEdit()
         self.oe_text_edit.setText(self.sentence.text_oe)
@@ -202,7 +253,19 @@ class SentenceCard(QWidget):
             tokens: List of tokens
 
         """
+        self.tokens = tokens
+        self.annotations = {
+            cast("int", token.id): token.annotation for token in self.tokens if token.id
+        }
         self.token_table.set_tokens(tokens)
+
+        # Re-apply highlighting if a mode is active
+        if self._current_highlight_mode == "pos":
+            self._apply_pos_highlighting()
+        elif self._current_highlight_mode == "case":
+            self._apply_case_highlighting()
+        elif self._current_highlight_mode == "number":
+            self._apply_number_highlighting()
 
     def _open_annotation_modal(self) -> None:
         """
@@ -298,6 +361,14 @@ class SentenceCard(QWidget):
 
         # Update token table display
         self.token_table.update_annotation(annotation)
+
+        # Re-apply highlighting if a mode is active
+        if self._current_highlight_mode == "pos":
+            self._apply_pos_highlighting()
+        elif self._current_highlight_mode == "case":
+            self._apply_case_highlighting()
+        elif self._current_highlight_mode == "number":
+            self._apply_number_highlighting()
 
     def _on_oe_text_clicked(self, position: QPoint) -> None:
         """
@@ -439,8 +510,15 @@ class SentenceCard(QWidget):
 
     def _on_oe_text_changed(self) -> None:
         """Handle Old English text change."""
-        # Clear highlights when text is edited
+        # Clear temporary selection highlight when text is edited
         self._clear_highlight()
+        # Re-apply highlighting mode if active
+        if self._current_highlight_mode == "pos":
+            self._apply_pos_highlighting()
+        elif self._current_highlight_mode == "case":
+            self._apply_case_highlighting()
+        elif self._current_highlight_mode == "number":
+            self._apply_number_highlighting()
 
         if not self.db or not self.command_manager or not self.sentence.id:
             return
@@ -478,12 +556,218 @@ class SentenceCard(QWidget):
             if self.command_manager.execute(command):
                 self.sentence.text_modern = new_text
 
+    def _on_pos_toggle(self, checked: bool) -> None:  # noqa: FBT001
+        """Handle POS highlighting toggle."""
+        if checked:
+            # Uncheck other buttons
+            self.case_toggle_button.setChecked(False)
+            self.number_toggle_button.setChecked(False)
+            self._current_highlight_mode = "pos"
+            self._apply_pos_highlighting()
+        else:
+            self._current_highlight_mode = None
+            self._clear_all_highlights()
+
+    def _on_case_toggle(self, checked: bool) -> None:  # noqa: FBT001
+        """Handle case highlighting toggle."""
+        if checked:
+            # Uncheck other buttons
+            self.pos_toggle_button.setChecked(False)
+            self.number_toggle_button.setChecked(False)
+            self._current_highlight_mode = "case"
+            self._apply_case_highlighting()
+        else:
+            self._current_highlight_mode = None
+            self._clear_all_highlights()
+
+    def _on_number_toggle(self, checked: bool) -> None:  # noqa: FBT001
+        """Handle number highlighting toggle."""
+        if checked:
+            # Uncheck other buttons
+            self.pos_toggle_button.setChecked(False)
+            self.case_toggle_button.setChecked(False)
+            self._current_highlight_mode = "number"
+            self._apply_number_highlighting()
+        else:
+            self._current_highlight_mode = None
+            self._clear_all_highlights()
+
+    def _apply_pos_highlighting(self) -> None:
+        """Apply colors based on parts of speech."""
+        self._clear_all_highlights()
+        text = self.oe_text_edit.toPlainText()
+        if not text or not self.tokens:
+            return
+
+        extra_selections = []
+        for token in self.tokens:
+            if not token.id:
+                continue
+            annotation = self.annotations.get(cast("int", token.id))
+            if not annotation:
+                continue
+
+            pos = annotation.pos
+            color = self.POS_COLORS.get(pos, self.POS_COLORS[None])
+            if color != self.POS_COLORS[None]:  # Only highlight if not default
+                selection = self._create_token_selection(token, text, color)
+                if selection:
+                    extra_selections.append(selection)
+
+        self.oe_text_edit.setExtraSelections(extra_selections)
+
+    def _apply_case_highlighting(self) -> None:
+        """
+        Apply colors based on case values.
+
+        Highlights articles, nouns, pronouns, adjectives, and prepositions.
+        """
+        self._clear_all_highlights()
+        text = self.oe_text_edit.toPlainText()
+        if not text or not self.tokens:
+            return
+
+        extra_selections = []
+        for token in self.tokens:
+            if not token.id:
+                continue
+            annotation = self.annotations.get(cast("int", token.id))
+            if not annotation:
+                continue
+
+            pos = annotation.pos
+            # Only highlight articles (D), nouns (N), pronouns (R),
+            # adjectives (A), and prepositions (E)
+            if pos not in ["D", "N", "R", "A", "E"]:
+                continue
+
+            # For prepositions, use prep_case; for others, use case
+            case_value = annotation.prep_case if pos == "E" else annotation.case
+            color = self.CASE_COLORS.get(case_value, self.CASE_COLORS[None])
+            # Only highlight if not default
+            if color != self.CASE_COLORS[None]:
+                selection = self._create_token_selection(token, text, color)
+                if selection:
+                    extra_selections.append(selection)
+
+        self.oe_text_edit.setExtraSelections(extra_selections)
+
+    def _apply_number_highlighting(self) -> None:
+        """
+        Apply colors based on number values.
+
+        Highlights articles, nouns, pronouns, and adjectives.
+        """
+        self._clear_all_highlights()
+        text = self.oe_text_edit.toPlainText()
+        if not text or not self.tokens:
+            return
+
+        extra_selections = []
+        for token in self.tokens:
+            if not token.id:
+                continue
+            annotation = self.annotations.get(cast("int", token.id))
+            if not annotation:
+                continue
+
+            pos = annotation.pos
+            # Only highlight articles (D), nouns (N), pronouns (R),
+            # and adjectives (A)
+            if pos not in ["D", "N", "R", "A"]:
+                continue
+
+            number_value = annotation.number
+            color = self.NUMBER_COLORS.get(number_value, self.NUMBER_COLORS[None])
+            # Only highlight if not default
+            if color != self.NUMBER_COLORS[None]:
+                selection = self._create_token_selection(token, text, color)
+                if selection:
+                    extra_selections.append(selection)
+
+        self.oe_text_edit.setExtraSelections(extra_selections)
+
+    def _create_token_selection(
+        self, token: Token, text: str, color: QColor
+    ) -> QTextEdit.ExtraSelection | None:
+        """
+        Create an extra selection for highlighting a token's surface text.
+
+        Args:
+            token: Token to highlight
+            text: The full sentence text
+            color: Color to use for highlighting
+
+        Returns:
+            ExtraSelection object or None if token not found
+
+        """
+        surface = token.surface
+        if not surface:
+            return None
+
+        # Find the occurrence position of this token
+        token_start = self._find_token_occurrence(text, token, surface)
+        if token_start is None:
+            return None
+
+        # Create cursor and highlight the text
+        cursor = QTextCursor(self.oe_text_edit.document())
+        cursor.setPosition(token_start)
+        cursor.movePosition(
+            QTextCursor.MoveOperation.Right,
+            QTextCursor.MoveMode.KeepAnchor,
+            len(surface),
+        )
+
+        # Apply highlight format
+        char_format = QTextCharFormat()
+        char_format.setBackground(color)
+
+        # Create extra selection
+        extra_selection = QTextEdit.ExtraSelection()
+        extra_selection.cursor = cursor  # type: ignore[attr-defined]
+        extra_selection.format = char_format  # type: ignore[attr-defined]
+
+        return extra_selection
+
+    def _clear_all_highlights(self) -> None:
+        """Clear all highlighting from the text."""
+        self.oe_text_edit.setExtraSelections([])
+
     def _clear_highlight(self) -> None:
         """
-        Clear any existing highlight in the oe_text_edit.
+        Clear the temporary selection highlight (yellow) while preserving
+        highlighting mode highlights if active.
         """
-        # Clear extra selections (temporary highlights)
-        self.oe_text_edit.setExtraSelections([])
+        if (
+            self._current_highlight_start is None
+            or self._current_highlight_length is None
+        ):
+            return
+        # Get existing selections and filter out the selection highlight
+        # (we identify it by checking if it matches our stored position)
+        existing_selections = self.oe_text_edit.extraSelections()
+        filtered_selections = []
+
+        print(f"self._current_highlight_start: {self._current_highlight_start}")
+        print(f"self._current_highlight_length: {self._current_highlight_length}")
+
+        for selection in existing_selections:
+            cursor = selection.cursor  # type: ignore[attr-defined]
+            print(f"cursor.position(): {cursor.position()}")
+            # Check if this is the selection highlight (yellow) by position
+            if (
+                cursor.position() >= self._current_highlight_start
+                and cursor.position()
+                <= self._current_highlight_start + self._current_highlight_length
+            ):
+                # This is the selection highlight, skip it
+                continue
+            # Keep highlighting mode selections
+            filtered_selections.append(selection)
+
+        self.oe_text_edit.setExtraSelections(filtered_selections)
         self._current_highlight_start = None
         self._current_highlight_length = None
 
@@ -538,6 +822,9 @@ class SentenceCard(QWidget):
             # Fallback to first occurrence if index is out of range
             highlight_pos = occurrences[0]
 
+        # Get existing extra selections (for highlighting mode)
+        existing_selections = self.oe_text_edit.extraSelections()
+
         # Create cursor and highlight the text using extraSelections
         cursor = QTextCursor(self.oe_text_edit.document())
         cursor.setPosition(highlight_pos)
@@ -547,17 +834,20 @@ class SentenceCard(QWidget):
             len(surface),
         )
 
-        # Apply highlight format
+        # Apply highlight format for selection (yellow, semi-transparent)
         char_format = QTextCharFormat()
-        # Use a yellow background color
-        char_format.setBackground(QColor(200, 200, 0, 100))
+        # Use a yellow background color with transparency
+        char_format.setBackground(QColor(200, 200, 0, 150))
 
         # Use extraSelections for temporary highlighting
-        extra_selection = QTextEdit.ExtraSelection()
-        extra_selection.cursor = cursor  # type: ignore[attr-defined]
-        extra_selection.format = char_format  # type: ignore[attr-defined]
+        selection_highlight = QTextEdit.ExtraSelection()
+        selection_highlight.cursor = cursor  # type: ignore[attr-defined]
+        selection_highlight.format = char_format  # type: ignore[attr-defined]
 
-        self.oe_text_edit.setExtraSelections([extra_selection])
+        # Combine existing selections (from highlighting mode)
+        # with the selection highlight
+        all_selections = [*existing_selections, selection_highlight]
+        self.oe_text_edit.setExtraSelections(all_selections)
 
         # Store position for reference
         self._current_highlight_start = highlight_pos
