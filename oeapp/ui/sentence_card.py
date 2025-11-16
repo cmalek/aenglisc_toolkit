@@ -202,7 +202,7 @@ class SentenceCard(QWidget):
             tokens: List of tokens
 
         """
-        self.token_table.set_tokens(tokens, self.annotations)
+        self.token_table.set_tokens(tokens)
 
     def _open_annotation_modal(self) -> None:
         """

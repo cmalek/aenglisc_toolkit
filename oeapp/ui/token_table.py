@@ -220,9 +220,7 @@ class TokenTable(QWidget):
         if token:
             self.annotation_requested.emit(token)
 
-    def set_tokens(
-        self, tokens: list[Token], annotations: dict[int, Annotation] | None = None
-    ) -> None:
+    def set_tokens(self, tokens: list[Token]) -> None:
         """
         Set tokens and annotations to display.
 
@@ -237,7 +235,7 @@ class TokenTable(QWidget):
         # Set the tokens to display.
         self.tokens = tokens
         # Set the annotations to display.
-        self.annotations = annotations or {}
+        self.annotations = {cast("int", token.id): token.annotation for token in tokens}
         # Set the number of rows to the number of tokens.
         self.table.setRowCount(len(tokens))
         # Loop through the tokens and add them to the table.

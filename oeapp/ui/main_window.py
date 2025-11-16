@@ -159,7 +159,7 @@ class MainWindow(QMainWindow):
         self.content_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         scroll_area.setWidget(content_widget)
         # Status bar for autosave status
-        self.statusBar().showMessage("Ready")
+        self.show_message("Ready")
         # Initial message
         welcome_label = QLabel(
             "Welcome to Old English Annotator\n\nUse File → New Project to get started"
@@ -210,95 +210,73 @@ class MainWindow(QMainWindow):
 
         # Undo/Redo shortcuts
         undo_shortcut = QShortcut(QKeySequence("Ctrl+Z"), self)
-        undo_shortcut.activated.connect(self._undo)
+        undo_shortcut.activated.connect(self.action_service.undo)
         redo_shortcut = QShortcut(QKeySequence("Ctrl+R"), self)
-        redo_shortcut.activated.connect(self._redo)
+        redo_shortcut.activated.connect(self.action_service.redo)
         redo_shortcut_alt = QShortcut(QKeySequence("Ctrl+Shift+R"), self)
-        redo_shortcut_alt.activated.connect(self._redo)
+        redo_shortcut_alt.activated.connect(self.action_service.redo)
 
-    def _undo(self) -> None:
+    def show_message(self, message: str, duration: int = 2000) -> None:
         """
-        Undo last action.
-
-        - If there is no command manager or the command manager cannot undo, do nothing.
-        - If the command manager can undo, undo the last action.
-        - If the undo fails, show a message in the status bar.
-        """
-        if self.command_manager and self.command_manager.can_undo():
-            if self.command_manager.undo():
-                self.statusBar().showMessage("Undone", 2000)
-                self._refresh_all_cards()
-            else:
-                self.statusBar().showMessage("Undo failed", 2000)
-
-    def _redo(self) -> None:
-        """
-        Redo last undone action.
-
-        - If there is no command manager or the command manager cannot redo, do nothing.
-        - If the command manager can redo, redo the last action.
-        - If the redo fails, show a message in the status bar.
-        """
-        if self.command_manager and self.command_manager.can_redo():
-            if self.command_manager.redo():
-                self.statusBar().showMessage("Redone", 2000)
-                self._refresh_all_cards()
-            else:
-                self.statusBar().showMessage("Redo failed", 2000)
-
-    def _refresh_all_cards(self) -> None:
-        """
-        Refresh all sentence cards from database.
-
-        - If there is no database or the current project ID is not set, do nothing.
-        - Reload annotations for all sentence cards.
-        """
-        if not self.db or not self.current_project_id:
-            return
-        # Reload annotations for all cards
-        for card in self.sentence_cards:
-            if card.sentence.id:
-                self._load_card_annotations(card)
-
-    def _load_card_annotations(self, card: SentenceCard) -> None:
-        """
-        Load annotations for a sentence card from database.
-
-        - If there is no database or the sentence card has no ID, do nothing.
-        - Load annotations for all tokens in the sentence card.
+        Show a message in the status bar.
 
         Args:
-            card: Sentence card to load annotations for
+            message: Message to show
+
+        Keyword Args:
+            duration: Duration of the message in milliseconds (default: 2000)
 
         """
-        cursor = self.db.cursor
-        annotations = {}
-        for token in card.tokens:
-            cursor.execute("SELECT * FROM annotations WHERE token_id = ?", (token.id,))
-            row = cursor.fetchone()
-            if row:
-                ann = Annotation(
-                    db=self.db,
-                    token_id=cast("int", token.id),
-                    pos=row["pos"],
-                    gender=row["gender"],
-                    number=row["number"],
-                    case=row["case"],
-                    declension=row["declension"],
-                    pronoun_type=row["pronoun_type"],
-                    verb_class=row["verb_class"],
-                    verb_tense=row["verb_tense"],
-                    verb_person=row["verb_person"],
-                    verb_mood=row["verb_mood"],
-                    verb_aspect=row["verb_aspect"],
-                    verb_form=row["verb_form"],
-                    prep_case=row["prep_case"],
-                    uncertain=bool(row["uncertain"]),
-                    alternatives_json=row["alternatives_json"],
-                    confidence=row["confidence"],
-                )
-                annotations[token.id] = ann
-        card.set_tokens(card.tokens)
+        self.statusBar().showMessage(message, duration)
+
+    def show_warning(self, message: str, title: str = "Warning") -> None:
+        """
+        Show a warning message.
+
+        Args:
+            message: Message to show
+
+        Keyword Args:
+            title: Title of the message (default: "Warning")
+
+        """
+        QMessageBox.warning(self, title, message)
+
+    def show_error(self, message: str, title: str = "Error") -> None:
+        """
+        Show an error message.
+
+        Args:
+            message: Message to show
+
+        Keyword Args:
+            title: Title of the message (default: "Error")
+
+        """
+        QMessageBox.warning(self, title, message)
+
+    def show_information(self, message: str, title: str = "Information") -> None:
+        """
+        Show an information message.
+
+        Args:
+            message: Message to show
+
+        Keyword Args:
+            title: Title of the message (default: "Information")
+
+        """
+        QMessageBox.information(self, title, message)
+
+    def ensure_visible(self, widget: QWidget) -> None:
+        """
+        Ensure a widget is visible.
+
+        Args:
+            widget: Widget to ensure visible
+
+        """
+        self.scroll_area.ensureWidgetVisible(widget)
 
     def new_project(self) -> None:
         """
@@ -337,13 +315,9 @@ class MainWindow(QMainWindow):
                 try:
                     self._create_project_from_text(text, title)
                 except AlreadyExists:
-                    QMessageBox.warning(
-                        self,
-                        "Error",
-                        (
-                            f'Project with title "{title!s}" already exists. Please '
-                            "choose a different title or delete the existing project."
-                        ),
+                    self.show_error(
+                        f'Project with title "{title!s}" already exists. Please '
+                        "choose a different title or delete the existing project."
                     )
 
     def _configure_project(self, project: Project) -> None:
@@ -357,7 +331,7 @@ class MainWindow(QMainWindow):
         self.current_project_id = project.id
 
         # Initialize autosave and command manager
-        self.autosave_service = AutosaveService(self._perform_autosave)
+        self.autosave_service = AutosaveService(self.action_service.autosave)
         self.command_manager = CommandManager(self.db)
         self.filter_service = FilterService(self.db)
 
@@ -393,14 +367,14 @@ class MainWindow(QMainWindow):
         project = Project.create(self.db, text, title)
         self._configure_project(project)
         self.setWindowTitle(f"Old English Annotator - {project.name}")
-        self.statusBar().showMessage("Project created", 2000)
+        self.show_message("Project created")
 
     def _on_translation_changed(self) -> None:
         """
         Handle translation text change by autosaving.
         """
         if self.autosave_service:
-            self.statusBar().showMessage("Saving...", 500)
+            self.show_message("Saving...", duration=500)
             self.autosave_service.trigger()
 
     def _on_sentence_text_changed(self):
@@ -408,18 +382,8 @@ class MainWindow(QMainWindow):
         Handle sentence text change by autosaving.
         """
         if self.autosave_service:
-            self.statusBar().showMessage("Saving...", 500)
+            self.show_message("Saving...", duration=500)
             self.autosave_service.trigger()
-
-    def _perform_autosave(self) -> None:
-        """
-        Perform autosave operation.
-        """
-        assert self.db is not None, "Database not initialized"  # noqa: S101
-        assert self.current_project_id is not None, "Current project ID not set"  # noqa: S101
-        project = Project.get(self.db, self.current_project_id)
-        project.save()
-        self.statusBar().showMessage("Saved", 2000)
 
     def open_project(self) -> None:
         """
@@ -432,10 +396,9 @@ class MainWindow(QMainWindow):
         # Get all projects from the database
         projects = Project.list(self.db)
         if not projects:
-            QMessageBox.information(
-                self,
-                "No Projects",
+            self.show_information(
                 "No projects found. Create a new project first.",
+                title="No Projects",
             )
             return
 
@@ -474,27 +437,27 @@ class MainWindow(QMainWindow):
                 self._configure_project(project)
                 # Set the window title to the project name.
                 self.setWindowTitle(f"Old English Annotator - {project.name}")
-                self.statusBar().showMessage("Project opened", 2000)
+                self.show_message("Project opened")
 
     def save_project(self) -> None:
         """
         Save current project.
         """
         if not self.db or not self.current_project_id:
-            QMessageBox.warning(self, "Warning", "No project open")
+            self.show_warning("No project open")
             return
         if self.autosave_service:
             self.autosave_service.save_now()
-            self.statusBar().showMessage("Project saved", 2000)
+            self.show_message("Project saved")
         else:
-            QMessageBox.information(self, "Info", "Project saved (autosave enabled)")
+            self.show_information("Project saved (autosave enabled)", title="Info")
 
     def export_project(self) -> None:
         """
         Export project to DOCX.
         """
         if not self.db or not self.current_project_id:
-            QMessageBox.warning(self, "Warning", "No project open")
+            self.show_warning("No project open")
             return
 
         # Get file path from user
@@ -513,23 +476,20 @@ class MainWindow(QMainWindow):
         try:
             exporter = DOCXExporter(self.db)
             if exporter.export(self.current_project_id, Path(file_path)):
-                QMessageBox.information(
-                    self,
-                    "Export Successful",
+                self.show_information(
                     f"Project exported successfully to:\n{file_path}",
+                    title="Export Successful",
                 )
-                self.statusBar().showMessage("Export completed", 3000)
+                self.show_message("Export completed", duration=3000)
             else:
-                QMessageBox.warning(
-                    self,
-                    "Export Failed",
+                self.show_warning(
                     "Failed to export project. Check console for details.",
+                    title="Export Failed",
                 )
         except Exception as e:
-            QMessageBox.critical(
-                self, "Export Error", f"An error occurred during export:\n{e!s}"
+            self.show_error(
+                f"An error occurred during export:\n{e!s}", title="Export Error"
             )
-            print(f"Export error: {e}")
 
     def show_help(self, topic: str | None = None) -> None:
         """
@@ -547,8 +507,8 @@ class MainWindow(QMainWindow):
         Show filter dialog.
         """
         if not self.db or not self.current_project_id:
-            QMessageBox.warning(
-                self, "No Project", "Please create or open a project first."
+            self.show_warning(
+                "Please create or open a project first.", title="No Project"
             )
             return
 
@@ -557,41 +517,8 @@ class MainWindow(QMainWindow):
             self.current_project_id,
             parent=self,
         )
-        dialog.token_selected.connect(self._navigate_to_token)
+        dialog.token_selected.connect(self.action_service.navigate_to_token)
         dialog.exec()
-
-    def _navigate_to_token(self, token_id: int) -> None:
-        """
-        Navigate to a specific token.
-
-        - If there is no database or the current project ID is not set, do nothing.
-        - If there is no token with the given ID, do nothing.
-        - If there is a token with the given ID, navigate to the token.
-
-        Args:
-            token_id: Token ID to navigate to
-
-        """
-        token = Token.get(self.db, token_id)
-        sentence_id = token.sentence.id
-
-        # Find the sentence card
-        for card in self.sentence_cards:
-            if card.sentence.id == sentence_id:
-                # Scroll to the card
-                self.scroll_area.ensureWidgetVisible(card)
-                # Select the token by finding it in the tokens list
-                token_idx = None
-                for idx, token in enumerate(card.tokens):
-                    if token.id == token_id:
-                        token_idx = idx
-                        break
-                if token_idx is not None:
-                    card.token_table.table.setFocus()
-                    card.token_table.select_token(token_idx)
-                    # Open annotation modal
-                    card._open_annotation_modal()
-                break
 
 
 class MainWindowActions:
@@ -678,3 +605,137 @@ class MainWindowActions:
             if card.has_focus:
                 card.focus_translation()
                 break
+
+    def undo(self) -> None:
+        """
+        Undo last action.
+
+        - If there is no command manager or the command manager cannot undo, do nothing.
+        - If the command manager can undo, undo the last action.
+        - If the undo fails, show a message in the status bar.
+        """
+        if self.command_manager and self.command_manager.can_undo():
+            if self.command_manager.undo():
+                self.main_window.show_message("Undone")
+                self.refresh_all_cards()
+            else:
+                self.main_window.show_message("Undo failed")
+
+    def redo(self) -> None:
+        """
+        Redo last undone action.
+
+        - If there is no command manager or the command manager cannot redo, do nothing.
+        - If the command manager can redo, redo the last action.
+        - If the redo fails, show a message in the status bar.
+        """
+        if self.command_manager and self.command_manager.can_redo():
+            if self.command_manager.redo():
+                self.main_window.show_message("Redone")
+                self.refresh_all_cards()
+            else:
+                self.main_window.show_message("Redo failed")
+
+    def refresh_all_cards(self) -> None:
+        """
+        Refresh all sentence cards from database.
+
+        - If there is no database or the current project ID is not set, do nothing.
+        - Reload annotations for all sentence cards.
+        """
+        if not self.db or not self.current_project_id:
+            return
+        # Reload annotations for all cards
+        for card in self.sentence_cards:
+            if card.sentence.id:
+                card.set_tokens(card.sentence.tokens)
+
+    def autosave(self) -> None:
+        """
+        Do an autosave operation.
+
+        - If there is no database or the current project ID is not set, do nothing.
+        - Save the current project.
+        - Show a message in the status bar that the project has been saved.
+
+        """
+        assert self.db is not None, "Database not initialized"  # noqa: S101
+        assert self.current_project_id is not None, "Current project ID not set"  # noqa: S101
+        project = Project.get(self.db, self.current_project_id)
+        project.save()
+        self.main_window.show_message("Saved")
+
+    def navigate_to_token(self, token_id: int) -> None:
+        """
+        Navigate to a specific token.
+
+        - If there is no database or the current project ID is not set, do nothing.
+        - If there is no token with the given ID, do nothing.
+        - If there is a token with the given ID, navigate to the token.
+
+        Args:
+            token_id: Token ID to navigate to
+
+        """
+        token = Token.get(self.db, token_id)
+        sentence_id = token.sentence.id
+
+        # Find the sentence card
+        for card in self.sentence_cards:
+            if card.sentence.id == sentence_id:
+                # Scroll to the card
+                self.main_window.ensure_visible(card)
+                # Select the token by finding it in the tokens list
+                token_idx = None
+                for idx, token in enumerate(card.tokens):
+                    if token.id == token_id:
+                        token_idx = idx
+                        break
+                if token_idx is not None:
+                    card.token_table.focus()
+                    card.token_table.select_token(token_idx)
+                    # Open annotation modal
+                    card._open_annotation_modal()
+                break
+
+    def export_project(self) -> None:
+        """
+        Export project to DOCX.
+        """
+        if not self.db or not self.current_project_id:
+            self.main_window.show_warning("No project open")
+            return
+
+        # Get file path from user
+        file_path, _ = QFileDialog.getSaveFileName(
+            self.main_window,
+            "Export Project",
+            "",
+            "Word Documents (*.docx);;All Files (*)",
+        )
+
+        # If the user cancels the dialog, do nothing.
+        if not file_path:
+            return
+
+        # Ensure .docx extension
+        if not file_path.endswith(".docx"):
+            file_path += ".docx"
+
+        try:
+            exporter = DOCXExporter(self.db)
+            if exporter.export(self.current_project_id, Path(file_path)):
+                self.main_window.show_information(
+                    f"Project exported successfully to:\n{file_path}",
+                    title="Export Successful",
+                )
+                self.main_window.show_message("Export completed", duration=3000)
+            else:
+                self.main_window.show_warning(
+                    "Failed to export project. Check console for details.",
+                    title="Export Failed",
+                )
+        except Exception as e:
+            self.main_window.show_error(
+                f"An error occurred during export:\n{e!s}", title="Export Error"
+            )

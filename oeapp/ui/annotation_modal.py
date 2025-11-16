@@ -1,6 +1,6 @@
 """Annotation modal dialog."""
 
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, ClassVar, Final, cast
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QKeySequence, QShortcut
@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
 from oeapp.models.annotation import Annotation
 
 if TYPE_CHECKING:
@@ -26,6 +27,158 @@ if TYPE_CHECKING:
 
 class AnnotationModal(QDialog):
     """Modal dialog for annotating tokens with prompt-based entry."""
+
+    #: A lookup map for part of speech codes to their long form.
+    PART_OF_SPEECH_MAP: Final[dict[str, str | None]] = {
+        "": None,
+        "N": "Noun (N)",
+        "V": "Verb (V)",
+        "A": "Adjective (A)",
+        "R": "Pronoun (R)",
+        "D": "Determiner/Article (D)",
+        "B": "Adverb (B)",
+        "C": "Conjunction (C)",
+        "E": "Preposition (E)",
+        "I": "Interjection (I)",
+    }
+    #: A Reverse lookup map for part of speech long form to code.
+    PART_OF_SPEECH_REVERSE_MAP: Final[dict[str, str]] = {
+        v: k for k, v in PART_OF_SPEECH_MAP.items() if v is not None
+    }
+
+    #: A lookup map for article type codes to their long form.
+    ARTICLE_TYPE_MAP: Final[dict[str | None, str]] = {
+        None: "",
+        "d": "Definite (d)",
+        "i": "Indefinite (i)",
+        "p": "Possessive (p)",
+        "D": "Demonstrative (D)",
+    }
+
+    #: A lookup map for gender codes to their long form.
+    GENDER_MAP: Final[dict[str | None, str]] = {
+        None: "",
+        "m": "Masculine (m)",
+        "f": "Feminine (f)",
+        "n": "Neuter (n)",
+    }
+
+    #: A lookup map for number codes to their long form.
+    NUMBER_MAP: Final[dict[str | None, str]] = {
+        None: "",
+        "s": "Singular (s)",
+        "p": "Plural (p)",
+    }
+
+    #: A lookup map for case codes to their long form.
+    CASE_MAP: Final[dict[str | None, str]] = {
+        None: "",
+        "Nominative (n)": "n",
+        "a": "Accusative (a)",
+        "g": "Genitive (g)",
+        "d": "Dative (d)",
+        "i": "Instrumental (i)",
+    }
+
+    #: A lookup map for declension codes to their long form.
+    DECLENSION_MAP: Final[dict[str | None, str]] = {
+        None: "",
+        "s": "Strong (s)",
+        "w": "Weak (w)",
+        "o": "Other (o)",
+        "i": "i-stem (i)",
+        "u": "u-stem (u)",
+        "ja": "ja-stem (ja)",
+        "jo": "jo-stem (jo)",
+        "wa": "wa-stem (wo)",
+        "wo": "wo-stem (wo)",
+    }
+
+    #: A lookup map for verb class codes to their long form.
+    VERB_CLASS_MAP: Final[dict[str | None, str]] = {
+        None: "",
+        "w1": "Weak Class I (w1)",
+        "w2": "Weak Class II (w2)",
+        "w3": "Weak Class III (w3)",
+        "s1": "Strong Class 1 (s1)",
+        "s2": "Strong Class 2 (s2)",
+        "s3": "Strong Class 3 (s3)",
+        "s4": "Strong Class 4 (s4)",
+        "s5": "Strong Class 5 (s5)",
+        "s6": "Strong Class 6 (s6)",
+        "s7": "Strong Class 7 (s7)",
+    }
+
+    #: A lookup map for verb tense codes to their long form.
+    VERB_TENSE_MAP: Final[dict[str | None, str]] = {
+        None: "",
+        "Past (p)": "p",
+        "Present (n)": "n",
+    }
+
+    #: A lookup map for verb mood codes to their long form.
+    VERB_MOOD_MAP: Final[dict[str | None, str]] = {
+        None: "",
+        "i": "Indicative (i)",
+        "s": "Subjunctive (s)",
+        "imp": "Imperative (imp)",
+    }
+
+    #: A lookup map for verb person codes to their long form.
+    VERB_PERSON_MAP: Final[dict[int | None, str]] = {
+        None: "",
+        1: "1st",
+        2: "2nd",
+        3: "3rd",
+    }
+
+    #: A lookup map for verb aspect codes to their long form.
+    VERB_ASPECT_MAP: Final[dict[str | None, str]] = {
+        None: "",
+        "p": "Perfect (p)",
+        "prg": "Progressive (prg)",
+        "gn": "Gnomic (gn)",
+    }
+
+    #: A lookup map for verb form codes to their long form.
+    VERB_FORM_MAP: Final[dict[str | None, str]] = {
+        None: "",
+        "f": "Finite (f)",
+        "i": "Infinitive (i)",
+        "p": "Participle (p)",
+    }
+
+    #: A lookup map for pronoun type codes to their long form.
+    PRONOUN_TYPE_MAP: Final[dict[str | None, str]] = {
+        None: "",
+        "p": "Personal (p)",
+        "r": "Relative (r)",
+        "d": "Demonstrative (d)",
+        "i": "Interrogative (i)",
+    }
+
+    #: A lookup map for adjective degree codes to their long form.
+    ADJECTIVE_DEGREE_MAP: Final[dict[str | None, str]] = {
+        None: "",
+        "p": "Positive (p)",
+        "c": "Comparative (c)",
+        "s": "Superlative (s)",
+    }
+
+    #: A lookup map for adjective inflection codes to their long form.
+    ADJECTIVE_INFLECTION_MAP: Final[dict[str | None, str]] = {
+        None: "",
+        "s": "Strong (s)",
+        "w": "Weak (w)",
+    }
+
+    #: A lookup map for preposition case codes to their long form.
+    PREPOSITION_CASE_MAP: Final[dict[str, str | None]] = {
+        "": None,
+        "a": "Accusative (a)",
+        "d": "Dative (d)",
+        "g": "Genitive (g)",
+    }
 
     annotation_applied = Signal(Annotation)
 
@@ -51,13 +204,15 @@ class AnnotationModal(QDialog):
         """
         super().__init__(parent)
         self.token = token
-        self.annotation = annotation or Annotation(token_id=token.id)
+        self.annotation = annotation or Annotation(
+            db=token.db, token_id=cast("int", token.id)
+        )
         self.fields_widget: QWidget | None = None
         self._setup_ui()
         self._setup_keyboard_shortcuts()
         self._load_existing_annotation()
 
-    def _setup_ui(self):
+    def _setup_ui(self):  # noqa: PLR0915
         """
         Set up the UI layout.
 
@@ -83,20 +238,7 @@ class AnnotationModal(QDialog):
         pos_group = QGroupBox("Part of Speech")
         pos_layout = QVBoxLayout()
         self.pos_combo = QComboBox()
-        self.pos_combo.addItems(
-            [
-                "",
-                "Noun (N)",
-                "Verb (V)",
-                "Adjective (A)",
-                "Pronoun (R)",
-                "Determiner/Article (D)",
-                "Adverb (B)",
-                "Conjunction (C)",
-                "Preposition (E)",
-                "Interjection (I)",
-            ]
-        )
+        self.pos_combo.addItems(cast("list[str]", self.PART_OF_SPEECH_MAP.values()))
         self.pos_combo.currentIndexChanged.connect(self._on_pos_changed)
         pos_layout.addWidget(self.pos_combo)
         pos_group.setLayout(pos_layout)
@@ -228,22 +370,12 @@ class AnnotationModal(QDialog):
             pos_key: POS key (N, V, A, R, D, B, C, E, I)
 
         """
-        pos_map = {
-            "N": "Noun (N)",
-            "V": "Verb (V)",
-            "A": "Adjective (A)",
-            "R": "Pronoun (R)",
-            "D": "Determiner/Article (D)",
-            "B": "Adverb (B)",
-            "C": "Conjunction (C)",
-            "E": "Preposition (E)",
-            "I": "Interjection (I)",
-        }
-        pos_text = pos_map.get(pos_key)
+        pos_text = self.PART_OF_SPEECH_MAP.get(pos_key)
         if pos_text:
             index = self.pos_combo.findText(pos_text)
             if index >= 0:
                 self.pos_combo.setCurrentIndex(index)
+                self._on_pos_changed()
 
     def _on_pos_changed(self) -> None:
         """
@@ -253,19 +385,7 @@ class AnnotationModal(QDialog):
         while self.fields_layout.rowCount() > 0:
             self.fields_layout.removeRow(0)
 
-        pos_map = {
-            "": None,
-            "Noun (N)": "N",
-            "Verb (V)": "V",
-            "Adjective (A)": "A",
-            "Pronoun (R)": "R",
-            "Determiner/Article (D)": "D",
-            "Adverb (B)": "B",
-            "Conjunction (C)": "C",
-            "Preposition (E)": "E",
-            "Interjection (I)": "I",
-        }
-        pos = pos_map[self.pos_combo.currentText()]
+        pos = self.PART_OF_SPEECH_REVERSE_MAP.get(self.pos_combo.currentText())
 
         if pos == "N":  # Noun
             self._add_noun_fields()
@@ -273,6 +393,9 @@ class AnnotationModal(QDialog):
         elif pos == "V":  # Verb
             self._add_verb_fields()
             self._restore_last_values("V")
+        elif pos == "D":  # Determiner/Article
+            self._add_article_fields()
+            self._restore_last_values("D")
         elif pos == "A":  # Adjective
             self._add_adjective_fields()
             self._restore_last_values("A")
@@ -299,7 +422,7 @@ class AnnotationModal(QDialog):
         if pos not in self._last_values:
             return
 
-        last_vals = self._last_values[pos]
+        last_vals = self._last_values[cast("str", pos)]
 
         # Restore values based on POS
         if pos == "N" and hasattr(self, "gender_combo"):
@@ -359,185 +482,135 @@ class AnnotationModal(QDialog):
             self._last_values[pos]["verb_form"] = self.verb_form_combo.currentIndex()
         # Add similar for other POS types...
 
+    def _add_article_fields(self) -> None:
+        """Add fields for article annotation."""
+        self.article_type_combo = QComboBox()
+        self.article_type_combo.addItems(
+            cast("list[str]", self.ARTICLE_TYPE_MAP.values())
+        )
+        self.fields_layout.addRow("Type:", self.article_type_combo)
+
+        self.article_gender_combo = QComboBox()
+        self.article_gender_combo.addItems(cast("list[str]", self.GENDER_MAP.values()))
+        self.fields_layout.addRow("Gender:", self.article_gender_combo)
+
+        self.article_number_combo = QComboBox()
+        self.article_number_combo.addItems(cast("list[str]", self.NUMBER_MAP.values()))
+        self.fields_layout.addRow("Number:", self.article_number_combo)
+
+        self.article_case_combo = QComboBox()
+        self.article_case_combo.addItems(cast("list[str]", self.CASE_MAP.values()))
+        self.fields_layout.addRow("Case:", self.article_case_combo)
+
     def _add_noun_fields(self) -> None:
         """Add fields for noun annotation."""
         self.gender_combo = QComboBox()
-        self.gender_combo.addItems(["", "Masculine (m)", "Feminine (f)", "Neuter (n)"])
+        self.gender_combo.addItems(cast("list[str]", self.GENDER_MAP.values()))
         self.fields_layout.addRow("Gender:", self.gender_combo)
 
         self.number_combo = QComboBox()
-        self.number_combo.addItems(["", "Singular (s)", "Plural (p)"])
+        self.number_combo.addItems(cast("list[str]", self.NUMBER_MAP.values()))
         self.fields_layout.addRow("Number:", self.number_combo)
 
         self.case_combo = QComboBox()
-        self.case_combo.addItems(
-            [
-                "",
-                "Nominative (n)",
-                "Accusative (a)",
-                "Genitive (g)",
-                "Dative (d)",
-                "Instrumental (i)",
-            ]
-        )
+        self.case_combo.addItems(cast("list[str]", self.CASE_MAP.values()))
         self.fields_layout.addRow("Case:", self.case_combo)
 
         self.declension_combo = QComboBox()
         self.declension_combo.setEditable(True)
-        self.declension_combo.addItems(
-            [
-                "",
-                "strong",
-                "weak",
-                "o-stem",
-                "i-stem",
-                "u-stem",
-                "ja-stem",
-                "jo-stem",
-                "wa-stem",
-                "wo-stem",
-            ]
-        )
+        self.declension_combo.addItems(cast("list[str]", self.DECLENSION_MAP.values()))
         self.fields_layout.addRow("Declension:", self.declension_combo)
 
     def _add_verb_fields(self) -> None:
         """Add fields for verb annotation."""
         self.verb_class_combo = QComboBox()
         self.verb_class_combo.setEditable(True)
-        self.verb_class_combo.addItems(
-            [
-                "",
-                "Weak I (w1)",
-                "Weak II (w2)",
-                "Weak III (w3)",
-                "Strong I (s1)",
-                "Strong II (s2)",
-                "Strong III (s3)",
-                "Strong IV (s4)",
-                "Strong V (s5)",
-                "Strong VI (s6)",
-                "Strong VII (s7)",
-            ]
-        )
+        self.verb_class_combo.addItems(cast("list[str]", self.VERB_CLASS_MAP.values()))
         self.fields_layout.addRow("Class:", self.verb_class_combo)
 
         self.verb_tense_combo = QComboBox()
-        self.verb_tense_combo.addItems(["", "Past (p)", "Present (n)"])
+        self.verb_tense_combo.addItems(cast("list[str]", self.VERB_TENSE_MAP.values()))
         self.fields_layout.addRow("Tense:", self.verb_tense_combo)
 
         self.verb_mood_combo = QComboBox()
-        self.verb_mood_combo.addItems(
-            ["", "Indicative (i)", "Subjunctive (s)", "Imperative (imp)"]
-        )
+        self.verb_mood_combo.addItems(cast("list[str]", self.VERB_MOOD_MAP.values()))
         self.fields_layout.addRow("Mood:", self.verb_mood_combo)
 
         self.verb_person_combo = QComboBox()
-        self.verb_person_combo.addItems(["", "1st", "2nd", "3rd"])
+        self.verb_person_combo.addItems(
+            cast("list[str]", self.VERB_PERSON_MAP.values())
+        )
         self.fields_layout.addRow("Person:", self.verb_person_combo)
 
         self.verb_number_combo = QComboBox()
-        self.verb_number_combo.addItems(["", "Singular (s)", "Plural (p)"])
+        self.verb_number_combo.addItems(cast("list[str]", self.NUMBER_MAP.values()))
         self.fields_layout.addRow("Number:", self.verb_number_combo)
 
         self.verb_aspect_combo = QComboBox()
         self.verb_aspect_combo.addItems(
-            ["", "Perfect (p)", "Progressive (prg)", "Gnomic (gn)"]
+            cast("list[str]", self.VERB_ASPECT_MAP.values())
         )
         self.fields_layout.addRow("Aspect:", self.verb_aspect_combo)
 
         self.verb_form_combo = QComboBox()
-        self.verb_form_combo.addItems(
-            ["", "Finite (f)", "Infinitive (i)", "Participle (p)"]
-        )
+        self.verb_form_combo.addItems(cast("list[str]", self.VERB_FORM_MAP.values()))
         self.fields_layout.addRow("Form:", self.verb_form_combo)
 
     def _add_adjective_fields(self) -> None:
         """Add fields for adjective annotation."""
         self.adj_degree_combo = QComboBox()
         self.adj_degree_combo.addItems(
-            ["", "Positive (p)", "Comparative (c)", "Superlative (s)"]
+            cast("list[str]", self.ADJECTIVE_DEGREE_MAP.values())
         )
         self.fields_layout.addRow("Degree:", self.adj_degree_combo)
 
         self.adj_inflection_combo = QComboBox()
-        self.adj_inflection_combo.addItems(["", "Strong (s)", "Weak (w)"])
+        self.adj_inflection_combo.addItems(
+            cast("list[str]", self.ADJECTIVE_INFLECTION_MAP.values())
+        )
         self.fields_layout.addRow("Inflection:", self.adj_inflection_combo)
 
         self.adj_gender_combo = QComboBox()
-        self.adj_gender_combo.addItems(
-            ["", "Masculine (m)", "Feminine (f)", "Neuter (n)"]
-        )
+        self.adj_gender_combo.addItems(cast("list[str]", self.GENDER_MAP.values()))
         self.fields_layout.addRow("Gender:", self.adj_gender_combo)
 
         self.adj_number_combo = QComboBox()
-        self.adj_number_combo.addItems(["", "Singular (s)", "Plural (p)"])
+        self.adj_number_combo.addItems(cast("list[str]", self.NUMBER_MAP.values()))
         self.fields_layout.addRow("Number:", self.adj_number_combo)
 
         self.adj_case_combo = QComboBox()
-        self.adj_case_combo.addItems(
-            [
-                "",
-                "Nominative (n)",
-                "Accusative (a)",
-                "Genitive (g)",
-                "Dative (d)",
-                "Instrumental (i)",
-            ]
-        )
+        self.adj_case_combo.addItems(cast("list[str]", self.CASE_MAP.values()))
         self.fields_layout.addRow("Case:", self.adj_case_combo)
 
     def _add_pronoun_fields(self) -> None:
         """Add fields for pronoun annotation."""
         self.pro_type_combo = QComboBox()
-        self.pro_type_combo.addItems(
-            [
-                "",
-                "Personal (p)",
-                "Relative (r)",
-                "Demonstrative (d)",
-                "Interrogative (i)",
-            ]
-        )
+        self.pro_type_combo.addItems(cast("list[str]", self.PRONOUN_TYPE_MAP.values()))
         self.fields_layout.addRow("Type:", self.pro_type_combo)
 
         self.pro_gender_combo = QComboBox()
-        self.pro_gender_combo.addItems(
-            ["", "Masculine (m)", "Feminine (f)", "Neuter (n)"]
-        )
+        self.pro_gender_combo.addItems(cast("list[str]", self.GENDER_MAP.values()))
         self.fields_layout.addRow("Gender:", self.pro_gender_combo)
 
         self.pro_number_combo = QComboBox()
-        self.pro_number_combo.addItems(["", "Singular (s)", "Plural (p)"])
+        self.pro_number_combo.addItems(cast("list[str]", self.NUMBER_MAP.values()))
         self.fields_layout.addRow("Number:", self.pro_number_combo)
 
         self.pro_case_combo = QComboBox()
-        self.pro_case_combo.addItems(
-            [
-                "",
-                "Nominative (n)",
-                "Accusative (a)",
-                "Genitive (g)",
-                "Dative (d)",
-                "Instrumental (i)",
-            ]
-        )
+        self.pro_case_combo.addItems(cast("list[str]", self.CASE_MAP.values()))
         self.fields_layout.addRow("Case:", self.pro_case_combo)
 
     def _add_preposition_fields(self) -> None:
         """Add fields for preposition annotation."""
         self.prep_case_combo = QComboBox()
         self.prep_case_combo.addItems(
-            ["", "Accusative (a)", "Dative (d)", "Genitive (g)"]
+            cast("list[str]", self.PREPOSITION_CASE_MAP.values())
         )
         self.fields_layout.addRow("Governed Case:", self.prep_case_combo)
 
     def _add_adverb_fields(self) -> None:
         """Add fields for adverb annotation."""
-        self.adv_degree_combo = QComboBox()
-        self.adv_degree_combo.addItems(
-            ["", "Positive (p)", "Comparative (c)", "Superlative (s)"]
-        )
-        self.fields_layout.addRow("Degree:", self.adv_degree_combo)
+        # Adverbs don't have many fields in the current model
 
     def _load_existing_annotation(self) -> None:
         """Load existing annotation values into the form."""
@@ -560,7 +633,7 @@ class AnnotationModal(QDialog):
         self.pos_combo.setCurrentIndex(pos_map.get(self.annotation.pos, 0))
 
         # Trigger field creation
-        self._on_pos_changed(self.pos_combo.currentIndex())
+        self._on_pos_changed()
 
         # Load values based on POS
         if self.annotation.pos == "N":
@@ -569,6 +642,8 @@ class AnnotationModal(QDialog):
             self._load_verb_values()
         elif self.annotation.pos == "A":
             self._load_adjective_values()
+        elif self.annotation.pos == "D":
+            self._load_article_values()
         elif self.annotation.pos == "R":
             self._load_pronoun_values()
         elif self.annotation.pos == "E":
@@ -582,6 +657,29 @@ class AnnotationModal(QDialog):
             self.alternatives_edit.setText(self.annotation.alternatives_json)
         if self.annotation.confidence is not None:
             self.confidence_slider.setValue(self.annotation.confidence)
+
+    def _load_article_values(self) -> None:
+        """Load article annotation values."""
+        type_map = {"d": 1, "i": 2, "p": 3, "D": 4}
+        if self.annotation.article_type:
+            self.article_type_combo.setCurrentIndex(
+                type_map.get(self.annotation.article_type, 0)
+            )
+        gender_map = {"m": 1, "f": 2, "n": 3}
+        if self.annotation.gender:
+            self.article_gender_combo.setCurrentIndex(
+                gender_map.get(self.annotation.gender, 0)
+            )
+        number_map = {"s": 1, "p": 2}
+        if self.annotation.number:
+            self.article_number_combo.setCurrentIndex(
+                number_map.get(self.annotation.number, 0)
+            )
+        case_map = {"n": 1, "a": 2, "g": 3, "d": 4, "i": 5}
+        if self.annotation.case:
+            self.article_case_combo.setCurrentIndex(
+                case_map.get(self.annotation.case, 0)
+            )
 
     def _load_noun_values(self) -> None:
         """Load noun annotation values."""
@@ -700,19 +798,6 @@ class AnnotationModal(QDialog):
             self.status_label.setText("POS: Not set")
             return
 
-        pos_map = {
-            "Noun (N)": "N",
-            "Verb (V)": "V",
-            "Adjective (A)": "A",
-            "Pronoun (R)": "R",
-            "Determiner/Article (D)": "D",
-            "Adverb (B)": "B",
-            "Conjunction (C)": "C",
-            "Preposition (E)": "E",
-            "Interjection (I)": "I",
-        }
-        pos = pos_map[pos_text]
-
         summary_parts = [pos_text]
         # Add summary based on POS
         if hasattr(self, "gender_combo") and self.gender_combo.currentIndex() > 0:
@@ -733,23 +818,11 @@ class AnnotationModal(QDialog):
     def _apply_annotation(self) -> None:
         """Apply annotation and close dialog."""
         # Get POS
-        pos_map = {
-            "": None,
-            "Noun (N)": "N",
-            "Verb (V)": "V",
-            "Adjective (A)": "A",
-            "Pronoun (R)": "R",
-            "Determiner/Article (D)": "D",
-            "Adverb (B)": "B",
-            "Conjunction (C)": "C",
-            "Preposition (E)": "E",
-            "Interjection (I)": "I",
-        }
-        self.annotation.pos = pos_map[self.pos_combo.currentText()]
+        self.annotation.pos = self.PART_OF_SPEECH_MAP.get(self.pos_combo.currentText())
 
         # Save current values for future use
         if self.annotation.pos:
-            self._save_current_values(self.annotation.pos)
+            self._save_current_values(cast("str", self.annotation.pos))
 
         # Extract values based on POS
         if self.annotation.pos == "N":
@@ -758,6 +831,8 @@ class AnnotationModal(QDialog):
             self._extract_verb_values()
         elif self.annotation.pos == "A":
             self._extract_adjective_values()
+        elif self.annotation.pos == "D":
+            self._extract_article_values()
         elif self.annotation.pos == "R":
             self._extract_pronoun_values()
         elif self.annotation.pos == "E":
@@ -775,26 +850,24 @@ class AnnotationModal(QDialog):
         self.annotation_applied.emit(self.annotation)
         self.accept()
 
+    def _extract_article_values(self):
+        """Extract article annotation values."""
+        self.annotation.article_type = self.ARTICLE_TYPE_MAP.get(
+            self.article_type_combo.currentText()
+        )
+        self.annotation.gender = self.GENDER_MAP.get(
+            self.article_gender_combo.currentText()
+        )
+        self.annotation.number = self.NUMBER_MAP.get(
+            self.article_number_combo.currentText()
+        )
+        self.annotation.case = self.CASE_MAP.get(self.article_case_combo.currentText())
+
     def _extract_noun_values(self):
         """Extract noun annotation values."""
-        gender_map = {
-            "": None,
-            "Masculine (m)": "m",
-            "Feminine (f)": "f",
-            "Neuter (n)": "n",
-        }
-        self.annotation.gender = gender_map.get(self.gender_combo.currentText())
-        number_map = {"": None, "Singular (s)": "s", "Plural (p)": "p"}
-        self.annotation.number = number_map.get(self.number_combo.currentText())
-        case_map = {
-            "": None,
-            "Nominative (n)": "n",
-            "Accusative (a)": "a",
-            "Genitive (g)": "g",
-            "Dative (d)": "d",
-            "Instrumental (i)": "i",
-        }
-        self.annotation.case = case_map.get(self.case_combo.currentText())
+        self.annotation.gender = self.GENDER_MAP.get(self.gender_combo.currentText())
+        self.annotation.number = self.NUMBER_MAP.get(self.number_combo.currentText())
+        self.annotation.case = self.CASE_MAP.get(self.case_combo.currentText())
         declension = self.declension_combo.currentText().strip()
         self.annotation.declension = declension if declension else None
 
@@ -807,98 +880,57 @@ class AnnotationModal(QDialog):
                 self.annotation.verb_class = class_text.split("(")[1].rstrip(")")
             else:
                 self.annotation.verb_class = class_text
-        tense_map = {"": None, "Past (p)": "p", "Present (n)": "n"}
-        self.annotation.verb_tense = tense_map.get(self.verb_tense_combo.currentText())
-        mood_map = {
-            "": None,
-            "Indicative (i)": "i",
-            "Subjunctive (s)": "s",
-            "Imperative (imp)": "imp",
-        }
-        self.annotation.verb_mood = mood_map.get(self.verb_mood_combo.currentText())
-        person_map = {"": None, "1st": 1, "2nd": 2, "3rd": 3}
-        self.annotation.verb_person = person_map.get(
-            self.verb_person_combo.currentText()
+        self.annotation.verb_tense = self.VERB_TENSE_MAP.get(
+            self.verb_tense_combo.currentText()
         )
-        number_map = {"": None, "Singular (s)": "s", "Plural (p)": "p"}
-        self.annotation.number = number_map.get(self.verb_number_combo.currentText())
-        aspect_map = {
-            "": None,
-            "Perfect (p)": "p",
-            "Progressive (prg)": "prg",
-            "Gnomic (gn)": "gn",
-        }
-        self.annotation.verb_aspect = aspect_map.get(
+        self.annotation.verb_mood = self.VERB_MOOD_MAP.get(
+            self.verb_mood_combo.currentText()
+        )
+        self.annotation.verb_person = self.VERB_PERSON_MAP.get(
+            cast("int", self.verb_person_combo.currentIndex())
+        )
+        self.annotation.number = self.NUMBER_MAP.get(
+            self.verb_number_combo.currentText()
+        )
+        self.annotation.verb_aspect = self.VERB_ASPECT_MAP.get(
             self.verb_aspect_combo.currentText()
         )
-        form_map = {
-            "": None,
-            "Finite (f)": "f",
-            "Infinitive (i)": "i",
-            "Participle (p)": "p",
-        }
-        self.annotation.verb_form = form_map.get(self.verb_form_combo.currentText())
+        self.annotation.verb_form = self.VERB_FORM_MAP.get(
+            self.verb_form_combo.currentText()
+        )
 
     def _extract_adjective_values(self):
         """Extract adjective annotation values."""
         # Note: Need proper degree field
-        gender_map = {
-            "": None,
-            "Masculine (m)": "m",
-            "Feminine (f)": "f",
-            "Neuter (n)": "n",
-        }
-        self.annotation.gender = gender_map.get(self.adj_gender_combo.currentText())
-        number_map = {"": None, "Singular (s)": "s", "Plural (p)": "p"}
-        self.annotation.number = number_map.get(self.adj_number_combo.currentText())
-        case_map = {
-            "": None,
-            "Nominative (n)": "n",
-            "Accusative (a)": "a",
-            "Genitive (g)": "g",
-            "Dative (d)": "d",
-            "Instrumental (i)": "i",
-        }
-        self.annotation.case = case_map.get(self.adj_case_combo.currentText())
+        self.annotation.gender = self.GENDER_MAP.get(
+            self.adj_gender_combo.currentText()
+        )
+        self.annotation.number = self.NUMBER_MAP.get(
+            self.adj_number_combo.currentText()
+        )
+        self.annotation.case = self.CASE_MAP.get(self.adj_case_combo.currentText())
 
     def _extract_pronoun_values(self):
         """Extract pronoun annotation values."""
-        type_map = {
-            "": None,
-            "Personal (p)": "p",
-            "Relative (r)": "r",
-            "Demonstrative (d)": "d",
-            "Interrogative (i)": "i",
-        }
-        self.annotation.pronoun_type = type_map.get(self.pro_type_combo.currentText())
-        gender_map = {
-            "": None,
-            "Masculine (m)": "m",
-            "Feminine (f)": "f",
-            "Neuter (n)": "n",
-        }
-        self.annotation.gender = gender_map.get(self.pro_gender_combo.currentText())
-        number_map = {"": None, "Singular (s)": "s", "Plural (p)": "p"}
-        self.annotation.number = number_map.get(self.pro_number_combo.currentText())
-        case_map = {
-            "": None,
-            "Nominative (n)": "n",
-            "Accusative (a)": "a",
-            "Genitive (g)": "g",
-            "Dative (d)": "d",
-            "Instrumental (i)": "i",
-        }
-        self.annotation.case = case_map.get(self.pro_case_combo.currentText())
+        self.annotation.pronoun_type = self.PRONOUN_TYPE_MAP.get(
+            self.pro_type_combo.currentText()
+        )
+        self.annotation.pronoun_type = self.PRONOUN_TYPE_MAP.get(
+            self.pro_type_combo.currentText()
+        )
+        self.annotation.gender = self.GENDER_MAP.get(
+            self.pro_gender_combo.currentText()
+        )
+        self.annotation.number = self.NUMBER_MAP.get(
+            self.pro_number_combo.currentText()
+        )
+        self.annotation.case = self.CASE_MAP.get(self.pro_case_combo.currentText())
 
     def _extract_preposition_values(self):
         """Extract preposition annotation values."""
-        case_map = {
-            "": None,
-            "Accusative (a)": "a",
-            "Dative (d)": "d",
-            "Genitive (g)": "g",
-        }
-        self.annotation.prep_case = case_map.get(self.prep_case_combo.currentText())
+        self.annotation.prep_case = self.PREPOSITION_CASE_MAP.get(
+            self.prep_case_combo.currentText()
+        )
 
     def _extract_adverb_values(self):
         """Extract adverb annotation values."""
