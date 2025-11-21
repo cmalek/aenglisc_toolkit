@@ -173,13 +173,13 @@ class SentenceCard(QWidget):
         header_layout.addWidget(self.sentence_number_label)
 
         # Action buttons
-        self.split_button = QPushButton("Split")
-        self.merge_button = QPushButton("Merge")
-        self.delete_button = QPushButton("Delete")
-        header_layout.addStretch()
-        header_layout.addWidget(self.split_button)
-        header_layout.addWidget(self.merge_button)
-        header_layout.addWidget(self.delete_button)
+        # self.split_button = QPushButton("Split")
+        # self.merge_button = QPushButton("Merge")
+        # self.delete_button = QPushButton("Delete")
+        # header_layout.addStretch()
+        # header_layout.addWidget(self.split_button)
+        # header_layout.addWidget(self.merge_button)
+        # header_layout.addWidget(self.delete_button)
         layout.addLayout(header_layout)
 
         # Old English text line (editable) with toggle buttons
@@ -750,12 +750,8 @@ class SentenceCard(QWidget):
         existing_selections = self.oe_text_edit.extraSelections()
         filtered_selections = []
 
-        print(f"self._current_highlight_start: {self._current_highlight_start}")
-        print(f"self._current_highlight_length: {self._current_highlight_length}")
-
         for selection in existing_selections:
             cursor = selection.cursor  # type: ignore[attr-defined]
-            print(f"cursor.position(): {cursor.position()}")
             # Check if this is the selection highlight (yellow) by position
             if (
                 cursor.position() >= self._current_highlight_start

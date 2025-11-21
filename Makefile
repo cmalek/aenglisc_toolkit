@@ -21,7 +21,7 @@ build::
 	./build_macos.sh
 
 dev::
-	python -m oeapp.main
+	exec -a "Ænglisc Toolkit" python -m oeapp.main
 
 destroy-db::
 	rm -f ~/Library/Application\ Support/oe_annotator/projects/*.db

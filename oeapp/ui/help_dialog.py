@@ -88,7 +88,7 @@ class HelpDialog(QDialog):
 
         """
         # Set the window title.
-        self.setWindowTitle("Old English Annotator - Help")
+        self.setWindowTitle("Ænglisc Toolkit - Help")
         self.setGeometry(100, 100, 900, 700)
         self.setMinimumSize(QSize(800, 600))
 

@@ -6,6 +6,7 @@ from typing import cast
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
+    QApplication,
     QDialog,
     QDialogButtonBox,
     QFileDialog,
@@ -22,7 +23,6 @@ from PySide6.QtWidgets import (
 )
 
 from oeapp.exc import AlreadyExists
-from oeapp.models.annotation import Annotation
 from oeapp.models.project import Project
 from oeapp.models.token import Token
 from oeapp.services.autosave import AutosaveService
@@ -145,7 +145,11 @@ class MainWindow(QMainWindow):
         """
         Set up the main window.
         """
-        self.setWindowTitle("Old English Annotator")
+        self.setWindowTitle("Ænglisc Toolkit")
+        # Set window icon from application icon
+        app = QApplication.instance()
+        if isinstance(app, QApplication) and not app.windowIcon().isNull():
+            self.setWindowIcon(app.windowIcon())
         self.setGeometry(100, 100, 1200, 800)
         # Central widget with scroll area
         scroll_area = QScrollArea()
@@ -162,7 +166,7 @@ class MainWindow(QMainWindow):
         self.show_message("Ready")
         # Initial message
         welcome_label = QLabel(
-            "Welcome to Old English Annotator\n\nUse File → New Project to get started"
+            "Welcome to Ænglisc Toolkit\n\nUse File → New Project to get started"
         )
         welcome_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         welcome_label.setStyleSheet("font-size: 14pt; color: #666; padding: 50px;")
@@ -366,7 +370,7 @@ class MainWindow(QMainWindow):
         # Create project in the shared database
         project = Project.create(self.db, text, title)
         self._configure_project(project)
-        self.setWindowTitle(f"Old English Annotator - {project.name}")
+        self.setWindowTitle(f"Ænglisc Toolkit - {project.name}")
         self.show_message("Project created")
 
     def _on_translation_changed(self) -> None:
@@ -436,7 +440,7 @@ class MainWindow(QMainWindow):
                 # Configure the app for the project.
                 self._configure_project(project)
                 # Set the window title to the project name.
-                self.setWindowTitle(f"Old English Annotator - {project.name}")
+                self.setWindowTitle(f"Ænglisc Toolkit - {project.name}")
                 self.show_message("Project opened")
 
     def save_project(self) -> None:
