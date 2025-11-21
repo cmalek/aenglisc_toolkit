@@ -1,7 +1,7 @@
 """Main application window."""
 
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import cast
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QKeySequence, QShortcut
@@ -28,7 +28,7 @@ from oeapp.exc import AlreadyExists
 from oeapp.models.project import Project
 from oeapp.models.token import Token
 from oeapp.services.autosave import AutosaveService
-from oeapp.services.commands import CommandManager
+from oeapp.services.commands import CommandManager, MergeSentenceCommand
 from oeapp.services.export_docx import DOCXExporter
 from oeapp.services.filter import FilterService
 from oeapp.ui.filter_dialog import FilterDialog
@@ -354,6 +354,7 @@ class MainWindow(QMainWindow):
             card.set_tokens(sentence.tokens)
             card.translation_edit.textChanged.connect(self._on_translation_changed)
             card.oe_text_edit.textChanged.connect(self._on_sentence_text_changed)
+            card.sentence_merged.connect(self._on_sentence_merged)
             self.sentence_cards.append(card)
             self.content_layout.addWidget(card)
 
@@ -401,10 +402,6 @@ class MainWindow(QMainWindow):
         - If the user selects a project, load it by ID.
         """
         # Get all projects from the database
-        from sqlalchemy import select
-
-        from sqlalchemy import select
-
         projects = list(
             self.session.scalars(
                 select(Project).order_by(Project.updated_at.desc())
@@ -447,7 +444,7 @@ class MainWindow(QMainWindow):
             if selected_item:
                 project_id = selected_item.data(Qt.ItemDataRole.UserRole)
                 # Get the project from the database.
-                project = self.session.get(Project, project_id)
+                project = cast("Project", self.session.get(Project, project_id))
                 if project is None:
                     self.show_warning("Project not found")
                     return
@@ -538,6 +535,48 @@ class MainWindow(QMainWindow):
         dialog.token_selected.connect(self.action_service.navigate_to_token)
         dialog.exec()
 
+    def _on_sentence_merged(self) -> None:
+        """
+        Handle sentence merge signal.
+
+        Reloads the project from the database to refresh all sentence cards
+        after a merge operation.
+
+        """
+        if not self.session or not self.current_project_id:
+            return
+
+        # Reload project from database
+        project = self.session.get(Project, self.current_project_id)
+        if project is None:
+            return
+
+        # Preserve existing command manager to keep undo history
+        existing_command_manager = self.command_manager
+        existing_autosave = self.autosave_service
+        existing_filter = self.filter_service
+
+        # Refresh the project configuration (reloads all sentence cards)
+        self._configure_project(project)
+
+        # Restore preserved services
+        if existing_command_manager:
+            self.command_manager = existing_command_manager
+        if existing_autosave:
+            self.autosave_service = existing_autosave
+        if existing_filter:
+            self.filter_service = existing_filter
+
+        # Update all sentence cards to use the preserved command manager
+        for card in self.sentence_cards:
+            card.command_manager = self.command_manager
+
+        # Ensure UI is updated/repainted
+        self.scroll_area.update()
+        self.update()
+
+        self.show_message("Sentences merged", duration=2000)
+
 
 class MainWindowActions:
     """
@@ -556,13 +595,19 @@ class MainWindowActions:
         self.main_window = main_window
         #: SQLAlchemy session
         self.session = main_window.session
-        #: Sentence cards
+        #: Sentence cards (reference to main_window's list)
         self.sentence_cards = main_window.sentence_cards
-        #: Autosave service
-        self.autosave_service = main_window.autosave_service
-        #: Command manager
-        self.command_manager = main_window.command_manager
         #: Filter service
+
+    @property
+    def command_manager(self):
+        """Get the current command manager from main window."""
+        return self.main_window.command_manager
+
+    @property
+    def autosave_service(self):
+        """Get the current autosave service from main window."""
+        return self.main_window.autosave_service
 
     def next_sentence(self) -> None:
         """
@@ -631,9 +676,26 @@ class MainWindowActions:
         - If the undo fails, show a message in the status bar.
         """
         if self.command_manager and self.command_manager.can_undo():
+            # Check if the command to undo is a structural change (like merge)
+            needs_full_reload = False
+            if self.command_manager.undo_stack:
+                last_command = self.command_manager.undo_stack[-1]
+                if isinstance(last_command, MergeSentenceCommand):
+                    needs_full_reload = True
+
             if self.command_manager.undo():
                 self.main_window.show_message("Undone")
-                self.refresh_all_cards()
+                # After undo, the command is in redo_stack, check if it was a merge
+                if not needs_full_reload and self.command_manager.redo_stack:
+                    last_undone = self.command_manager.redo_stack[-1]
+                    if isinstance(last_undone, MergeSentenceCommand):
+                        needs_full_reload = True
+
+                if needs_full_reload:
+                    # Reload entire project structure after structural change
+                    self._reload_project_structure()
+                else:
+                    self.refresh_all_cards()
             else:
                 self.main_window.show_message("Undo failed")
 
@@ -646,9 +708,26 @@ class MainWindowActions:
         - If the redo fails, show a message in the status bar.
         """
         if self.command_manager and self.command_manager.can_redo():
+            # Check if the command to redo is a structural change (like merge)
+            needs_full_reload = False
+            if self.command_manager.redo_stack:
+                last_command = self.command_manager.redo_stack[-1]
+                if isinstance(last_command, MergeSentenceCommand):
+                    needs_full_reload = True
+
             if self.command_manager.redo():
                 self.main_window.show_message("Redone")
-                self.refresh_all_cards()
+                # After redo, the command is in undo_stack, check if it was a merge
+                if not needs_full_reload and self.command_manager.undo_stack:
+                    last_redone = self.command_manager.undo_stack[-1]
+                    if isinstance(last_redone, MergeSentenceCommand):
+                        needs_full_reload = True
+
+                if needs_full_reload:
+                    # Reload entire project structure after structural change
+                    self._reload_project_structure()
+                else:
+                    self.refresh_all_cards()
             else:
                 self.main_window.show_message("Redo failed")
 
@@ -666,6 +745,47 @@ class MainWindowActions:
             if card.sentence.id:
                 card.set_tokens(card.sentence.tokens)
 
+    def _reload_project_structure(self) -> None:
+        """
+        Reload the entire project structure from database.
+
+        This is needed after structural changes like merge/undo merge
+        that change the number of sentences.
+        """
+        if not self.main_window.session or not self.main_window.current_project_id:
+            return
+
+        # Reload project from database
+        project = self.main_window.session.get(
+            Project, self.main_window.current_project_id
+        )
+        if project is None:
+            return
+
+        # Preserve existing services
+        existing_command_manager = self.main_window.command_manager
+        existing_autosave = self.main_window.autosave_service
+        existing_filter = self.main_window.filter_service
+
+        # Refresh the project configuration (reloads all sentence cards)
+        self.main_window._configure_project(project)
+
+        # Restore preserved services
+        if existing_command_manager:
+            self.main_window.command_manager = existing_command_manager
+        if existing_autosave:
+            self.main_window.autosave_service = existing_autosave
+        if existing_filter:
+            self.main_window.filter_service = existing_filter
+
+        # Update all sentence cards to use the preserved command manager
+        for card in self.main_window.sentence_cards:
+            card.command_manager = self.main_window.command_manager
+
+        # Ensure UI is updated/repainted
+        self.main_window.scroll_area.update()
+        self.main_window.update()
+
     def autosave(self) -> None:
         """
         Do an autosave operation.
@@ -676,7 +796,9 @@ class MainWindowActions:
 
         """
         assert self.session is not None, "Session not initialized"  # noqa: S101
-        assert self.main_window.current_project_id is not None, "Current project ID not set"  # noqa: S101
+        assert self.main_window.current_project_id is not None, (  # noqa: S101
+            "Current project ID not set"
+        )
         project = self.session.get(Project, self.main_window.current_project_id)
         if project is None:
             return

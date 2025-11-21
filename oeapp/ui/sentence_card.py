@@ -15,17 +15,21 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
+    QMessageBox,
     QPushButton,
     QTextEdit,
     QVBoxLayout,
     QWidget,
 )
+from sqlalchemy import select
 
 from oeapp.models.annotation import Annotation
+from oeapp.models.sentence import Sentence
 from oeapp.services.commands import (
     AnnotateTokenCommand,
     CommandManager,
     EditSentenceCommand,
+    MergeSentenceCommand,
 )
 from oeapp.ui.annotation_modal import AnnotationModal
 from oeapp.ui.token_table import TokenTable
@@ -33,7 +37,6 @@ from oeapp.ui.token_table import TokenTable
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
-    from oeapp.models.sentence import Sentence
     from oeapp.models.token import Token
 
 
@@ -61,6 +64,9 @@ class SentenceCard(QWidget):
         parent: Parent widget
 
     """
+
+    # Signal emitted when a sentence is merged
+    sentence_merged = Signal(int)  # Emits current sentence ID
 
     # Color maps for highlighting
     POS_COLORS: ClassVar[dict[str | None, QColor]] = {
@@ -175,11 +181,12 @@ class SentenceCard(QWidget):
 
         # Action buttons
         # self.split_button = QPushButton("Split")
-        # self.merge_button = QPushButton("Merge")
+        self.merge_button = QPushButton("Merge with next")
+        self.merge_button.clicked.connect(self._on_merge_clicked)
         # self.delete_button = QPushButton("Delete")
-        # header_layout.addStretch()
+        header_layout.addStretch()
         # header_layout.addWidget(self.split_button)
-        # header_layout.addWidget(self.merge_button)
+        header_layout.addWidget(self.merge_button)
         # header_layout.addWidget(self.delete_button)
         layout.addLayout(header_layout)
 
@@ -890,6 +897,87 @@ class SentenceCard(QWidget):
             self.session.add(annotation)
 
         self.session.commit()
+
+    def _on_merge_clicked(self) -> None:
+        """
+        Handle merge button click.
+
+        - Queries for next sentence
+        - Shows confirmation dialog
+        - Executes merge command if confirmed
+        - Emits signal to refresh UI
+        """
+        if not self.session or not self.sentence.id:
+            return
+
+        # Find next sentence
+        stmt = (
+            select(Sentence)
+            .where(
+                Sentence.project_id == self.sentence.project_id,
+                Sentence.display_order == self.sentence.display_order + 1,
+            )
+            .limit(1)
+        )
+        next_sentence = self.session.scalar(stmt)
+
+        if next_sentence is None:
+            QMessageBox.warning(
+                self,
+                "No Next Sentence",
+                "There is no next sentence to merge with.",
+            )
+            return
+
+        # Show confirmation dialog
+        message = (
+            f"Merge sentence {self.sentence.display_order} "
+            f"with sentence {next_sentence.display_order}?\n\n"
+            f"This will combine the Old English text, Modern English translation, "
+            f"tokens, annotations, and notes from both sentences."
+        )
+        reply = QMessageBox.question(
+            self,
+            "Confirm Merge",
+            message,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        # Create and execute merge command
+        if not self.command_manager:
+            QMessageBox.warning(
+                self,
+                "Error",
+                "Command manager not available. Cannot perform merge.",
+            )
+            return
+
+        # Store before state
+        before_text_oe = self.sentence.text_oe
+        before_text_modern = self.sentence.text_modern
+
+        command = MergeSentenceCommand(
+            session=self.session,
+            current_sentence_id=self.sentence.id,
+            next_sentence_id=next_sentence.id,
+            before_text_oe=before_text_oe,
+            before_text_modern=before_text_modern,
+        )
+
+        if self.command_manager.execute(command):
+            # Emit signal to refresh UI
+            if self.sentence.id:
+                self.sentence_merged.emit(self.sentence.id)
+        else:
+            QMessageBox.warning(
+                self,
+                "Merge Failed",
+                "Failed to merge sentences. Please try again.",
+            )
 
     def get_oe_text(self) -> str:
         """

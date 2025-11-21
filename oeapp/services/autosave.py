@@ -1,13 +1,14 @@
 """Autosave service with debounced writes."""
 
-import threading
 from typing import TYPE_CHECKING
+
+from PySide6.QtCore import QObject, QTimer
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
 
-class AutosaveService:
+class AutosaveService(QObject):
     """
     Service for debounced autosave operations.
 
@@ -20,14 +21,13 @@ class AutosaveService:
     def __init__(
         self, save_callback: Callable[[], None], debounce_ms: int = 500
     ) -> None:
+        super().__init__()
         #: The function to call when saving.
         self.save_callback = save_callback
-        #: The debounce delay in seconds.j
-        self.debounce_ms = debounce_ms / 1000.0  # Convert to seconds
+        #: The debounce delay in milliseconds.
+        self.debounce_ms = debounce_ms
         #: The timer for the debounce.
-        self._timer: threading.Timer | None = None
-        #: The lock for the autosave.
-        self._lock = threading.Lock()
+        self._timer: QTimer | None = None
         #: Whether there is a pending autosave.
         self._pending = False
 
@@ -35,14 +35,16 @@ class AutosaveService:
         """
         Trigger autosave (will be debounced).
         """
-        with self._lock:
-            self._pending = True
-            # Cancel existing timer if any
-            if self._timer:
-                self._timer.cancel()
-            # Start new timer
-            self._timer = threading.Timer(self.debounce_ms, self._save)
-            self._timer.start()
+        self._pending = True
+        # Cancel existing timer if any
+        if self._timer:
+            self._timer.stop()
+            self._timer.deleteLater()
+        # Create and start new timer
+        self._timer = QTimer(self)
+        self._timer.setSingleShot(True)
+        self._timer.timeout.connect(self._save)
+        self._timer.start(self.debounce_ms)
 
     def _save(self) -> None:
         """
@@ -54,14 +56,13 @@ class AutosaveService:
         save callback. If the save callback raises an exception, it is caught
         and the pending autosave is set to False.
         """
-        with self._lock:
-            if self._pending:
-                try:
-                    self.save_callback()
-                    self._pending = False
-                except Exception as e:
-                    print(f"Autosave error: {e}")
-                    self._pending = False
+        if self._pending:
+            try:
+                self.save_callback()
+                self._pending = False
+            except Exception as e:
+                print(f"Autosave error: {e}")
+                self._pending = False
 
     def save_now(self) -> None:
         """
@@ -69,11 +70,11 @@ class AutosaveService:
         cancelled and the save callback is called immediately.
 
         """
-        with self._lock:
-            if self._timer:
-                self._timer.cancel()
-                self._timer = None
-            self._pending = False
+        if self._timer:
+            self._timer.stop()
+            self._timer.deleteLater()
+            self._timer = None
+        self._pending = False
         try:
             self.save_callback()
         except Exception as e:
@@ -84,8 +85,8 @@ class AutosaveService:
         Cancel pending autosave, meaning the autosave timer is cancelled and the
         save callback is not called.
         """
-        with self._lock:
-            if self._timer:
-                self._timer.cancel()
-                self._timer = None
-            self._pending = False
+        if self._timer:
+            self._timer.stop()
+            self._timer.deleteLater()
+            self._timer = None
+        self._pending = False
