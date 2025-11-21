@@ -135,8 +135,8 @@ class AnnotationModal(QDialog):
     #: A lookup map for verb tense codes to their long form.
     VERB_TENSE_MAP: Final[dict[str | None, str]] = {
         None: "",
-        "Past (p)": "p",
-        "Present (n)": "n",
+        "p": "Past (p)",
+        "n": "Present (n)",
     }
     VERB_TENSE_REVERSE_MAP: Final[dict[int, str]] = {
         i: k for i, k in enumerate(VERB_TENSE_MAP.keys()) if k is not None
@@ -160,7 +160,7 @@ class AnnotationModal(QDialog):
         2: "2nd",
         3: "3rd",
     }
-    VERB_PERSON_REVERSE_MAP: Final[dict[int, str]] = {
+    VERB_PERSON_REVERSE_MAP: Final[dict[int, int]] = {
         i: k for i, k in enumerate(VERB_PERSON_MAP.keys()) if k is not None
     }
 
