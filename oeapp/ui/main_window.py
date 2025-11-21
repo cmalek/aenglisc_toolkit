@@ -1,7 +1,7 @@
 """Main application window."""
 
 from pathlib import Path
-from typing import cast
+from typing import Final, cast
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QKeySequence, QShortcut
@@ -11,26 +11,24 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QFileDialog,
     QLabel,
-    QLineEdit,
     QListWidget,
     QListWidgetItem,
     QMainWindow,
     QMessageBox,
     QScrollArea,
-    QTextEdit,
     QVBoxLayout,
     QWidget,
 )
 from sqlalchemy import select
 
 from oeapp.db import SessionLocal, apply_migrations
-from oeapp.exc import AlreadyExists
 from oeapp.models.project import Project
 from oeapp.models.token import Token
 from oeapp.services.autosave import AutosaveService
 from oeapp.services.commands import CommandManager, MergeSentenceCommand
 from oeapp.services.export_docx import DOCXExporter
 from oeapp.services.filter import FilterService
+from oeapp.ui.dialogs import NewProjectDialog, OpenProjectDialog
 from oeapp.ui.filter_dialog import FilterDialog
 from oeapp.ui.help_dialog import HelpDialog
 from oeapp.ui.sentence_card import SentenceCard
@@ -70,12 +68,16 @@ class MainMenu:
 
         new_action = QAction("&New Project...", file_menu)
         new_action.setShortcut(QKeySequence("Ctrl+N"))
-        new_action.triggered.connect(self.main_window.new_project)
+        new_action.triggered.connect(
+            lambda: NewProjectDialog(self.main_window).execute()
+        )
         file_menu.addAction(new_action)
 
         open_action = QAction("&Open Project...", file_menu)
         open_action.setShortcut(QKeySequence("Ctrl+O"))
-        open_action.triggered.connect(self.main_window.open_project)
+        open_action.triggered.connect(
+            lambda: OpenProjectDialog(self.main_window).execute()
+        )
         file_menu.addAction(open_action)
 
         file_menu.addSeparator()
@@ -121,6 +123,9 @@ class MainMenu:
 
 class MainWindow(QMainWindow):
     """Main application window."""
+
+    #: Main window geometry
+    MAIN_WINDOW_GEOMETRY: Final[tuple[int, int, int, int]] = (100, 100, 1200, 800)
 
     def __init__(self) -> None:
         super().__init__()
@@ -285,48 +290,6 @@ class MainWindow(QMainWindow):
         """
         self.scroll_area.ensureWidgetVisible(widget)
 
-    def new_project(self) -> None:
-        """
-        Create a new project.
-
-        - If the user cancels the dialog, do nothing.
-        - If the user enters valid Old English text, create a new project from the text.
-
-        """
-        dialog = QDialog(self)
-        dialog.setWindowTitle("New Project")
-        layout = QVBoxLayout(dialog)
-
-        title_edit = QLineEdit(self)
-        title_edit.setPlaceholderText("Enter project title...")
-        layout.addWidget(QLabel("Project Title:"))
-        layout.addWidget(title_edit)
-
-        text_edit = QTextEdit()
-        text_edit.setPlaceholderText("Paste Old English text here...")
-        text_edit.setMinimumHeight(200)
-        layout.addWidget(QLabel("Old English Text:"))
-        layout.addWidget(text_edit)
-
-        button_box = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
-        )
-        button_box.accepted.connect(dialog.accept)
-        button_box.rejected.connect(dialog.reject)
-        layout.addWidget(button_box)
-
-        if dialog.exec():
-            text = text_edit.toPlainText()
-            title = title_edit.text()
-            if text.strip() and title.strip():
-                try:
-                    self._create_project_from_text(text, title)
-                except AlreadyExists:
-                    self.show_error(
-                        f'Project with title "{title!s}" already exists. Please '
-                        "choose a different title or delete the existing project."
-                    )
-
     def _configure_project(self, project: Project) -> None:
         """
         Configure the app for the given project.
@@ -358,25 +321,6 @@ class MainWindow(QMainWindow):
             self.sentence_cards.append(card)
             self.content_layout.addWidget(card)
 
-    def _create_project_from_text(self, text: str, title: str) -> None:
-        """
-        Create a new project from the text, split into sentences, split
-        sentences into tokens, and create sentence cards.
-
-        - If the text is empty, do nothing.
-        - If the text is not empty, create a new project from the text.
-
-        Args:
-            text: Old English text to process
-            title: Project title
-
-        """
-        # Create project in the shared database
-        project = Project.create(self.session, text, title)
-        self._configure_project(project)
-        self.setWindowTitle(f"Ænglisc Toolkit - {project.name}")
-        self.show_message("Project created")
-
     def _on_translation_changed(self) -> None:
         """
         Handle translation text change by autosaving.
@@ -392,67 +336,6 @@ class MainWindow(QMainWindow):
         if self.autosave_service:
             self.show_message("Saving...", duration=500)
             self.autosave_service.trigger()
-
-    def open_project(self) -> None:
-        """
-        Open an existing project.
-
-        - If there are no projects in the database, show a message.
-        - If the user cancels the dialog, do nothing.
-        - If the user selects a project, load it by ID.
-        """
-        # Get all projects from the database
-        projects = list(
-            self.session.scalars(
-                select(Project).order_by(Project.updated_at.desc())
-            ).all()
-        )
-        if not projects:
-            self.show_information(
-                "No projects found. Create a new project first.",
-                title="No Projects",
-            )
-            return
-
-        # Create dialog to select project
-        dialog = QDialog(self)
-        dialog.setWindowTitle("Open Project")
-        layout = QVBoxLayout(dialog)
-
-        layout.addWidget(QLabel("Select a project to open:"))
-
-        # Create list widget to display projects, and add items to it.
-        project_list = QListWidget()
-        for project in projects:
-            item = QListWidgetItem(project.name)
-            item.setData(Qt.ItemDataRole.UserRole, project.id)
-            project_list.addItem(item)
-        project_list.setCurrentRow(0)
-        layout.addWidget(project_list)
-
-        # Create button box with OK and Cancel buttons.
-        button_box = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
-        )
-        button_box.accepted.connect(dialog.accept)
-        button_box.rejected.connect(dialog.reject)
-        layout.addWidget(button_box)
-
-        if dialog.exec():
-            # Get the selected project from the list widget.
-            selected_item = project_list.currentItem()
-            if selected_item:
-                project_id = selected_item.data(Qt.ItemDataRole.UserRole)
-                # Get the project from the database.
-                project = cast("Project", self.session.get(Project, project_id))
-                if project is None:
-                    self.show_warning("Project not found")
-                    return
-                # Configure the app for the project.
-                self._configure_project(project)
-                # Set the window title to the project name.
-                self.setWindowTitle(f"Ænglisc Toolkit - {project.name}")
-                self.show_message("Project opened")
 
     def save_project(self) -> None:
         """
