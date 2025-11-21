@@ -347,9 +347,33 @@ class OpenProjectDialog:
         self.button_box = QDialogButtonBox(self.dialog)
         self.button_box.addButton(QDialogButtonBox.StandardButton.Ok)
         self.button_box.addButton(QDialogButtonBox.StandardButton.Cancel)
+        self.button_box.accepted.connect(self.open_project)
+        self.button_box.rejected.connect(self.dialog.reject)
         button_layout.addWidget(self.button_box)
 
         self.layout.addLayout(button_layout)
+
+    def open_project(self) -> None:
+        """
+        Open an existing project.
+        """
+        # Get the selected project from the list widget.
+        selected_item = self.project_list.currentItem()
+        if selected_item:
+            self.project_id = selected_item.data(Qt.ItemDataRole.UserRole)
+            # Get the project from the database.
+            project = cast(
+                "Project", self.main_window.session.get(Project, self.project_id)
+            )
+            if project is None:
+                self.main_window.show_warning("Project not found")
+                return
+            # Configure the app for the project.
+            self.main_window._configure_project(project)
+            # Set the window title to the project name.
+            self.main_window.setWindowTitle(f"Ænglisc Toolkit - {project.name}")
+            self.main_window.show_message("Project opened")
+            self.dialog.accept()
 
     def execute(self) -> None:
         """
@@ -357,19 +381,4 @@ class OpenProjectDialog:
         """
         self.build()
         if self.dialog.exec():
-            # Get the selected project from the list widget.
-            selected_item = self.project_list.currentItem()
-            if selected_item:
-                project_id = selected_item.data(Qt.ItemDataRole.UserRole)
-                # Get the project from the database.
-                project = cast(
-                    "Project", self.main_window.session.get(Project, project_id)
-                )
-                if project is None:
-                    self.main_window.show_warning("Project not found")
-                    return
-                # Configure the app for the project.
-                self.main_window._configure_project(project)
-                # Set the window title to the project name.
-                self.main_window.setWindowTitle(f"Ænglisc Toolkit - {project.name}")
-                self.main_window.show_message("Project opened")
+            self.open_project()

@@ -198,6 +198,24 @@ class MainWindow(QMainWindow):
         self._setup_main_menu()
         self._setup_global_shortcuts()
 
+    def _show_startup_dialog(self) -> None:
+        """
+        Show the appropriate startup dialog based on whether projects exist.
+
+        - If there are no projects in the database, show NewProjectDialog.
+        - If there are projects, show OpenProjectDialog.
+        """
+        # Check if there are any projects in the database
+        first_project = self.session.scalar(select(Project).limit(1))
+        has_projects = first_project is not None
+
+        if not has_projects:
+            # No projects exist, show NewProjectDialog
+            NewProjectDialog(self).execute()
+        else:
+            # Projects exist, show OpenProjectDialog
+            OpenProjectDialog(self).execute()
+
     def _setup_global_shortcuts(self) -> None:
         """
         Set up global keyboard shortcuts for navigation.

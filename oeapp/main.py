@@ -87,6 +87,12 @@ def main():
     window = MainWindow()
     window.show()
 
+    # Show startup dialog after window is displayed
+    # Use QTimer to ensure it runs after the event loop starts
+    from PySide6.QtCore import QTimer
+
+    QTimer.singleShot(0, window._show_startup_dialog)
+
     sys.exit(app.exec())
 
 
