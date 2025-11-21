@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING, Final
 from docx import Document
 from docx.shared import Pt
 
-from oeapp.exc import DoesNotExist
 from oeapp.models.project import Project
 from oeapp.models.token import Token
 
@@ -13,10 +12,10 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from docx.document import Document as DocumentObject
+    from sqlalchemy.orm import Session
 
     from oeapp.models.annotation import Annotation
     from oeapp.models.sentence import Sentence
-    from oeapp.services.db import Database
 
 
 class DOCXExporter:
@@ -71,15 +70,15 @@ class DOCXExporter:
         "D": "dem",
     }
 
-    def __init__(self, db: Database) -> None:
+    def __init__(self, session: Session) -> None:
         """
         Initialize exporter.
 
         Args:
-            db: Database connection
+            session: SQLAlchemy session
 
         """
-        self.db = db
+        self.session = session
 
     def export(self, project_id: int, output_path: Path) -> bool:
         """
@@ -95,7 +94,9 @@ class DOCXExporter:
         """
         doc: DocumentObject = Document()
         self._setup_document_styles(doc)
-        project = Project.get(self.db, project_id)
+        project = self.session.get(Project, project_id)
+        if project is None:
+            return False
 
         # Add title
         doc.add_heading(project.name, level=1)
@@ -295,11 +296,9 @@ class DOCXExporter:
             if not note.start_token:
                 start_token = None
             else:
-                try:
-                    start_token = Token.get(self.db, note.start_token)
-                except DoesNotExist:
+                start_token = self.session.get(Token, note.start_token)
+                if start_token is None:
                     print(f"Note {note.id} has no start token")  # noqa: T201
-                    start_token = None
             note_text = note.note_text_md
 
             # Format note

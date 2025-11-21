@@ -1,16 +1,14 @@
 """Command pattern for undo/redo functionality."""
 
-import sqlite3
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
-from typing_extensions import Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from oeapp.models.annotation import Annotation
 from oeapp.models.sentence import Sentence
 
 if TYPE_CHECKING:
-    from oeapp.services.db import Database
+    from sqlalchemy.orm import Session
 
 
 class Command(ABC):
@@ -51,18 +49,28 @@ class Command(ABC):
 class AnnotateTokenCommand(Command):
     """Command for annotating a token."""
 
-    #: The database connection.
-    db: Database
+    #: The SQLAlchemy session.
+    session: Session
     #: The token ID.
     token_id: int
     #: The before state of the annotation.
-    before: dict[str, str | int | bool | None]
+    before: dict[str, Any]
     #: The after state of the annotation.
-    after: dict[str, str | int | bool | None]
+    after: dict[str, Any]
 
-    def _update_annotation(
-        self, annotation: Annotation, state: dict[str, str | int | bool | None]
-    ) -> None:
+    def _update_annotation(self, annotation: Annotation, state: dict[str, Any]) -> None:
+        """
+        Update an annotation with a new state.
+
+        This method updates an annotation with a new state.  The state is a
+        dictionary of key-value pairs.  The keys are the fields of the annotation
+        and the values are the new values for the fields.
+
+        Args:
+            annotation: Annotation to update
+            state: New state of the annotation
+
+        """
         annotation.pos = state.get("pos")
         annotation.gender = state.get("gender")
         annotation.number = state.get("number")
@@ -76,28 +84,42 @@ class AnnotateTokenCommand(Command):
         annotation.verb_aspect = state.get("verb_aspect")
         annotation.verb_form = state.get("verb_form")
         annotation.prep_case = state.get("prep_case")
-        annotation.uncertain = state.get("uncertain")
+        annotation.uncertain = state.get("uncertain", False)
         annotation.alternatives_json = state.get("alternatives_json")
         annotation.confidence = state.get("confidence")
-        annotation.save()
+        self.session.add(annotation)
+        self.session.commit()
 
-    def execute(self) -> None:
+    def execute(self) -> bool:
         """
         Execute annotation update.
 
         Returns:
-            None
+            True if successful
 
         """
-        annotation = Annotation.get(self.db, self.token_id)
+        annotation = self.session.get(Annotation, self.token_id)
+        if annotation is None:
+            # Create annotation if it doesn't exist
+            annotation = Annotation(token_id=self.token_id)
+            self.session.add(annotation)
+            self.session.flush()
         self._update_annotation(annotation, self.after)
+        return True
 
-    def undo(self) -> None:
+    def undo(self) -> bool:
         """
         Undo annotation update.
+
+        Returns:
+            True if successful
+
         """
-        annotation = Annotation.get(self.db, self.token_id)
+        annotation = self.session.get(Annotation, self.token_id)
+        if annotation is None:
+            return False
         self._update_annotation(annotation, self.before)
+        return True
 
     def get_description(self) -> str:
         """
@@ -114,8 +136,8 @@ class AnnotateTokenCommand(Command):
 class EditSentenceCommand(Command):
     """Command for editing sentence text or translation."""
 
-    #: The database connection.
-    db: Database
+    #: The SQLAlchemy session.
+    session: Session
     #: The sentence ID.
     sentence_id: int
     #: The field to edit.
@@ -133,15 +155,23 @@ class EditSentenceCommand(Command):
           the sentence, updating the tokens in the sentence.
         - If the field is "text_modern", update the sentence translation.
 
+        Returns:
+            True if successful
+
         """
-        sentence = Sentence.get(self.db, self.sentence_id)
+        sentence = self.session.get(Sentence, self.sentence_id)
+        if sentence is None:
+            return False
+
         if self.field == "text_oe":
-            sentence.update(self.after)
+            sentence.update(self.session, self.after)
         elif self.field == "text_modern":
             sentence.text_modern = self.after
-            sentence.save()
+            self.session.add(sentence)
+            self.session.commit()
+        return True
 
-    def undo(self) -> None:
+    def undo(self) -> bool:
         """
         Undo sentence edit.
 
@@ -149,12 +179,17 @@ class EditSentenceCommand(Command):
             True if successful, False otherwise
 
         """
-        sentence = Sentence.get(self.db, self.sentence_id)
+        sentence = self.session.get(Sentence, self.sentence_id)
+        if sentence is None:
+            return False
+
         if self.field == "text_oe":
-            sentence.update(self.before)
+            sentence.update(self.session, self.before)
         elif self.field == "text_modern":
             sentence.text_modern = self.before
-            sentence.save()
+            self.session.add(sentence)
+            self.session.commit()
+        return True
 
     def get_description(self) -> str:
         """
@@ -170,19 +205,19 @@ class EditSentenceCommand(Command):
 class CommandManager:
     """Manages undo/redo command stack."""
 
-    def __init__(self, db: Database, max_commands: int = 50) -> None:
+    def __init__(self, session: Session, max_commands: int = 50) -> None:
         """
         Initialize command manager.
 
         Args:
-            db: Database connection
+            session: SQLAlchemy session
 
         Keyword Args:
             max_commands: Maximum number of commands to keep in memory
 
         """
-        #: The database connection.
-        self.db = db
+        #: The SQLAlchemy session.
+        self.session = session
         #: The maximum number of commands to keep in memory.
         self.max_commands = max_commands
         #: The undo stack.

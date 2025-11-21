@@ -1,99 +1,80 @@
 """Sentence model."""
 
-from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, cast
+from datetime import datetime
+from typing import TYPE_CHECKING
 
-from oeapp.exc import DoesNotExist
+from sqlalchemy import DateTime, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy.orm import Mapped, Session, mapped_column, relationship
+
+from oeapp.db import Base
 from oeapp.models.token import Token
 
 if TYPE_CHECKING:
-    import builtins
-    from datetime import datetime
-
     from oeapp.models.note import Note
-    from oeapp.services.db import Database
+    from oeapp.models.project import Project
 
 
-@dataclass
-class Sentence:
-    """Represents a sentence."""
+class Sentence(Base):
+    """
+    Represents a sentence.
 
-    db: Database
+    A sentences has these characteristics:
+    - A project ID
+    - A display order
+    - An Old English text
+    - A Modern English translation
+    - A list of tokens
+    - A list of notes
+
+    A sentence is related to a project by the project ID.
+    A sentence is related to a list of tokens by the token ID.
+    A sentence is related to a list of notes by the note ID.
+    """
+
+    __tablename__ = "sentences"
+    __table_args__ = (
+        UniqueConstraint(
+            "project_id", "display_order", name="uq_sentences_project_order"
+        ),
+    )
+
     #: The sentence ID.
-    id: int | None
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     #: The project ID.
-    project_id: int
+    project_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False
+    )
     #: The display order of the sentence in the project.
-    display_order: int
+    display_order: Mapped[int] = mapped_column(Integer, nullable=False)
     #: The Old English text.
-    text_oe: str
+    text_oe: Mapped[str] = mapped_column(String, nullable=False)
     #: The Modern English translation.
-    text_modern: str | None = None
+    text_modern: Mapped[str | None] = mapped_column(String, nullable=True)
     #: The date and time the sentence was created.
-    created_at: datetime | None = None
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.now, nullable=False
+    )
     #: The date and time the sentence was last updated.
-    updated_at: datetime | None = None
-    # The tokens in the sentence.
-    tokens: list[Token] = field(default_factory=list)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.now, onupdate=datetime.now, nullable=False
+    )
 
-    @property
-    def notes(self) -> list[Note]:
-        """
-        Get the notes for the sentence.
-        """
-        from .note import Note  # noqa: PLC0415
-
-        if not self.id:
-            msg = "Sentence has not yet been saved to the database"
-            raise ValueError(msg)
-        return Note.list(self.db, self.id)
-
-    @classmethod
-    def list(cls, db: Database, project_id: int) -> builtins.list[Sentence]:
-        """
-        List all sentences for a project.
-        """
-        cursor = db.cursor
-        cursor.execute(
-            "SELECT id FROM sentences WHERE project_id = ? ORDER BY display_order",
-            (project_id,),
-        )
-        return [cls.get(db, row[0]) for row in cursor.fetchall()]
-
-    @classmethod
-    def get(cls, db: Database, sentence_id: int) -> Sentence:
-        """
-        Get a sentence by ID.
-
-        Args:
-            db: Database object
-            sentence_id: Sentence ID
-
-        Returns:
-            The :class:`~oeapp.models.sentence.Sentence` object
-
-        """
-        cursor = db.cursor
-        cursor.execute("SELECT * FROM sentences WHERE id = ?", (sentence_id,))
-        row = cursor.fetchone()
-        if not row:
-            raise DoesNotExist("Sentence", sentence_id)  # noqa: EM101
-        # row[0] is the sentence ID
-        tokens = Token.list(db, sentence_id)
-        return cls(
-            db=db,
-            id=row[0],
-            project_id=row[1],
-            display_order=row[2],
-            text_oe=row[3],
-            created_at=row[4],
-            updated_at=row[5],
-            tokens=tokens,
-        )
+    # Relationships
+    project: Mapped[Project] = relationship("Project", back_populates="sentences")
+    tokens: Mapped[list[Token]] = relationship(
+        "Token",
+        back_populates="sentence",
+        cascade="all, delete-orphan",
+        order_by="Token.order_index",
+        lazy="select",  # Load tokens when accessed
+    )
+    notes: Mapped[list[Note]] = relationship(
+        "Note", back_populates="sentence", cascade="all, delete-orphan"
+    )
 
     @classmethod
     def create(
-        cls, db: Database, project_id: int, display_order: int, text_oe: str
+        cls, session: Session, project_id: int, display_order: int, text_oe: str
     ) -> Sentence:
         """
         Import an entire OE text into a project.
@@ -103,7 +84,7 @@ class Sentence:
         text.
 
         Args:
-            db: Database object
+            session: SQLAlchemy session
             project_id: Project ID
             display_order: Display order
             text_oe: Old English text
@@ -112,63 +93,38 @@ class Sentence:
             The new :class:`~oeapp.models.sentence.Sentence` object
 
         """
-        cursor = db.cursor
-        cursor.execute(
-            "INSERT INTO sentences (project_id, display_order, text_oe) VALUES (?, ?, ?)",  # noqa: E501
-            (project_id, display_order, text_oe),
+        sentence = cls(
+            project_id=project_id,
+            display_order=display_order,
+            text_oe=text_oe,
         )
-        sentence_id = cursor.lastrowid
-        if not sentence_id:
-            msg = "Failed to create sentence"
-            raise ValueError(msg)
-        cursor.execute("SELECT * FROM sentences WHERE id = ?", (sentence_id,))
-        data = cursor.fetchone()
-        tokens = Token.create_from_sentence(db, data[0], text_oe)
-        db.conn.commit()
-        return cls(
-            db=db,
-            id=data[0],
-            project_id=data[1],
-            display_order=data[2],
-            text_oe=data[3],
-            created_at=data[5],
-            updated_at=data[6],
-            tokens=tokens,
-        )
+        session.add(sentence)
+        session.flush()  # Get the ID
 
-    def update(self, text_oe: str) -> Sentence:
+        # Create tokens from sentence text
+        tokens = Token.create_from_sentence(
+            session=session, sentence_id=sentence.id, sentence_text=text_oe
+        )
+        sentence.tokens = tokens
+
+        session.commit()
+        return sentence
+
+    def update(self, session, text_oe: str) -> Sentence:
         """
         Update the sentence.
-        """
-        assert self.db.conn is not None, "Database connection not established"  # noqa: S101
-        cursor = self.db.conn.cursor()
-        cursor.execute(
-            "UPDATE sentences SET text_oe = ? WHERE id = ?", (text_oe, self.id)
-        )
-        self.db.conn.commit()
-        Token.update_from_sentence(self.db, text_oe, cast("int", self.id))
-        return Sentence.get(self.db, cast("int", self.id))
 
-    def delete(self) -> None:
-        """
-        Delete the sentence.
-        """
-        # First delete all tokens in the sentence
-        for token in self.tokens:
-            token.delete()
-        cursor = self.db.cursor
-        cursor.execute("DELETE FROM sentences WHERE id = ?", (self.id,))
-        self.db.commit()
+        Args:
+            session: SQLAlchemy session
+            text_oe: New Old English text
 
-    def save(self) -> None:
+        Returns:
+            Updated sentence
+
         """
-        Save the sentence and its tokens to the database.
-        """
-        cursor = self.db.cursor
-        cursor.execute(
-            "UPDATE sentences SET text_oe = ?, text_modern = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",  # noqa: E501
-            (self.text_oe, self.text_modern, self.id),
-        )
-        self.db.commit()
-        for token in self.tokens:
-            token.save()
+        self.text_oe = text_oe
+        Token.update_from_sentence(session, text_oe, self.id)
+        session.commit()
+        # Refresh to get updated tokens
+        session.refresh(self)
+        return self

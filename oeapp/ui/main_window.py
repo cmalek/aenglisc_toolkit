@@ -1,7 +1,7 @@
 """Main application window."""
 
 from pathlib import Path
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QKeySequence, QShortcut
@@ -21,13 +21,14 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from sqlalchemy import select
 
+from oeapp.db import SessionLocal, apply_migrations
 from oeapp.exc import AlreadyExists
 from oeapp.models.project import Project
 from oeapp.models.token import Token
 from oeapp.services.autosave import AutosaveService
 from oeapp.services.commands import CommandManager
-from oeapp.services.db import Database
 from oeapp.services.export_docx import DOCXExporter
 from oeapp.services.filter import FilterService
 from oeapp.ui.filter_dialog import FilterDialog
@@ -123,8 +124,10 @@ class MainWindow(QMainWindow):
 
     def __init__(self) -> None:
         super().__init__()
-        #: Datbase
-        self.db: Database = Database()
+        # Apply migrations on startup
+        apply_migrations()
+        #: SQLAlchemy session
+        self.session = SessionLocal()
         #: Current project ID
         self.current_project_id: int | None = None
         #: Sentence cards
@@ -336,8 +339,8 @@ class MainWindow(QMainWindow):
 
         # Initialize autosave and command manager
         self.autosave_service = AutosaveService(self.action_service.autosave)
-        self.command_manager = CommandManager(self.db)
-        self.filter_service = FilterService(self.db)
+        self.command_manager = CommandManager(self.session)
+        self.filter_service = FilterService(self.session)
 
         # Clear existing content
         for i in reversed(range(self.content_layout.count())):
@@ -346,7 +349,7 @@ class MainWindow(QMainWindow):
         self.sentence_cards = []
         for sentence in project.sentences:
             card = SentenceCard(
-                sentence, db=self.db, command_manager=self.command_manager
+                sentence, session=self.session, command_manager=self.command_manager
             )
             card.set_tokens(sentence.tokens)
             card.translation_edit.textChanged.connect(self._on_translation_changed)
@@ -368,7 +371,7 @@ class MainWindow(QMainWindow):
 
         """
         # Create project in the shared database
-        project = Project.create(self.db, text, title)
+        project = Project.create(self.session, text, title)
         self._configure_project(project)
         self.setWindowTitle(f"Ænglisc Toolkit - {project.name}")
         self.show_message("Project created")
@@ -398,7 +401,15 @@ class MainWindow(QMainWindow):
         - If the user selects a project, load it by ID.
         """
         # Get all projects from the database
-        projects = Project.list(self.db)
+        from sqlalchemy import select
+
+        from sqlalchemy import select
+
+        projects = list(
+            self.session.scalars(
+                select(Project).order_by(Project.updated_at.desc())
+            ).all()
+        )
         if not projects:
             self.show_information(
                 "No projects found. Create a new project first.",
@@ -436,7 +447,10 @@ class MainWindow(QMainWindow):
             if selected_item:
                 project_id = selected_item.data(Qt.ItemDataRole.UserRole)
                 # Get the project from the database.
-                project = Project.get(self.db, project_id)
+                project = self.session.get(Project, project_id)
+                if project is None:
+                    self.show_warning("Project not found")
+                    return
                 # Configure the app for the project.
                 self._configure_project(project)
                 # Set the window title to the project name.
@@ -447,7 +461,7 @@ class MainWindow(QMainWindow):
         """
         Save current project.
         """
-        if not self.db or not self.current_project_id:
+        if not self.session or not self.current_project_id:
             self.show_warning("No project open")
             return
         if self.autosave_service:
@@ -460,7 +474,7 @@ class MainWindow(QMainWindow):
         """
         Export project to DOCX.
         """
-        if not self.db or not self.current_project_id:
+        if not self.session or not self.current_project_id:
             self.show_warning("No project open")
             return
 
@@ -478,7 +492,7 @@ class MainWindow(QMainWindow):
             file_path += ".docx"
 
         try:
-            exporter = DOCXExporter(self.db)
+            exporter = DOCXExporter(self.session)
             if exporter.export(self.current_project_id, Path(file_path)):
                 self.show_information(
                     f"Project exported successfully to:\n{file_path}",
@@ -510,7 +524,7 @@ class MainWindow(QMainWindow):
         """
         Show filter dialog.
         """
-        if not self.db or not self.current_project_id:
+        if not self.session or not self.current_project_id:
             self.show_warning(
                 "Please create or open a project first.", title="No Project"
             )
@@ -540,10 +554,8 @@ class MainWindowActions:
         Initialize main window actions.
         """
         self.main_window = main_window
-        #: Database
-        self.db = main_window.db
-        #: Current project ID
-        self.current_project_id = main_window.current_project_id
+        #: SQLAlchemy session
+        self.session = main_window.session
         #: Sentence cards
         self.sentence_cards = main_window.sentence_cards
         #: Autosave service
@@ -647,7 +659,7 @@ class MainWindowActions:
         - If there is no database or the current project ID is not set, do nothing.
         - Reload annotations for all sentence cards.
         """
-        if not self.db or not self.current_project_id:
+        if not self.session or not self.main_window.current_project_id:
             return
         # Reload annotations for all cards
         for card in self.sentence_cards:
@@ -663,10 +675,13 @@ class MainWindowActions:
         - Show a message in the status bar that the project has been saved.
 
         """
-        assert self.db is not None, "Database not initialized"  # noqa: S101
-        assert self.current_project_id is not None, "Current project ID not set"  # noqa: S101
-        project = Project.get(self.db, self.current_project_id)
-        project.save()
+        assert self.session is not None, "Session not initialized"  # noqa: S101
+        assert self.main_window.current_project_id is not None, "Current project ID not set"  # noqa: S101
+        project = self.session.get(Project, self.main_window.current_project_id)
+        if project is None:
+            return
+        self.session.add(project)
+        self.session.commit()
         self.main_window.show_message("Saved")
 
     def navigate_to_token(self, token_id: int) -> None:
@@ -681,8 +696,10 @@ class MainWindowActions:
             token_id: Token ID to navigate to
 
         """
-        token = Token.get(self.db, token_id)
-        sentence_id = token.sentence.id
+        token = self.session.get(Token, token_id)
+        if token is None:
+            return
+        sentence_id = token.sentence_id
 
         # Find the sentence card
         for card in self.sentence_cards:
@@ -706,7 +723,7 @@ class MainWindowActions:
         """
         Export project to DOCX.
         """
-        if not self.db or not self.current_project_id:
+        if not self.session or not self.main_window.current_project_id:
             self.main_window.show_warning("No project open")
             return
 
@@ -727,8 +744,8 @@ class MainWindowActions:
             file_path += ".docx"
 
         try:
-            exporter = DOCXExporter(self.db)
-            if exporter.export(self.current_project_id, Path(file_path)):
+            exporter = DOCXExporter(self.session)
+            if exporter.export(self.main_window.current_project_id, Path(file_path)):
                 self.main_window.show_information(
                     f"Project exported successfully to:\n{file_path}",
                     title="Export Successful",

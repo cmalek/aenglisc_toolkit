@@ -1,11 +1,16 @@
 """Filter service for querying annotations based on criteria."""
 
-import sqlite3
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from sqlalchemy import and_, func, or_
+
+from oeapp.models.annotation import Annotation
+from oeapp.models.sentence import Sentence
+from oeapp.models.token import Token
+
 if TYPE_CHECKING:
-    from oeapp.services.db import Database
+    from sqlalchemy.orm import Session
 
 
 @dataclass
@@ -31,17 +36,17 @@ class FilterCriteria:
 class FilterService:
     """Service for filtering annotations."""
 
-    def __init__(self, db: Database):
+    def __init__(self, session: Session):
         """
         Initialize filter service.
 
         Args:
-            db: Database connection
+            session: SQLAlchemy session
 
         """
-        self.db = db
+        self.session = session
 
-    def find_tokens(  # noqa: PLR0912, PLR0915
+    def find_tokens(  # noqa: PLR0912
         self,
         project_id: int,
         criteria: FilterCriteria,
@@ -57,180 +62,201 @@ class FilterService:
             List of token dictionaries with sentence context
 
         """
-        query_parts = []
-        params = []
-
-        # Base query joins tokens with annotations
-        base_query = """
-            SELECT
-                t.id as token_id,
-                t.sentence_id,
-                t.order_index,
-                t.surface,
-                t.lemma,
-                s.display_order as sentence_order,
-                s.text_oe as sentence_text,
-                a.pos,
-                a.gender,
-                a.number,
-                a."case",
-                a.declension,
-                a.pronoun_type,
-                a.verb_class,
-                a.verb_tense,
-                a.verb_person,
-                a.verb_mood,
-                a.verb_aspect,
-                a.verb_form,
-                a.prep_case,
-                a.uncertain,
-                a.alternatives_json,
-                a.confidence
-            FROM tokens t
-            JOIN sentences s ON t.sentence_id = s.id
-            LEFT JOIN annotations a ON t.id = a.token_id
-            WHERE s.project_id = ?
-        """
-        params.append(project_id)
+        # Base query with joins
+        query = (
+            self.session.query(
+                Token.id.label("token_id"),
+                Token.sentence_id,
+                Token.order_index,
+                Token.surface,
+                Token.lemma,
+                Sentence.display_order.label("sentence_order"),
+                Sentence.text_oe.label("sentence_text"),
+                Annotation.pos,
+                Annotation.gender,
+                Annotation.number,
+                Annotation.case,
+                Annotation.declension,
+                Annotation.pronoun_type,
+                Annotation.verb_class,
+                Annotation.verb_tense,
+                Annotation.verb_person,
+                Annotation.verb_mood,
+                Annotation.verb_aspect,
+                Annotation.verb_form,
+                Annotation.prep_case,
+                Annotation.uncertain,
+                Annotation.alternatives_json,
+                Annotation.confidence,
+            )
+            .join(Sentence, Token.sentence_id == Sentence.id)
+            .outerjoin(Annotation, Token.id == Annotation.token_id)
+            .filter(Sentence.project_id == project_id)
+        )
 
         # Filter by POS
         if criteria.pos:
             if criteria.pos == "ANY":
-                query_parts.append("a.pos IS NOT NULL")
+                query = query.filter(Annotation.pos.isnot(None))
             else:
-                query_parts.append("a.pos = ?")
-                params.append(criteria.pos)
+                query = query.filter(Annotation.pos == criteria.pos)
 
         # Filter by uncertainty
         if criteria.uncertain is not None:
             if criteria.uncertain:
-                query_parts.append("a.uncertain = 1")
+                query = query.filter(Annotation.uncertain == True)  # noqa: E712
             else:
-                query_parts.append("(a.uncertain = 0 OR a.uncertain IS NULL)")
+                query = query.filter(
+                    or_(Annotation.uncertain == False, Annotation.uncertain.is_(None))  # noqa: E712
+                )
 
         # Filter by confidence range
         if criteria.min_confidence is not None:
-            query_parts.append("(a.confidence >= ? OR a.confidence IS NULL)")
-            params.append(criteria.min_confidence)
+            query = query.filter(
+                or_(
+                    Annotation.confidence >= criteria.min_confidence,
+                    Annotation.confidence.is_(None),
+                )
+            )
         if criteria.max_confidence is not None:
-            query_parts.append("(a.confidence <= ? OR a.confidence IS NULL)")
-            params.append(criteria.max_confidence)
+            query = query.filter(
+                or_(
+                    Annotation.confidence <= criteria.max_confidence,
+                    Annotation.confidence.is_(None),
+                )
+            )
 
         # Filter by alternatives
         if criteria.has_alternatives is not None:
             if criteria.has_alternatives:
-                query_parts.append(
-                    "a.alternatives_json IS NOT NULL AND a.alternatives_json != ''"
+                query = query.filter(
+                    and_(
+                        Annotation.alternatives_json.isnot(None),
+                        Annotation.alternatives_json != "",
+                    )
                 )
             else:
-                query_parts.append(
-                    "(a.alternatives_json IS NULL OR a.alternatives_json = '')"
+                query = query.filter(
+                    or_(
+                        Annotation.alternatives_json.is_(None),
+                        Annotation.alternatives_json == "",
+                    )
                 )
 
         # Filter incomplete annotations
         if criteria.incomplete:
             incomplete_conditions = []
             if criteria.pos == "N" or criteria.pos is None:
-                # Nouns missing gender, number, or case
                 incomplete_conditions.append(
-                    "(a.pos = 'N' AND (a.gender IS NULL OR a.number IS NULL OR a.\"case\" IS NULL))"  # noqa: E501
+                    and_(
+                        Annotation.pos == "N",
+                        or_(
+                            Annotation.gender.is_(None),
+                            Annotation.number.is_(None),
+                            Annotation.case.is_(None),
+                        ),
+                    )
                 )
             if criteria.pos == "V" or criteria.pos is None:
-                # Verbs missing tense, mood, person, or number
                 incomplete_conditions.append(
-                    "(a.pos = 'V' AND (a.verb_tense IS NULL OR a.verb_mood IS NULL OR a.verb_person IS NULL OR a.number IS NULL))"  # noqa: E501
+                    and_(
+                        Annotation.pos == "V",
+                        or_(
+                            Annotation.verb_tense.is_(None),
+                            Annotation.verb_mood.is_(None),
+                            Annotation.verb_person.is_(None),
+                            Annotation.number.is_(None),
+                        ),
+                    )
                 )
             if criteria.pos == "A" or criteria.pos is None:
-                # Adjectives missing gender, number, case, or degree
                 incomplete_conditions.append(
-                    "(a.pos = 'A' AND (a.gender IS NULL OR a.number IS NULL OR a.\"case\" IS NULL))"  # noqa: E501
+                    and_(
+                        Annotation.pos == "A",
+                        or_(
+                            Annotation.gender.is_(None),
+                            Annotation.number.is_(None),
+                            Annotation.case.is_(None),
+                        ),
+                    )
                 )
             if criteria.pos == "R" or criteria.pos is None:
-                # Pronouns missing type, gender, number, or case
                 incomplete_conditions.append(
-                    "(a.pos = 'R' AND (a.pronoun_type IS NULL OR a.gender IS NULL OR a.number IS NULL OR a.\"case\" IS NULL))"  # noqa: E501
+                    and_(
+                        Annotation.pos == "R",
+                        or_(
+                            Annotation.pronoun_type.is_(None),
+                            Annotation.gender.is_(None),
+                            Annotation.number.is_(None),
+                            Annotation.case.is_(None),
+                        ),
+                    )
                 )
             if criteria.pos == "E" or criteria.pos is None:
-                # Prepositions missing case
-                incomplete_conditions.append("(a.pos = 'E' AND a.prep_case IS NULL)")
+                incomplete_conditions.append(
+                    and_(Annotation.pos == "E", Annotation.prep_case.is_(None))
+                )
             if incomplete_conditions:
-                query_parts.append(f"({' OR '.join(incomplete_conditions)})")
-            else:
-                # If specific POS but no incomplete conditions, return empty
-                query_parts.append("1 = 0")
+                query = query.filter(or_(*incomplete_conditions))
 
         # Filter by specific missing field
         if criteria.missing_field:
-            query_parts.append(f"a.{criteria.missing_field} IS NULL")
-            query_parts.append("a.pos IS NOT NULL")  # Must have annotation
+            field = getattr(Annotation, criteria.missing_field, None)
+            if field is not None:
+                query = query.filter(field.is_(None))
+                query = query.filter(Annotation.pos.isnot(None))  # Must have annotation
 
-            # Only filter tokens where this field is relevant for the POS type
-            field_pos_map = {
-                "verb_tense": "V",
-                "verb_mood": "V",
-                "verb_person": "V",
-                "verb_class": "V",
-                "verb_aspect": "V",
-                "verb_form": "V",
-                "prep_case": "E",
-                "pronoun_type": "R",
-                "declension": ["N", "A"],
-            }
+                # Only filter tokens where this field is relevant for the POS type
+                field_pos_map = {
+                    "verb_tense": "V",
+                    "verb_mood": "V",
+                    "verb_person": "V",
+                    "verb_class": "V",
+                    "verb_aspect": "V",
+                    "verb_form": "V",
+                    "prep_case": "E",
+                    "pronoun_type": "R",
+                    "declension": ["N", "A"],
+                }
 
-            if criteria.missing_field in field_pos_map:
-                required_pos = field_pos_map[criteria.missing_field]
-                if isinstance(required_pos, list):
-                    pos_conditions = " OR ".join(
-                        [f"a.pos = '{p}'" for p in required_pos]
-                    )
-                    query_parts.append(f"({pos_conditions})")
-                else:
-                    query_parts.append(f"a.pos = '{required_pos}'")
+                if criteria.missing_field in field_pos_map:
+                    required_pos = field_pos_map[criteria.missing_field]
+                    if isinstance(required_pos, list):
+                        query = query.filter(Annotation.pos.in_(required_pos))
+                    else:
+                        query = query.filter(Annotation.pos == required_pos)
 
-        # Combine query parts
-        if query_parts:
-            query = base_query + " AND " + " AND ".join(query_parts)
-        else:
-            query = base_query
+        # Order results
+        query = query.order_by(Sentence.display_order, Token.order_index)
 
-        query += " ORDER BY s.display_order, t.order_index"
-
-        try:
-            cursor = self.db.conn.cursor()
-            cursor.execute(query, params)
-            rows = cursor.fetchall()
-        except sqlite3.Error as e:
-            print(f"Database error: {e}")
-            return []
-
-        # Convert rows to dictionaries
+        # Execute query and convert to dictionaries
         results = []
-        for row in rows:
+        for row in query.all():
             results.append(  # noqa: PERF401
                 {
-                    "token_id": row["token_id"],
-                    "sentence_id": row["sentence_id"],
-                    "order_index": row["order_index"],
-                    "surface": row["surface"],
-                    "lemma": row["lemma"],
-                    "sentence_order": row["sentence_order"],
-                    "sentence_text": row["sentence_text"],
-                    "pos": row["pos"],
-                    "gender": row["gender"],
-                    "number": row["number"],
-                    "case": row["case"],
-                    "declension": row["declension"],
-                    "pronoun_type": row["pronoun_type"],
-                    "verb_class": row["verb_class"],
-                    "verb_tense": row["verb_tense"],
-                    "verb_person": row["verb_person"],
-                    "verb_mood": row["verb_mood"],
-                    "verb_aspect": row["verb_aspect"],
-                    "verb_form": row["verb_form"],
-                    "prep_case": row["prep_case"],
-                    "uncertain": bool(row["uncertain"]) if row["uncertain"] else False,
-                    "alternatives_json": row["alternatives_json"],
-                    "confidence": row["confidence"],
+                    "token_id": row.token_id,
+                    "sentence_id": row.sentence_id,
+                    "order_index": row.order_index,
+                    "surface": row.surface,
+                    "lemma": row.lemma,
+                    "sentence_order": row.sentence_order,
+                    "sentence_text": row.sentence_text,
+                    "pos": row.pos,
+                    "gender": row.gender,
+                    "number": row.number,
+                    "case": row.case,
+                    "declension": row.declension,
+                    "pronoun_type": row.pronoun_type,
+                    "verb_class": row.verb_class,
+                    "verb_tense": row.verb_tense,
+                    "verb_person": row.verb_person,
+                    "verb_mood": row.verb_mood,
+                    "verb_aspect": row.verb_aspect,
+                    "verb_form": row.verb_form,
+                    "prep_case": row.prep_case,
+                    "uncertain": bool(row.uncertain) if row.uncertain else False,
+                    "alternatives_json": row.alternatives_json,
+                    "confidence": row.confidence,
                 }
             )
 
@@ -247,104 +273,97 @@ class FilterService:
             Dictionary with statistics
 
         """
-        try:
-            cursor = self.db.conn.cursor()
+        # Total tokens
+        total_tokens = (
+            self.session.query(func.count(Token.id))
+            .join(Sentence, Token.sentence_id == Sentence.id)
+            .filter(Sentence.project_id == project_id)
+            .scalar()
+        )
 
-            # Total tokens
-            cursor.execute(
-                """
-                SELECT COUNT(*) as total
-                FROM tokens t
-                JOIN sentences s ON t.sentence_id = s.id
-                WHERE s.project_id = ?
-            """,
-                (project_id,),
-            )
-            total_tokens = cursor.fetchone()["total"]
-        except sqlite3.Error as e:
-            print(f"Database error: {e}")
-            return {}
+        # Annotated tokens
+        annotated_tokens = (
+            self.session.query(func.count(Token.id))
+            .join(Sentence, Token.sentence_id == Sentence.id)
+            .join(Annotation, Token.id == Annotation.token_id)
+            .filter(Sentence.project_id == project_id)
+            .scalar()
+        )
 
-        try:
-            # Annotated tokens
-            cursor.execute(
-                """
-                SELECT COUNT(*) as total
-                FROM tokens t
-                JOIN sentences s ON t.sentence_id = s.id
-                JOIN annotations a ON t.id = a.token_id
-                WHERE s.project_id = ?
-            """,
-                (project_id,),
-            )
-            annotated_tokens = cursor.fetchone()["total"]
-        except sqlite3.Error as e:
-            print(f"Database error: {e}")
-            return {}
+        # POS distribution
+        pos_rows = (
+            self.session.query(Annotation.pos, func.count(Annotation.token_id))
+            .join(Token, Annotation.token_id == Token.id)
+            .join(Sentence, Token.sentence_id == Sentence.id)
+            .filter(Sentence.project_id == project_id)
+            .group_by(Annotation.pos)
+            .all()
+        )
+        pos_distribution = {row[0]: row[1] for row in pos_rows}
 
-        try:
-            # POS distribution
-            cursor.execute(
-                """
-                SELECT a.pos, COUNT(*) as count
-                FROM annotations a
-                JOIN tokens t ON a.token_id = t.id
-                JOIN sentences s ON t.sentence_id = s.id
-                WHERE s.project_id = ?
-                GROUP BY a.pos
-            """,
-                (project_id,),
-            )
-            rows = cursor.fetchall()
-        except sqlite3.Error as e:
-            print(f"Database error: {e}")
-            return {}
+        # Uncertain annotations
+        uncertain_count = (
+            self.session.query(func.count(Annotation.token_id))
+            .join(Token, Annotation.token_id == Token.id)
+            .join(Sentence, Token.sentence_id == Sentence.id)
+            .filter(Sentence.project_id == project_id)
+            .filter(Annotation.uncertain == True)  # noqa: E712
+            .scalar()
+        )
 
-        pos_distribution = {row["pos"]: row["count"] for row in rows}
+        # Incomplete annotations
+        incomplete_conditions = or_(
+            and_(
+                Annotation.pos == "N",
+                or_(
+                    Annotation.gender.is_(None),
+                    Annotation.number.is_(None),
+                    Annotation.case.is_(None),
+                ),
+            ),
+            and_(
+                Annotation.pos == "V",
+                or_(
+                    Annotation.verb_tense.is_(None),
+                    Annotation.verb_mood.is_(None),
+                    Annotation.verb_person.is_(None),
+                    Annotation.number.is_(None),
+                ),
+            ),
+            and_(
+                Annotation.pos == "A",
+                or_(
+                    Annotation.gender.is_(None),
+                    Annotation.number.is_(None),
+                    Annotation.case.is_(None),
+                ),
+            ),
+            and_(
+                Annotation.pos == "R",
+                or_(
+                    Annotation.pronoun_type.is_(None),
+                    Annotation.gender.is_(None),
+                    Annotation.number.is_(None),
+                    Annotation.case.is_(None),
+                ),
+            ),
+            and_(Annotation.pos == "E", Annotation.prep_case.is_(None)),
+        )
 
-        try:
-            # Uncertain annotations
-            cursor.execute(
-                """
-                SELECT COUNT(*) as total
-                FROM annotations a
-                JOIN tokens t ON a.token_id = t.id
-                JOIN sentences s ON t.sentence_id = s.id
-                WHERE s.project_id = ? AND a.uncertain = 1
-            """,
-                (project_id,),
-            )
-            uncertain_count = cursor.fetchone()["total"]
-        except sqlite3.Error as e:
-            print(f"Database error: {e}")
-            return {}
-
-        # Incomplete annotations (simplified - any annotation missing key fields)
-        incomplete_query = """
-            SELECT COUNT(*) as total
-            FROM annotations a
-            JOIN tokens t ON a.token_id = t.id
-            JOIN sentences s ON t.sentence_id = s.id
-            WHERE s.project_id = ? AND (
-                (a.pos = 'N' AND (a.gender IS NULL OR a.number IS NULL OR a."case" IS NULL)) OR
-                (a.pos = 'V' AND (a.verb_tense IS NULL OR a.verb_mood IS NULL OR a.verb_person IS NULL OR a.number IS NULL)) OR
-                (a.pos = 'A' AND (a.gender IS NULL OR a.number IS NULL OR a."case" IS NULL)) OR
-                (a.pos = 'R' AND (a.pronoun_type IS NULL OR a.gender IS NULL OR a.number IS NULL OR a."case" IS NULL)) OR
-                (a.pos = 'E' AND a.prep_case IS NULL)
-            )
-        """  # noqa: E501
-        try:
-            cursor.execute(incomplete_query, (project_id,))
-            incomplete_count = cursor.fetchone()["total"]
-        except sqlite3.Error as e:
-            print(f"Database error: {e}")
-            return {}
+        incomplete_count = (
+            self.session.query(func.count(Annotation.token_id))
+            .join(Token, Annotation.token_id == Token.id)
+            .join(Sentence, Token.sentence_id == Sentence.id)
+            .filter(Sentence.project_id == project_id)
+            .filter(incomplete_conditions)
+            .scalar()
+        )
 
         return {
-            "total_tokens": total_tokens,
-            "annotated_tokens": annotated_tokens,
-            "unannotated_tokens": total_tokens - annotated_tokens,
+            "total_tokens": total_tokens or 0,
+            "annotated_tokens": annotated_tokens or 0,
+            "unannotated_tokens": (total_tokens or 0) - (annotated_tokens or 0),
             "pos_distribution": pos_distribution,
-            "uncertain_count": uncertain_count,
-            "incomplete_count": incomplete_count,
+            "uncertain_count": uncertain_count or 0,
+            "incomplete_count": incomplete_count or 0,
         }

@@ -235,7 +235,10 @@ class TokenTable(QWidget):
         # Set the tokens to display.
         self.tokens = tokens
         # Set the annotations to display.
-        self.annotations = {cast("int", token.id): token.annotation for token in tokens}
+        self.annotations = {
+            cast("int", token.id): cast("Annotation", token.annotation)
+            for token in tokens
+        }
         # Set the number of rows to the number of tokens.
         self.table.setRowCount(len(tokens))
         # Loop through the tokens and add them to the table.

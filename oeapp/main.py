@@ -53,8 +53,6 @@ def main():
     """
     Run the Ænglisc Toolkit application.
     """
-    QtCore.QCoreApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling, True)  # noqa: FBT003
-    QtCore.QCoreApplication.setAttribute(QtCore.Qt.AA_UseHighDpiPixmaps, True)  # noqa: FBT003
     QCoreApplication.setOrganizationName("Chris Malek")  # Can be any string
     QCoreApplication.setApplicationName("Ænglisc Toolkit")  # Name in the menu bar
 

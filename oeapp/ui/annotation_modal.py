@@ -253,9 +253,12 @@ class AnnotationModal(QDialog):
         """
         super().__init__(parent)
         self.token = token
-        self.annotation = annotation or Annotation(
-            db=token.db, token_id=cast("int", token.id)
-        )
+        # Get or create annotation
+        if annotation:
+            self.annotation = annotation
+        else:
+            # Annotation will be created when saved if it doesn't exist
+            self.annotation = Annotation(token_id=cast("int", token.id))
         self.fields_widget: QWidget | None = None
         self._setup_ui()
         self._setup_keyboard_shortcuts()

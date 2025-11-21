@@ -1,111 +1,64 @@
 """Note model."""
 
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, cast
+from datetime import datetime
+from typing import TYPE_CHECKING
 
-from oeapp.exc import DoesNotExist
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, String
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from oeapp.db import Base
 
 if TYPE_CHECKING:
-    import builtins
-    from datetime import datetime
-
     from oeapp.models.sentence import Sentence
-    from oeapp.services.db import Database
+    from oeapp.models.token import Token
 
 
-@dataclass
-class Note:
-    """Represents a note attached to tokens, spans, or sentences."""
+class Note(Base):
+    """
+    Represents a note attached to tokens, spans, or sentences.
+    """
 
-    #: The database.
-    db: Database
+    __tablename__ = "notes"
+    __table_args__ = (
+        CheckConstraint(
+            "note_type IN ('token','span','sentence')", name="ck_notes_note_type"
+        ),
+    )
+
     #: The note ID.
-    id: int | None
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     #: The sentence ID.
-    sentence_id: int
+    sentence_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("sentences.id", ondelete="CASCADE"), nullable=False
+    )
     #: The start token ID.
-    start_token: int | None = None
+    start_token: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("tokens.id", ondelete="CASCADE"), nullable=True
+    )
     #: The end token ID.
-    end_token: int | None = None
+    end_token: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("tokens.id", ondelete="CASCADE"), nullable=True
+    )
     #: The note text in Markdown format.
-    note_text_md: str = ""
+    note_text_md: Mapped[str] = mapped_column(String, nullable=False, default="")
     #: The note type.
-    note_type: str = "token"  # token, span, sentence
+    note_type: Mapped[str] = mapped_column(
+        String, nullable=False, default="token"
+    )  # token, span, sentence
     #: The date and time the note was created.
-    created_at: datetime | None = None
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.now, nullable=False
+    )
     #: The date and time the note was last updated.
-    updated_at: datetime | None = None
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.now, onupdate=datetime.now, nullable=False
+    )
 
-    @property
-    def sentence(self) -> Sentence:
-        """
-        Get the sentence this note belongs to.
-        """
-        from .sentence import Sentence  # noqa: PLC0415
-
-        return Sentence.get(self.db, self.sentence_id)
-
-    @classmethod
-    def list(cls, db: Database, sentence_id: int) -> builtins.list[Note]:
-        """
-        List all notes for a sentence.
-        """
-        cursor = db.cursor
-        cursor.execute("SELECT * FROM notes WHERE sentence_id = ?", (sentence_id,))
-        return [cls(db=db, **row) for row in cursor.fetchall()]
-
-    @classmethod
-    def get(cls, db: Database, note_id: int) -> Note:
-        """
-        Get a note by ID.
-        """
-        cursor = db.cursor
-        cursor.execute("SELECT * FROM notes WHERE id = ?", (note_id,))
-        row = cursor.fetchone()
-        if not row:
-            raise DoesNotExist("Note", note_id)  # noqa: EM101
-        return cls(db=db, **row)
-
-    @classmethod
-    def create(
-        cls, db: Database, sentence_id: int, note_text_md: str, note_type: str
-    ) -> Note:
-        """
-        Create a new note for a sentence.
-        """
-        cursor = db.cursor
-        cursor.execute(
-            "INSERT INTO notes (sentence_id, note_text_md, note_type) VALUES (?, ?, ?)",
-            (sentence_id, note_text_md, note_type),
-        )
-        return cls(
-            db=db,
-            id=cursor.lastrowid,
-            sentence_id=sentence_id,
-            note_text_md=note_text_md,
-            note_type=note_type,
-        )
-
-    def save(self) -> None:
-        """
-        Save the note to the database.
-        """
-        if not self.id:
-            self.create(self.db, self.sentence_id, self.note_text_md, self.note_type)
-        else:
-            cursor = self.db.cursor
-            cursor.execute(
-                "UPDATE notes SET note_text_md = ?, note_type = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",  # noqa: E501
-                (self.note_text_md, self.note_type, cast("int", self.id)),
-            )
-            self.db.commit()
-
-    def delete(self) -> None:
-        """
-        Delete the note.
-        """
-        if not self.id:
-            return
-        cursor = self.db.cursor
-        cursor.execute("DELETE FROM notes WHERE id = ?", (cast("int", self.id),))
-        self.db.commit()
+    # Relationships
+    sentence: Mapped[Sentence] = relationship("Sentence", back_populates="notes")
+    start_token_rel: Mapped[Token | None] = relationship(
+        "Token", foreign_keys=[start_token]
+    )
+    end_token_rel: Mapped[Token | None] = relationship(
+        "Token", foreign_keys=[end_token]
+    )

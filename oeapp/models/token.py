@@ -1,23 +1,26 @@
 """Token model."""
 
 import re
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, ClassVar, Final, cast
+from datetime import datetime
+from typing import TYPE_CHECKING, ClassVar
 
-from oeapp.exc import DoesNotExist
+from sqlalchemy import DateTime, ForeignKey, Integer, String, UniqueConstraint, select
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from oeapp.db import Base
 from oeapp.models.annotation import Annotation
 
 if TYPE_CHECKING:
-    import builtins
-    from datetime import datetime
-
     from oeapp.models.sentence import Sentence
-    from oeapp.services.db import Database
 
 
-@dataclass
-class Token:
+class Token(Base):
     """Represents a tokenized word in a sentence."""
+
+    __tablename__ = "tokens"
+    __table_args__ = (
+        UniqueConstraint("sentence_id", "order_index", name="uq_tokens_sentence_order"),
+    )
 
     #: The Old English characters. These are the characters that are allowed in
     #: the surface form of a token beyond the basic Latin characters.
@@ -26,166 +29,40 @@ class Token:
     #: sentence.
     NO_ORDER_INDEX: ClassVar[int] = -1
 
-    #: The Database object for the token.
-    db: Database
     #: The token ID.
-    id: int | None
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     #: The sentence ID.
-    sentence_id: int
+    sentence_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("sentences.id", ondelete="CASCADE"), nullable=False
+    )
     #: The order index of the token in the sentence.
-    order_index: int
+    order_index: Mapped[int] = mapped_column(Integer, nullable=False)
     #: The surface form of the token.
-    surface: str
+    surface: Mapped[str] = mapped_column(String, nullable=False)
     #: The lemma of the token.
-    lemma: str | None = None
+    lemma: Mapped[str | None] = mapped_column(String, nullable=True)
     #: The date and time the token was created.
-    created_at: datetime | None = None
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.now, nullable=False
+    )
     #: The date and time the token was last updated.
-    updated_at: datetime | None = None
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.now, onupdate=datetime.now, nullable=False
+    )
 
-    @property
-    def annotation(self) -> Annotation:
-        """
-        Get the sentence this token belongs to.
-        """
-        if not self.id:
-            msg = "Token has not yet been saved to the database"
-            raise ValueError(msg)
-        return Annotation.get(self.db, self.id)
-
-    @property
-    def sentence(self) -> Sentence:
-        """
-        Get the sentence this token belongs to.
-        """
-        # Put this here to avoid circular imports
-        from .sentence import Sentence  # noqa: PLC0415
-
-        return Sentence.get(self.db, self.sentence_id)
-
-    def save(self) -> None:
-        """
-        Save this token to the database.
-        """
-        cursor = self.db.cursor
-        if not self.id:
-            cursor.execute(
-                "INSERT INTO tokens (sentence_id, order_index, surface, lemma) VALUES (?, ?, ?, ?)",  # noqa: E501
-                (self.sentence_id, self.order_index, self.surface, self.lemma),
-            )
-            self.id = cursor.lastrowid
-        else:
-            cursor.execute(
-                "UPDATE tokens SET surface = ?, lemma = ?, updated_at = CURRENT_TIMESTAMP, order_index = ? WHERE id = ?",  # noqa: E501
-                (self.surface, self.lemma, self.order_index, self.id),
-            )
-        self.db.commit()
-        try:
-            annotation = self.annotation
-        except DoesNotExist:
-            annotation = Annotation.create(self.db, cast("int", self.id))
-            annotation.save()
-
-    def delete(self) -> None:
-        """
-        Delete this token.
-        """
-        # First delete the annotation for the token
-        self.annotation.delete()
-        # Then delete the token
-        cursor = self.db.cursor
-        cursor.execute("DELETE FROM tokens WHERE id = ?", (cast("int", self.id),))
-        self.db.commit()
-
-    @classmethod
-    def list(cls, db: Database, sentence_id: int) -> builtins.list[Token]:
-        """
-        List all tokens for a sentence.
-
-        Args:
-            db: Database object
-            sentence_id: Sentence ID
-
-        Returns:
-            List of :class:`~oeapp.models.token.Token` objects
-
-        """
-        cursor = db.cursor
-        cursor.execute(
-            "SELECT * FROM tokens WHERE sentence_id = ? ORDER BY order_index",
-            (sentence_id,),
-        )
-        return [
-            cls(
-                db=db,
-                id=row[0],
-                sentence_id=row[1],
-                order_index=row[2],
-                surface=row[3],
-                lemma=row[4],
-                created_at=row[5],
-                updated_at=row[6],
-            )
-            for row in cursor.fetchall()
-        ]
-
-    @classmethod
-    def get_by_surface(cls, db: Database, surface: str) -> Token:
-        """
-        Get a token by surface.
-        """
-        cursor = db.cursor
-        cursor.execute("SELECT * FROM tokens WHERE surface = ?", (surface,))
-        row = cursor.fetchone()
-        if not row:
-            raise DoesNotExist("Token", f"surface: {surface}")  # noqa: EM101
-        return cls(
-            db=db,
-            id=row[0],
-            sentence_id=row[1],
-            order_index=row[2],
-            surface=row[3],
-            lemma=row[4],
-            created_at=row[5],
-            updated_at=row[6],
-        )
-
-    @classmethod
-    def get(cls, db: Database, token_id: int) -> Token:
-        """
-        Get a token by ID.
-
-        Args:
-            db: Database object
-            token_id: Token ID
-
-        Raises:
-            DoesNotExist: If the token does not exist
-
-        Returns:
-            :class:`~oeapp.models.token.Token` object
-
-        """
-        cursor = db.cursor
-        cursor.execute("SELECT * FROM tokens WHERE id = ?", (token_id,))
-        row = cursor.fetchone()
-        if not row:
-            raise DoesNotExist("Token", f"id: {token_id}")  # noqa: EM101
-        return cls(
-            db=db,
-            id=row[0],
-            sentence_id=row[1],
-            order_index=row[2],
-            surface=row[3],
-            lemma=row[4],
-            created_at=row[5],
-            updated_at=row[6],
-        )
+    # Relationships
+    sentence: Mapped[Sentence] = relationship("Sentence", back_populates="tokens")
+    annotation: Mapped[Annotation | None] = relationship(
+        "Annotation",
+        back_populates="token",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
 
     @classmethod
     def create_from_sentence(
-        cls, db: Database, sentence_id: int, sentence_text: str
-    ) -> builtins.list[Token]:
+        cls, session, sentence_id: int, sentence_text: str
+    ) -> list[Token]:
         """
         Create new tokens for a sentence.
 
@@ -194,7 +71,7 @@ class Token:
         or surface, it takes the sentence text and sentence id.
 
         Args:
-            db: Database object
+            session: SQLAlchemy session
             sentence_id: Sentence ID
             sentence_text: Text of the sentence to tokenize
 
@@ -207,18 +84,26 @@ class Token:
         tokens = []
         for token_index, token_surface in enumerate(token_strings):
             token = cls(
-                db=db,
-                id=None,
                 sentence_id=sentence_id,
                 order_index=token_index,
                 surface=token_surface,
             )
-            token.save()
+            session.add(token)
+            session.flush()  # Get the ID
+
+            existing_annotation = session.scalar(
+                select(Annotation).where(Annotation.token_id == token.id)
+            )
+            if not existing_annotation:
+                annotation = Annotation(token_id=token.id)
+                session.add(annotation)
+
             tokens.append(token)
+        session.flush()
         return tokens
 
     @classmethod
-    def tokenize(cls, sentence_text: str) -> builtins.list[str]:
+    def tokenize(cls, sentence_text: str) -> list[str]:
         """
         Tokenize a sentence.
 
@@ -252,8 +137,8 @@ class Token:
     @classmethod
     def _find_matched_token_ids(
         cls,
-        existing_tokens: builtins.list[Token],
-        token_strings: builtins.list[str],
+        existing_tokens: list[Token],
+        token_strings: list[str],
     ) -> tuple[set[int], dict[int, Token]]:
         """
         When updating a sentence, find matched tokens in the existing tokens and
@@ -291,11 +176,11 @@ class Token:
     @classmethod
     def _process_unmatched_tokens(  # noqa: PLR0913
         cls,
-        db: Database,
-        existing_tokens: builtins.list[Token],
+        session,
+        existing_tokens: list[Token],
         matched_token_ids: set[int],
         matched_positions: dict[int, Token],
-        token_strings: builtins.list[str],
+        token_strings: list[str],
         sentence_id: int,
     ) -> None:
         """
@@ -304,7 +189,7 @@ class Token:
         :meth:`update_from_sentence`.
 
         Args:
-            db: Database object
+            session: SQLAlchemy session
             existing_tokens: List of existing tokens
             matched_token_ids: Set of matched token IDs
             matched_positions: Dictionary of matched positions
@@ -324,8 +209,9 @@ class Token:
         for token in unmatched_existing:
             if token.id is not None:
                 token.order_index = temp_offset
-                token.save()
+                session.add(token)
                 temp_offset += 1
+        session.flush()
 
         # Iterate over the new token strings and try to match them to existing
         # tokens
@@ -346,25 +232,33 @@ class Token:
                         # Safe to update now since we moved all tokens to temp positions
                         existing_token.order_index = new_index
                         existing_token.surface = new_surface
-                        existing_token.save()
+                        session.add(existing_token)
                         matched = True
                         break
 
                 if not matched:
                     # No match found - create a new token
                     new_token = cls(
-                        db=db,
-                        id=None,
                         sentence_id=sentence_id,
                         order_index=new_index,
                         surface=new_surface,
                     )
-                    new_token.save()
+                    session.add(new_token)
+                    session.flush()  # Get the ID
+
+                    existing_annotation = session.scalar(
+                        select(Annotation).where(Annotation.token_id == new_token.id)
+                    )
+                    if not existing_annotation:
+                        annotation = Annotation(token_id=new_token.id)
+                        session.add(annotation)
+
                     matched_positions[new_index] = new_token
+        session.flush()
 
     @classmethod
     def update_from_sentence(
-        cls, db: Database, sentence_text: str, sentence_id: int
+        cls, session, sentence_text: str, sentence_id: int
     ) -> None:
         """
         Update all the tokens in the sentence, removing any tokens that are no
@@ -385,13 +279,17 @@ class Token:
         existing token is matched at most once.
 
         Args:
-            db: Database object
+            session: SQLAlchemy session
             sentence_text: Text of the sentence to tokenize
             sentence_id: Sentence ID
 
         """
         token_strings = cls.tokenize(sentence_text)
-        existing_tokens = cls.list(db, sentence_id)
+        # Get existing tokens using SQLAlchemy query
+        stmt = (
+            select(cls).where(cls.sentence_id == sentence_id).order_by(cls.order_index)
+        )
+        existing_tokens = list(session.scalars(stmt).all())
 
         # First pass: Try to match tokens at the same position with same surface
         # This preserves tokens that haven't moved
@@ -402,7 +300,7 @@ class Token:
         # existing token with matching surface. This handles cases where tokens
         # have been reordered or where duplicates exist.
         cls._process_unmatched_tokens(
-            db,
+            session,
             existing_tokens,
             matched_token_ids,
             matched_positions,
@@ -414,7 +312,7 @@ class Token:
         # in the sentence)
         for token in existing_tokens:
             if token.id and token.id not in matched_token_ids:
-                token.delete()
+                session.delete(token)
 
         # Fourth pass: Ensure all matched tokens have the correct order_index
         # (This handles any edge cases where order_index might be inconsistent)
@@ -423,7 +321,9 @@ class Token:
                 token = matched_positions[new_index]
                 if token.order_index != new_index:
                     token.order_index = new_index
-                    token.save()
+                    session.add(token)
+
+        session.flush()
 
         # Final pass: Ensure every position has a token and all tokens are
         # numbered sequentially. This catches any inconsistencies and ensures
@@ -445,7 +345,9 @@ class Token:
             # Reload token from DB to get latest state (in case it was updated
             # elsewhere)
             if token.id is not None:
-                token = cls.get(db, token.id)
+                session.refresh(token)
             if token.order_index != new_index:
                 token.order_index = new_index
-                token.save()
+                session.add(token)
+
+        session.commit()

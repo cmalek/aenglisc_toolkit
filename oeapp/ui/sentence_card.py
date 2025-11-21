@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from oeapp.models.annotation import Annotation
 from oeapp.services.commands import (
     AnnotateTokenCommand,
     CommandManager,
@@ -30,10 +31,10 @@ from oeapp.ui.annotation_modal import AnnotationModal
 from oeapp.ui.token_table import TokenTable
 
 if TYPE_CHECKING:
-    from oeapp.models.annotation import Annotation
+    from sqlalchemy.orm import Session
+
     from oeapp.models.sentence import Sentence
     from oeapp.models.token import Token
-    from oeapp.services.db import Database
 
 
 class ClickableTextEdit(QTextEdit):
@@ -55,7 +56,7 @@ class SentenceCard(QWidget):
         sentence: Sentence model instance
 
     Keyword Args:
-        db: Database connection
+        session: SQLAlchemy session
         command_manager: Command manager for undo/redo
         parent: Parent widget
 
@@ -93,18 +94,18 @@ class SentenceCard(QWidget):
     def __init__(
         self,
         sentence: Sentence,
-        db: Database | None = None,
+        session: Session | None = None,
         command_manager: CommandManager | None = None,
         parent: QWidget | None = None,
     ):
         super().__init__(parent)
         self.sentence = sentence
-        self.db = db
+        self.session = session
         self.command_manager = command_manager
         self.token_table = TokenTable()
         self.tokens: list[Token] = sentence.tokens
-        self.annotations: dict[int, Annotation] = {
-            cast("int", token.id): token.annotation for token in self.tokens
+        self.annotations: dict[int, Annotation | None] = {
+            cast("int", token.id): token.annotation for token in self.tokens if token.id
         }
         # Track current highlight position to clear it later
         self._current_highlight_start: int | None = None
@@ -280,8 +281,11 @@ class SentenceCard(QWidget):
             else:
                 return
 
-        # Open modal
-        modal = AnnotationModal(token, token.annotation, self)
+        # Open modal - get or create annotation
+        annotation = token.annotation
+        if annotation is None and self.session and token.id:
+            annotation = self.session.get(Annotation, token.id)
+        modal = AnnotationModal(token, annotation, self)
         modal.annotation_applied.connect(self._on_annotation_applied)
         modal.exec()
 
@@ -336,11 +340,11 @@ class SentenceCard(QWidget):
         }
 
         # Create command for undo/redo
-        if self.command_manager and self.db:
+        if self.command_manager and self.session:
             assert self.command_manager is not None  # noqa: S101
-            assert self.db is not None  # noqa: S101
+            assert self.session is not None  # noqa: S101
             command = AnnotateTokenCommand(
-                db=self.db,
+                session=self.session,
                 token_id=annotation.token_id,
                 before=before_state,
                 after=after_state,
@@ -353,7 +357,7 @@ class SentenceCard(QWidget):
                 return
 
         # Fallback: direct save if command manager not available
-        if self.db:
+        if self.session:
             self._save_annotation(annotation)
 
         # Update local cache
@@ -520,15 +524,15 @@ class SentenceCard(QWidget):
         elif self._current_highlight_mode == "number":
             self._apply_number_highlighting()
 
-        if not self.db or not self.command_manager or not self.sentence.id:
+        if not self.session or not self.command_manager or not self.sentence.id:
             return
 
-        new_text = self.oe_text_edit.text()
+        new_text = self.oe_text_edit.toPlainText()
         old_text = self.sentence.text_oe
 
         if new_text != old_text:
             command = EditSentenceCommand(
-                db=self.db,
+                session=self.session,
                 sentence_id=self.sentence.id,
                 field="text_oe",
                 before=old_text,
@@ -539,7 +543,7 @@ class SentenceCard(QWidget):
 
     def _on_translation_changed(self) -> None:
         """Handle translation text change."""
-        if not self.db or not self.command_manager or not self.sentence.id:
+        if not self.session or not self.command_manager or not self.sentence.id:
             return
 
         new_text = self.translation_edit.toPlainText()
@@ -547,7 +551,7 @@ class SentenceCard(QWidget):
 
         if new_text != old_text:
             command = EditSentenceCommand(
-                db=self.db,
+                session=self.session,
                 sentence_id=self.sentence.id,
                 field="text_modern",
                 before=old_text,
@@ -857,83 +861,35 @@ class SentenceCard(QWidget):
             annotation: Annotation to save
 
         """
-        if not self.db:
+        if not self.session:
             return
 
-        cursor = self.db.conn.cursor()
-
         # Check if annotation exists
-        cursor.execute(
-            "SELECT token_id FROM annotations WHERE token_id = ?",
-            (annotation.token_id,),
-        )
-        exists = cursor.fetchone()
-
-        if exists:
+        existing = self.session.get(Annotation, annotation.token_id)
+        if existing:
             # Update existing annotation
-            cursor.execute(
-                """
-                UPDATE annotations SET
-                    pos = ?, gender = ?, number = ?, "case" = ?, declension = ?,
-                    pronoun_type = ?, verb_class = ?, verb_tense = ?, verb_person = ?,
-                    verb_mood = ?, verb_aspect = ?, verb_form = ?, prep_case = ?,
-                    uncertain = ?, alternatives_json = ?, confidence = ?,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE token_id = ?
-            """,
-                (
-                    annotation.pos,
-                    annotation.gender,
-                    annotation.number,
-                    annotation.case,
-                    annotation.declension,
-                    annotation.pronoun_type,
-                    annotation.verb_class,
-                    annotation.verb_tense,
-                    annotation.verb_person,
-                    annotation.verb_mood,
-                    annotation.verb_aspect,
-                    annotation.verb_form,
-                    annotation.prep_case,
-                    annotation.uncertain,
-                    annotation.alternatives_json,
-                    annotation.confidence,
-                    annotation.token_id,
-                ),
-            )
+            existing.pos = annotation.pos
+            existing.gender = annotation.gender
+            existing.number = annotation.number
+            existing.case = annotation.case
+            existing.declension = annotation.declension
+            existing.pronoun_type = annotation.pronoun_type
+            existing.verb_class = annotation.verb_class
+            existing.verb_tense = annotation.verb_tense
+            existing.verb_person = annotation.verb_person
+            existing.verb_mood = annotation.verb_mood
+            existing.verb_aspect = annotation.verb_aspect
+            existing.verb_form = annotation.verb_form
+            existing.prep_case = annotation.prep_case
+            existing.uncertain = annotation.uncertain
+            existing.alternatives_json = annotation.alternatives_json
+            existing.confidence = annotation.confidence
+            self.session.add(existing)
         else:
             # Insert new annotation
-            cursor.execute(
-                """
-                INSERT INTO annotations (
-                    token_id, pos, gender, number, "case", declension,
-                    pronoun_type, verb_class, verb_tense, verb_person,
-                    verb_mood, verb_aspect, verb_form, prep_case,
-                    uncertain, alternatives_json, confidence
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-                (
-                    annotation.token_id,
-                    annotation.pos,
-                    annotation.gender,
-                    annotation.number,
-                    annotation.case,
-                    annotation.declension,
-                    annotation.pronoun_type,
-                    annotation.verb_class,
-                    annotation.verb_tense,
-                    annotation.verb_person,
-                    annotation.verb_mood,
-                    annotation.verb_aspect,
-                    annotation.verb_form,
-                    annotation.prep_case,
-                    annotation.uncertain,
-                    annotation.alternatives_json,
-                    annotation.confidence,
-                ),
-            )
+            self.session.add(annotation)
 
-        self.db.conn.commit()
+        self.session.commit()
 
     def get_oe_text(self) -> str:
         """
@@ -943,7 +899,7 @@ class SentenceCard(QWidget):
             Old English text string
 
         """
-        return self.oe_text_edit.text()
+        return self.oe_text_edit.toPlainText()
 
     def get_translation(self) -> str:
         """

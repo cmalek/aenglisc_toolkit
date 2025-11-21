@@ -1,120 +1,109 @@
 """Annotation model."""
 
-from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from oeapp.exc import DoesNotExist
+from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Integer, String
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from oeapp.db import Base
 
 if TYPE_CHECKING:
-    from datetime import datetime
-
-    from oeapp.services.db import Database
+    from oeapp.models.token import Token
 
 
-@dataclass
-class Annotation:
+class Annotation(Base):
     """Represents grammatical/morphological annotations for a token."""
 
-    #: The database.
-    db: Database
-    #: The token ID.
-    token_id: int
+    __tablename__ = "annotations"
+    __table_args__ = (
+        CheckConstraint(
+            "pos IN ('N','V','A','R','D','B','C','E','I')", name="ck_annotations_pos"
+        ),
+        CheckConstraint("gender IN ('m','f','n')", name="ck_annotations_gender"),
+        CheckConstraint("number IN ('s','p')", name="ck_annotations_number"),
+        CheckConstraint(
+            "\"case\" IN ('n','a','g','d','i')", name="ck_annotations_case"
+        ),
+        CheckConstraint(
+            "pronoun_type IN ('p','r','d','i')", name="ck_annotations_pronoun_type"
+        ),
+        CheckConstraint(
+            "article_type IN ('d','i','p','D')", name="ck_annotations_article_type"
+        ),
+        CheckConstraint(
+            "verb_class IN ('a','w1','w2','w3','s1','s2','s3','s4','s5','s6','s7')",
+            name="ck_annotations_verb_class",
+        ),
+        CheckConstraint("verb_tense IN ('p','n')", name="ck_annotations_verb_tense"),
+        CheckConstraint("verb_person IN (1,2,3)", name="ck_annotations_verb_person"),
+        CheckConstraint(
+            "verb_mood IN ('i','s','imp')", name="ck_annotations_verb_mood"
+        ),
+        CheckConstraint(
+            "verb_aspect IN ('p','f','prg','gn')", name="ck_annotations_verb_aspect"
+        ),
+        CheckConstraint("verb_form IN ('f','i','p')", name="ck_annotations_verb_form"),
+        CheckConstraint("prep_case IN ('a','d','g')", name="ck_annotations_prep_case"),
+        CheckConstraint(
+            "confidence >= 0 AND confidence <= 100", name="ck_annotations_confidence"
+        ),
+    )
+
+    #: The token ID (primary key and foreign key).
+    token_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("tokens.id", ondelete="CASCADE"), primary_key=True
+    )
     #: The Part of Speech.
-    pos: str | None = None  # N, V, A, R, D, B, C, E, I
+    pos: Mapped[str | None] = mapped_column(
+        String, nullable=True
+    )  # N, V, A, R, D, B, C, E, I
     #: The gender.
-    gender: str | None = None  # m, f, n
+    gender: Mapped[str | None] = mapped_column(String, nullable=True)  # m, f, n
     #: The number.
-    number: str | None = None  # s, p
-    #: The case.
-    case: str | None = None  # n, a, g, d, i (reserved keyword, use "case" in SQL)
+    number: Mapped[str | None] = mapped_column(String, nullable=True)  # s, p
+    #: The case (using db_column_name to handle reserved keyword).
+    case: Mapped[str | None] = mapped_column(
+        String, nullable=True, name="case"
+    )  # n, a, g, d, i
     #: The declension.
-    declension: str | None = None
+    declension: Mapped[str | None] = mapped_column(String, nullable=True)
     #: The article type.
-    article_type: str | None = None  # d, i, p, D
+    article_type: Mapped[str | None] = mapped_column(
+        String, nullable=True
+    )  # d, i, p, D
     #: The pronoun type.
-    pronoun_type: str | None = None  # p, r, d, i
+    pronoun_type: Mapped[str | None] = mapped_column(
+        String, nullable=True
+    )  # p, r, d, i
     #: The verb class.
-    verb_class: str | None = None
+    verb_class: Mapped[str | None] = mapped_column(String, nullable=True)
     #: The verb tense.
-    verb_tense: str | None = None  # p, n
+    verb_tense: Mapped[str | None] = mapped_column(String, nullable=True)  # p, n
     #: The verb person.
-    verb_person: int | None = None  # 1, 2, 3
+    verb_person: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 1, 2, 3
     #: The verb mood.
-    verb_mood: str | None = None  # i, s, imp
+    verb_mood: Mapped[str | None] = mapped_column(String, nullable=True)  # i, s, imp
     #: The verb aspect.
-    verb_aspect: str | None = None  # p, f, prg, gn
+    verb_aspect: Mapped[str | None] = mapped_column(
+        String, nullable=True
+    )  # p, f, prg, gn
     #: The verb form.
-    verb_form: str | None = None  # f, i, p
+    verb_form: Mapped[str | None] = mapped_column(String, nullable=True)  # f, i, p
     #: The preposition case.
-    prep_case: str | None = None  # a, d, g
+    prep_case: Mapped[str | None] = mapped_column(String, nullable=True)  # a, d, g
     #: Whether the annotation is uncertain.
-    uncertain: bool = False
+    uncertain: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     #: The alternatives in JSON format.
-    alternatives_json: str | None = None
+    alternatives_json: Mapped[str | None] = mapped_column(String, nullable=True)
     #: The confidence in the annotation.
-    confidence: int | None = None  # 0-100
+    confidence: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 0-100
     #: The last inferred JSON.
-    last_inferred_json: str | None = None
+    last_inferred_json: Mapped[str | None] = mapped_column(String, nullable=True)
     #: The date and time the annotation was last updated.
-    updated_at: datetime | None = None
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.now, onupdate=datetime.now, nullable=False
+    )
 
-    @classmethod
-    def get(cls, db: Database, token_id: int) -> Annotation:
-        """
-        Get an annotation by token ID.
-        """
-        cursor = db.cursor
-        cursor.execute("SELECT * FROM annotations WHERE token_id = ?", (token_id,))
-        row = cursor.fetchone()
-        if not row:
-            raise DoesNotExist("Annotation", token_id)  # noqa: EM101
-        return cls(db=db, **row)
-
-    @classmethod
-    def create(cls, db: Database, token_id: int) -> Annotation:
-        """
-        Create a new annotation for a token.
-        """
-        cursor = db.cursor
-        cursor.execute("INSERT INTO annotations (token_id) VALUES (?)", (token_id,))
-        return cls(db=db, token_id=token_id)
-
-    def save(self) -> None:
-        """
-        Save the annotation to the database.
-        """
-        cursor = self.db.cursor
-        cursor.execute(
-            """UPDATE annotations SET pos = ?, gender = ?, number = ?, "case" = ?, declension = ?, article_type = ?, pronoun_type = ?, verb_class = ?, verb_tense = ?, verb_person = ?, verb_mood = ?, verb_aspect = ?, verb_form = ?, prep_case = ?, uncertain = ?, alternatives_json = ?, confidence = ?, updated_at = CURRENT_TIMESTAMP WHERE token_id = ?
-            """,  # noqa: E501
-            (
-                self.pos,
-                self.gender,
-                self.number,
-                self.case,
-                self.declension,
-                self.article_type,
-                self.pronoun_type,
-                self.verb_class,
-                self.verb_tense,
-                self.verb_person,
-                self.verb_mood,
-                self.verb_aspect,
-                self.verb_form,
-                self.prep_case,
-                self.uncertain,
-                self.alternatives_json,
-                self.confidence,
-                self.token_id,
-            ),
-        )
-        self.db.conn.commit()
-
-    def delete(self) -> None:
-        """
-        Delete the annotation.
-        """
-        cursor = self.db.cursor
-        cursor.execute("DELETE FROM annotations WHERE token_id = ?", (self.token_id,))
-        self.db.commit()
+    # Relationships
+    token: Mapped[Token] = relationship("Token", back_populates="annotation")
