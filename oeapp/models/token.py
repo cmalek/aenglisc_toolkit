@@ -122,16 +122,36 @@ class Token(Base):
         for word in words:
             if not word:
                 continue
+            # Skip standalone punctuation marks
+            if word in [",", ";", ":", "!", "?", "-", "—", '"', "'", "."]:
+                continue
+            # Check for punctuation-quote combinations (?" ." !") - skip these
+            if re.match(r'^[.!?]+["\']+$', word):
+                continue
             # Split punctuation from words
             # Match word characters (including Old English chars) and punctuation
             # separately
-            parts = re.findall(rf"[\w{re.escape(cls.OE_CHARS)}]+|[.,;:!?\-—]+", word)
-            parts = [
-                part
-                for part in parts
-                if part not in [",", ";", ":", "!", "?", "-", "—"]
-            ]
-            tokens.extend(parts)
+            pattern = rf'[\w{re.escape(cls.OE_CHARS)}]+|[.,;:!?\-—"\'.]+'
+            parts = re.findall(pattern, word)
+            # Filter out quotes and standalone punctuation
+            # Also filter out punctuation-quote combinations
+            filtered_parts = []
+            for part in parts:
+                # Skip standalone punctuation marks
+                if part in [",", ";", ":", "!", "?", "-", "—", '"', "'", "."]:
+                    continue
+                # Skip punctuation-quote combinations (like ?" ." !")
+                if re.match(r'^[.!?]+["\']+$', part):
+                    continue
+                filtered_parts.append(part)
+            tokens.extend(filtered_parts)
+
+        # Filter out closing punctuation at the end of the token list
+        # Remove trailing .!? tokens (even without quotes) - these are closing
+        # punctuation that should remain in sentence text but not be tokenized
+        while tokens and tokens[-1] in (".", "!", "?"):
+            tokens.pop()
+
         return tokens
 
     @classmethod

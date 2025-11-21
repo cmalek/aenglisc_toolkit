@@ -78,6 +78,12 @@ class TestTokenize:
         result = Token.tokenize("Hwæt! Se cyning wæs gōd.")
         assert result == ["Hwæt", "!", "Se", "cyning", "wæs", "gōd", "."]
 
+    def test_tokenize_with_quotes(self):
+        """Test tokenizing a sentence with quotes - quotes should be stripped."""
+        result = Token.tokenize('Þā cwæð hē: "Hwæt sceal iċ singan?" ')
+        # Quotes should be stripped, and ? should be filtered out
+        assert result == ["Þā", "cwæð", "hē", "Hwæt", "sceal", "iċ", "singan"]
+
 
 class TestCreateFromSentence:
     """Test cases for Token.create_from_sentence."""
