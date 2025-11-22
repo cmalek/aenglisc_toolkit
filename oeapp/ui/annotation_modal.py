@@ -335,6 +335,20 @@ class AnnotationModal(QDialog):
         self.todo_check = QCheckBox("TODO (needs review)")
         metadata_layout.addWidget(self.todo_check)
 
+        modern_english_layout = QHBoxLayout()
+        modern_english_layout.addWidget(QLabel("Modern English Meaning:"))
+        self.modern_english_edit = QLineEdit()
+        self.modern_english_edit.setPlaceholderText("e.g., time, season")
+        modern_english_layout.addWidget(self.modern_english_edit)
+        metadata_layout.addLayout(modern_english_layout)
+
+        root_layout = QHBoxLayout()
+        root_layout.addWidget(QLabel("Root:"))
+        self.root_edit = QLineEdit()
+        self.root_edit.setPlaceholderText("e.g., sumor")
+        root_layout.addWidget(self.root_edit)
+        metadata_layout.addLayout(root_layout)
+
         metadata_group.setLayout(metadata_layout)
         layout.addWidget(metadata_group)
 
@@ -709,6 +723,10 @@ class AnnotationModal(QDialog):
             self.alternatives_edit.setText(self.annotation.alternatives_json)
         if self.annotation.confidence is not None:
             self.confidence_slider.setValue(self.annotation.confidence)
+        if self.annotation.modern_english_meaning:
+            self.modern_english_edit.setText(self.annotation.modern_english_meaning)
+        if self.annotation.root:
+            self.root_edit.setText(self.annotation.root)
 
     def _load_article_values(self) -> None:
         """Load article annotation values."""
@@ -866,6 +884,8 @@ class AnnotationModal(QDialog):
         self.alternatives_edit.clear()
         self.confidence_slider.setValue(100)
         self.todo_check.setChecked(False)
+        self.modern_english_edit.clear()
+        self.root_edit.clear()
 
     def _apply_annotation(self) -> None:
         """Apply annotation and close dialog."""
@@ -900,6 +920,16 @@ class AnnotationModal(QDialog):
         if alternatives_text:
             self.annotation.alternatives_json = alternatives_text
         self.annotation.confidence = self.confidence_slider.value()
+        modern_english_text = self.modern_english_edit.text().strip()
+        if modern_english_text:
+            self.annotation.modern_english_meaning = modern_english_text
+        else:
+            self.annotation.modern_english_meaning = None
+        root_text = self.root_edit.text().strip()
+        if root_text:
+            self.annotation.root = root_text
+        else:
+            self.annotation.root = None
 
         self.annotation_applied.emit(self.annotation)
         self.accept()

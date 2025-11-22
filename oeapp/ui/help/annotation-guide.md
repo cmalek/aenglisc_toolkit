@@ -33,12 +33,12 @@ features, and metadata.
 
 ### Verbs
 
-- **Verb Class**: Weak Class I (w1), Weak Class II (w2), Weak Class III (w3), Strong Class I-VII (s1-s7)
+- **Verb Class**: Anomolous (a), Weak Class I (w1), Weak Class II (w2), Weak Class III (w3), Strong Class I-VII (s1-s7)
 - **Tense**: Past (p), Present (n)
 - **Mood**: Indicative (i), Subjunctive (s), Imperative (imp)
 - **Person**: First (1), Second (2), Third (3)
 - **Number**: Singular (s), Plural (p)
-- **Aspect**: Perfect (p), Future (f), Progressive (prg), Gnomic (gn)
+- **Aspect**: Perfect (p), Progressive (prg), Gnomic (gn)
 - **Form**: Finite (f), Infinitive (i), Participle (p)
 
 ### Adjectives
@@ -56,13 +56,33 @@ features, and metadata.
 - **Number**: Singular (s), Plural (p)
 - **Case**: Nominative (n), Accusative (a), Genitive (g), Dative (d), Instrumental (i)
 
+### Determiners/Articles
+
+- **Type**: Definite (d), Indefinite (i), Possessive (p), Demonstrative (D)
+- **Gender**: Masculine (m), Feminine (f), Neuter (n)
+- **Number**: Singular (s), Plural (p)
+- **Case**: Nominative (n), Accusative (a), Genitive (g), Dative (d), Instrumental (i)
+
 ### Prepositions
 
 - **Object Case**: Accusative (a), Dative (d), Genitive (g)
 
 ### Adverbs
 
-- **Degree**: Positive (p), Comparative (c), Superlative (s)
+- Adverbs have minimal grammatical fields in the current system.
+
+## Metadata Fields
+
+The following fields are available for all POS types in the Metadata section:
+
+- **Uncertain**: Mark the annotation as uncertain (displays with a "?" in exports)
+- **Alternatives**: Enter alternative interpretations (e.g., "w2 / s3")
+- **Confidence**: Set confidence level from 0-100% using the slider
+- **TODO**: Mark annotation as needing review
+- **Modern English Meaning**: Enter the modern English translation/meaning of the word (e.g., "time, season")
+- **Root**: Enter the root form of the word (e.g., "sumor")
+
+These metadata fields are displayed in the token table as "ModE" and "Root" columns.
 
 ## Applying Annotations
 

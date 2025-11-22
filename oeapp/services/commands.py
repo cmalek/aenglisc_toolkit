@@ -91,6 +91,8 @@ class AnnotateTokenCommand(Command):
         annotation.uncertain = state.get("uncertain", False)
         annotation.alternatives_json = state.get("alternatives_json")
         annotation.confidence = state.get("confidence")
+        annotation.modern_english_meaning = state.get("modern_english_meaning")
+        annotation.root = state.get("root")
         self.session.add(annotation)
         self.session.commit()
 

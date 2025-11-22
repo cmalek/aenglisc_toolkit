@@ -332,6 +332,8 @@ class SentenceCard(QWidget):
                 "uncertain": before_annotation.uncertain,
                 "alternatives_json": before_annotation.alternatives_json,
                 "confidence": before_annotation.confidence,
+                "modern_english_meaning": before_annotation.modern_english_meaning,
+                "root": before_annotation.root,
             }
 
         after_state = {
@@ -351,6 +353,8 @@ class SentenceCard(QWidget):
             "uncertain": annotation.uncertain,
             "alternatives_json": annotation.alternatives_json,
             "confidence": annotation.confidence,
+            "modern_english_meaning": annotation.modern_english_meaning,
+            "root": annotation.root,
         }
 
         # Create command for undo/redo
@@ -933,6 +937,8 @@ class SentenceCard(QWidget):
             existing.uncertain = annotation.uncertain
             existing.alternatives_json = annotation.alternatives_json
             existing.confidence = annotation.confidence
+            existing.modern_english_meaning = annotation.modern_english_meaning
+            existing.root = annotation.root
             self.session.add(existing)
         else:
             # Insert new annotation

@@ -106,13 +106,13 @@ class TokenTable(QWidget):
         Set up the UI layout.
 
         This looks like this:
-        +--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+
-        | Word   | POS    | Gender | Number | Case   | Declension | PronounType | VerbClass | VerbForm | PrepObjCase | Notes  |
-        +--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+
-        | Token 1 | POS 1 | Gender 1 | Number 1 | Case 1 | Declension 1 | PronounType 1 | VerbClass 1 | VerbForm 1 | PrepObjCase 1 | Notes 1 |
-        | Token 2 | POS 2 | Gender 2 | Number 2 | Case 2 | Declension 2 | PronounType 2 | VerbClass 2 | VerbForm 2 | PrepObjCase 2 | Notes 2 |
-        | ...     | ...    | ...      | ...      | ...    | ...         | ...         | ...         | ...        | ...         | ...    |
-        +--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+
+        +--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+
+        | Word   | POS    | ModE   | Root   | Gender | Number | Case   | Declension | PronounType | VerbClass | VerbForm | PrepObjCase |
+        +--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+
+        | Token 1 | POS 1 | ModE 1 | Root 1 | Gender 1 | Number 1 | Case 1 | Declension 1 | PronounType 1 | VerbClass 1 | VerbForm 1 | PrepObjCase 1 |
+        | Token 2 | POS 2 | ModE 2 | Root 2 | Gender 2 | Number 2 | Case 2 | Declension 2 | PronounType 2 | VerbClass 2 | VerbForm 2 | PrepObjCase 2 |
+        | ...     | ...    | ...    | ...    | ...      | ...      | ...    | ...         | ...         | ...         | ...        | ...         |
+        +--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+
         """  # noqa: E501
         # Create the layout.
         layout = QVBoxLayout(self)
@@ -122,13 +122,15 @@ class TokenTable(QWidget):
         self.table.set_token_table_ref(self)
         # Connect the annotation key signal
         self.table.annotation_key_pressed.connect(self._on_annotation_key_pressed)
-        # Set the number of columns to 11.
-        self.table.setColumnCount(11)
+        # Set the number of columns to 12.
+        self.table.setColumnCount(12)
         # Set the horizontal header labels.
         self.table.setHorizontalHeaderLabels(
             [
                 "Word",
                 "POS",
+                "ModE",
+                "Root",
                 "Gender",
                 "Number",
                 "Case",
@@ -137,7 +139,6 @@ class TokenTable(QWidget):
                 "VerbClass",
                 "VerbForm",
                 "PrepObjCase",
-                "Notes",
             ]
         )
         self.table.horizontalHeader().setSectionResizeMode(
@@ -249,31 +250,44 @@ class TokenTable(QWidget):
             # Get annotation for this token
             annotation = self.annotations.get(cast("int", token.id))
             if annotation:
+                # POS
                 self.table.setItem(row, 1, QTableWidgetItem(annotation.pos or "—"))
-                self.table.setItem(row, 2, QTableWidgetItem(annotation.gender or "—"))
-                self.table.setItem(row, 3, QTableWidgetItem(annotation.number or "—"))
-                self.table.setItem(row, 4, QTableWidgetItem(annotation.case or "—"))
+                # ModE
                 self.table.setItem(
-                    row, 5, QTableWidgetItem(annotation.declension or "—")
+                    row, 2, QTableWidgetItem(annotation.modern_english_meaning or "—")
                 )
+                # Root
+                self.table.setItem(row, 3, QTableWidgetItem(annotation.root or "—"))
+                # Gender
+                self.table.setItem(row, 4, QTableWidgetItem(annotation.gender or "—"))
+                # Number
+                self.table.setItem(row, 5, QTableWidgetItem(annotation.number or "—"))
+                # Case
+                self.table.setItem(row, 6, QTableWidgetItem(annotation.case or "—"))
+                # Declension
                 self.table.setItem(
-                    row, 6, QTableWidgetItem(annotation.pronoun_type or "—")
+                    row, 7, QTableWidgetItem(annotation.declension or "—")
                 )
+                # PronounType
                 self.table.setItem(
-                    row, 7, QTableWidgetItem(annotation.verb_class or "—")
+                    row, 8, QTableWidgetItem(annotation.pronoun_type or "—")
                 )
+                # VerbClass
                 self.table.setItem(
-                    row, 8, QTableWidgetItem(annotation.verb_form or "—")
+                    row, 9, QTableWidgetItem(annotation.verb_class or "—")
                 )
+                # VerbForm
                 self.table.setItem(
-                    row, 9, QTableWidgetItem(annotation.prep_case or "—")
+                    row, 10, QTableWidgetItem(annotation.verb_form or "—")
+                )
+                # PrepObjCase
+                self.table.setItem(
+                    row, 11, QTableWidgetItem(annotation.prep_case or "—")
                 )
             else:
                 # Fill with "—" for unannotated tokens
-                for col in range(1, 10):
+                for col in range(1, 12):
                     self.table.setItem(row, col, QTableWidgetItem("—"))
-            # Notes column
-            self.table.setItem(row, 10, QTableWidgetItem(""))
 
     def update_annotation(self, annotation: Annotation) -> None:
         """
@@ -289,24 +303,39 @@ class TokenTable(QWidget):
         for row, token in enumerate(self.tokens):
             if token.id == annotation.token_id:
                 # Update row
+                # POS
                 self.table.setItem(row, 1, QTableWidgetItem(annotation.pos or "—"))
-                self.table.setItem(row, 2, QTableWidgetItem(annotation.gender or "—"))
-                self.table.setItem(row, 3, QTableWidgetItem(annotation.number or "—"))
-                self.table.setItem(row, 4, QTableWidgetItem(annotation.case or "—"))
+                # ModE
                 self.table.setItem(
-                    row, 5, QTableWidgetItem(annotation.declension or "—")
+                    row, 2, QTableWidgetItem(annotation.modern_english_meaning or "—")
                 )
+                # Root
+                self.table.setItem(row, 3, QTableWidgetItem(annotation.root or "—"))
+                # Gender
+                self.table.setItem(row, 4, QTableWidgetItem(annotation.gender or "—"))
+                # Number
+                self.table.setItem(row, 5, QTableWidgetItem(annotation.number or "—"))
+                # Case
+                self.table.setItem(row, 6, QTableWidgetItem(annotation.case or "—"))
+                # Declension
                 self.table.setItem(
-                    row, 6, QTableWidgetItem(annotation.pronoun_type or "—")
+                    row, 7, QTableWidgetItem(annotation.declension or "—")
                 )
+                # PronounType
                 self.table.setItem(
-                    row, 7, QTableWidgetItem(annotation.verb_class or "—")
+                    row, 8, QTableWidgetItem(annotation.pronoun_type or "—")
                 )
+                # VerbClass
                 self.table.setItem(
-                    row, 8, QTableWidgetItem(annotation.verb_form or "—")
+                    row, 9, QTableWidgetItem(annotation.verb_class or "—")
                 )
+                # VerbForm
                 self.table.setItem(
-                    row, 9, QTableWidgetItem(annotation.prep_case or "—")
+                    row, 10, QTableWidgetItem(annotation.verb_form or "—")
+                )
+                # PrepObjCase
+                self.table.setItem(
+                    row, 11, QTableWidgetItem(annotation.prep_case or "—")
                 )
                 break
 
