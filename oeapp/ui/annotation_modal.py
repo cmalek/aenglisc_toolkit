@@ -1,6 +1,6 @@
 """Annotation modal dialog."""
 
-from typing import TYPE_CHECKING, ClassVar, Final, cast
+from typing import TYPE_CHECKING, ClassVar, cast
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QKeySequence, QShortcut
@@ -20,215 +20,15 @@ from PySide6.QtWidgets import (
 )
 
 from oeapp.models.annotation import Annotation
+from oeapp.ui.annotation_lookups import AnnotationLookupsMixin
 
 if TYPE_CHECKING:
     from oeapp.models.token import Token
 
 
-class AnnotationModal(QDialog):
+class AnnotationModal(AnnotationLookupsMixin, QDialog):
     """Modal dialog for annotating tokens with prompt-based entry."""
 
-    #: A lookup map for part of speech codes to their long form.
-    PART_OF_SPEECH_MAP: Final[dict[str, str | None]] = {
-        "": None,
-        "N": "Noun (N)",
-        "V": "Verb (V)",
-        "A": "Adjective (A)",
-        "R": "Pronoun (R)",
-        "D": "Determiner/Article (D)",
-        "B": "Adverb (B)",
-        "C": "Conjunction (C)",
-        "E": "Preposition (E)",
-        "I": "Interjection (I)",
-    }
-    #: A Reverse lookup map for part of speech long form to code.
-    PART_OF_SPEECH_REVERSE_MAP: Final[dict[str, str]] = {
-        v: k for k, v in PART_OF_SPEECH_MAP.items() if v is not None
-    }
-    #: A Reverse lookup map for part of speech long form to code.
-    INT_PART_OF_SPEECH_REVERSE_MAP: Final[dict[int, str]] = {
-        i: k for i, k in enumerate(PART_OF_SPEECH_MAP.keys()) if k is not None
-    }
-
-    #: A lookup map for article type codes to their long form.
-    ARTICLE_TYPE_MAP: Final[dict[str | None, str]] = {
-        None: "",
-        "d": "Definite (d)",
-        "i": "Indefinite (i)",
-        "p": "Possessive (p)",
-        "D": "Demonstrative (D)",
-    }
-    ARTICLE_TYPE_REVERSE_MAP: Final[dict[int, str]] = {
-        i: k for i, k in enumerate(ARTICLE_TYPE_MAP.keys()) if k is not None
-    }
-
-    #: A lookup map for gender codes to their long form.
-    GENDER_MAP: Final[dict[str | None, str]] = {
-        None: "",
-        "m": "Masculine (m)",
-        "f": "Feminine (f)",
-        "n": "Neuter (n)",
-    }
-    GENDER_REVERSE_MAP: Final[dict[int, str]] = {
-        i: k for i, k in enumerate(GENDER_MAP.keys()) if k is not None
-    }
-
-    #: A lookup map for number codes to their long form.
-    NUMBER_MAP: Final[dict[str | None, str]] = {
-        None: "",
-        "s": "Singular (s)",
-        "p": "Plural (p)",
-    }
-    NUMBER_REVERSE_MAP: Final[dict[int, str]] = {
-        i: k for i, k in enumerate(NUMBER_MAP.keys()) if k is not None
-    }
-
-    #: A lookup map for case codes to their long form.
-    CASE_MAP: Final[dict[str | None, str]] = {
-        None: "",
-        "n": "Nominative (n)",
-        "a": "Accusative (a)",
-        "g": "Genitive (g)",
-        "d": "Dative (d)",
-        "i": "Instrumental (i)",
-    }
-    CASE_REVERSE_MAP: Final[dict[int, str]] = {
-        i: k for i, k in enumerate(CASE_MAP.keys()) if k is not None
-    }
-
-    #: A lookup map for declension codes to their long form.
-    DECLENSION_MAP: Final[dict[str | None, str]] = {
-        None: "",
-        "s": "Strong (s)",
-        "w": "Weak (w)",
-        "o": "Other (o)",
-        "i": "i-stem (i)",
-        "u": "u-stem (u)",
-        "ja": "ja-stem (ja)",
-        "jo": "jo-stem (jo)",
-        "wa": "wa-stem (wa)",
-        "wo": "wo-stem (wo)",
-    }
-    DECLENSION_REVERSE_MAP: Final[dict[int, str]] = {
-        i: k for i, k in enumerate(DECLENSION_MAP.values()) if k is not None
-    }
-
-    #: A lookup map for verb class codes to their long form.
-    VERB_CLASS_MAP: Final[dict[str | None, str]] = {
-        None: "",
-        "a": "Anomolous (a)",
-        "w1": "Weak Class I (w1)",
-        "w2": "Weak Class II (w2)",
-        "w3": "Weak Class III (w3)",
-        "s1": "Strong Class 1 (s1)",
-        "s2": "Strong Class 2 (s2)",
-        "s3": "Strong Class 3 (s3)",
-        "s4": "Strong Class 4 (s4)",
-        "s5": "Strong Class 5 (s5)",
-        "s6": "Strong Class 6 (s6)",
-        "s7": "Strong Class 7 (s7)",
-    }
-    VERB_CLASS_REVERSE_MAP: Final[dict[int, str]] = {
-        i: k for i, k in enumerate(VERB_CLASS_MAP.keys()) if k is not None
-    }
-
-    #: A lookup map for verb tense codes to their long form.
-    VERB_TENSE_MAP: Final[dict[str | None, str]] = {
-        None: "",
-        "p": "Past (p)",
-        "n": "Present (n)",
-    }
-    VERB_TENSE_REVERSE_MAP: Final[dict[int, str]] = {
-        i: k for i, k in enumerate(VERB_TENSE_MAP.keys()) if k is not None
-    }
-
-    #: A lookup map for verb mood codes to their long form.
-    VERB_MOOD_MAP: Final[dict[str | None, str]] = {
-        None: "",
-        "i": "Indicative (i)",
-        "s": "Subjunctive (s)",
-        "imp": "Imperative (imp)",
-    }
-    VERB_MOOD_REVERSE_MAP: Final[dict[int, str]] = {
-        i: k for i, k in enumerate(VERB_MOOD_MAP.keys()) if k is not None
-    }
-
-    #: A lookup map for verb person codes to their long form.
-    VERB_PERSON_MAP: Final[dict[int | None, str]] = {
-        None: "",
-        1: "1st",
-        2: "2nd",
-        3: "3rd",
-    }
-    VERB_PERSON_REVERSE_MAP: Final[dict[int, int]] = {
-        i: k for i, k in enumerate(VERB_PERSON_MAP.keys()) if k is not None
-    }
-
-    #: A lookup map for verb aspect codes to their long form.
-    VERB_ASPECT_MAP: Final[dict[str | None, str]] = {
-        None: "",
-        "p": "Perfect (p)",
-        "prg": "Progressive (prg)",
-        "gn": "Gnomic (gn)",
-    }
-    VERB_ASPECT_REVERSE_MAP: Final[dict[int, str]] = {
-        i: k for i, k in enumerate(VERB_ASPECT_MAP.keys()) if k is not None
-    }
-
-    #: A lookup map for verb form codes to their long form.
-    VERB_FORM_MAP: Final[dict[str | None, str]] = {
-        None: "",
-        "f": "Finite (f)",
-        "i": "Infinitive (i)",
-        "p": "Participle (p)",
-    }
-    VERB_FORM_REVERSE_MAP: Final[dict[int, str]] = {
-        i: k for i, k in enumerate(VERB_FORM_MAP.keys()) if k is not None
-    }
-
-    #: A lookup map for pronoun type codes to their long form.
-    PRONOUN_TYPE_MAP: Final[dict[str | None, str]] = {
-        None: "",
-        "p": "Personal (p)",
-        "r": "Relative (r)",
-        "d": "Demonstrative (d)",
-        "i": "Interrogative (i)",
-    }
-    PRONOUN_TYPE_REVERSE_MAP: Final[dict[int, str]] = {
-        i: k for i, k in enumerate(PRONOUN_TYPE_MAP.keys()) if k is not None
-    }
-
-    #: A lookup map for adjective degree codes to their long form.
-    ADJECTIVE_DEGREE_MAP: Final[dict[str | None, str]] = {
-        None: "",
-        "p": "Positive (p)",
-        "c": "Comparative (c)",
-        "s": "Superlative (s)",
-    }
-    ADJECTIVE_DEGREE_REVERSE_MAP: Final[dict[int, str]] = {
-        i: k for i, k in enumerate(ADJECTIVE_DEGREE_MAP.keys()) if k is not None
-    }
-
-    #: A lookup map for adjective inflection codes to their long form.
-    ADJECTIVE_INFLECTION_MAP: Final[dict[str | None, str]] = {
-        None: "",
-        "s": "Strong (s)",
-        "w": "Weak (w)",
-    }
-    ADJECTIVE_INFLECTION_REVERSE_MAP: Final[dict[int, str]] = {
-        i: k for i, k in enumerate(ADJECTIVE_INFLECTION_MAP.keys()) if k is not None
-    }
-
-    #: A lookup map for preposition case codes to their long form.
-    PREPOSITION_CASE_MAP: Final[dict[str | None, str]] = {
-        None: "",
-        "a": "Accusative (a)",
-        "d": "Dative (d)",
-        "g": "Genitive (g)",
-    }
-    PREPOSITION_CASE_REVERSE_MAP: Final[dict[int, str]] = {
-        i: k for i, k in enumerate(PREPOSITION_CASE_MAP.keys()) if k is not None
-    }
     annotation_applied = Signal(Annotation)
 
     # Class-level state to remember last used values per POS type
@@ -290,7 +90,19 @@ class AnnotationModal(QDialog):
         pos_group = QGroupBox("Part of Speech")
         pos_layout = QVBoxLayout()
         self.pos_combo = QComboBox()
-        self.pos_combo.addItems(cast("list[str]", self.PART_OF_SPEECH_MAP.values()))
+        # Add empty option first, then all POS options
+        self.pos_combo.addItem("")  # Empty option for "no selection"
+        self.pos_combo.addItems(
+            cast(
+                "list[str]",
+                [v for v in self.PART_OF_SPEECH_MAP.values() if v is not None],
+            )
+        )
+        # Set initial selection to empty (index 0) and block signals to prevent
+        # _on_pos_changed from firing during initialization
+        self.pos_combo.blockSignals(True)  # noqa: FBT003
+        self.pos_combo.setCurrentIndex(0)  # Empty selection
+        self.pos_combo.blockSignals(False)  # noqa: FBT003
         self.pos_combo.currentIndexChanged.connect(self._on_pos_changed)
         pos_layout.addWidget(self.pos_combo)
         pos_group.setLayout(pos_layout)
@@ -436,17 +248,50 @@ class AnnotationModal(QDialog):
             pos_key: POS key (N, V, A, R, D, B, C, E, I)
 
         """
-        pos_text = self.PART_OF_SPEECH_MAP.get(pos_key)
+        pos_text = self.PART_OF_SPEECH_MAP.get(pos_key)  # type: ignore[attr-defined]
         if pos_text:
             index = self.pos_combo.findText(pos_text)
             if index >= 0:
                 self.pos_combo.setCurrentIndex(index)
-                self._on_pos_changed()
+                # _on_pos_changed will be triggered by setCurrentIndex
 
     def _on_pos_changed(self) -> None:
         """
         Handle POS selection change.
         """
+        # Clear existing fields and delete widget references
+        # Delete widget attributes to prevent accessing deleted C++ objects
+        widget_attrs = [
+            "gender_combo",
+            "number_combo",
+            "case_combo",
+            "declension_combo",
+            "verb_class_combo",
+            "verb_tense_combo",
+            "verb_mood_combo",
+            "verb_person_combo",
+            "verb_number_combo",
+            "verb_aspect_combo",
+            "verb_form_combo",
+            "adj_degree_combo",
+            "adj_inflection_combo",
+            "adj_gender_combo",
+            "adj_number_combo",
+            "adj_case_combo",
+            "pro_type_combo",
+            "pro_gender_combo",
+            "pro_number_combo",
+            "pro_case_combo",
+            "prep_case_combo",
+            "article_type_combo",
+            "article_gender_combo",
+            "article_number_combo",
+            "article_case_combo",
+        ]
+        for attr in widget_attrs:
+            if hasattr(self, attr):
+                delattr(self, attr)
+
         # Clear existing fields
         while self.fields_layout.rowCount() > 0:
             self.fields_layout.removeRow(0)
@@ -527,26 +372,58 @@ class AnnotationModal(QDialog):
         if pos not in self._last_values:
             self._last_values[pos] = {}
 
-        if pos == "N" and hasattr(self, "gender_combo"):
-            self._last_values[pos]["gender"] = self.gender_combo.currentIndex()
-            self._last_values[pos]["number"] = self.number_combo.currentIndex()
-            self._last_values[pos]["case"] = self.case_combo.currentIndex()
-            self._last_values[pos]["declension"] = self.declension_combo.currentText()
-        elif pos == "V" and hasattr(self, "verb_class_combo"):
-            self._last_values[pos]["verb_class"] = self.verb_class_combo.currentText()
-            self._last_values[pos]["verb_tense"] = self.verb_tense_combo.currentIndex()
-            self._last_values[pos]["verb_mood"] = self.verb_mood_combo.currentIndex()
-            self._last_values[pos]["verb_person"] = (
-                self.verb_person_combo.currentIndex()
-            )
-            self._last_values[pos]["verb_number"] = (
-                self.verb_number_combo.currentIndex()
-            )
-            self._last_values[pos]["verb_aspect"] = (
-                self.verb_aspect_combo.currentIndex()
-            )
-            self._last_values[pos]["verb_form"] = self.verb_form_combo.currentIndex()
-        # Add similar for other POS types...
+        # Wrap widget access in try-except to handle deleted widgets
+        # Note: hasattr() can return True even for deleted widgets, so we need
+        # to catch RuntimeError when accessing them
+        try:
+            if pos == "N":
+                # Check if widgets exist and are valid before accessing
+                try:
+                    if hasattr(self, "gender_combo"):
+                        self._last_values[pos]["gender"] = (
+                            self.gender_combo.currentIndex()
+                        )
+                        self._last_values[pos]["number"] = (
+                            self.number_combo.currentIndex()
+                        )
+                        self._last_values[pos]["case"] = self.case_combo.currentIndex()
+                        self._last_values[pos]["declension"] = (
+                            self.declension_combo.currentText()
+                        )
+                except RuntimeError:
+                    # Widgets were deleted, skip saving
+                    pass
+            elif pos == "V":
+                try:
+                    if hasattr(self, "verb_class_combo"):
+                        self._last_values[pos]["verb_class"] = (
+                            self.verb_class_combo.currentText()
+                        )
+                        self._last_values[pos]["verb_tense"] = (
+                            self.verb_tense_combo.currentIndex()
+                        )
+                        self._last_values[pos]["verb_mood"] = (
+                            self.verb_mood_combo.currentIndex()
+                        )
+                        self._last_values[pos]["verb_person"] = (
+                            self.verb_person_combo.currentIndex()
+                        )
+                        self._last_values[pos]["verb_number"] = (
+                            self.verb_number_combo.currentIndex()
+                        )
+                        self._last_values[pos]["verb_aspect"] = (
+                            self.verb_aspect_combo.currentIndex()
+                        )
+                        self._last_values[pos]["verb_form"] = (
+                            self.verb_form_combo.currentIndex()
+                        )
+                except RuntimeError:
+                    # Widgets were deleted, skip saving
+                    pass
+            # Add similar for other POS types...
+        except RuntimeError:
+            # Widgets were deleted, skip saving
+            pass
 
     def _add_article_fields(self) -> None:
         """Add fields for article annotation."""
@@ -681,11 +558,18 @@ class AnnotationModal(QDialog):
     def _load_existing_annotation(self) -> None:
         """Load existing annotation values into the form."""
         if not self.annotation.pos:
+            # No annotation exists, ensure POS combo is set to empty/None (index 0)
+            # Block signals temporarily to prevent _on_pos_changed from firing
+            self.pos_combo.blockSignals(True)  # noqa: FBT003
+            self.pos_combo.setCurrentIndex(0)  # Empty selection
+            self.pos_combo.blockSignals(False)  # noqa: FBT003
             return
 
         # Set POS
+        # Note: Index 0 is empty string, so POS options start at index 1
         pos_map = {
             None: 0,
+            "": 0,
             "N": 1,
             "V": 2,
             "A": 3,
@@ -696,7 +580,10 @@ class AnnotationModal(QDialog):
             "E": 8,
             "I": 9,
         }
+        # Block signals temporarily to prevent double-triggering
+        self.pos_combo.blockSignals(True)  # noqa: FBT003
         self.pos_combo.setCurrentIndex(pos_map.get(self.annotation.pos, 0))
+        self.pos_combo.blockSignals(False)  # noqa: FBT003
 
         # Trigger field creation
         self._on_pos_changed()
@@ -879,6 +766,7 @@ class AnnotationModal(QDialog):
 
     def _clear_all(self) -> None:
         """Clear all fields."""
+        # Set to index 0 (empty/None selection)
         self.pos_combo.setCurrentIndex(0)
         self.uncertain_check.setChecked(False)
         self.alternatives_edit.clear()
@@ -887,12 +775,19 @@ class AnnotationModal(QDialog):
         self.modern_english_edit.clear()
         self.root_edit.clear()
 
-    def _apply_annotation(self) -> None:
+    def _apply_annotation(self) -> None:  # noqa: PLR0912
         """Apply annotation and close dialog."""
         # Get POS
-        self.annotation.pos = self.INT_PART_OF_SPEECH_REVERSE_MAP.get(
-            self.pos_combo.currentIndex()
-        )
+        # Note: Index 0 is empty string, so we need to subtract 1 from the index
+        # to map to the correct POS code
+        combo_index = self.pos_combo.currentIndex()
+        if combo_index == 0:
+            # Empty selection
+            self.annotation.pos = None
+        else:
+            self.annotation.pos = self.PART_OF_SPEECH_REVERSE_MAP.get(
+                self.pos_combo.currentText()
+            )
 
         # Save current values for future use
         if self.annotation.pos:

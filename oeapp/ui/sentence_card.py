@@ -73,6 +73,13 @@ class SentenceCard(QWidget):
 
     # Signal emitted when a sentence is merged
     sentence_merged = Signal(int)  # Emits current sentence ID
+    # Signal emitted when a token is selected for details sidebar
+    # Note: Using object for SentenceCard to avoid circular import
+    token_selected_for_details = Signal(
+        object, object, object
+    )  # Token, Sentence, SentenceCard
+    # Signal emitted when an annotation is applied
+    annotation_applied = Signal(Annotation)
 
     # Color maps for highlighting
     POS_COLORS: ClassVar[dict[str | None, QColor]] = {
@@ -124,6 +131,8 @@ class SentenceCard(QWidget):
         self._current_highlight_length: int | None = None
         # Track current highlight mode (None, 'pos', 'case', 'number')
         self._current_highlight_mode: str | None = None
+        # Track selected token index for details sidebar
+        self.selected_token_index: int | None = None
         self._setup_ui()
         self._setup_shortcuts()
 
@@ -230,16 +239,26 @@ class SentenceCard(QWidget):
         self.oe_text_edit.double_clicked.connect(self._on_oe_text_double_clicked)
         layout.addWidget(self.oe_text_edit)
 
-        # Token annotation grid
+        # Token annotation grid (hidden by default)
         self.token_table.annotation_requested.connect(self._open_annotation_modal)
         self.token_table.token_selected.connect(self._highlight_token_in_text)
+        self.token_table.setVisible(False)
         layout.addWidget(self.token_table)
         self.set_tokens(self.tokens)
 
-        # Modern English translation
+        # Modern English translation with toggle button
+        translation_label_layout = QHBoxLayout()
         translation_label = QLabel("Modern English Translation:")
         translation_label.setFont(QFont("Arial", 18))
-        layout.addWidget(translation_label)
+        translation_label_layout.addWidget(translation_label)
+        translation_label_layout.addStretch()
+
+        # Toggle button for token table
+        self.token_table_toggle_button = QPushButton("Show Token Table")
+        self.token_table_toggle_button.clicked.connect(self._toggle_token_table)
+        translation_label_layout.addWidget(self.token_table_toggle_button)
+
+        layout.addLayout(translation_label_layout)
 
         self.translation_edit = QTextEdit()
         self.translation_edit.setPlainText(self.sentence.text_modern or "")
@@ -372,6 +391,8 @@ class SentenceCard(QWidget):
                 self.annotations[annotation.token_id] = annotation
                 # Update token table display
                 self.token_table.update_annotation(annotation)
+                # Emit signal for annotation applied
+                self.annotation_applied.emit(annotation)
                 return
 
         # Fallback: direct save if command manager not available
@@ -383,6 +404,9 @@ class SentenceCard(QWidget):
 
         # Update token table display
         self.token_table.update_annotation(annotation)
+
+        # Emit signal for annotation applied
+        self.annotation_applied.emit(annotation)
 
         # Re-apply highlighting if a mode is active
         if self._current_highlight_mode == "pos":
@@ -414,7 +438,20 @@ class SentenceCard(QWidget):
         # surface text spans that position
         token_index = self._find_token_at_position(text, cursor_pos)
         if token_index is not None:
-            self.token_table.select_token(token_index)
+            # Check if clicking the same token (deselect if so)
+            if self.selected_token_index == token_index:
+                self.selected_token_index = None
+                self._clear_highlight()
+                # Emit signal to clear sidebar - pass current token but main
+                # window will check selected_token_index
+                token = self.tokens[token_index]
+                self.token_selected_for_details.emit(token, self.sentence, self)
+            else:
+                # Select the token and emit signal for sidebar
+                self.selected_token_index = token_index
+                token = self.tokens[token_index]
+                self._highlight_token_in_text(token)
+                self.token_selected_for_details.emit(token, self.sentence, self)
 
     def _on_oe_text_double_clicked(self, position: QPoint) -> None:
         """
@@ -1079,3 +1116,22 @@ class SentenceCard(QWidget):
         """
         self.token_table.table.clearFocus()
         self.token_table.select_token(0)
+
+    def _clear_token_selection(self) -> None:
+        """
+        Clear token selection and highlight.
+        """
+        self.selected_token_index = None
+        self._clear_highlight()
+        # Emit signal with None to clear sidebar (main window will handle it)
+        # We'll emit with the sentence but no token to indicate clearing
+        # Actually, let's emit a special signal or the main window can check selected_token_index
+        # For now, the main window will check if selected_token_index is None
+
+    def _toggle_token_table(self) -> None:
+        """Toggle token table visibility."""
+        is_visible = self.token_table.isVisible()
+        self.token_table.setVisible(not is_visible)
+        self.token_table_toggle_button.setText(
+            "Hide Token Table" if not is_visible else "Show Token Table"
+        )

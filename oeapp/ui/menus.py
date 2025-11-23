@@ -48,9 +48,9 @@ class MainMenu:
         ProjectMenu(self, self.main_window)
         ToolsMenu(self, self.main_window)
         HelpMenu(self, self.main_window)
-        # This must come after the file menu so we can find the right place base
-        # on OS; on macOS, it goes in the application menu, on Windows/Linux, it
-        # goes in the File menu.
+        # This must come after the file menu so we can find the right place for
+        # the menu entry based on OS; on macOS, it goes in the application menu,
+        # on Windows/Linux, it goes in the File menu.
         PreferencesMenu(self, self.main_window)
 
 

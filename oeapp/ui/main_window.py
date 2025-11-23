@@ -3,17 +3,16 @@
 import json
 import sys
 from pathlib import Path
-from typing import Final, cast
+from typing import TYPE_CHECKING, Final, cast
 
 from PySide6.QtCore import QSettings, Qt, QTimer
-from PySide6.QtGui import QAction, QKeySequence, QShortcut
+from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
+    QHBoxLayout,
     QLabel,
     QMainWindow,
-    QMenu,
-    QMenuBar,
     QMessageBox,
     QScrollArea,
     QVBoxLayout,
@@ -44,13 +43,18 @@ from oeapp.ui.filter_dialog import FilterDialog
 from oeapp.ui.help_dialog import HelpDialog
 from oeapp.ui.menus import MainMenu
 from oeapp.ui.sentence_card import SentenceCard
+from oeapp.ui.token_details_sidebar import TokenDetailsSidebar
+
+if TYPE_CHECKING:
+    from oeapp.models.annotation import Annotation
+    from oeapp.models.sentence import Sentence
 
 
 class MainWindow(QMainWindow):
     """Main application window."""
 
     #: Main window geometry
-    MAIN_WINDOW_GEOMETRY: Final[tuple[int, int, int, int]] = (100, 100, 1200, 800)
+    MAIN_WINDOW_GEOMETRY: Final[tuple[int, int, int, int]] = (100, 100, 1600, 800)
 
     def __init__(self) -> None:
         super().__init__()
@@ -77,6 +81,8 @@ class MainWindow(QMainWindow):
         self.filter_service: FilterService | None = None
         #: Main window actions
         self.action_service = MainWindowActions(self)
+        #: Currently selected sentence card
+        self.selected_sentence_card: SentenceCard | None = None
 
         # Build the main window
         self.build()
@@ -93,18 +99,36 @@ class MainWindow(QMainWindow):
         app = QApplication.instance()
         if isinstance(app, QApplication) and not app.windowIcon().isNull():
             self.setWindowIcon(app.windowIcon())
-        self.setGeometry(100, 100, 1200, 800)
-        # Central widget with scroll area
+        self.setGeometry(100, 100, 1600, 800)
+
+        # Central widget with two-column layout
+        central_widget = QWidget()
+        central_layout = QHBoxLayout(central_widget)
+        central_layout.setContentsMargins(0, 0, 0, 0)
+        central_layout.setSpacing(0)
+
+        # Left column: scroll area with sentence cards
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
         scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.scroll_area = scroll_area
-        self.setCentralWidget(scroll_area)
         # Content widget with layout
         content_widget = QWidget()
         self.content_layout = QVBoxLayout(content_widget)
         self.content_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         scroll_area.setWidget(content_widget)
+        central_layout.addWidget(scroll_area, stretch=1)
+
+        # Right column: token details sidebar
+        self.token_details_sidebar = TokenDetailsSidebar()
+        self.token_details_sidebar.setFixedWidth(350)
+        self.token_details_sidebar.setStyleSheet(
+            "background-color: #f5f5f5; border-left: 1px solid #ddd;"
+        )
+        central_layout.addWidget(self.token_details_sidebar)
+
+        self.setCentralWidget(central_widget)
+
         # Status bar for autosave status
         self.show_message("Ready")
         # Initial message
@@ -349,6 +373,8 @@ class MainWindow(QMainWindow):
             card.translation_edit.textChanged.connect(self._on_translation_changed)
             card.oe_text_edit.textChanged.connect(self._on_sentence_text_changed)
             card.sentence_merged.connect(self._on_sentence_merged)
+            card.token_selected_for_details.connect(self._on_token_selected_for_details)
+            card.annotation_applied.connect(self._on_annotation_applied)
             self.sentence_cards.append(card)
             self.content_layout.addWidget(card)
 
@@ -573,6 +599,63 @@ class MainWindow(QMainWindow):
         self.update()
 
         self.show_message("Sentences merged", duration=2000)
+
+    def _on_token_selected_for_details(
+        self, token: Token, sentence: Sentence, sentence_card: SentenceCard
+    ) -> None:
+        """
+        Handle token selection for details sidebar.
+
+        Args:
+            token: Selected token
+            sentence: Sentence containing the token
+            sentence_card: Sentence card containing the token
+
+        """
+        # If there's a previously selected sentence card (different from current),
+        # clear its selection
+        if self.selected_sentence_card and self.selected_sentence_card != sentence_card:
+            self.selected_sentence_card._clear_token_selection()
+
+        # Check if token is being deselected (selected_token_index is None)
+        if sentence_card.selected_token_index is None:
+            # Clear sidebar
+            self.token_details_sidebar.clear()
+            self.selected_sentence_card = None
+        else:
+            # Update sidebar with token details
+            self.token_details_sidebar.update_token(token, sentence)
+
+            # Store reference to currently selected sentence card
+            self.selected_sentence_card = sentence_card
+
+    def _on_annotation_applied(self, annotation: Annotation) -> None:
+        """
+        Handle annotation applied signal.
+
+        If the annotation is for the currently selected token in the sidebar,
+        refresh the sidebar.
+
+        Args:
+            annotation: Applied annotation
+
+        """
+        # Check if this annotation is for the currently selected token
+        if (
+            self.selected_sentence_card
+            and self.selected_sentence_card.selected_token_index is not None
+        ):
+            token_index = self.selected_sentence_card.selected_token_index
+            if (
+                token_index < len(self.selected_sentence_card.tokens)
+                and self.selected_sentence_card.tokens[token_index].id
+                == annotation.token_id
+            ):
+                # Refresh sidebar with updated annotation
+                token = self.selected_sentence_card.tokens[token_index]
+                self.token_details_sidebar.update_token(
+                    token, self.selected_sentence_card.sentence
+                )
 
 
 class MainWindowActions:
