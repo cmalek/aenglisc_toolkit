@@ -94,7 +94,7 @@ class DOCXExporter:
         """
         doc: DocumentObject = Document()
         self._setup_document_styles(doc)
-        project = self.session.get(Project, project_id)
+        project = Project.get(self.session, project_id)
         if project is None:
             return False
 
@@ -296,7 +296,7 @@ class DOCXExporter:
             if not note.start_token:
                 start_token = None
             else:
-                start_token = self.session.get(Token, note.start_token)
+                start_token = Token.get(self.session, note.start_token)
                 if start_token is None:
                     print(f"Note {note.id} has no start token")  # noqa: T201
             note_text = note.note_text_md

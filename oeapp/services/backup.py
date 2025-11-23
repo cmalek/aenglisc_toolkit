@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from oeapp import __version__
 from oeapp.db import get_project_db_path
+from oeapp.exc import BackupFailed
 from oeapp.models.project import Project
 from oeapp.models.sentence import Sentence
 from oeapp.models.token import Token
@@ -183,16 +184,20 @@ class BackupService(QObject):
             "projects": projects_data,
         }
 
-    def create_backup(self) -> Path | None:
+    def create_backup(self) -> Path:
         """
         Create a backup of the database immediately.
 
         Returns:
             Path to the created backup file, or None if backup failed
 
+        Raises:
+            BackupFailed: If the backup fails
+            BackupFailed: If the database file does not exist
+
         """
         if not self.db_path.exists():
-            return None
+            raise BackupFailed(OSError("Database file does not exist"), self.db_path)
 
         # Generate backup filename with timestamp (UTC to avoid DST issues)
         timestamp = datetime.now(UTC).strftime("%Y-%m-%d_%H-%M-%S")
@@ -204,14 +209,14 @@ class BackupService(QObject):
             shutil.copy2(self.db_path, backup_path)
         except (OSError, PermissionError) as e:
             print(f"Failed to copy database file: {e}")  # noqa: T201
-            return None
+            raise BackupFailed(e, backup_path) from e
 
         # Create temporary engine and session to extract metadata
         temp_engine = create_engine(
             f"sqlite:///{self.db_path}",
             connect_args={"check_same_thread": False},
         )
-        SessionLocal = sessionmaker(bind=temp_engine)
+        SessionLocal = sessionmaker(bind=temp_engine)  # noqa: N806
         temp_session = SessionLocal()
 
         try:
@@ -241,7 +246,7 @@ class BackupService(QObject):
                 with metadata_path.open("w", encoding="utf-8") as f:
                     json.dump(metadata, f, indent=2)
             except (OSError, PermissionError, TypeError) as e:
-                print(f"Failed to write metadata file: {e}")  # noqa: T201
+                raise BackupFailed(e, metadata_path) from e
                 # Continue anyway - backup file was created successfully
 
             # Update last backup time (UTC to avoid DST issues)

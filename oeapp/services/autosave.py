@@ -60,7 +60,7 @@ class AutosaveService(QObject):
             try:
                 self.save_callback()
                 self._pending = False
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 print(f"Autosave error: {e}")
                 self._pending = False
 
@@ -77,7 +77,7 @@ class AutosaveService(QObject):
         self._pending = False
         try:
             self.save_callback()
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Save error: {e}")
 
     def cancel(self) -> None:

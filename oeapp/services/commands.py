@@ -104,7 +104,7 @@ class AnnotateTokenCommand(Command):
             True if successful
 
         """
-        annotation = self.session.get(Annotation, self.token_id)
+        annotation = Annotation.get(self.session, self.token_id)
         if annotation is None:
             # Create annotation if it doesn't exist
             annotation = Annotation(token_id=self.token_id)
@@ -121,7 +121,7 @@ class AnnotateTokenCommand(Command):
             True if successful
 
         """
-        annotation = self.session.get(Annotation, self.token_id)
+        annotation = Annotation.get(self.session, self.token_id)
         if annotation is None:
             return False
         self._update_annotation(annotation, self.before)
@@ -165,7 +165,7 @@ class EditSentenceCommand(Command):
             True if successful
 
         """
-        sentence = self.session.get(Sentence, self.sentence_id)
+        sentence = Sentence.get(self.session, self.sentence_id)
         if sentence is None:
             return False
 
@@ -185,7 +185,7 @@ class EditSentenceCommand(Command):
             True if successful, False otherwise
 
         """
-        sentence = self.session.get(Sentence, self.sentence_id)
+        sentence = Sentence.get(self.session, self.sentence_id)
         if sentence is None:
             return False
 
@@ -240,8 +240,8 @@ class MergeSentenceCommand(Command):
             True if successful, False otherwise
 
         """
-        current_sentence = self.session.get(Sentence, self.current_sentence_id)
-        next_sentence = self.session.get(Sentence, self.next_sentence_id)
+        current_sentence = Sentence.get(self.session, self.current_sentence_id)
+        next_sentence = Sentence.get(self.session, self.next_sentence_id)
 
         if current_sentence is None or next_sentence is None:
             return False
@@ -350,7 +350,7 @@ class MergeSentenceCommand(Command):
             True if successful, False otherwise
 
         """
-        current_sentence = self.session.get(Sentence, self.current_sentence_id)
+        current_sentence = Sentence.get(self.session, self.current_sentence_id)
         if current_sentence is None:
             return False
 
@@ -364,7 +364,7 @@ class MergeSentenceCommand(Command):
             # Phase 1: Move to temporary positions
             temp_offset = -10000  # Use a large negative offset to avoid conflicts
             for sentence_id, _old_order, _new_order in self.display_order_changes:
-                sentence = self.session.get(Sentence, sentence_id)
+                sentence = Sentence.get(self.session, sentence_id)
                 if sentence:
                     sentence.display_order = temp_offset
                     temp_offset -= 1
@@ -376,7 +376,7 @@ class MergeSentenceCommand(Command):
                 self.display_order_changes, key=lambda x: x[1], reverse=True
             )  # Sort by old_order descending
             for sentence_id, old_order, _new_order in sorted_changes:
-                sentence = self.session.get(Sentence, sentence_id)
+                sentence = Sentence.get(self.session, sentence_id)
                 if sentence:
                     sentence.display_order = old_order
                     self.session.add(sentence)
@@ -395,7 +395,7 @@ class MergeSentenceCommand(Command):
         # Restore tokens to next sentence with original order_index
         # CRITICAL: Do this BEFORE updating current sentence text
         for token_data in self.next_sentence_tokens:
-            token = self.session.get(Token, token_data["id"])
+            token = Token.get(self.session, token_data["id"])
             if token:
                 token.sentence_id = next_sentence.id  # Use the new sentence ID
                 token.order_index = token_data["order_index"]

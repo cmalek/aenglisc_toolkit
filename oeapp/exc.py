@@ -1,3 +1,9 @@
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+
 class DoesNotExist(Exception):  # noqa: N818
     """Exception raised when a resource does not exist."""
 
@@ -14,3 +20,43 @@ class AlreadyExists(Exception):  # noqa: N818
         self.resource_type = resource_type
         self.resource_id = resource_id
         super().__init__(f'{resource_type} with ID "{resource_id!s}" already exists')
+
+
+class MigrationCreationFailed(Exception):  # noqa: N818
+    """Exception raised when a migration creation fails."""
+
+    def __init__(self, error: Exception):
+        self.error = error
+        super().__init__(f"Migration creation failed: {error}")
+
+
+class MigrationFailed(Exception):  # noqa: N818
+    """Exception raised when a migration fails."""
+
+    def __init__(
+        self,
+        error: Exception,
+        backup_app_version: str | None,
+        backup_migration_version: str | None,
+    ):
+        self.error = error
+        self.backup_app_version = backup_app_version
+        self.backup_migration_version = backup_migration_version
+        super().__init__(f"Migration failed: {error}")
+
+
+class MigrationSkipped(Exception):  # noqa: N818
+    """Exception raised when a migration is skipped."""
+
+    def __init__(self, skip_until_version: str):
+        self.skip_until_version = skip_until_version
+        super().__init__(f"Migration skipped: {skip_until_version}")
+
+
+class BackupFailed(Exception):  # noqa: N818
+    """Exception raised when a backup fails."""
+
+    def __init__(self, error: Exception, backup_path: Path):
+        self.error = error
+        self.backup_path = backup_path
+        super().__init__(f"Backup failed: {error}")

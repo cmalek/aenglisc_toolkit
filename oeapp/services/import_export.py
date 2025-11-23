@@ -4,92 +4,14 @@ import json
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from alembic.config import Config
-from alembic.script import ScriptDirectory
 from sqlalchemy import select
 
-from oeapp.db import (
-    get_current_code_migration_version,
-    get_current_db_migration_version,
-    get_min_version_for_migration,
-)
 from oeapp.models.project import Project
 from oeapp.models.sentence import Sentence
+from oeapp.services import MigrationMetadataService, MigrationService
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
-
-
-def _get_migration_chain(from_version: str, to_version: str) -> list[str]:  # noqa: PLR0912
-    """
-    Get ordered list of migration revision IDs from one version to another.
-
-    Args:
-        from_version: Starting migration version (export version)
-        to_version: Target migration version (current version)
-
-    Returns:
-        Ordered list of migration revision IDs (from oldest to newest)
-
-    """
-    alembic_ini_path = Path(__file__).parent.parent / "etc" / "alembic.ini"
-    alembic_cfg = Config(str(alembic_ini_path))
-    script = ScriptDirectory.from_config(alembic_cfg)
-
-    # Build a map of down_revision -> list of revisions that have it
-    # This allows us to walk forward from from_version to to_version
-    forward_map: dict[str | None, list[str]] = {}
-    revision_to_down: dict[str, str | None] = {}
-
-    for script_revision in script.walk_revisions():
-        rev_id = script_revision.revision
-        down_rev = script_revision.down_revision
-        if isinstance(down_rev, str):
-            revision_to_down[rev_id] = down_rev
-            if down_rev not in forward_map:
-                forward_map[down_rev] = []
-            forward_map[down_rev].append(rev_id)
-        elif isinstance(down_rev, (list, tuple)) and down_rev:
-            # Handle multiple down revisions - take first one
-            revision_to_down[rev_id] = down_rev[0]
-            if down_rev[0] not in forward_map:
-                forward_map[down_rev[0]] = []
-            forward_map[down_rev[0]].append(rev_id)
-        else:
-            revision_to_down[rev_id] = None
-            if None not in forward_map:
-                forward_map[None] = []
-            forward_map[None].append(rev_id)
-
-    # If versions are the same, return empty list
-    if from_version == to_version:
-        return []
-
-    # Walk forward from from_version to to_version
-    chain: list[str] = []
-    current = from_version
-    visited: set[str] = set()
-
-    while current and current != to_version:
-        if current in visited:
-            # Circular reference or invalid chain
-            break
-        visited.add(current)
-
-        # Find next revision(s) that have current as down_revision
-        if current in forward_map:
-            next_revisions = forward_map[current]
-            if next_revisions:
-                # Take the first one (assuming linear chain)
-                # If there are multiple, we might need more sophisticated logic
-                current = next_revisions[0]
-                chain.append(current)
-            else:
-                break
-        else:
-            break
-
-    return chain
 
 
 class ProjectExporter:
@@ -104,25 +26,59 @@ class ProjectExporter:
 
         """
         self.session = session
+        self.migration_service = MigrationService()
 
-    def export_project(self, project_id: int) -> dict[str, Any]:
+    @staticmethod
+    def sanitize_filename(filename: str) -> str:
         """
-        Export project to a dictionary (without PKs).
+        Sanitize filename.
 
         Args:
-            project_id: Project ID to export
+            filename: Filename to sanitize
 
         Returns:
-            Dictionary containing project data
+            Sanitized filename
 
         """
-        project = self.session.get(Project, project_id)
+        return filename.replace(" ", "_").replace(".", "")
+
+    def get_project(self, project_id: int) -> Project:
+        """
+        Get project by ID.
+
+        Args:
+            project_id: Project ID
+
+        Returns:
+            Project
+
+        """
+        project = Project.get(self.session, project_id)
         if project is None:
             msg = f"Project with ID {project_id} not found"
             raise ValueError(msg)
+        return project
+
+    def export_project_json(self, project_id: int, filename: str) -> None:
+        """
+        Export project as JSON to a file.
+
+        Args:
+            project_id: Project ID to export
+            filename: Filename to export the project to
+
+        Raises:
+            ValueError: If project is not found or if the export fails, with a
+                descriptive message
+
+        """
+        if not filename.endswith(".json"):
+            filename += ".json"
+
+        project = self.get_project(project_id)
 
         # Get migration version
-        migration_version = get_current_db_migration_version()
+        migration_version = self.migration_service.db_migration_version()
 
         # Serialize project without PKs
         project_data: dict[str, Any] = {
@@ -139,10 +95,19 @@ class ProjectExporter:
             sentence_data = sentence.to_json(self.session)
             project_data["sentences"].append(sentence_data)
 
-        return project_data
+        # Write JSON to file
+        try:
+            with Path(filename).open("w", encoding="utf-8") as f:
+                json.dump(project_data, f, indent=2, ensure_ascii=False)
+        except (OSError, PermissionError) as e:
+            msg = f"Failed to write export file:\n{e!s}"
+            raise ValueError(msg) from e
+        except (TypeError, ValueError) as e:
+            msg = f"Failed to serialize project data:\n{e!s}"
+            raise ValueError(msg) from e
 
 
-class ProjectImportProcessor:
+class ProjectImporter:
     """Processes project import data and creates database entities."""
 
     def __init__(self, session: Session) -> None:
@@ -154,6 +119,8 @@ class ProjectImportProcessor:
 
         """
         self.session = session
+        self.migration_service = MigrationService()
+        self.migration_metadata_service = MigrationMetadataService()
 
     def _validate_migration_version(self, export_version: str) -> None:
         """
@@ -170,7 +137,7 @@ class ProjectImportProcessor:
             msg = "Export file missing migration_version"
             raise ValueError(msg)
 
-        current_code_version = get_current_code_migration_version()
+        current_code_version = self.migration_service.code_migration_version()
 
         if not current_code_version:
             return
@@ -181,10 +148,16 @@ class ProjectImportProcessor:
 
         # Check if we can build a migration chain from export to current
         try:
-            migration_chain = _get_migration_chain(export_version, current_code_version)
+            migration_chain = self.migration_service.revision_chain(
+                export_version, current_code_version
+            )
             # If chain is empty and versions don't match, migration might not exist
             if not migration_chain and export_version != current_code_version:
-                min_version = get_min_version_for_migration(export_version)
+                min_version = (
+                    self.migration_metadata_service.get_min_version_for_migration(
+                        export_version
+                    )
+                )
                 if min_version:
                     msg = (
                         f"This export requires at least version {min_version} of the "
@@ -202,7 +175,9 @@ class ProjectImportProcessor:
             raise
         except Exception as e:
             # If we can't build chain, check minimum version
-            min_version = get_min_version_for_migration(export_version)
+            min_version = self.migration_metadata_service.get_min_version_for_migration(
+                export_version
+            )
             if min_version:
                 msg = (
                     f"This export requires at least version {min_version} of the "
@@ -230,13 +205,15 @@ class ProjectImportProcessor:
             Transformed data dictionary
 
         """
-        current_code_version = get_current_code_migration_version()
+        current_code_version = self.migration_service.code_migration_version()
 
         if export_version == current_code_version or not current_code_version:
             return data
 
         try:
-            migration_chain = _get_migration_chain(export_version, current_code_version)
+            migration_chain = self.migration_service.revision_chain(
+                export_version, current_code_version
+            )
             if migration_chain:
                 data = self._apply_field_mappings(data, migration_chain)
         except (KeyError, AttributeError, TypeError):
@@ -369,12 +346,12 @@ class ProjectImportProcessor:
         """
         Sentence.from_json(self.session, project_id, sentence_data)
 
-    def process_import(self, data: dict[str, Any]) -> tuple[Project, bool]:
+    def import_project_json(self, filename: str) -> tuple[Project, bool]:
         """
         Process project import from data dictionary.
 
         Args:
-            data: Project data dictionary
+            filename: Filename to import the project from
 
         Returns:
             Tuple of (imported_project, was_renamed)
@@ -383,6 +360,18 @@ class ProjectImportProcessor:
             ValueError: If migration version is incompatible
 
         """
+        if not Path(filename).exists():
+            msg = f"File {filename} not found"
+            raise ValueError(msg)
+
+        try:
+            # Load and parse JSON
+            with Path(filename).open("r", encoding="utf-8") as f:
+                data = json.load(f)
+        except (OSError, PermissionError, json.JSONDecodeError) as e:
+            msg = f"Failed to load project data from file:\n{e!s}"
+            raise ValueError(msg) from e
+
         # Validate migration version
         export_version = data.get("migration_version")
         self._validate_migration_version(export_version or "")
@@ -399,34 +388,3 @@ class ProjectImportProcessor:
 
         self.session.commit()
         return project, was_renamed
-
-
-class ProjectImporter:
-    """Imports projects from JSON format."""
-
-    def __init__(self, session: Session) -> None:
-        """
-        Initialize importer.
-
-        Args:
-            session: SQLAlchemy session
-
-        """
-        self.session = session
-
-    def import_project(self, data: dict[str, Any]) -> tuple[Project, bool]:
-        """
-        Import project from dictionary.
-
-        Args:
-            data: Project data dictionary
-
-        Returns:
-            Tuple of (imported_project, was_renamed)
-
-        Raises:
-            ValueError: If migration version is incompatible
-
-        """
-        processor = ProjectImportProcessor(self.session)
-        return processor.process_import(data)

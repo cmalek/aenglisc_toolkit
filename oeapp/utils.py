@@ -1,6 +1,28 @@
 """Utility functions for Old English Annotator."""
 
+import sys
 from datetime import UTC, datetime
+from pathlib import Path
+
+
+def get_resource_path(relative_path: str) -> Path:
+    """
+    Get resource path for bundled application or development.
+
+    Args:
+        relative_path: Relative path from project root
+
+    Returns:
+        Path to resource file
+
+    """
+    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+        # Running in PyInstaller bundle
+        base_path = Path(sys._MEIPASS)
+    else:
+        # Running in development
+        base_path = Path(__file__).parent.parent
+    return base_path / relative_path
 
 
 def to_utc_iso(dt: datetime | None) -> str | None:
@@ -42,4 +64,3 @@ def from_utc_iso(iso_str: str | None) -> datetime | None:
     dt = dt.replace(tzinfo=UTC) if dt.tzinfo is None else dt.astimezone(UTC)
     # Return naive datetime (SQLite doesn't handle timezone-aware datetimes well)
     return dt.replace(tzinfo=None)
-

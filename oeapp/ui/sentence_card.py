@@ -317,7 +317,7 @@ class SentenceCard(QWidget):
         # Open modal - get or create annotation
         annotation = token.annotation
         if annotation is None and self.session and token.id:
-            annotation = self.session.get(Annotation, token.id)
+            annotation = Annotation.get(self.session, token.id)
         modal = AnnotationModal(token, annotation, self)
         modal.annotation_applied.connect(self._on_annotation_applied)
         modal.exec()
@@ -480,7 +480,7 @@ class SentenceCard(QWidget):
             # Get or create annotation
             annotation = token.annotation
             if annotation is None and self.session and token.id:
-                annotation = self.session.get(Annotation, token.id)
+                annotation = Annotation.get(self.session, token.id)
             modal = AnnotationModal(token, annotation, self)
             modal.annotation_applied.connect(self._on_annotation_applied)
             modal.exec()
@@ -955,7 +955,7 @@ class SentenceCard(QWidget):
             return
 
         # Check if annotation exists
-        existing = self.session.get(Annotation, annotation.token_id)
+        existing = Annotation.get(self.session, annotation.token_id)
         if existing:
             # Update existing annotation
             existing.pos = annotation.pos
@@ -995,17 +995,9 @@ class SentenceCard(QWidget):
         if not self.session or not self.sentence.id:
             return
 
-        # Find next sentence
-        stmt = (
-            select(Sentence)
-            .where(
-                Sentence.project_id == self.sentence.project_id,
-                Sentence.display_order == self.sentence.display_order + 1,
-            )
-            .limit(1)
+        next_sentence = Sentence.get_next_sentence(
+            self.session, self.sentence.project_id, self.sentence.display_order + 1
         )
-        next_sentence = self.session.scalar(stmt)
-
         if next_sentence is None:
             QMessageBox.warning(
                 self,
@@ -1125,8 +1117,9 @@ class SentenceCard(QWidget):
         self._clear_highlight()
         # Emit signal with None to clear sidebar (main window will handle it)
         # We'll emit with the sentence but no token to indicate clearing
-        # Actually, let's emit a special signal or the main window can check selected_token_index
-        # For now, the main window will check if selected_token_index is None
+        # Actually, let's emit a special signal or the main window can check
+        # selected_token_index For now, the main window will check if
+        # selected_token_index is None
 
     def _toggle_token_table(self) -> None:
         """Toggle token table visibility."""

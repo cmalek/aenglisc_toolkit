@@ -24,10 +24,10 @@ from PySide6.QtWidgets import (
 )
 from sqlalchemy import select
 
-from oeapp.db import get_current_code_migration_version
 from oeapp.exc import AlreadyExists
 from oeapp.models.project import Project
 from oeapp.services.backup import BackupService
+from oeapp.services.migration import MigrationService
 
 if TYPE_CHECKING:
     from datetime import datetime
@@ -42,7 +42,9 @@ def load_projects_into_table(
     main_window: MainWindow,
 ) -> list[Project]:
     """
-    Load projects from database into a table widget.
+    Load projects from database into a table widget.  The table widget is
+    populated with the project name, last modified date, and created date, and
+    is sorted by is sorted by last modified date in descending order.
 
     Args:
         project_table: Table widget to populate
@@ -309,12 +311,15 @@ class NewProjectDialog:
         self.file_path_edit = QLineEdit(self.dialog)
         self.file_path_edit.setPlaceholderText("No file selected...")
         self.file_path_edit.setReadOnly(True)
+
         browse_button = QPushButton("Browse...")
         file_browser_layout.addWidget(self.file_path_edit)
         file_browser_layout.addWidget(browse_button)
+
         self.file_browser_widget = QWidget(self.dialog)
         self.file_browser_widget.setLayout(file_browser_layout)
         self.file_label = QLabel("Old English Text File:")
+
         self.layout.addWidget(self.file_label)
         self.layout.addWidget(self.file_browser_widget)
 
@@ -512,7 +517,7 @@ class OpenProjectDialog:
                 self.project_id = name_item.data(Qt.ItemDataRole.UserRole)
                 # Get the project from the database.
                 project = cast(
-                    "Project", self.main_window.session.get(Project, self.project_id)
+                    "Project", Project.get(self.main_window.session, self.project_id)
                 )
                 if project is None:
                     self.main_window.show_warning("Project not found")
@@ -655,7 +660,7 @@ class DeleteProjectDialog:
         if project_id is None:
             return None
 
-        return cast("Project", self.main_window.session.get(Project, project_id))
+        return cast("Project", Project.get(self.main_window.session, project_id))
 
     def _export_and_delete(self) -> None:
         """
@@ -1013,24 +1018,28 @@ class RestoreDialog:
             return
 
         # Restore backup
+        migration_service = MigrationService()
         backup_service = BackupService()
         metadata = backup_service.restore_backup(Path(backup_path))
 
         if metadata:
             # Check for version mismatch
             backup_migration = metadata.get("migration_version")
-            current_code_migration = get_current_code_migration_version()
+            current_code_migration = migration_service.code_migration_version()
 
-            if backup_migration and current_code_migration:
-                if backup_migration != current_code_migration:
-                    self.main_window.show_warning(
-                        f"The restored backup was created with migration version "
-                        f"{backup_migration}, but your application expects version "
-                        f"{current_code_migration}.\n\n"
-                        "You may experience SQL errors. Consider downgrading your "
-                        "application to match the backup version.",
-                        title="Version Mismatch",
-                    )
+            if (
+                backup_migration
+                and current_code_migration
+                and backup_migration != current_code_migration
+            ):
+                self.main_window.show_warning(
+                    f"The restored backup was created with migration version "
+                    f"{backup_migration}, but your application expects version "
+                    f"{current_code_migration}.\n\n"
+                    "You may experience SQL errors. Consider downgrading your "
+                    "application to match the backup version.",
+                    title="Version Mismatch",
+                )
 
             settings = QSettings()
             if backup_migration:

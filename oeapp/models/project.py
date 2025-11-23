@@ -41,6 +41,13 @@ class Project(Base):
     )
 
     @classmethod
+    def get(cls, session: Session, project_id: int) -> Project | None:
+        """
+        Get a project by name.
+        """
+        return session.get(cls, project_id)
+
+    @classmethod
     def create(
         cls, session: Session, text: str, name: str = "Untitled Project"
     ) -> Project:

@@ -10,6 +10,11 @@ from oeapp.services.commands import (
 )
 from oeapp.services.export_docx import DOCXExporter
 from oeapp.services.filter import FilterService
+from oeapp.services.migration import (
+    FieldMappingService,
+    MigrationMetadataService,
+    MigrationService,
+)
 
 __all__ = [
     "AnnotateTokenCommand",
@@ -18,6 +23,9 @@ __all__ = [
     "CommandManager",
     "DOCXExporter",
     "EditSentenceCommand",
+    "FieldMappingService",
     "FilterService",
     "MergeSentenceCommand",
+    "MigrationMetadataService",
+    "MigrationService",
 ]

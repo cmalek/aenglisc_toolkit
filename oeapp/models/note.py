@@ -85,11 +85,11 @@ class Note(Base):
         # For notes, we need to reference tokens by order_index
         # since we don't have PKs
         if self.start_token:
-            start_token = session.get(Token, self.start_token)
+            start_token = Token.get(session, self.start_token)
             if start_token:
                 note_data["start_token_order_index"] = start_token.order_index
         if self.end_token:
-            end_token = session.get(Token, self.end_token)
+            end_token = Token.get(session, self.end_token)
             if end_token:
                 note_data["end_token_order_index"] = end_token.order_index
 

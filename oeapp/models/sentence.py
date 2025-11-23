@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import DateTime, ForeignKey, Integer, String, UniqueConstraint, select
 from sqlalchemy.orm import Mapped, Session, mapped_column, relationship
 
 from oeapp.db import Base
@@ -72,6 +72,39 @@ class Sentence(Base):
     notes: Mapped[list[Note]] = relationship(
         "Note", back_populates="sentence", cascade="all, delete-orphan"
     )
+
+    @classmethod
+    def get(cls, session: Session, sentence_id: int) -> Sentence | None:
+        """
+        Get a sentence by ID.
+        """
+        return session.get(cls, sentence_id)
+
+    @classmethod
+    def get_next_sentence(
+        cls, session: Session, project_id: int, display_order: int
+    ) -> Sentence | None:
+        """
+        Get the next sentence by project ID and display order.
+
+        Args:
+            session: SQLAlchemy session
+            project_id: Project ID
+            display_order: Display order
+
+        Returns:
+            The next sentence or None if there is no next sentence
+
+        """
+        stmt = (
+            select(Sentence)
+            .where(
+                cls.project_id == project_id,
+                cls.display_order == display_order,
+            )
+            .limit(1)
+        )
+        return session.scalar(stmt)
 
     @classmethod
     def create(

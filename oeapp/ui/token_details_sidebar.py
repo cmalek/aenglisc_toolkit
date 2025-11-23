@@ -87,7 +87,7 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
         # Header: [sentence number] token surface
         header_text = f"[{sentence.display_order}] {token.surface}"
         header_label = QLabel(header_text)
-        header_label.setFont(QFont("Arial", 14, QFont.Weight.Bold))
+        header_label.setFont(QFont("Arial", 18, QFont.Weight.Bold))
         header_label.setWordWrap(True)
         self.content_layout.addWidget(header_label)
 

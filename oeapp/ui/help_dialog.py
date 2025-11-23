@@ -18,6 +18,73 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+#: HTML template for help content.
+HELP_HTML_TEMPLATE = """
+    <html>
+    <head>
+        <style>
+            body {{
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+                line-height: 1.6;
+                padding: 20px;
+                max-width: 800px;
+            }}
+            h1 {{
+                color: #2c3e50;
+                border-bottom: 2px solid #3498db;
+                padding-bottom: 10px;
+            }}
+            h2 {{
+                color: #34495e;
+                margin-top: 30px;
+            }}
+            h3 {{
+                color: #7f8c8d;
+            }}
+            table {{
+                border-collapse: collapse;
+                width: 100%;
+                margin: 20px 0;
+            }}
+            th, td {{
+                border: 1px solid #ddd;
+                padding: 8px;
+                text-align: left;
+            }}
+            th {{
+                background-color: #3498db;
+                color: white;
+            }}
+            tr:nth-child(even) {{
+                background-color: #f2f2f2;
+            }}
+            code {{
+                background-color: #f4f4f4;
+                padding: 2px 6px;
+                border-radius: 3px;
+                font-family: "Courier New", monospace;
+            }}
+            pre {{
+                background-color: #f4f4f4;
+                padding: 10px;
+                border-radius: 5px;
+                overflow-x: auto;
+            }}
+            ul, ol {{
+                margin: 10px 0;
+                padding-left: 30px;
+            }}
+            strong {{
+                color: #2c3e50;
+            }}
+        </style>
+    </head>
+    <body>
+        {}
+    </body>
+    </html>
+"""  # noqa: E501
+
 
 def get_resource_path(relative_path: str) -> Path:
     """
@@ -108,7 +175,9 @@ class HelpDialog(QDialog):
 
         # Splitter for topic list and content
         splitter = QSplitter(Qt.Orientation.Horizontal)
-        layout.addWidget(splitter, 1)  # Stretch factor of 1 makes it expand to fill space
+        # Add splitter to layout with stretch factor 1 to make it fill the
+        # available vertical space
+        layout.addWidget(splitter, 1)
 
         # Topic list (left sidebar)
         self.topic_list = QListWidget()
@@ -127,6 +196,26 @@ class HelpDialog(QDialog):
 
         # Select first topic
         self.topic_list.setCurrentRow(0)
+
+    def load_topic(self, topic_name: str) -> str:
+        """
+        Load a help topic.
+
+        Args:
+            topic_name: Name of the topic to load
+
+        """
+        filename = self.TOPICS[topic_name]
+        filepath = self.help_dir / filename
+
+        if not filepath.exists():
+            return f"<h1>Error</h1><p>Help file not found: {filename}</p>"
+        # Step 1: Read markdown file
+        try:
+            with Path(filepath).open(encoding="utf-8") as f:
+                return f.read()
+        except OSError as e:
+            return f"<h1>Error</h1><p>Failed to read help file: {filename}<br>{e!s}</p>"
 
     def _on_topic_changed(
         self,
@@ -165,102 +254,24 @@ class HelpDialog(QDialog):
             # If the topic is not valid, do nothing.
             return
 
-        filename = self.TOPICS[topic_name]
-        filepath = self.help_dir / filename
-        print("help dialog filepath:", filepath)
+        markdown_content = self.load_topic(topic_name)
 
-        if not filepath.exists():
-            self.content_view.setHtml(
-                f"<h1>Error</h1><p>Help file not found: {filename}</p>"
-            )
-            return
-
+        # Step 2: Convert markdown to HTML
+        extensions = ["tables", "fenced_code", "codehilite"]
         try:
-            # Read markdown file
-            with Path(filepath).open(encoding="utf-8") as f:
-                markdown_content = f.read()
-
-            # Convert markdown to HTML.  Note that codehilite is part of markdown
-            # and is enabled when the pygments package is installed.
-            extensions = ["tables", "fenced_code", "codehilite"]
             html = markdown.markdown(
                 markdown_content,
                 extensions=extensions,
             )
-
-            # Add basic styling
-            styled_html = f"""
-            <html>
-            <head>
-                <style>
-                    body {{
-                        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
-                        line-height: 1.6;
-                        padding: 20px;
-                        max-width: 800px;
-                    }}
-                    h1 {{
-                        color: #2c3e50;
-                        border-bottom: 2px solid #3498db;
-                        padding-bottom: 10px;
-                    }}
-                    h2 {{
-                        color: #34495e;
-                        margin-top: 30px;
-                    }}
-                    h3 {{
-                        color: #7f8c8d;
-                    }}
-                    table {{
-                        border-collapse: collapse;
-                        width: 100%;
-                        margin: 20px 0;
-                    }}
-                    th, td {{
-                        border: 1px solid #ddd;
-                        padding: 8px;
-                        text-align: left;
-                    }}
-                    th {{
-                        background-color: #3498db;
-                        color: white;
-                    }}
-                    tr:nth-child(even) {{
-                        background-color: #f2f2f2;
-                    }}
-                    code {{
-                        background-color: #f4f4f4;
-                        padding: 2px 6px;
-                        border-radius: 3px;
-                        font-family: "Courier New", monospace;
-                    }}
-                    pre {{
-                        background-color: #f4f4f4;
-                        padding: 10px;
-                        border-radius: 5px;
-                        overflow-x: auto;
-                    }}
-                    ul, ol {{
-                        margin: 10px 0;
-                        padding-left: 30px;
-                    }}
-                    strong {{
-                        color: #2c3e50;
-                    }}
-                </style>
-            </head>
-            <body>
-                {html}
-            </body>
-            </html>
-            """  # noqa: E501
-
-            self.content_view.setHtml(styled_html)
-
-        except Exception as e:
+        except (markdown.MarkdownException, ValueError) as e:
             self.content_view.setHtml(
-                f"<h1>Error</h1><p>Failed to load help content: {e!s}</p>"
+                f'<h1>Error</h1><p>Failed to process markdown for help for topic "{topic_name}": {e!s}</p>'  # noqa: E501
             )
+            return
+
+        # Step 3: Compose HTML and display
+        styled_html = HELP_HTML_TEMPLATE.format(html)
+        self.content_view.setHtml(styled_html)
 
     def show_topic(self, topic_name: str):
         """

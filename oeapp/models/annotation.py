@@ -113,6 +113,13 @@ class Annotation(Base):
     # Relationships
     token: Mapped[Token] = relationship("Token", back_populates="annotation")
 
+    @classmethod
+    def get(cls, session: Session, annotation_id: int) -> Annotation | None:
+        """
+        Get an annotation by ID.
+        """
+        return session.get(cls, annotation_id)
+
     def to_json(self) -> dict:
         """
         Serialize annotation to JSON-compatible dictionary.
@@ -159,7 +166,6 @@ class Annotation(Base):
             Created Annotation entity
 
         """
-
         annotation = cls(
             token_id=token_id,
             pos=ann_data.get("pos"),

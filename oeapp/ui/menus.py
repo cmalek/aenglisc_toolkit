@@ -167,7 +167,7 @@ class ToolsMenu:
         self.tools_menu = self.main_menu.add_menu("&Tools")
 
         backup_action = QAction("&Backup Now", self.tools_menu)
-        backup_action.triggered.connect(self.main_window.backup_now)
+        backup_action.triggered.connect(self.main_window.action_service.backup_now)
         self.tools_menu.addAction(backup_action)
 
         restore_action = QAction("&Restore...", self.tools_menu)

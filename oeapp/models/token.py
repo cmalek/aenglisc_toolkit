@@ -119,6 +119,13 @@ class Token(Base):
         return token
 
     @classmethod
+    def get(cls, session: Session, token_id: int) -> Token | None:
+        """
+        Get a token by ID.
+        """
+        return session.get(cls, token_id)
+
+    @classmethod
     def create_from_sentence(
         cls, session, sentence_id: int, sentence_text: str
     ) -> list[Token]:

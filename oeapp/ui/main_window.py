@@ -1,6 +1,5 @@
 """Main application window."""
 
-import json
 import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Final, cast
@@ -20,9 +19,11 @@ from PySide6.QtWidgets import (
 )
 from sqlalchemy import select
 
-from oeapp.db import SessionLocal, apply_migrations, create_engine_with_path
+from oeapp.db import SessionLocal
+from oeapp.exc import MigrationFailed
 from oeapp.models.project import Project
 from oeapp.models.token import Token
+from oeapp.services import MigrationService
 from oeapp.services.autosave import AutosaveService
 from oeapp.services.backup import BackupService
 from oeapp.services.commands import CommandManager, MergeSentenceCommand
@@ -162,61 +163,35 @@ class MainWindow(QMainWindow):
         Handle database migrations with automatic backup and restore on failure.
         """
         settings = QSettings()
-
-        # Check if we should skip migrations
-        skip_until_version = settings.value(
-            "migration/skip_until_version", None, type=str
+        migration_service = MigrationService()
+        skip_until_version = cast(
+            "str | None", settings.value("migration/skip_until_version", None, type=str)
         )
-        if skip_until_version:
-            # Create a temporary engine to check current version
-
-            temp_engine = create_engine_with_path()
-            current_db_version = self.backup_service.get_current_migration_version(
-                temp_engine
-            )
-            temp_engine.dispose()
-            # Compare versions as strings (Alembic versions are hex strings)
-            if current_db_version and str(current_db_version) < str(skip_until_version):
-                # Skip migrations - user has chosen to stay on older version
-                return
-
-        # Check if backup is needed
-        if self.backup_service.should_backup():
-            self.backup_service.create_backup()
-
-        # Create backup before attempting migration (if needed)
-        backup_path = None
-        if self.backup_service.should_backup():
-            backup_path = self.backup_service.create_backup()
-
-        # Always try to apply migrations
         try:
-            apply_migrations()
-            # Migration succeeded - continue normally
-        except Exception as e:
-            # Migration failed - restore backup if we have one
-            if backup_path:
-                metadata = self.backup_service.restore_backup(backup_path)
-                backup_app_version = None
-                if metadata:
-                    backup_app_version = metadata.get("application_version")
+            result = migration_service.migrate(skip_until_version)
+        except MigrationFailed as e:
+            dialog = MigrationFailureDialog(
+                self,
+                e.error,
+                e.backup_app_version,
+            )
+            settings.setValue(
+                "migration/last_working_version",
+                e.backup_migration_version,
+            )
+            dialog.execute()
+            sys.exit(1)
 
-                # Update settings
-                if metadata and metadata.get("migration_version"):
-                    settings.setValue(
-                        "migration/last_working_version",
-                        metadata["migration_version"],
-                    )
-
-                # Show error dialog
-                dialog = MigrationFailureDialog(self, e, backup_app_version)
-                dialog.execute()
-
-                # Exit application
-                sys.exit(1)
-            else:
-                # No backup available - this is bad, but try to continue
-                print(f"Migration error and no backup available: {e}")  # noqa: T201
+        if result.migration_version:
+            settings.setValue(
+                "migration/last_working_version",
+                result.migration_version,
+            )
+        if result.app_version:
+            settings.setValue(
+                "app/current_version",
+                result.app_version,
+            )
 
     def _setup_backup_checking(self) -> None:
         """Setup periodic backup checking."""
@@ -347,7 +322,16 @@ class MainWindow(QMainWindow):
 
     def _configure_project(self, project: Project) -> None:
         """
-        Configure the app for the given project.
+        Configure the app for the given project.  This means:
+
+        - Set the current project ID
+        - Initialize autosave and command manager
+        - Clear existing content
+        - Create new sentence cards
+        - Connect signals to the sentence cards
+        - Show the welcome message if there are no projects
+        - Scroll to the first sentence card
+        - Update the window title to the project name
 
         Args:
             project: Project to configure
@@ -451,7 +435,7 @@ class MainWindow(QMainWindow):
         dialog.execute()
         # After restore, we may need to reload
         if self.current_project_id:
-            project = self.session.get(Project, self.current_project_id)
+            project = Project.get(self.session, self.current_project_id)
             if project:
                 self._configure_project(project)
 
@@ -461,20 +445,6 @@ class MainWindow(QMainWindow):
         """
         dialog = BackupsViewDialog(self)
         dialog.execute()
-
-    def backup_now(self) -> None:
-        """
-        Create a backup immediately.
-        """
-        backup_path = self.backup_service.create_backup()
-        if backup_path:
-            self.show_information(
-                f"Backup created successfully:\n{backup_path.name}",
-                title="Backup Complete",
-            )
-            self.show_message("Backup created", duration=2000)
-        else:
-            self.show_error("Failed to create backup.")
 
     def export_project_json(
         self, project_id: int | None = None, parent: QWidget | None = None
@@ -502,14 +472,12 @@ class MainWindow(QMainWindow):
             return False
 
         # Get project name for default filename
-        project = self.session.get(Project, target_project_id)
+        project = Project.get(self.session, target_project_id)
         if project is None:
             self.show_warning("Project not found")
             return False
 
-        # Generate default filename: project name (lowercased, whitespace -> _)
-        # + ".json"
-        default_filename = project.name.lower().replace(" ", "_") + ".json"
+        default_filename = ProjectExporter.sanitize_filename(project.name) + ".json"
 
         # Get file path from user
         dialog_parent = parent if parent is not None else self
@@ -524,31 +492,12 @@ class MainWindow(QMainWindow):
         if not file_path:
             return False
 
-        # Ensure .json extension
-        if not file_path.endswith(".json"):
-            file_path += ".json"
-
         # Export project data
         exporter = ProjectExporter(self.session)
         try:
-            project_data = exporter.export_project(target_project_id)
+            exporter.export_project_json(target_project_id, file_path)
         except ValueError as e:
             self.show_error(str(e), title="Export Error")
-            return False
-
-        # Write JSON to file
-        try:
-            with Path(file_path).open("w", encoding="utf-8") as f:
-                json.dump(project_data, f, indent=2, ensure_ascii=False)
-        except (OSError, PermissionError) as e:
-            self.show_error(
-                f"Failed to write export file:\n{e!s}", title="Export Error"
-            )
-            return False
-        except (TypeError, ValueError) as e:
-            self.show_error(
-                f"Failed to serialize project data:\n{e!s}", title="Export Error"
-            )
             return False
 
         self.show_information(
@@ -570,7 +519,7 @@ class MainWindow(QMainWindow):
             return
 
         # Reload project from database
-        project = self.session.get(Project, self.current_project_id)
+        project = Project.get(self.session, self.current_project_id)
         if project is None:
             return
 
@@ -836,8 +785,8 @@ class MainWindowActions:
             return
 
         # Reload project from database
-        project = self.main_window.session.get(
-            Project, self.main_window.current_project_id
+        project = Project.get(
+            self.main_window.session, self.main_window.current_project_id
         )
         if project is None:
             return
@@ -879,8 +828,12 @@ class MainWindowActions:
         assert self.main_window.current_project_id is not None, (  # noqa: S101
             "Current project ID not set"
         )
-        project = self.session.get(Project, self.main_window.current_project_id)
-        if project is None:
+        if (
+            project := Project.get(
+                self.main_window.session, self.main_window.current_project_id
+            )
+            is None
+        ):
             return
         self.session.add(project)
         self.session.commit()
@@ -898,7 +851,7 @@ class MainWindowActions:
             token_id: Token ID to navigate to
 
         """
-        token = self.session.get(Token, token_id)
+        token = Token.get(self.session, token_id)
         if token is None:
             return
         sentence_id = token.sentence_id
@@ -939,13 +892,10 @@ class MainWindowActions:
             return
 
         try:
-            # Load and parse JSON
-            with Path(file_path).open("r", encoding="utf-8") as f:
-                project_data = json.load(f)
-
             # Import project
-            importer = ProjectImporter(self.session)
-            imported_project, was_renamed = importer.import_project(project_data)
+            imported_project, was_renamed = ProjectImporter(
+                self.session
+            ).import_project_json(file_path)
 
             # Show confirmation dialog
             dialog = ImportProjectDialog(
@@ -1044,3 +994,21 @@ class MainWindowActions:
                 "Failed to export project. Check console for details.",
                 title="Export Failed",
             )
+
+    def backup_now(self) -> None:
+        """
+        Create a backup immediately.
+
+        - Create a backup
+        - Show a message in the status bar that the backup has been created
+
+        """
+        backup_path = self.main_window.backup_service.create_backup()
+        if backup_path:
+            self.main_window.show_information(
+                f"Backup created successfully:\n{backup_path.name}",
+                title="Backup Complete",
+            )
+            self.main_window.show_message("Backup created", duration=2000)
+        else:
+            self.main_window.show_error("Failed to create backup.")
