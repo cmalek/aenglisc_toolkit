@@ -333,7 +333,7 @@ class NewProjectDialog:
         self.button_box = QDialogButtonBox(self.dialog)
         self.button_box.addButton(QDialogButtonBox.StandardButton.Ok)
         self.button_box.addButton(QDialogButtonBox.StandardButton.Cancel)
-        self.button_box.accepted.connect(self.create_project)
+        self.button_box.accepted.connect(self.new_project)
         self.button_box.rejected.connect(self.dialog.reject)
         self.layout.addWidget(self.button_box)
 
@@ -356,36 +356,44 @@ class NewProjectDialog:
         self.main_window.setWindowTitle(f"Ænglisc Toolkit - {project.name}")
         self.main_window.show_message("Project created")
 
+    def new_project(self) -> None:
+        """
+        Create a new project.
+        """
+        title = self.title_edit.text()
+        if not title.strip():
+            self.main_window.show_error("Please enter a project title.")
+            return
+
+        # Get text based on input method
+        if self.input_method_combo.currentIndex() == 0:  # Paste in text
+            text = self.text_edit.toPlainText()
+        else:  # Import from file
+            if not self.selected_file_path:
+                self.main_window.show_error("Please select a file to import.")
+                return
+            text = Path(self.file_path_edit.text()).read_text(encoding="utf-8")
+
+        if text.strip():
+            try:
+                self.create_project(text, title)
+            except AlreadyExists:
+                self.main_window.show_error(
+                    f'Project with title "{title!s}" already exists. Please '
+                    "choose a different title or delete the existing project."
+                )
+        else:
+            self.main_window.show_error("Please enter or import Old English text.")
+        self.dialog.close()
+        self.main_window.show_message(f'Project created: "{title!s}"', duration=2000)
+
     def execute(self) -> None:
         """
         Execute the new project dialog.
         """
         self.build()
         if self.dialog.exec():
-            title = self.title_edit.text()
-            if not title.strip():
-                self.main_window.show_error("Please enter a project title.")
-                return
-
-            # Get text based on input method
-            if self.input_method_combo.currentIndex() == 0:  # Paste in text
-                text = self.text_edit.toPlainText()
-            else:  # Import from file
-                if not self.selected_file_path:
-                    self.main_window.show_error("Please select a file to import.")
-                    return
-                text = Path(self.file_path_edit.text()).read_text(encoding="utf-8")
-
-            if text.strip():
-                try:
-                    self.create_project(text, title)
-                except AlreadyExists:
-                    self.main_window.show_error(
-                        f'Project with title "{title!s}" already exists. Please '
-                        "choose a different title or delete the existing project."
-                    )
-            else:
-                self.main_window.show_error("Please enter or import Old English text.")
+            self.new_project()
 
 
 class OpenProjectDialog:
