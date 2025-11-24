@@ -784,7 +784,7 @@ class SentenceCard(QWidget):
             pos = annotation.pos
             # Only highlight articles (D), nouns (N), pronouns (R),
             # and adjectives (A)
-            if pos not in ["D", "N", "R", "A"]:
+            if pos not in ["D", "N", "R", "A", "V"]:
                 continue
 
             number_value = annotation.number
