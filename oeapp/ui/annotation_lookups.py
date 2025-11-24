@@ -150,16 +150,17 @@ class AnnotationLookupsMixin:
     }
 
     #: A lookup map for verb person codes to their long form.
-    VERB_PERSON_MAP: Final[dict[int | None, str]] = {
+    VERB_PERSON_MAP: Final[dict[str | None, str]] = {
         None: "",
-        1: "1st",
-        2: "2nd",
-        3: "3rd",
+        "1": "1st",
+        "2": "2nd",
+        "3": "3rd",
     }
+
     #: A Reverse lookup map for verb person long form to code.  The key
     #: is the index of the long form in the VERB_PERSON_MAP, and the value
     #: is the code.
-    VERB_PERSON_REVERSE_MAP: Final[dict[int, int]] = {
+    VERB_PERSON_REVERSE_MAP: Final[dict[int, str]] = {
         i: k for i, k in enumerate(VERB_PERSON_MAP.keys()) if k is not None
     }
 
@@ -233,6 +234,20 @@ class AnnotationLookupsMixin:
         i: k for i, k in enumerate(ADJECTIVE_INFLECTION_MAP.keys()) if k is not None
     }
 
+    #: A lookup map for adverb degree codes to their long form.
+    ADVERB_DEGREE_MAP: Final[dict[str | None, str]] = {
+        None: "",
+        "p": "Positive (p)",
+        "c": "Comparative (c)",
+        "s": "Superlative (s)",
+    }
+    #: A Reverse lookup map for adverb degree long form to code.  The key
+    #: is the index of the long form in the ADVERB_DEGREE_MAP, and the value
+    #: is the code.
+    ADVERB_DEGREE_REVERSE_MAP: Final[dict[int, str]] = {
+        i: k for i, k in enumerate(ADVERB_DEGREE_MAP.keys()) if k is not None
+    }
+
     #: A lookup map for preposition case codes to their long form.
     PREPOSITION_CASE_MAP: Final[dict[str | None, str]] = {
         None: "",
@@ -245,4 +260,17 @@ class AnnotationLookupsMixin:
     #: is the code.
     PREPOSITION_CASE_REVERSE_MAP: Final[dict[int, str]] = {
         i: k for i, k in enumerate(PREPOSITION_CASE_MAP.keys()) if k is not None
+    }
+
+    #: A lookup map for conjunction type codes to their long form.
+    CONJUNCTION_TYPE_MAP: Final[dict[str | None, str]] = {
+        None: "",
+        "c": "Coordinating (c)",
+        "s": "Subordinating (s)",
+    }
+    #: A Reverse lookup map for conjunction type long form to code.  The key
+    #: is the index of the long form in the CONJUNCTION_TYPE_MAP, and the value
+    #: is the code.
+    CONJUNCTION_TYPE_REVERSE_MAP: Final[dict[int, str]] = {
+        i: k for i, k in enumerate(CONJUNCTION_TYPE_MAP.keys()) if k is not None
     }

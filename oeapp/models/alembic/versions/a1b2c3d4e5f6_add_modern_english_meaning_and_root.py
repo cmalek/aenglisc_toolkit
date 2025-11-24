@@ -31,6 +31,12 @@ def upgrade() -> None:
             sa.Column("modern_english_meaning", sa.String(), nullable=True)
         )
         batch_op.add_column(sa.Column("root", sa.String(), nullable=True))
+        batch_op.add_column(
+            sa.Column("adjective_inflection", sa.String(), nullable=True)
+        )
+        batch_op.add_column(sa.Column("adjective_degree", sa.String(), nullable=True))
+        batch_op.add_column(sa.Column("adverb_degree", sa.String(), nullable=True))
+        batch_op.add_column(sa.Column("conjunction_type", sa.String(), nullable=True))
 
 
 def downgrade() -> None:
@@ -40,3 +46,7 @@ def downgrade() -> None:
     with op.batch_alter_table("annotations", schema=None) as batch_op:
         batch_op.drop_column("root")
         batch_op.drop_column("modern_english_meaning")
+        batch_op.drop_column("adjective_inflection")
+        batch_op.drop_column("adjective_degree")
+        batch_op.drop_column("adverb_degree")
+        batch_op.drop_column("conjunction_type")

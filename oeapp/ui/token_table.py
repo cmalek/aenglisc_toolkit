@@ -1,6 +1,6 @@
 """Token table UI component."""
 
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import (

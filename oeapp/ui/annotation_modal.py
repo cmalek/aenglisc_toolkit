@@ -287,6 +287,9 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
             "article_gender_combo",
             "article_number_combo",
             "article_case_combo",
+            "adv_degree_combo",
+            "conj_type_combo",
+            "interjection_type_combo",
         ]
         for attr in widget_attrs:
             if hasattr(self, attr):
@@ -319,10 +322,16 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         elif pos == "B":  # Adverb
             self._add_adverb_fields()
             self._restore_last_values("B")
+        elif pos == "C":  # Conjunction
+            self._add_conjunction_fields()
+            self._restore_last_values("C")
+        elif pos == "I":  # Interjection
+            self._add_interjection_fields()
+            self._restore_last_values("I")
 
         self._update_status_label()
 
-    def _restore_last_values(self, pos: str) -> None:  # noqa: PLR0912
+    def _restore_last_values(self, pos: str) -> None:  # noqa: PLR0912, PLR0915
         """
         Restore last used values for a POS type.
 
@@ -360,6 +369,45 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
                 self.verb_aspect_combo.setCurrentIndex(last_vals["verb_aspect"])
             if "verb_form" in last_vals:
                 self.verb_form_combo.setCurrentIndex(last_vals["verb_form"])
+        elif pos == "D" and hasattr(self, "article_type_combo"):
+            if "article_type" in last_vals:
+                self.article_type_combo.setCurrentIndex(last_vals["article_type"])
+            if "article_gender" in last_vals:
+                self.article_gender_combo.setCurrentIndex(last_vals["article_gender"])
+            if "article_number" in last_vals:
+                self.article_number_combo.setCurrentIndex(last_vals["article_number"])
+            if "article_case" in last_vals:
+                self.article_case_combo.setCurrentIndex(last_vals["article_case"])
+        elif pos == "R" and hasattr(self, "pro_type_combo"):
+            if "pronoun_type" in last_vals:
+                self.pro_type_combo.setCurrentIndex(last_vals["pronoun_type"])
+            if "pronoun_gender" in last_vals:
+                self.pro_gender_combo.setCurrentIndex(last_vals["pronoun_gender"])
+            if "pronoun_number" in last_vals:
+                self.pro_number_combo.setCurrentIndex(last_vals["pronoun_number"])
+            if "pronoun_case" in last_vals:
+                self.pro_case_combo.setCurrentIndex(last_vals["pronoun_case"])
+        elif pos == "E" and hasattr(self, "prep_case_combo"):
+            if "prep_case" in last_vals:
+                self.prep_case_combo.setCurrentIndex(last_vals["prep_case"])
+        elif pos == "B" and hasattr(self, "adv_degree_combo"):
+            if "adverb_degree" in last_vals:
+                self.adv_degree_combo.setCurrentIndex(last_vals["adverb_degree"])
+        elif pos == "C" and hasattr(self, "conj_type_combo"):
+            if "conj_type" in last_vals:
+                self.conj_type_combo.setCurrentIndex(last_vals["conj_type"])
+        elif pos == "I" and hasattr(self, "interjection_type_combo"):
+            if "interjection_type" in last_vals:
+                self.interjection_type_combo.setCurrentIndex(
+                    last_vals["interjection_type"]
+                )
+        elif pos == "A" and hasattr(self, "adj_degree_combo"):
+            if "adjective_degree" in last_vals:
+                self.adj_degree_combo.setCurrentIndex(last_vals["adjective_degree"])
+            if "adjective_inflection" in last_vals:
+                self.adj_inflection_combo.setCurrentIndex(
+                    last_vals["adjective_inflection"]
+                )
 
     def _save_current_values(self, pos: str) -> None:
         """
@@ -372,58 +420,64 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         if pos not in self._last_values:
             self._last_values[pos] = {}
 
-        # Wrap widget access in try-except to handle deleted widgets
-        # Note: hasattr() can return True even for deleted widgets, so we need
-        # to catch RuntimeError when accessing them
-        try:
-            if pos == "N":
-                # Check if widgets exist and are valid before accessing
-                try:
-                    if hasattr(self, "gender_combo"):
-                        self._last_values[pos]["gender"] = (
-                            self.gender_combo.currentIndex()
-                        )
-                        self._last_values[pos]["number"] = (
-                            self.number_combo.currentIndex()
-                        )
-                        self._last_values[pos]["case"] = self.case_combo.currentIndex()
-                        self._last_values[pos]["declension"] = (
-                            self.declension_combo.currentText()
-                        )
-                except RuntimeError:
-                    # Widgets were deleted, skip saving
-                    pass
-            elif pos == "V":
-                try:
-                    if hasattr(self, "verb_class_combo"):
-                        self._last_values[pos]["verb_class"] = (
-                            self.verb_class_combo.currentText()
-                        )
-                        self._last_values[pos]["verb_tense"] = (
-                            self.verb_tense_combo.currentIndex()
-                        )
-                        self._last_values[pos]["verb_mood"] = (
-                            self.verb_mood_combo.currentIndex()
-                        )
-                        self._last_values[pos]["verb_person"] = (
-                            self.verb_person_combo.currentIndex()
-                        )
-                        self._last_values[pos]["verb_number"] = (
-                            self.verb_number_combo.currentIndex()
-                        )
-                        self._last_values[pos]["verb_aspect"] = (
-                            self.verb_aspect_combo.currentIndex()
-                        )
-                        self._last_values[pos]["verb_form"] = (
-                            self.verb_form_combo.currentIndex()
-                        )
-                except RuntimeError:
-                    # Widgets were deleted, skip saving
-                    pass
-            # Add similar for other POS types...
-        except RuntimeError:
-            # Widgets were deleted, skip saving
+        if pos == "N":
+            self._last_values[pos]["gender"] = self.gender_combo.currentIndex()
+            self._last_values[pos]["number"] = self.number_combo.currentIndex()
+            self._last_values[pos]["case"] = self.case_combo.currentIndex()
+            self._last_values[pos]["declension"] = self.declension_combo.currentText()
+        elif pos == "V":
+            self._last_values[pos]["verb_class"] = self.verb_class_combo.currentText()
+            self._last_values[pos]["verb_tense"] = self.verb_tense_combo.currentIndex()
+            self._last_values[pos]["verb_mood"] = self.verb_mood_combo.currentIndex()
+            self._last_values[pos]["verb_person"] = (
+                self.verb_person_combo.currentIndex()
+            )
+            self._last_values[pos]["verb_number"] = (
+                self.verb_number_combo.currentIndex()
+            )
+            self._last_values[pos]["verb_aspect"] = (
+                self.verb_aspect_combo.currentIndex()
+            )
+            self._last_values[pos]["verb_form"] = self.verb_form_combo.currentIndex()
+        elif pos == "D":
+            self._last_values[pos]["article_type"] = (
+                self.article_type_combo.currentIndex()
+            )
+            self._last_values[pos]["article_gender"] = (
+                self.article_gender_combo.currentIndex()
+            )
+            self._last_values[pos]["article_number"] = (
+                self.article_number_combo.currentIndex()
+            )
+            self._last_values[pos]["article_case"] = (
+                self.article_case_combo.currentIndex()
+            )
+        elif pos == "R":
+            self._last_values[pos]["pronoun_type"] = self.pro_type_combo.currentIndex()
+            self._last_values[pos]["pronoun_gender"] = (
+                self.pro_gender_combo.currentIndex()
+            )
+            self._last_values[pos]["pronoun_number"] = (
+                self.pro_number_combo.currentIndex()
+            )
+            self._last_values[pos]["pronoun_case"] = self.pro_case_combo.currentIndex()
+        elif pos == "E":
+            self._last_values[pos]["prep_case"] = self.prep_case_combo.currentIndex()
+        elif pos == "B":
+            self._last_values[pos]["adverb_degree"] = (
+                self.adv_degree_combo.currentIndex()
+            )
+        elif pos == "C":
+            self._last_values[pos]["conj_type"] = self.conj_type_combo.currentIndex()
+        elif pos == "I":
             pass
+        elif pos == "A":
+            self._last_values[pos]["adjective_degree"] = (
+                self.adj_degree_combo.currentIndex()
+            )
+            self._last_values[pos]["adjective_inflection"] = (
+                self.adj_inflection_combo.currentIndex()
+            )
 
     def _add_article_fields(self) -> None:
         """Add fields for article annotation."""
@@ -553,9 +607,24 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
 
     def _add_adverb_fields(self) -> None:
         """Add fields for adverb annotation."""
-        # Adverbs don't have many fields in the current model
+        self.adv_degree_combo = QComboBox()
+        self.adv_degree_combo.addItems(
+            cast("list[str]", self.ADVERB_DEGREE_MAP.values())
+        )
+        self.fields_layout.addRow("Degree:", self.adv_degree_combo)
 
-    def _load_existing_annotation(self) -> None:
+    def _add_conjunction_fields(self) -> None:
+        """Add fields for conjunction annotation."""
+        self.conj_type_combo = QComboBox()
+        self.conj_type_combo.addItems(
+            cast("list[str]", self.CONJUNCTION_TYPE_MAP.values())
+        )
+        self.fields_layout.addRow("Type:", self.conj_type_combo)
+
+    def _add_interjection_fields(self) -> None:
+        """Add fields for interjection annotation."""
+
+    def _load_existing_annotation(self) -> None:  # noqa: PLR0912
         """Load existing annotation values into the form."""
         if not self.annotation.pos:
             # No annotation exists, ensure POS combo is set to empty/None (index 0)
@@ -603,6 +672,10 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
             self._load_preposition_values()
         elif self.annotation.pos == "B":
             self._load_adverb_values()
+        elif self.annotation.pos == "C":
+            self._load_conjunction_values()
+        elif self.annotation.pos == "I":
+            self._load_interjection_values()
 
         # Load metadata
         self.uncertain_check.setChecked(self.annotation.uncertain)
@@ -672,7 +745,7 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
             self.verb_mood_combo.setCurrentIndex(
                 mood_map.get(self.annotation.verb_mood, 0)
             )
-        person_map = {1: 1, 2: 2, 3: 3}
+        person_map = {"1": 1, "2": 2, "3": 3, "pl": 4}
         if self.annotation.verb_person:
             self.verb_person_combo.setCurrentIndex(
                 person_map.get(self.annotation.verb_person, 0)
@@ -746,7 +819,23 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
 
     def _load_adverb_values(self):
         """Load adverb annotation values."""
-        # Adverbs don't have many fields in the current model
+        degree_map = {"p": 1, "c": 2, "s": 3}
+        if self.annotation.adverb_degree:
+            self.adv_degree_combo.setCurrentIndex(
+                degree_map.get(self.annotation.adverb_degree, 0)
+            )
+
+    def _load_conjunction_values(self):
+        """Load conjunction annotation values."""
+        type_map = {"c": 1, "s": 2}
+        if self.annotation.conjunction_type:
+            self.conj_type_combo.setCurrentIndex(
+                type_map.get(self.annotation.conjunction_type, 0)
+            )
+
+    def _load_interjection_values(self):
+        """Load interjection annotation values."""
+        # Interjections don't have many fields in the current model
 
     def _update_status_label(self):
         """Update status label with current annotation summary."""
@@ -808,6 +897,10 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
             self._extract_preposition_values()
         elif self.annotation.pos == "B":
             self._extract_adverb_values()
+        elif self.annotation.pos == "C":
+            self._extract_conjunction_values()
+        elif self.annotation.pos == "I":
+            pass
 
         # Extract metadata
         self.annotation.uncertain = self.uncertain_check.isChecked()
@@ -917,4 +1010,12 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
 
     def _extract_adverb_values(self):
         """Extract adverb annotation values."""
-        # Adverbs have minimal fields
+        self.annotation.adverb_degree = self.ADVERB_DEGREE_REVERSE_MAP.get(
+            self.adv_degree_combo.currentIndex()
+        )
+
+    def _extract_conjunction_values(self):
+        """Extract conjunction annotation values."""
+        self.annotation.conjunction_type = self.CONJUNCTION_TYPE_REVERSE_MAP.get(
+            self.conj_type_combo.currentIndex()
+        )

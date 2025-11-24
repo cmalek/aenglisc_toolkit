@@ -45,7 +45,9 @@ class Annotation(Base):
             name="ck_annotations_verb_class",
         ),
         CheckConstraint("verb_tense IN ('p','n')", name="ck_annotations_verb_tense"),
-        CheckConstraint("verb_person IN (1,2,3)", name="ck_annotations_verb_person"),
+        CheckConstraint(
+            "verb_person IN ('1','2','3')", name="ck_annotations_verb_person"
+        ),
         CheckConstraint(
             "verb_mood IN ('i','s','imp')", name="ck_annotations_verb_mood"
         ),
@@ -56,6 +58,19 @@ class Annotation(Base):
         CheckConstraint("prep_case IN ('a','d','g')", name="ck_annotations_prep_case"),
         CheckConstraint(
             "confidence >= 0 AND confidence <= 100", name="ck_annotations_confidence"
+        ),
+        CheckConstraint(
+            "adjective_inflection IN ('s','w')",
+            name="ck_annotations_adjective_inflection",
+        ),
+        CheckConstraint(
+            "adjective_degree IN ('p','c','s')", name="ck_annotations_adjective_degree"
+        ),
+        CheckConstraint(
+            "conjunction_type IN ('c','s')", name="ck_annotations_conjunction_type"
+        ),
+        CheckConstraint(
+            "adverb_degree IN ('p','c','s')", name="ck_annotations_adverb_degree"
         ),
     )
 
@@ -90,7 +105,7 @@ class Annotation(Base):
     #: The verb tense.
     verb_tense: Mapped[str | None] = mapped_column(String, nullable=True)  # p, n
     #: The verb person.
-    verb_person: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 1, 2, 3
+    verb_person: Mapped[str | None] = mapped_column(String, nullable=True)  # 1, 2,
     #: The verb mood.
     verb_mood: Mapped[str | None] = mapped_column(String, nullable=True)  # i, s, imp
     #: The verb aspect.
@@ -101,6 +116,18 @@ class Annotation(Base):
     verb_form: Mapped[str | None] = mapped_column(String, nullable=True)  # f, i, p
     #: The preposition case.
     prep_case: Mapped[str | None] = mapped_column(String, nullable=True)  # a, d, g
+    #: The adjective inflection.
+    adjective_inflection: Mapped[str | None] = mapped_column(
+        String, nullable=True
+    )  # s, w
+    #: The adjective degree.
+    adjective_degree: Mapped[str | None] = mapped_column(
+        String, nullable=True
+    )  # p, c, s
+    #: The conjuncion type.
+    conjunction_type: Mapped[str | None] = mapped_column(String, nullable=True)  # c, s
+    #: The adverb degree.
+    adverb_degree: Mapped[str | None] = mapped_column(String, nullable=True)  # p, c, s
     #: Whether the annotation is uncertain.
     uncertain: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     #: The alternatives in JSON format.
@@ -158,6 +185,10 @@ class Annotation(Base):
             "verb_aspect": self.verb_aspect,
             "verb_form": self.verb_form,
             "prep_case": self.prep_case,
+            "adjective_inflection": self.adjective_inflection,
+            "adjective_degree": self.adjective_degree,
+            "conjunction_type": self.conjunction_type,
+            "adverb_degree": self.adverb_degree,
             "uncertain": self.uncertain,
             "alternatives_json": self.alternatives_json,
             "confidence": self.confidence,
@@ -197,6 +228,10 @@ class Annotation(Base):
             verb_aspect=ann_data.get("verb_aspect"),
             verb_form=ann_data.get("verb_form"),
             prep_case=ann_data.get("prep_case"),
+            adjective_inflection=ann_data.get("adjective_inflection"),
+            adjective_degree=ann_data.get("adjective_degree"),
+            conjunction_type=ann_data.get("conjunction_type"),
+            adverb_degree=ann_data.get("adverb_degree"),
             uncertain=ann_data.get("uncertain", False),
             alternatives_json=ann_data.get("alternatives_json"),
             confidence=ann_data.get("confidence"),
