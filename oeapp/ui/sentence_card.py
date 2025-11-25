@@ -31,6 +31,7 @@ from oeapp.services.commands import (
     MergeSentenceCommand,
 )
 from oeapp.ui.annotation_modal import AnnotationModal
+from oeapp.ui.case_filter_dialog import CaseFilterDialog
 from oeapp.ui.token_table import TokenTable
 
 if TYPE_CHECKING:
@@ -130,6 +131,10 @@ class SentenceCard(QWidget):
         self._current_highlight_length: int | None = None
         # Track current highlight mode (None, 'pos', 'case', 'number')
         self._current_highlight_mode: str | None = None
+        # Track selected cases for highlighting (default: all cases)
+        self._selected_cases: set[str] = {"n", "a", "g", "d", "i"}
+        # Case filter dialog reference
+        self._case_filter_dialog: CaseFilterDialog | None = None
         # Track selected token index for details sidebar
         self.selected_token_index: int | None = None
         # Timer to delay deselection to allow double-click to cancel it
@@ -686,10 +691,45 @@ class SentenceCard(QWidget):
             self.pos_toggle_button.setChecked(False)
             self.number_toggle_button.setChecked(False)
             self._current_highlight_mode = "case"
+            # Create or show the case filter dialog
+            if self._case_filter_dialog is None:
+                self._case_filter_dialog = CaseFilterDialog(self)
+                self._case_filter_dialog.cases_changed.connect(self._on_cases_changed)
+                self._case_filter_dialog.dialog_closed.connect(self._on_dialog_closed)
+                # Set initial selected cases
+                self._case_filter_dialog.set_selected_cases(self._selected_cases)
+            self._case_filter_dialog.show()
             self._apply_case_highlighting()
         else:
             self._current_highlight_mode = None
             self._clear_all_highlights()
+            # Hide the dialog when unchecking
+            if self._case_filter_dialog is not None:
+                self._case_filter_dialog.hide()
+
+    def _on_cases_changed(self, selected_cases: set[str]) -> None:
+        """
+        Handle case selection changes from the dialog.
+
+        Args:
+            selected_cases: Set of selected case codes
+
+        """
+        self._selected_cases = selected_cases
+        # Re-apply highlighting if case highlighting is active
+        if self._current_highlight_mode == "case":
+            self._apply_case_highlighting()
+
+    def _on_dialog_closed(self) -> None:
+        """Handle dialog close event by unchecking the toggle button."""
+        # Uncheck the case toggle button and clear highlights
+        # Block signals temporarily to avoid triggering clicked signal
+        self.case_toggle_button.blockSignals(True)  # noqa: FBT003
+        self.case_toggle_button.setChecked(False)
+        self.case_toggle_button.blockSignals(False)  # noqa: FBT003
+        # Clear highlights and reset mode (dialog is already closing, so don't hide it)
+        self._current_highlight_mode = None
+        self._clear_all_highlights()
 
     def _on_number_toggle(self, checked: bool) -> None:  # noqa: FBT001
         """Handle number highlighting toggle."""
@@ -732,6 +772,7 @@ class SentenceCard(QWidget):
         Apply colors based on case values.
 
         Highlights articles, nouns, pronouns, adjectives, and prepositions.
+        Only highlights cases that are in the :attr:`_selected_cases` set.
         """
         self._clear_all_highlights()
         text = self.oe_text_edit.toPlainText()
@@ -754,12 +795,14 @@ class SentenceCard(QWidget):
 
             # For prepositions, use prep_case; for others, use case
             case_value = annotation.prep_case if pos == "E" else annotation.case
-            color = self.CASE_COLORS.get(case_value, self.CASE_COLORS[None])
-            # Only highlight if not default
-            if color != self.CASE_COLORS[None]:
-                selection = self._create_token_selection(token, text, color)
-                if selection:
-                    extra_selections.append(selection)
+            # Only highlight if case is in selected cases and not default
+            if case_value in self._selected_cases:
+                color = self.CASE_COLORS.get(case_value, self.CASE_COLORS[None])
+                # Only highlight if not default
+                if color != self.CASE_COLORS[None]:
+                    selection = self._create_token_selection(token, text, color)
+                    if selection:
+                        extra_selections.append(selection)
 
         self.oe_text_edit.setExtraSelections(extra_selections)
 
