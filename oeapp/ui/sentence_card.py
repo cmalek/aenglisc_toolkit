@@ -13,6 +13,7 @@ from PySide6.QtGui import (
     QTextCursor,
 )
 from PySide6.QtWidgets import (
+    QComboBox,
     QHBoxLayout,
     QLabel,
     QMessageBox,
@@ -221,28 +222,20 @@ class SentenceCard(QWidget):
         # header_layout.addWidget(self.delete_button)
         layout.addLayout(header_layout)
 
-        # Old English text line (editable) with toggle buttons
+        # Old English text line (editable) with highlighting dropdown
         oe_label_layout = QHBoxLayout()
         oe_label = QLabel("Old English:")
         oe_label.setFont(QFont("Anvers", 18))
         oe_label_layout.addWidget(oe_label)
         oe_label_layout.addStretch()
 
-        # Toggle buttons for highlighting
-        self.pos_toggle_button = QPushButton("Highlight POS")
-        self.pos_toggle_button.setCheckable(True)
-        self.pos_toggle_button.clicked.connect(self._on_pos_toggle)
-        oe_label_layout.addWidget(self.pos_toggle_button)
-
-        self.case_toggle_button = QPushButton("Highlight Case")
-        self.case_toggle_button.setCheckable(True)
-        self.case_toggle_button.clicked.connect(self._on_case_toggle)
-        oe_label_layout.addWidget(self.case_toggle_button)
-
-        self.number_toggle_button = QPushButton("Highlight Number")
-        self.number_toggle_button.setCheckable(True)
-        self.number_toggle_button.clicked.connect(self._on_number_toggle)
-        oe_label_layout.addWidget(self.number_toggle_button)
+        # Dropdown for highlighting options
+        highlighting_label = QLabel("Highlighting:")
+        oe_label_layout.addWidget(highlighting_label)
+        self.highlighting_combo = QComboBox()
+        self.highlighting_combo.addItems(["None", "Part of Speech", "Case", "Number"])
+        self.highlighting_combo.currentIndexChanged.connect(self._on_highlighting_changed)
+        oe_label_layout.addWidget(self.highlighting_combo)
 
         layout.addLayout(oe_label_layout)
 
@@ -679,12 +672,25 @@ class SentenceCard(QWidget):
             if self.command_manager.execute(command):
                 self.sentence.text_modern = new_text
 
-    def _on_pos_toggle(self, checked: bool) -> None:  # noqa: FBT001
-        """Handle POS highlighting toggle."""
-        if checked:
-            # Uncheck other buttons
-            self.case_toggle_button.setChecked(False)
-            self.number_toggle_button.setChecked(False)
+    def _on_highlighting_changed(self, index: int) -> None:
+        """
+        Handle highlighting dropdown selection change.
+
+        Args:
+            index: Selected index (0=None, 1=Part of Speech, 2=Case, 3=Number)
+        """
+        # Block signals to prevent recursive calls when updating dropdown programmatically
+        self.highlighting_combo.blockSignals(True)  # noqa: FBT003
+
+        if index == 0:  # None
+            self._current_highlight_mode = None
+            self._clear_all_highlights()
+            # Hide dialogs if they exist
+            if self._pos_filter_dialog is not None:
+                self._pos_filter_dialog.hide()
+            if self._case_filter_dialog is not None:
+                self._case_filter_dialog.hide()
+        elif index == 1:  # Part of Speech
             self._current_highlight_mode = "pos"
             # Create or show the POS filter dialog
             if self._pos_filter_dialog is None:
@@ -697,19 +703,7 @@ class SentenceCard(QWidget):
                 self._pos_filter_dialog.set_selected_pos(self._selected_pos)
             self._pos_filter_dialog.show()
             self._apply_pos_highlighting()
-        else:
-            self._current_highlight_mode = None
-            self._clear_all_highlights()
-            # Hide the dialog when unchecking
-            if self._pos_filter_dialog is not None:
-                self._pos_filter_dialog.hide()
-
-    def _on_case_toggle(self, checked: bool) -> None:  # noqa: FBT001
-        """Handle case highlighting toggle."""
-        if checked:
-            # Uncheck other buttons
-            self.pos_toggle_button.setChecked(False)
-            self.number_toggle_button.setChecked(False)
+        elif index == 2:  # Case
             self._current_highlight_mode = "case"
             # Create or show the case filter dialog
             if self._case_filter_dialog is None:
@@ -720,12 +714,41 @@ class SentenceCard(QWidget):
                 self._case_filter_dialog.set_selected_cases(self._selected_cases)
             self._case_filter_dialog.show()
             self._apply_case_highlighting()
+        elif index == 3:  # Number
+            self._current_highlight_mode = "number"
+            self._apply_number_highlighting()
+
+        self.highlighting_combo.blockSignals(False)  # noqa: FBT003
+
+    def _on_pos_toggle(self, checked: bool) -> None:  # noqa: FBT001
+        """Handle POS highlighting toggle."""
+        if checked:
+            # Update dropdown to Part of Speech
+            self.highlighting_combo.blockSignals(True)  # noqa: FBT003
+            self.highlighting_combo.setCurrentIndex(1)
+            self.highlighting_combo.blockSignals(False)  # noqa: FBT003
+            self._on_highlighting_changed(1)
         else:
-            self._current_highlight_mode = None
-            self._clear_all_highlights()
-            # Hide the dialog when unchecking
-            if self._case_filter_dialog is not None:
-                self._case_filter_dialog.hide()
+            # Update dropdown to None
+            self.highlighting_combo.blockSignals(True)  # noqa: FBT003
+            self.highlighting_combo.setCurrentIndex(0)
+            self.highlighting_combo.blockSignals(False)  # noqa: FBT003
+            self._on_highlighting_changed(0)
+
+    def _on_case_toggle(self, checked: bool) -> None:  # noqa: FBT001
+        """Handle case highlighting toggle."""
+        if checked:
+            # Update dropdown to Case
+            self.highlighting_combo.blockSignals(True)  # noqa: FBT003
+            self.highlighting_combo.setCurrentIndex(2)
+            self.highlighting_combo.blockSignals(False)  # noqa: FBT003
+            self._on_highlighting_changed(2)
+        else:
+            # Update dropdown to None
+            self.highlighting_combo.blockSignals(True)  # noqa: FBT003
+            self.highlighting_combo.setCurrentIndex(0)
+            self.highlighting_combo.blockSignals(False)  # noqa: FBT003
+            self._on_highlighting_changed(0)
 
     def _on_cases_changed(self, selected_cases: set[str]) -> None:
         """
@@ -741,12 +764,12 @@ class SentenceCard(QWidget):
             self._apply_case_highlighting()
 
     def _on_dialog_closed(self) -> None:
-        """Handle dialog close event by unchecking the toggle button."""
-        # Uncheck the case toggle button and clear highlights
-        # Block signals temporarily to avoid triggering clicked signal
-        self.case_toggle_button.blockSignals(True)  # noqa: FBT003
-        self.case_toggle_button.setChecked(False)
-        self.case_toggle_button.blockSignals(False)  # noqa: FBT003
+        """Handle dialog close event by resetting the dropdown to None."""
+        # Reset dropdown to None and clear highlights
+        # Block signals temporarily to avoid triggering change signal
+        self.highlighting_combo.blockSignals(True)  # noqa: FBT003
+        self.highlighting_combo.setCurrentIndex(0)
+        self.highlighting_combo.blockSignals(False)  # noqa: FBT003
         # Clear highlights and reset mode (dialog is already closing, so don't hide it)
         self._current_highlight_mode = None
         self._clear_all_highlights()
@@ -765,12 +788,12 @@ class SentenceCard(QWidget):
             self._apply_pos_highlighting()
 
     def _on_pos_dialog_closed(self) -> None:
-        """Handle POS dialog close event by unchecking the toggle button."""
-        # Uncheck the POS toggle button and clear highlights
-        # Block signals temporarily to avoid triggering clicked signal
-        self.pos_toggle_button.blockSignals(True)  # noqa: FBT003
-        self.pos_toggle_button.setChecked(False)
-        self.pos_toggle_button.blockSignals(False)  # noqa: FBT003
+        """Handle POS dialog close event by resetting the dropdown to None."""
+        # Reset dropdown to None and clear highlights
+        # Block signals temporarily to avoid triggering change signal
+        self.highlighting_combo.blockSignals(True)  # noqa: FBT003
+        self.highlighting_combo.setCurrentIndex(0)
+        self.highlighting_combo.blockSignals(False)  # noqa: FBT003
         # Clear highlights and reset mode (dialog is already closing, so don't hide it)
         self._current_highlight_mode = None
         self._clear_all_highlights()
@@ -778,14 +801,17 @@ class SentenceCard(QWidget):
     def _on_number_toggle(self, checked: bool) -> None:  # noqa: FBT001
         """Handle number highlighting toggle."""
         if checked:
-            # Uncheck other buttons
-            self.pos_toggle_button.setChecked(False)
-            self.case_toggle_button.setChecked(False)
-            self._current_highlight_mode = "number"
-            self._apply_number_highlighting()
+            # Update dropdown to Number
+            self.highlighting_combo.blockSignals(True)  # noqa: FBT003
+            self.highlighting_combo.setCurrentIndex(3)
+            self.highlighting_combo.blockSignals(False)  # noqa: FBT003
+            self._on_highlighting_changed(3)
         else:
-            self._current_highlight_mode = None
-            self._clear_all_highlights()
+            # Update dropdown to None
+            self.highlighting_combo.blockSignals(True)  # noqa: FBT003
+            self.highlighting_combo.setCurrentIndex(0)
+            self.highlighting_combo.blockSignals(False)  # noqa: FBT003
+            self._on_highlighting_changed(0)
 
     def _apply_pos_highlighting(self) -> None:
         """
