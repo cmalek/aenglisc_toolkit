@@ -293,6 +293,7 @@ class SentenceCard(TokenOccurrenceMixin, QWidget):
         layout.addLayout(oe_label_layout)
 
         self.oe_text_edit = ClickableTextEdit()
+        layout.addWidget(self.oe_text_edit)
         self.oe_text_edit.setPlainText(self.sentence.text_oe)
         self.oe_text_edit.setFont(QFont("Anvers", 18))
         self.oe_text_edit.setPlaceholderText("Enter Old English text...")
@@ -301,7 +302,16 @@ class SentenceCard(TokenOccurrenceMixin, QWidget):
         self.oe_text_edit.textChanged.connect(self._on_oe_text_changed)
         self.oe_text_edit.clicked.connect(self._on_oe_text_clicked)
         self.oe_text_edit.double_clicked.connect(self._on_oe_text_double_clicked)
-        layout.addWidget(self.oe_text_edit)
+        # set the maximum height of the oe_text_edit to just fit the text
+        # and its superscripts
+        self.oe_text_edit.document().setTextWidth(self.oe_text_edit.viewport().width())
+        margins = self.oe_text_edit.contentsMargins()
+        height = int(
+            self.oe_text_edit.document().size().height()
+            + margins.top()
+            + margins.bottom()
+        )
+        self.oe_text_edit.setFixedHeight(int(height * 0.8))
         # Render OE text with superscripts after setting up the widget
         # Use QTimer.singleShot to ensure widget is fully initialized
         QTimer.singleShot(0, self._render_oe_text_with_superscripts)
