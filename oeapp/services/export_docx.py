@@ -3,7 +3,9 @@
 from typing import TYPE_CHECKING, cast
 
 from docx import Document
-from docx.shared import Pt, RGBColor
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
+from docx.shared import Inches, Pt, RGBColor
 
 from oeapp.mixins import AnnotationTextualMixin, TokenOccurrenceMixin
 from oeapp.models.project import Project
@@ -109,6 +111,42 @@ class DOCXExporter(AnnotationTextualMixin, TokenOccurrenceMixin):
         """
         # Styles are already available in python-docx
         # Title, Body, Default are standard styles
+        # Set the top, left, right, bottom margins to 1 inch
+        doc.sections[0].top_margin = Inches(1)
+        doc.sections[0].left_margin = Inches(1)
+        doc.sections[0].right_margin = Inches(1)
+        doc.sections[0].bottom_margin = Inches(1)
+
+    def _set_run_position(self, run, position_half_points: int) -> None:
+        """
+        Set the vertical position of a run via XML manipulation.
+
+        This adjusts the baseline position of text (e.g., superscripts).
+        Position is specified in half-points (1/144 of an inch).
+
+        Args:
+            run: The run to modify
+            position_half_points: Position offset in half-points
+                (positive values raise the text, negative lower it)
+
+        """
+        # Access the run's XML element
+        r = run._element
+
+        # Find or create the <w:rPr> element (run properties)
+        r_pr = r.find(qn("w:rPr"))
+        if r_pr is None:
+            r_pr = OxmlElement("w:rPr")
+            r.insert(0, r_pr)
+
+        # Find or create the <w:position> element
+        position = r_pr.find(qn("w:position"))
+        if position is None:
+            position = OxmlElement("w:position")
+            r_pr.append(position)
+
+        # Set the position value (in half-points)
+        position.set(qn("w:val"), str(position_half_points))
 
     def _add_oe_sentence_with_annotations(
         self,
@@ -182,6 +220,9 @@ class DOCXExporter(AnnotationTextualMixin, TokenOccurrenceMixin):
                 pos_run = para.add_run(pos_label)
                 pos_run.font.size = Pt(8)
                 pos_run.font.superscript = True
+                # Raise baseline to height of capital letters
+                # (6 points = 12 half-points)
+                self._set_run_position(pos_run, 4)
                 pos_run.font.color.rgb = RGBColor(0x00, 0x00, 0x00)
 
             # Gender label (subscript)
