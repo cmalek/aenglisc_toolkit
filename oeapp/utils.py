@@ -4,6 +4,9 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QPixmap
+
 
 def get_resource_path(relative_path: str) -> Path:
     """
@@ -64,3 +67,26 @@ def from_utc_iso(iso_str: str | None) -> datetime | None:
     dt = dt.replace(tzinfo=UTC) if dt.tzinfo is None else dt.astimezone(UTC)
     # Return naive datetime (SQLite doesn't handle timezone-aware datetimes well)
     return dt.replace(tzinfo=None)
+
+
+def get_logo_pixmap(size: int = 75) -> QPixmap | None:
+    """
+    Get the application logo as a QPixmap at the specified size.
+
+    Args:
+        size: Size of the pixmap in pixels (default: 75)
+
+    Returns:
+        QPixmap of the logo at the specified size, or None if logo not found
+
+    """
+    logo_path = get_resource_path("assets/logo.png")
+    if not logo_path.exists():
+        return None
+    pixmap = QPixmap(str(logo_path))
+    if pixmap.isNull():
+        return None
+    # Scale to specified size while maintaining aspect ratio
+    return pixmap.scaled(
+        size, size, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
+    )

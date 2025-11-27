@@ -46,6 +46,7 @@ from oeapp.ui.dialogs.help_dialog import HelpDialog
 from oeapp.ui.menus import MainMenu
 from oeapp.ui.sentence_card import SentenceCard
 from oeapp.ui.token_details_sidebar import TokenDetailsSidebar
+from oeapp.utils import get_logo_pixmap
 
 if TYPE_CHECKING:
     from oeapp.models.annotation import Annotation
@@ -304,7 +305,18 @@ class MainWindow(QMainWindow):
             title: Title of the message (default: "Information")
 
         """
-        QMessageBox.information(self, title, message)
+        msg_box = QMessageBox(
+            QMessageBox.Icon.Information,
+            title,
+            message,
+            QMessageBox.StandardButton.Ok,
+            self,
+        )
+        # Set custom icon
+        logo_pixmap = get_logo_pixmap(75)
+        if logo_pixmap:
+            msg_box.setIconPixmap(logo_pixmap)
+        msg_box.exec()
 
     def ensure_visible(self, widget: QWidget) -> None:
         """

@@ -42,6 +42,7 @@ from oeapp.ui.dialogs import (
 )
 from oeapp.ui.notes_panel import NotesPanel
 from oeapp.ui.token_table import TokenTable
+from oeapp.utils import get_logo_pixmap
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -1643,13 +1644,19 @@ class SentenceCard(TokenOccurrenceMixin, QWidget):
             f"This will combine the Old English text, Modern English translation, "
             f"tokens, annotations, and notes from both sentences."
         )
-        reply = QMessageBox.question(
-            self,
+        msg_box = QMessageBox(
+            QMessageBox.Icon.Question,
             "Confirm Merge",
             message,
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
+            self,
         )
+        msg_box.setDefaultButton(QMessageBox.StandardButton.No)
+        # Set custom icon
+        logo_pixmap = get_logo_pixmap(75)
+        if logo_pixmap:
+            msg_box.setIconPixmap(logo_pixmap)
+        reply = msg_box.exec()
 
         if reply != QMessageBox.StandardButton.Yes:
             return

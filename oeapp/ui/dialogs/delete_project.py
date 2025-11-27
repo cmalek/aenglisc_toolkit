@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 )
 
 from oeapp.models.project import Project
+from oeapp.utils import get_logo_pixmap
 
 from .new_project import NewProjectDialog
 from .open_project import OpenProjectDialog
@@ -181,14 +182,20 @@ class DeleteProjectDialog:
             return
 
         # Confirm deletion
-        reply = QMessageBox.question(
-            self.dialog,
+        msg_box = QMessageBox(
+            QMessageBox.Icon.Question,
             "Confirm Deletion",
             f'Are you sure you want to delete the project "{project.name}"?\n\n'
             "This action cannot be undone.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
+            self.dialog,
         )
+        msg_box.setDefaultButton(QMessageBox.StandardButton.No)
+        # Set custom icon
+        logo_pixmap = get_logo_pixmap(75)
+        if logo_pixmap:
+            msg_box.setIconPixmap(logo_pixmap)
+        reply = msg_box.exec()
 
         if reply != QMessageBox.StandardButton.Yes:
             return

@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
 )
 
 from oeapp.services import BackupService, MigrationService
+from oeapp.utils import get_logo_pixmap
 
 from .utils import DateTimeTableWidgetItem
 
@@ -151,14 +152,20 @@ class RestoreDialog:
             return
 
         # Confirm restore
-        reply = QMessageBox.question(
-            self.dialog,
+        msg_box = QMessageBox(
+            QMessageBox.Icon.Question,
             "Confirm Restore",
             "This will replace your current database with the selected backup.\n"
             "A backup of your current database will be created first.\n\n"
             "Continue?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            self.dialog,
         )
+        # Set custom icon
+        logo_pixmap = get_logo_pixmap(75)
+        if logo_pixmap:
+            msg_box.setIconPixmap(logo_pixmap)
+        reply = msg_box.exec()
 
         if reply != QMessageBox.StandardButton.Yes:
             return
