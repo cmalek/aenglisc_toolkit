@@ -256,7 +256,11 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
         self.content_layout.addWidget(case_label)
 
         # Declension
-        declension_value = annotation.declension if annotation.declension else "?"
+        declension_value = (
+            self.DECLENSION_MAP.get(annotation.declension, "?")
+            if annotation.declension is not None
+            else "?"
+        )
         declension_label = QLabel(f"Declension: {declension_value}")
         self._format_field_label(declension_label, annotation.declension)
         self.content_layout.addWidget(declension_label)
