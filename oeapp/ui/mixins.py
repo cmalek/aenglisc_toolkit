@@ -100,7 +100,7 @@ class AnnotationLookupsMixin:
     #: is the index of the long form in the DECLENSION_MAP, and the value
     #: is the code.
     DECLENSION_REVERSE_MAP: Final[dict[int, str]] = {
-        i: k for i, k in enumerate(DECLENSION_MAP.values()) if k is not None
+        i: k for i, k in enumerate(DECLENSION_MAP.keys()) if k is not None
     }
 
     #: A lookup map for verb class codes to their long form.
@@ -110,6 +110,7 @@ class AnnotationLookupsMixin:
         "w1": "Weak Class I (w1)",
         "w2": "Weak Class II (w2)",
         "w3": "Weak Class III (w3)",
+        "pp": "Preterite-Present (pp)",
         "s1": "Strong Class 1 (s1)",
         "s2": "Strong Class 2 (s2)",
         "s3": "Strong Class 3 (s3)",
@@ -184,7 +185,7 @@ class AnnotationLookupsMixin:
         "f": "Finite (f)",
         "i": "Infinitive (i)",
         "p": "Participle (p)",
-        "inf": "Inflected Infinitive (inf)",
+        "ii": "Inflected Infinitive (ii)",
     }
     VERB_FORM_REVERSE_MAP: Final[dict[int, str]] = {
         i: k for i, k in enumerate(VERB_FORM_MAP.keys()) if k is not None
@@ -197,9 +198,11 @@ class AnnotationLookupsMixin:
     PRONOUN_TYPE_MAP: Final[dict[str | None, str]] = {
         None: "",
         "p": "Personal (p)",
+        "rx": "Reflexive (rx)",
         "r": "Relative (r)",
         "d": "Demonstrative (d)",
         "i": "Interrogative (i)",
+        "m": "Miscellaneous (m)",
     }
     #: A Reverse lookup map for pronoun type long form to code.  The key
     #: is the index of the long form in the PRONOUN_TYPE_MAP, and the value
@@ -269,6 +272,7 @@ class AnnotationLookupsMixin:
         "a": "Accusative (a)",
         "d": "Dative (d)",
         "g": "Genitive (g)",
+        "i": "Instrumental (i)",
     }
     #: A Reverse lookup map for preposition case long form to code.  The key
     #: is the index of the long form in the PREPOSITION_CASE_MAP, and the value

@@ -36,7 +36,8 @@ class Annotation(AnnotationTextualMixin, Base):
             "\"case\" IN ('n','a','g','d','i')", name="ck_annotations_case"
         ),
         CheckConstraint(
-            "pronoun_type IN ('p','r','d','i')", name="ck_annotations_pronoun_type"
+            "pronoun_type IN ('p','rx','r','d','i', 'm')",
+            name="ck_annotations_pronoun_type",
         ),
         CheckConstraint(
             "pronoun_number IN ('s','d','pl')", name="ck_annotations_pronoun_number"
@@ -45,7 +46,7 @@ class Annotation(AnnotationTextualMixin, Base):
             "article_type IN ('d','i','p','D')", name="ck_annotations_article_type"
         ),
         CheckConstraint(
-            "verb_class IN ('a','w1','w2','w3','s1','s2','s3','s4','s5','s6','s7')",
+            "verb_class IN ('a','w1','w2','w3','pp','s1','s2','s3','s4','s5','s6','s7')",
             name="ck_annotations_verb_class",
         ),
         CheckConstraint("verb_tense IN ('p','n')", name="ck_annotations_verb_tense"),
@@ -59,9 +60,11 @@ class Annotation(AnnotationTextualMixin, Base):
             "verb_aspect IN ('p','f','prg','gn')", name="ck_annotations_verb_aspect"
         ),
         CheckConstraint(
-            "verb_form IN ('f','i','p', 'inf')", name="ck_annotations_verb_form"
+            "verb_form IN ('f','i','p','ii')", name="ck_annotations_verb_form"
         ),
-        CheckConstraint("prep_case IN ('a','d','g')", name="ck_annotations_prep_case"),
+        CheckConstraint(
+            "prep_case IN ('a','d','g','i')", name="ck_annotations_prep_case"
+        ),
         CheckConstraint(
             "confidence >= 0 AND confidence <= 100", name="ck_annotations_confidence"
         ),

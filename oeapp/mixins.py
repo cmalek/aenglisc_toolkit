@@ -83,9 +83,11 @@ class AnnotationTextualMixin:
     #: Pronoun type map.
     PRONOUN_TYPE_MAP: Final[dict[str, str]] = {
         "p": "pers",
+        "rx": "relex",
         "r": "rel",
         "d": "dem",
         "i": "int",
+        "m": "misc",
     }
 
     #: Pronoun number map.
@@ -105,6 +107,7 @@ class AnnotationTextualMixin:
         "w1": "weak1",
         "w2": "weak2",
         "w3": "weak3",
+        "pp": "pp",
         "s1": "strong1",
         "s2": "strong2",
         "s3": "strong3",
@@ -147,7 +150,7 @@ class AnnotationTextualMixin:
         "f": "",
         "i": "inf",
         "p": "part",
-        "inf": "inf:infl",
+        "ii": "inf:infl",
     }
 
     #: Verb number map.
@@ -193,6 +196,7 @@ class AnnotationTextualMixin:
         "a": "acc",
         "d": "dat",
         "g": "gen",
+        "i": "inst",
     }
 
     # ===============================
