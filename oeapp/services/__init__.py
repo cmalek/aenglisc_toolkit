@@ -11,6 +11,7 @@ from oeapp.services.commands import (
     DeleteSentenceCommand,
     EditSentenceCommand,
     MergeSentenceCommand,
+    ToggleParagraphStartCommand,
     UpdateNoteCommand,
 )
 from oeapp.services.export_docx import DOCXExporter
@@ -38,5 +39,6 @@ __all__ = [
     "MigrationService",
     "ProjectExporter",
     "ProjectImporter",
+    "ToggleParagraphStartCommand",
     "UpdateNoteCommand",
 ]

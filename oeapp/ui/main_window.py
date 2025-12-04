@@ -358,6 +358,13 @@ class MainWindow(QMainWindow):
 
         self.sentence_cards = []
         for sentence in project.sentences:
+            # Add paragraph separator if this sentence starts a paragraph
+            if sentence.is_paragraph_start and len(self.sentence_cards) > 0:
+                separator = QWidget()
+                separator.setFixedHeight(20)
+                separator.setStyleSheet("background-color: #e0e0e0; border-top: 2px solid #999;")
+                self.content_layout.addWidget(separator)
+
             card = SentenceCard(
                 sentence, session=self.session, command_manager=self.command_manager
             )

@@ -36,6 +36,7 @@ from oeapp.services import (
     DeleteSentenceCommand,
     EditSentenceCommand,
     MergeSentenceCommand,
+    ToggleParagraphStartCommand,
 )
 from oeapp.ui.dialogs import (
     AnnotationModal,
@@ -224,9 +225,11 @@ class SentenceCard(TokenOccurrenceMixin, QWidget):
         layout = QVBoxLayout(self)
         layout.setSpacing(10)
 
-        # Header with sentence number and actions
+        # Header with paragraph and sentence number and actions
         header_layout = QHBoxLayout()
-        self.sentence_number_label = QLabel(f"[{self.sentence.display_order}]")
+        paragraph_num = self.sentence.paragraph_number
+        sentence_num = self.sentence.sentence_number_in_paragraph
+        self.sentence_number_label = QLabel(f"¶:{paragraph_num} S:{sentence_num}")
         self.sentence_number_label.setFont(QFont("Helvetica", 14, QFont.Weight.Bold))
         header_layout.addWidget(self.sentence_number_label)
 
@@ -240,6 +243,9 @@ class SentenceCard(TokenOccurrenceMixin, QWidget):
         after_action = add_sentence_menu.addAction("After")
         after_action.triggered.connect(self._on_add_sentence_after_clicked)
         self.add_sentence_button.setMenu(add_sentence_menu)
+        self.toggle_paragraph_button = QPushButton("Toggle Paragraph Start")
+        self.toggle_paragraph_button.clicked.connect(self._on_toggle_paragraph_clicked)
+        self._update_paragraph_button_state()
         self.merge_button = QPushButton("Merge with next")
         self.merge_button.clicked.connect(self._on_merge_clicked)
         self.delete_button = QPushButton("Delete")
@@ -247,6 +253,7 @@ class SentenceCard(TokenOccurrenceMixin, QWidget):
         header_layout.addStretch()
         # header_layout.addWidget(self.split_button)
         header_layout.addWidget(self.add_sentence_button)
+        header_layout.addWidget(self.toggle_paragraph_button)
         header_layout.addWidget(self.merge_button)
         header_layout.addWidget(self.delete_button)
         layout.addLayout(header_layout)
@@ -1791,6 +1798,47 @@ class SentenceCard(TokenOccurrenceMixin, QWidget):
                 "Failed to add sentence. Please try again.",
             )
 
+    def _on_toggle_paragraph_clicked(self) -> None:
+        """
+        Handle Toggle Paragraph Start button click.
+
+        Toggles the is_paragraph_start flag and recalculates paragraph numbers.
+        """
+        if not self.session or not self.sentence.id or not self.command_manager:
+            return
+
+        # Create and execute toggle command
+        command = ToggleParagraphStartCommand(
+            session=self.session,
+            sentence_id=self.sentence.id,
+        )
+
+        if self.command_manager.execute(command):
+            # Refresh sentence from database
+            self.session.refresh(self.sentence)
+            # Update UI
+            self._update_paragraph_button_state()
+            paragraph_num = self.sentence.paragraph_number
+            sentence_num = self.sentence.sentence_number_in_paragraph
+            self.sentence_number_label.setText(f"¶.{paragraph_num} S.{sentence_num}")
+            # Emit signal to refresh all cards (paragraph numbers may have changed)
+            # We'll use sentence_added signal as a refresh trigger
+            if self.sentence.id:
+                self.sentence_added.emit(self.sentence.id)
+        else:
+            QMessageBox.warning(
+                self,
+                "Toggle Failed",
+                "Failed to toggle paragraph start. Please try again.",
+            )
+
+    def _update_paragraph_button_state(self) -> None:
+        """Update the toggle paragraph button text based on current state."""
+        if self.sentence.is_paragraph_start:
+            self.toggle_paragraph_button.setText("Remove Paragraph Start")
+        else:
+            self.toggle_paragraph_button.setText("Mark as Paragraph Start")
+
     def _on_delete_clicked(self) -> None:
         """
         Handle Delete button click.
@@ -1870,7 +1918,10 @@ class SentenceCard(TokenOccurrenceMixin, QWidget):
 
         """
         self.sentence = sentence
-        self.sentence_number_label.setText(f"[{sentence.display_order}]")
+        paragraph_num = sentence.paragraph_number
+        sentence_num = sentence.sentence_number_in_paragraph
+        self.sentence_number_label.setText(f"¶[{paragraph_num}] S[{sentence_num}]")
+        self._update_paragraph_button_state()
         # If we're in edit mode, exit it first
         if self._oe_edit_mode:
             # Restore read-only state

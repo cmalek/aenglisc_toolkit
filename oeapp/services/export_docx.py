@@ -66,9 +66,15 @@ class DOCXExporter(AnnotationTextualMixin, TokenOccurrenceMixin):
             display_order = sentence.display_order
             text_modern = sentence.text_modern
 
-            # Add sentence number
+            # Add paragraph break if this sentence starts a paragraph
+            if sentence.is_paragraph_start:
+                doc.add_paragraph()  # Extra blank line for paragraph break
+
+            # Add sentence number with paragraph and sentence numbers
             sentence_num_para = doc.add_paragraph()
-            sentence_num_run = sentence_num_para.add_run(f"[{display_order}] ")
+            paragraph_num = sentence.paragraph_number
+            sentence_num = sentence.sentence_number_in_paragraph
+            sentence_num_run = sentence_num_para.add_run(f"¶[{paragraph_num}] S[{sentence_num}] ")
             sentence_num_run.bold = True
 
             # Build Old English sentence with annotations

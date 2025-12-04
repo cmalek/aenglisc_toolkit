@@ -105,13 +105,30 @@ class Project(Base):
         session.add(project)
         session.flush()  # Get the ID
 
-        sentences_text = cls.split_sentences(text)
-        for order, sentence_text in enumerate(sentences_text, 1):
+        sentences_data = cls.split_sentences(text)
+        paragraph_number = 1
+        sentence_number_in_paragraph = 0
+
+        for order, (sentence_text, is_paragraph_start) in enumerate(sentences_data, 1):
+            if is_paragraph_start and order > 1:
+                # Starting a new paragraph (but first sentence is always paragraph 1)
+                paragraph_number += 1
+                sentence_number_in_paragraph = 1
+            else:
+                # Continuing current paragraph
+                sentence_number_in_paragraph += 1
+                if order == 1:
+                    # First sentence always starts paragraph 1
+                    paragraph_number = 1
+
             Sentence.create(
                 session=session,
                 project_id=project.id,
                 display_order=order,
                 text_oe=sentence_text,
+                is_paragraph_start=is_paragraph_start,
+                paragraph_number=paragraph_number,
+                sentence_number_in_paragraph=sentence_number_in_paragraph,
             )
 
         session.commit()
@@ -141,15 +158,49 @@ class Project(Base):
         )
 
         # Split text into sentences
-        sentences_text = self.split_sentences(text)
+        sentences_data = self.split_sentences(text)
+
+        # Get the last sentence to determine current paragraph state
+        last_sentence = (
+            session.scalar(
+                select(Sentence)
+                .where(Sentence.project_id == self.id)
+                .order_by(Sentence.display_order.desc())
+                .limit(1)
+            )
+            if max_order > 0
+            else None
+        )
+
+        # Determine starting paragraph and sentence numbers
+        if last_sentence:
+            current_paragraph = last_sentence.paragraph_number
+            current_sentence_in_para = last_sentence.sentence_number_in_paragraph
+        else:
+            current_paragraph = 0
+            current_sentence_in_para = 0
+
+        paragraph_number = current_paragraph
+        sentence_number_in_paragraph = current_sentence_in_para
 
         # Create new sentences starting from max_order + 1
-        for order_offset, sentence_text in enumerate(sentences_text, 1):
+        for order_offset, (sentence_text, is_paragraph_start) in enumerate(
+            sentences_data, 1
+        ):
+            if is_paragraph_start:
+                paragraph_number += 1
+                sentence_number_in_paragraph = 1
+            else:
+                sentence_number_in_paragraph += 1
+
             Sentence.create(
                 session=session,
                 project_id=self.id,
                 display_order=max_order + order_offset,
                 text_oe=sentence_text,
+                is_paragraph_start=is_paragraph_start,
+                paragraph_number=paragraph_number,
+                sentence_number_in_paragraph=sentence_number_in_paragraph,
             )
 
         session.commit()
@@ -197,25 +248,29 @@ class Project(Base):
         return project
 
     @classmethod
-    def split_sentences(cls, text: str) -> builtins.list[str]:  # noqa: PLR0912, PLR0915
+    def split_sentences(
+        cls, text: str
+    ) -> builtins.list[tuple[str, bool]]:  # noqa: PLR0912, PLR0915
         """
-        Split text into sentences.
+        Split text into sentences and detect paragraph breaks.
 
         Args:
             text: Input Old English text
 
         Returns:
-            List of sentence strings
+            List of tuples (sentence_text, is_paragraph_start) where is_paragraph_start
+            indicates if the sentence starts a new paragraph (detected by blank lines)
 
         """
         if not text.strip():
             return []
 
-        sentences: list[str] = []
+        sentences: list[tuple[str, bool]] = []
         current_sentence = ""
         i = 0
         inside_quotes = False
         quote_char = None
+        last_sentence_end_pos = -1  # Track where last sentence ended
 
         while i < len(text):
             char = text[i]
@@ -268,7 +323,12 @@ class Project(Base):
                         # End of sentence - save it
                         sentence = current_sentence.strip()
                         if sentence:
-                            sentences.append(sentence)
+                            # Check for paragraph break (blank lines before this sentence)
+                            is_paragraph_start = cls._has_paragraph_break(
+                                text, last_sentence_end_pos, i + 1
+                            )
+                            sentences.append((sentence, is_paragraph_start))
+                            last_sentence_end_pos = i + 1
                         current_sentence = ""
                         # Skip the whitespace we looked ahead
                         i = j - 1
@@ -303,7 +363,12 @@ class Project(Base):
                         # End of sentence - save it
                         sentence = current_sentence.strip()
                         if sentence:
-                            sentences.append(sentence)
+                            # Check for paragraph break (blank lines before this sentence)
+                            is_paragraph_start = cls._has_paragraph_break(
+                                text, last_sentence_end_pos, i + 1
+                            )
+                            sentences.append((sentence, is_paragraph_start))
+                            last_sentence_end_pos = i + 1
                         current_sentence = ""
                         # Skip the whitespace we looked ahead
                         i = j - 1
@@ -326,17 +391,60 @@ class Project(Base):
 
         # Add the last sentence if there's any content
         if current_sentence.strip():
-            sentences.append(current_sentence.strip())
+            # Check for paragraph break before last sentence
+            is_paragraph_start = cls._has_paragraph_break(
+                text, last_sentence_end_pos, len(text)
+            )
+            sentences.append((current_sentence.strip(), is_paragraph_start))
 
-        # Remove any [numbers] from the sentences
-        result = [re.sub(r"\[\d+\]", "", s) for s in sentences]
-        # Also remove any remaining number] patterns (in case [ was removed but
-        # number] remains)
-        result = [re.sub(r"^\d+\]\s*", "", s) for s in result]
-        # If a sentence is just a number in [brackets], remove it
-        result = [s for s in result if not re.match(r"^\[\d+\]\s*$", s.strip())]
-        # Filter out empty strings and strip leading/trailing whitespace
-        return [s.strip() for s in result if s.strip()]
+        # Process sentences: remove [numbers] markers and filter empty strings
+        result: list[tuple[str, bool]] = []
+        for sentence_text, is_para_start in sentences:
+            # Remove any [numbers] from the sentence
+            cleaned = re.sub(r"\[\d+\]", "", sentence_text)
+            # Also remove any remaining number] patterns
+            cleaned = re.sub(r"^\d+\]\s*", "", cleaned)
+            # Skip if sentence is just a number in [brackets] or empty
+            if cleaned.strip() and not re.match(r"^\[\d+\]\s*$", cleaned.strip()):
+                result.append((cleaned.strip(), is_para_start))
+
+        # First sentence always starts a paragraph
+        if result:
+            result[0] = (result[0][0], True)
+
+        return result
+
+    @classmethod
+    def _has_paragraph_break(cls, text: str, start_pos: int, end_pos: int) -> bool:
+        """
+        Check if there are blank lines (two or more consecutive newlines) between positions.
+
+        Args:
+            text: Full text
+            start_pos: Start position to check from
+            end_pos: End position to check to
+
+        Returns:
+            True if there are blank lines (paragraph break), False otherwise
+        """
+        if start_pos < 0 or start_pos >= len(text):
+            # This is the first sentence
+            return True
+
+        # Extract the whitespace between sentences
+        whitespace = text[start_pos:end_pos]
+        # Check for two or more consecutive newlines
+        newline_count = 0
+        for char in whitespace:
+            if char == "\n":
+                newline_count += 1
+                if newline_count >= 2:
+                    return True
+            elif char not in (" ", "\t", "\r"):
+                # Non-whitespace character resets the count
+                newline_count = 0
+
+        return False
 
     def total_token_count(self, session: Session) -> int:
         """

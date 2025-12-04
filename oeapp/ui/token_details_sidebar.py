@@ -93,20 +93,35 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
             gender_str = annotation.format_gender(annotation)
             context_str = annotation.format_context(annotation)
 
-        # Header: [sentence number] token surface
+        # Paragraph/sentence number label on its own line
+        paragraph_num = sentence.paragraph_number
+        sentence_num = sentence.sentence_number_in_paragraph
+        number_label = QLabel(f"¶:{paragraph_num} S:{sentence_num}")
+        number_label.setFont(QFont("Helvetica", 12, QFont.Weight.Bold))
+        number_label.setStyleSheet("color: #333;")
+        self.content_layout.addWidget(number_label)
+
+        # Horizontal rule
+        separator = QLabel("─" * 30)
+        separator.setStyleSheet(
+            "color: #ccc; font-family: Helvetica; font-weight: normal;"
+        )
+        self.content_layout.addWidget(separator)
+
+        # Token surface with annotations
         style = "color: #666; font-family: Helvetica; font-weight: normal;"
-        header_text = f"[{sentence.display_order}] "
+        token_text = ""
         if pos_str:
-            header_text += f"<sup style='{style}'>{pos_str}</sup>"
+            token_text += f"<sup style='{style}'>{pos_str}</sup>"
         if gender_str:
-            header_text += f"<sub style='{style}'>{gender_str}</sub>"
-        header_text += f"{token.surface}"
+            token_text += f"<sub style='{style}'>{gender_str}</sub>"
+        token_text += f"{token.surface}"
         if context_str:
-            header_text += f"<sub style='{style}'>{context_str}</sub>"
-        header_label = QLabel(header_text)
-        header_label.setFont(QFont("Anvers", 18, QFont.Weight.Bold))
-        header_label.setWordWrap(True)
-        self.content_layout.addWidget(header_label)
+            token_text += f"<sub style='{style}'>{context_str}</sub>"
+        token_label = QLabel(token_text)
+        token_label.setFont(QFont("Anvers", 18, QFont.Weight.Bold))
+        token_label.setWordWrap(True)
+        self.content_layout.addWidget(token_label)
 
         self.content_layout.addSpacing(10)
 
