@@ -246,6 +246,9 @@ class SentenceCard(TokenOccurrenceMixin, QWidget):
         self.toggle_paragraph_button = QPushButton("Toggle Paragraph Start")
         self.toggle_paragraph_button.clicked.connect(self._on_toggle_paragraph_clicked)
         self._update_paragraph_button_state()
+        # Hide toggle button for first sentence (must always be paragraph start)
+        if self.sentence.display_order == 1:
+            self.toggle_paragraph_button.setVisible(False)
         self.merge_button = QPushButton("Merge with next")
         self.merge_button.clicked.connect(self._on_merge_clicked)
         self.delete_button = QPushButton("Delete")
@@ -1833,11 +1836,18 @@ class SentenceCard(TokenOccurrenceMixin, QWidget):
             )
 
     def _update_paragraph_button_state(self) -> None:
-        """Update the toggle paragraph button text based on current state."""
-        if self.sentence.is_paragraph_start:
-            self.toggle_paragraph_button.setText("Remove Paragraph Start")
+        """
+        Update the toggle paragraph button text and visibility based on current state.
+        """
+        # Hide button for first sentence (must always be paragraph start)
+        if self.sentence.display_order == 1:
+            self.toggle_paragraph_button.setVisible(False)
         else:
-            self.toggle_paragraph_button.setText("Mark as Paragraph Start")
+            self.toggle_paragraph_button.setVisible(True)
+            if self.sentence.is_paragraph_start:
+                self.toggle_paragraph_button.setText("Remove Paragraph Start")
+            else:
+                self.toggle_paragraph_button.setText("Mark as Paragraph Start")
 
     def _on_delete_clicked(self) -> None:
         """
@@ -1920,7 +1930,7 @@ class SentenceCard(TokenOccurrenceMixin, QWidget):
         self.sentence = sentence
         paragraph_num = sentence.paragraph_number
         sentence_num = sentence.sentence_number_in_paragraph
-        self.sentence_number_label.setText(f"¶[{paragraph_num}] S[{sentence_num}]")
+        self.sentence_number_label.setText(f"¶:{paragraph_num} S:{sentence_num}")
         self._update_paragraph_button_state()
         # If we're in edit mode, exit it first
         if self._oe_edit_mode:
