@@ -1,11 +1,16 @@
 """Token details sidebar widget."""
 
-from typing import TYPE_CHECKING, cast
+import re
+from typing import TYPE_CHECKING, Final, cast
+from urllib.parse import quote
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont
+from PySide6.QtCore import Qt, QUrl
+from PySide6.QtGui import QDesktopServices, QFont, QIcon, QPainter, QPixmap
+from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (
+    QHBoxLayout,
     QLabel,
+    QPushButton,
     QScrollArea,
     QVBoxLayout,
     QWidget,
@@ -20,7 +25,36 @@ if TYPE_CHECKING:
 
 
 class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
-    """Sidebar widget displaying detailed token information."""
+    """
+    Sidebar widget displaying detailed token information.  The sidebar displays
+    the token's surface form, its annotations, and its dictionary entry, Modern
+    English Meaning, Uncertainty, Alternatives, and Confidence.
+
+    It is displayed to the right of the text editor, and is populated when a
+    token is selected in the text editor.
+
+    Args:
+        parent: Parent widget
+
+    """
+
+    #: URL for the Bosworth-Toller dictionary search.  The placeholder is
+    #: for the root value.
+    DICTIONARY_URL: Final[str] = "https://bosworthtoller.com/search?q={}"
+    #: Size of the book icon in pixels.  This is used for the Bosworth-Toller
+    #: dictionary icon.
+    BOOK_ICON_SIZE: Final[int] = 16
+    #: SVG data for the book icon.  This is used for the Bosworth-Toller
+    #: dictionary icon.
+    BOOK_ICON_SVG: Final[str] = """
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+<path d="M3 19a9 9 0 0 1 9 0a9 9 0 0 1 9 0" />
+<path d="M3 6a9 9 0 0 1 9 0a9 9 0 0 1 9 0" />
+<path d="M3 6l0 13" />
+<path d="M12 6l0 13" />
+<path d="M21 6l0 13" />
+</svg>"""  # noqa: E501
 
     def __init__(self, parent: QWidget | None = None) -> None:
         """Initialize the token details sidebar."""
@@ -70,6 +104,49 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
             widget = item.widget()
             if widget is not None:
                 widget.deleteLater()
+
+    def _get_book_icon(self, size: int = 16) -> QIcon:
+        """
+        Create a book icon from the :attr:`BOOK_ICON_SVG`.
+
+        Args:
+            size: Size of the icon in pixels (default: 16)
+
+        Returns:
+            QIcon with the book icon
+
+        """
+        renderer = QSvgRenderer()
+        renderer.load(self.BOOK_ICON_SVG.encode("utf-8"))
+
+        pixmap = QPixmap(size, size)
+        pixmap.fill(Qt.GlobalColor.transparent)
+
+        painter = QPainter(pixmap)
+        renderer.render(painter)
+        painter.end()
+
+        return QIcon(pixmap)
+
+    def _open_bosworth_toller(self, root_value: str) -> None:
+        """
+        Open the Bosworth-Toller dictionary search page for the given root value.
+
+        Args:
+            root_value: The root value to search for
+
+        """
+        # Remove hyphens, en-dashes, and em-dashes
+        cleaned_root = re.sub(r"[-–—]", "", root_value)  # noqa: RUF001
+
+        # URL-encode the cleaned root value
+        encoded_root = quote(cleaned_root)
+
+        # Construct URL
+        url = QUrl(self.DICTIONARY_URL.format(encoded_root))
+
+        # Open in default browser
+        QDesktopServices.openUrl(url)
 
     def update_token(self, token: Token, sentence: Sentence) -> None:  # noqa: PLR0912, PLR0915
         """
@@ -187,7 +264,34 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
         root_value = annotation.root if annotation.root else "?"
         root_label = QLabel(f"Root: {root_value}")
         self._format_field_label(root_label, annotation.root)
-        self.content_layout.addWidget(root_label)
+
+        # Create horizontal layout for root field with optional dictionary icon
+        root_layout = QHBoxLayout()
+        root_layout.setContentsMargins(0, 0, 0, 0)
+        root_layout.addWidget(root_label)
+
+        # Add dictionary icon button if root is not empty
+        if annotation.root:
+            dict_button = QPushButton()
+            dict_button.setIcon(self._get_book_icon(self.BOOK_ICON_SIZE))
+            dict_button.setToolTip("Open in Bosworth-Toller dictionary")
+            dict_button.setFlat(True)
+            dict_button.setStyleSheet(
+                "QPushButton { border: none; padding: 2px; } "
+                "QPushButton:hover { background-color: #f0f0f0; border-radius: 3px; }"
+            )
+            dict_button.clicked.connect(
+                lambda _checked=False, rv=annotation.root: self._open_bosworth_toller(
+                    rv
+                )
+            )
+            root_layout.addWidget(dict_button)
+            root_layout.addStretch()
+
+        # Create a widget to hold the layout
+        root_widget = QWidget()
+        root_widget.setLayout(root_layout)
+        self.content_layout.addWidget(root_widget)
 
         # Modern English Meaning
         mod_e_value = (

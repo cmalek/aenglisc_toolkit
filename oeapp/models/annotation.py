@@ -46,7 +46,7 @@ class Annotation(AnnotationTextualMixin, Base):
             "article_type IN ('d','i','p','D')", name="ck_annotations_article_type"
         ),
         CheckConstraint(
-            "verb_class IN ('a','w1','w2','w3','pp','s1','s2','s3','s4','s5','s6','s7')",
+            "verb_class IN ('a','w1','w2','w3','pp','s1','s2','s3','s4','s5','s6','s7')",  # noqa: E501
             name="ck_annotations_verb_class",
         ),
         CheckConstraint("verb_tense IN ('p','n')", name="ck_annotations_verb_tense"),
