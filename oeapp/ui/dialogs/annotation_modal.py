@@ -2,9 +2,10 @@
 
 from typing import TYPE_CHECKING, ClassVar, Final, cast
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QObject, Qt, QTimer, Signal
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
+    QApplication,
     QCheckBox,
     QComboBox,
     QDialog,
@@ -13,17 +14,29 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QMessageBox,
     QPushButton,
     QSlider,
     QVBoxLayout,
     QWidget,
 )
+from sqlalchemy.exc import SQLAlchemyError
 
 from oeapp.models.annotation import Annotation
+from oeapp.models.annotation_preset import AnnotationPreset
+from oeapp.services.annotation_preset_service import AnnotationPresetService
+from oeapp.ui.dialogs.annotation_preset_management import (
+    CLEAR_SENTINEL,
+    AnnotationPresetManagementDialog,
+)
+from oeapp.ui.main_window import MainWindow
 from oeapp.ui.mixins import AnnotationLookupsMixin
 
 if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
+
     from oeapp.models.token import Token
+    from oeapp.types import PresetPos
 
 
 class AnnotationModal(AnnotationLookupsMixin, QDialog):
@@ -65,6 +78,7 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
             # Annotation will be created when saved if it doesn't exist
             self.annotation = Annotation(token_id=cast("int", token.id))
         self.fields_widget: QWidget | None = None
+        self.preset_service = AnnotationPresetService()
         self._setup_ui()
         self._setup_keyboard_shortcuts()
         self._load_existing_annotation()
@@ -110,6 +124,19 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         self.pos_combo.blockSignals(False)  # noqa: FBT003
         self.pos_combo.currentIndexChanged.connect(self._on_pos_changed)
         pos_layout.addWidget(self.pos_combo)
+
+        # Preset selection
+        preset_layout = QHBoxLayout()
+        self.preset_combo = QComboBox()
+        self.preset_combo.setEnabled(False)
+        preset_layout.addWidget(QLabel("Preset:"))
+        preset_layout.addWidget(self.preset_combo)
+        self.apply_preset_button = QPushButton("Apply")
+        self.apply_preset_button.setEnabled(False)
+        self.apply_preset_button.clicked.connect(self._on_preset_apply)
+        preset_layout.addWidget(self.apply_preset_button)
+        pos_layout.addLayout(preset_layout)
+
         pos_group.setLayout(pos_layout)
         layout.addWidget(pos_group)
 
@@ -176,6 +203,11 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         self.clear_button = QPushButton("Clear All")
         self.clear_button.clicked.connect(self._clear_all)
         button_layout.addWidget(self.clear_button)
+
+        self.save_as_preset_button = QPushButton("Save as Preset")
+        self.save_as_preset_button.setEnabled(False)
+        self.save_as_preset_button.clicked.connect(self._on_save_as_preset)
+        button_layout.addWidget(self.save_as_preset_button)
 
         button_layout.addStretch()
 
@@ -260,7 +292,7 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
                 self.pos_combo.setCurrentIndex(index)
                 # _on_pos_changed will be triggered by setCurrentIndex
 
-    def _on_pos_changed(self) -> None:
+    def _on_pos_changed(self) -> None:  # noqa: PLR0912
         """
         Handle POS selection change.
         """
@@ -306,6 +338,13 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
 
         pos = self.PART_OF_SPEECH_REVERSE_MAP.get(self.pos_combo.currentText())
 
+        # Update Save as Preset button state
+        self.save_as_preset_button.setEnabled(pos in ("N", "V", "A", "R", "D"))
+
+        # Clear preset selection when POS changes
+        if hasattr(self, "preset_combo"):
+            self.preset_combo.setCurrentIndex(0)
+
         if pos == "N":  # Noun
             self._add_noun_fields()
             self._restore_last_values("N")
@@ -335,6 +374,412 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
             self._restore_last_values("I")
 
         self._update_status_label()
+        # Update preset dropdown after POS change
+        # Call directly first, then also schedule for next event loop in case
+        # session isn't ready
+        self._update_preset_dropdown()
+
+        QTimer.singleShot(100, self._update_preset_dropdown)
+
+    def _get_session(self) -> Session | None:
+        """
+        Get database session from parent.
+
+        Returns:
+            The active SQLAlchemy Session or None if not found
+
+        """
+        parent = self.parent()
+        if not parent:
+            return None
+
+        # Try to get session from parent's main_window (e.g., if parent is a
+        # widget with main_window)
+        if hasattr(parent, "main_window") and hasattr(parent.main_window, "session"):
+            return parent.main_window.session
+
+        # Try to get session directly from parent (e.g., SentenceCard has
+        # session directly)
+        if hasattr(parent, "session"):
+            return parent.session
+
+        return None
+
+    def _update_preset_dropdown(self) -> None:
+        """Populate preset dropdown based on current POS selection."""
+        # Ensure we have the required widgets
+        if not hasattr(self, "preset_combo") or not hasattr(
+            self, "apply_preset_button"
+        ):
+            return
+
+        session = self._get_session()
+        if not session:
+            # Session not available - disable dropdown
+            self.preset_combo.setEnabled(False)
+            self.apply_preset_button.setEnabled(False)
+            return
+
+        # Get current POS text from combo box
+        current_text = self.pos_combo.currentText()
+        if not current_text:
+            # No POS selected - disable dropdown
+            self.preset_combo.clear()
+            self.preset_combo.setEnabled(False)
+            self.apply_preset_button.setEnabled(False)
+            return
+
+        # Look up POS code from display text
+        pos = self.PART_OF_SPEECH_REVERSE_MAP.get(current_text)
+        if not pos or pos not in ("N", "V", "A", "R", "D"):
+            # Invalid or unsupported POS - disable dropdown
+            self.preset_combo.clear()
+            self.preset_combo.setEnabled(False)
+            self.apply_preset_button.setEnabled(False)
+            return
+
+        # Get presets for this POS
+        try:
+            presets = self.preset_service.get_presets_for_pos(session, pos)
+        except SQLAlchemyError:
+            # Error getting presets - disable dropdown
+            self.preset_combo.clear()
+            self.preset_combo.setEnabled(False)
+            self.apply_preset_button.setEnabled(False)
+            return
+
+        # Clear and populate dropdown
+        self.preset_combo.clear()
+
+        if presets:
+            # Add empty option first
+            self.preset_combo.addItem("")
+            for preset in presets:
+                self.preset_combo.addItem(preset.name, preset.id)
+            self.preset_combo.setEnabled(True)
+            self.apply_preset_button.setEnabled(True)
+        else:
+            # No presets available - disable dropdown
+            self.preset_combo.setEnabled(False)
+            self.apply_preset_button.setEnabled(False)
+
+    def _refresh_preset_dropdown(self) -> None:
+        """Refresh preset dropdown from database."""
+        self._update_preset_dropdown()
+
+    def _on_preset_apply(self) -> None:
+        """Apply selected preset values to form fields."""
+        if self.preset_combo.currentIndex() == 0:
+            # Empty selection
+            return
+
+        session = self._get_session()
+        if not session:
+            return
+
+        preset_id = self.preset_combo.currentData()
+        if not preset_id:
+            return
+
+        preset = AnnotationPreset.get(session, preset_id)
+        if not preset:
+            return
+
+        mapping = self._get_field_to_widget_mapping(cast("PresetPos", preset.pos))
+        for field_name, (widget_attr, reverse_map) in mapping.items():
+            preset_value = getattr(preset, field_name, None)
+
+            if not hasattr(self, widget_attr):
+                continue
+
+            widget = getattr(self, widget_attr)
+            if isinstance(widget, QComboBox):
+                if preset_value == CLEAR_SENTINEL:
+                    # "Clear" was selected - set to empty selection (index 0)
+                    widget.setCurrentIndex(0)
+                elif preset_value is None:
+                    # Empty was selected - don't change this field, skip it
+                    continue
+                elif reverse_map:
+                    # Convert preset code to UI value using reverse map
+                    # Find the index in the combo that matches the preset value
+                    # Reverse map maps index -> code, we need code -> index
+                    code_to_index = {v: k for k, v in reverse_map.items()}
+                    index = code_to_index.get(preset_value)
+                    if index is not None:
+                        widget.setCurrentIndex(index)
+                else:
+                    # For editable combos, set text directly
+                    widget.setCurrentText(preset_value)
+
+        self._update_status_label()
+
+    def _get_field_to_widget_mapping(self, pos: PresetPos) -> dict:
+        """
+        Return mapping dict: {field_name: (widget_attr, reverse_map)} for
+        applying presets.
+
+        Args:
+            pos: Part of speech code
+
+        Returns:
+            Dictionary mapping field names to (widget attribute name, reverse
+            map)
+
+        """
+        if pos == "N":
+            return {
+                "gender": ("gender_combo", self.GENDER_REVERSE_MAP),
+                "number": ("number_combo", self.NUMBER_REVERSE_MAP),
+                "case": ("case_combo", self.CASE_REVERSE_MAP),
+                "declension": ("declension_combo", None),  # Editable combo
+            }
+        if pos == "V":
+            return {
+                "verb_class": ("verb_class_combo", None),  # Editable combo
+                "verb_tense": ("verb_tense_combo", self.VERB_TENSE_REVERSE_MAP),
+                "verb_mood": ("verb_mood_combo", self.VERB_MOOD_REVERSE_MAP),
+                "verb_person": ("verb_person_combo", self.VERB_PERSON_REVERSE_MAP),
+                "number": ("verb_number_combo", self.NUMBER_REVERSE_MAP),
+                "verb_aspect": ("verb_aspect_combo", self.VERB_ASPECT_REVERSE_MAP),
+                "verb_form": ("verb_form_combo", self.VERB_FORM_REVERSE_MAP),
+            }
+        if pos == "A":
+            return {
+                "adjective_degree": (
+                    "adj_degree_combo",
+                    self.ADJECTIVE_DEGREE_REVERSE_MAP,
+                ),
+                "adjective_inflection": (
+                    "adj_inflection_combo",
+                    self.ADJECTIVE_INFLECTION_REVERSE_MAP,
+                ),
+                "gender": ("adj_gender_combo", self.GENDER_REVERSE_MAP),
+                "number": ("adj_number_combo", self.NUMBER_REVERSE_MAP),
+                "case": ("adj_case_combo", self.CASE_REVERSE_MAP),
+            }
+        if pos == "R":
+            return {
+                "pronoun_type": ("pro_type_combo", self.PRONOUN_TYPE_REVERSE_MAP),
+                "gender": ("pro_gender_combo", self.GENDER_REVERSE_MAP),
+                "pronoun_number": (
+                    "pro_number_combo",
+                    self.PRONOUN_NUMBER_REVERSE_MAP,
+                ),
+                "case": ("pro_case_combo", self.CASE_REVERSE_MAP),
+            }
+        if pos == "D":
+            return {
+                "article_type": ("article_type_combo", self.ARTICLE_TYPE_REVERSE_MAP),
+                "gender": ("article_gender_combo", self.GENDER_REVERSE_MAP),
+                "number": ("article_number_combo", self.NUMBER_REVERSE_MAP),
+                "case": ("article_case_combo", self.CASE_REVERSE_MAP),
+            }
+        return {}
+
+    def _extract_current_field_values(self) -> dict:  # noqa: PLR0912, PLR0915
+        """
+        Extract current form values into dictionary format for preset.
+
+        Returns:
+            Dictionary with field names as keys and codes as values (None for
+            empty/unset)
+
+        """
+        pos = self.PART_OF_SPEECH_REVERSE_MAP.get(self.pos_combo.currentText())
+        if not pos or pos not in ("N", "V", "A", "R", "D"):
+            return {}
+
+        field_values = {}
+        if pos == "N":
+            if hasattr(self, "gender_combo"):
+                idx = self.gender_combo.currentIndex()
+                field_values["gender"] = (
+                    self.GENDER_REVERSE_MAP.get(idx) if idx > 0 else None
+                )
+            if hasattr(self, "number_combo"):
+                idx = self.number_combo.currentIndex()
+                field_values["number"] = (
+                    self.NUMBER_REVERSE_MAP.get(idx) if idx > 0 else None
+                )
+            if hasattr(self, "case_combo"):
+                idx = self.case_combo.currentIndex()
+                field_values["case"] = (
+                    self.CASE_REVERSE_MAP.get(idx) if idx > 0 else None
+                )
+            if hasattr(self, "declension_combo"):
+                text = self.declension_combo.currentText().strip()
+                field_values["declension"] = text if text else None
+        elif pos == "V":
+            if hasattr(self, "verb_class_combo"):
+                text = self.verb_class_combo.currentText().strip()
+                field_values["verb_class"] = text if text else None
+            if hasattr(self, "verb_tense_combo"):
+                idx = self.verb_tense_combo.currentIndex()
+                field_values["verb_tense"] = (
+                    self.VERB_TENSE_REVERSE_MAP.get(idx) if idx > 0 else None
+                )
+            if hasattr(self, "verb_mood_combo"):
+                idx = self.verb_mood_combo.currentIndex()
+                field_values["verb_mood"] = (
+                    self.VERB_MOOD_REVERSE_MAP.get(idx) if idx > 0 else None
+                )
+            if hasattr(self, "verb_person_combo"):
+                idx = self.verb_person_combo.currentIndex()
+                field_values["verb_person"] = (
+                    self.VERB_PERSON_REVERSE_MAP.get(idx) if idx > 0 else None
+                )
+            if hasattr(self, "verb_number_combo"):
+                idx = self.verb_number_combo.currentIndex()
+                field_values["number"] = (
+                    self.NUMBER_REVERSE_MAP.get(idx) if idx > 0 else None
+                )
+            if hasattr(self, "verb_aspect_combo"):
+                idx = self.verb_aspect_combo.currentIndex()
+                field_values["verb_aspect"] = (
+                    self.VERB_ASPECT_REVERSE_MAP.get(idx) if idx > 0 else None
+                )
+            if hasattr(self, "verb_form_combo"):
+                idx = self.verb_form_combo.currentIndex()
+                field_values["verb_form"] = (
+                    self.VERB_FORM_REVERSE_MAP.get(idx) if idx > 0 else None
+                )
+        elif pos == "A":
+            if hasattr(self, "adj_degree_combo"):
+                idx = self.adj_degree_combo.currentIndex()
+                field_values["adjective_degree"] = (
+                    self.ADJECTIVE_DEGREE_REVERSE_MAP.get(idx) if idx > 0 else None
+                )
+            if hasattr(self, "adj_inflection_combo"):
+                idx = self.adj_inflection_combo.currentIndex()
+                field_values["adjective_inflection"] = (
+                    self.ADJECTIVE_INFLECTION_REVERSE_MAP.get(idx) if idx > 0 else None
+                )
+            if hasattr(self, "adj_gender_combo"):
+                idx = self.adj_gender_combo.currentIndex()
+                field_values["gender"] = (
+                    self.GENDER_REVERSE_MAP.get(idx) if idx > 0 else None
+                )
+            if hasattr(self, "adj_number_combo"):
+                idx = self.adj_number_combo.currentIndex()
+                field_values["number"] = (
+                    self.NUMBER_REVERSE_MAP.get(idx) if idx > 0 else None
+                )
+            if hasattr(self, "adj_case_combo"):
+                idx = self.adj_case_combo.currentIndex()
+                field_values["case"] = (
+                    self.CASE_REVERSE_MAP.get(idx) if idx > 0 else None
+                )
+        elif pos == "R":
+            if hasattr(self, "pro_type_combo"):
+                idx = self.pro_type_combo.currentIndex()
+                field_values["pronoun_type"] = (
+                    self.PRONOUN_TYPE_REVERSE_MAP.get(idx) if idx > 0 else None
+                )
+            if hasattr(self, "pro_gender_combo"):
+                idx = self.pro_gender_combo.currentIndex()
+                field_values["gender"] = (
+                    self.GENDER_REVERSE_MAP.get(idx) if idx > 0 else None
+                )
+            if hasattr(self, "pro_number_combo"):
+                idx = self.pro_number_combo.currentIndex()
+                field_values["pronoun_number"] = (
+                    self.PRONOUN_NUMBER_REVERSE_MAP.get(idx) if idx > 0 else None
+                )
+            if hasattr(self, "pro_case_combo"):
+                idx = self.pro_case_combo.currentIndex()
+                field_values["case"] = (
+                    self.CASE_REVERSE_MAP.get(idx) if idx > 0 else None
+                )
+        elif pos == "D":
+            if hasattr(self, "article_type_combo"):
+                idx = self.article_type_combo.currentIndex()
+                field_values["article_type"] = (
+                    self.ARTICLE_TYPE_REVERSE_MAP.get(idx) if idx > 0 else None
+                )
+            if hasattr(self, "article_gender_combo"):
+                idx = self.article_gender_combo.currentIndex()
+                field_values["gender"] = (
+                    self.GENDER_REVERSE_MAP.get(idx) if idx > 0 else None
+                )
+            if hasattr(self, "article_number_combo"):
+                idx = self.article_number_combo.currentIndex()
+                field_values["number"] = (
+                    self.NUMBER_REVERSE_MAP.get(idx) if idx > 0 else None
+                )
+            if hasattr(self, "article_case_combo"):
+                idx = self.article_case_combo.currentIndex()
+                field_values["case"] = (
+                    self.CASE_REVERSE_MAP.get(idx) if idx > 0 else None
+                )
+
+        return field_values
+
+    def _on_save_as_preset(self) -> None:
+        """
+        Open preset management dialog in save mode with current form values
+        preloaded.
+        """
+        pos = self.PART_OF_SPEECH_REVERSE_MAP.get(self.pos_combo.currentText())
+        if not pos or pos not in ("N", "V", "A", "R", "D"):
+            return
+
+        field_values = self._extract_current_field_values()
+
+        main_window = None
+        app = QApplication.instance()
+        if app:
+            for _widget in QApplication.topLevelWidgets():
+                if isinstance(_widget, MainWindow):
+                    main_window = _widget
+                    break
+
+        if not main_window:
+            # If we can't find main_window, try to get it from parent chain
+            widget: QObject | None = self.parent()
+            while widget:
+                if hasattr(widget, "main_window"):
+                    main_window = widget.main_window
+                    break
+                widget = (
+                    cast("QObject", widget.parent())
+                    if hasattr(widget, "parent")
+                    else None
+                )
+
+        if not main_window:
+            QMessageBox.warning(
+                self,
+                "Error",
+                "Could not find main window. Please try again.",
+            )
+            return
+
+        try:
+            dialog = AnnotationPresetManagementDialog(
+                main_window,
+                save_mode=True,
+                initial_pos=cast("PresetPos", pos),
+                initial_field_values=field_values,
+            )
+            dialog.exec()
+            # Refresh preset dropdown after dialog closes
+            self._refresh_preset_dropdown()
+        except Exception as e:  # noqa: BLE001
+            QMessageBox.critical(
+                self,
+                "Error",
+                f"Failed to open preset management dialog: {e}",
+            )
+
+    def showEvent(self, event) -> None:  # noqa: N802
+        """
+        Override showEvent to refresh preset dropdown when dialog is shown.
+        """
+        super().showEvent(event)
+        # Use QTimer.singleShot to ensure the dialog is fully shown and session
+        # is available
+        QTimer.singleShot(0, self._refresh_preset_dropdown)
 
     def _restore_last_values(self, pos: str) -> None:  # noqa: PLR0912, PLR0915
         """
@@ -414,7 +859,7 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
                     last_vals["adjective_inflection"]
                 )
 
-    def _save_current_values(self, pos: str) -> None:
+    def _save_current_values(self, pos: PresetPos) -> None:
         """
         Save current values for a POS type.
 
@@ -664,6 +1109,10 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         # Trigger field creation
         self._on_pos_changed()
 
+        # Ensure preset dropdown is updated after POS is set. Use QTimer to
+        # ensure this happens after the UI is fully updated
+        QTimer.singleShot(0, self._update_preset_dropdown)
+
         # Load values based on POS
         if self.annotation.pos == "N":
             self._load_noun_values()
@@ -887,7 +1336,7 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
 
         # Save current values for future use
         if self.annotation.pos:
-            self._save_current_values(cast("str", self.annotation.pos))
+            self._save_current_values(cast("PresetPos", self.annotation.pos))
 
         # Extract values based on POS
         if self.annotation.pos == "N":

@@ -6,7 +6,15 @@ import builtins
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, UniqueConstraint, select
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    UniqueConstraint,
+    select,
+)
 from sqlalchemy.orm import Mapped, Session, mapped_column, relationship
 
 from oeapp.db import Base
@@ -67,7 +75,9 @@ class Sentence(Base):
     #: The Modern English translation.
     text_modern: Mapped[str | None] = mapped_column(String, nullable=True)
     #: Whether this sentence starts a paragraph.
-    is_paragraph_start: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    is_paragraph_start: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False
+    )
     #: The date and time the sentence was created.
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.now, nullable=False
@@ -96,7 +106,7 @@ class Sentence(Base):
         session: Session,
         project_id: int,
         display_order: int,
-        is_paragraph_start: bool,
+        is_paragraph_start: bool,  # noqa: FBT001
     ) -> dict[str, int]:
         """
         Calculate paragraph_number and sentence_number_in_paragraph for a new sentence.
@@ -109,6 +119,7 @@ class Sentence(Base):
 
         Returns:
             Dictionary with 'paragraph_number' and 'sentence_number_in_paragraph'
+
         """
         # Get all sentences before this one, ordered by display_order
         previous_sentences = list(
@@ -138,9 +149,7 @@ class Sentence(Base):
             paragraph_number = last_sentence.paragraph_number
             # Count sentences in this paragraph
             sentences_in_paragraph = [
-                s
-                for s in previous_sentences
-                if s.paragraph_number == paragraph_number
+                s for s in previous_sentences if s.paragraph_number == paragraph_number
             ]
             sentence_number_in_paragraph = len(sentences_in_paragraph) + 1
 
@@ -198,13 +207,13 @@ class Sentence(Base):
         return session.scalar(stmt)
 
     @classmethod
-    def create(
+    def create(  # noqa: PLR0913
         cls,
         session: Session,
         project_id: int,
         display_order: int,
         text_oe: str,
-        is_paragraph_start: bool = False,
+        is_paragraph_start: bool = False,  # noqa: FBT001, FBT002
         paragraph_number: int | None = None,
         sentence_number_in_paragraph: int | None = None,
     ) -> Sentence:
@@ -222,7 +231,8 @@ class Sentence(Base):
             text_oe: Old English text
             is_paragraph_start: Whether this sentence starts a paragraph
             paragraph_number: Paragraph number (calculated if not provided)
-            sentence_number_in_paragraph: Sentence number in paragraph (calculated if not provided)
+            sentence_number_in_paragraph: Sentence number in paragraph
+              (calculated if not provided)
 
         Returns:
             The new :class:`~oeapp.models.sentence.Sentence` object
@@ -445,7 +455,9 @@ class Sentence(Base):
             project_id=project_id,
             display_order=sentence_data["display_order"],
             paragraph_number=sentence_data.get("paragraph_number", 1),
-            sentence_number_in_paragraph=sentence_data.get("sentence_number_in_paragraph", 1),
+            sentence_number_in_paragraph=sentence_data.get(
+                "sentence_number_in_paragraph", 1
+            ),
             text_oe=sentence_data["text_oe"],
             text_modern=sentence_data.get("text_modern"),
             is_paragraph_start=sentence_data.get("is_paragraph_start", False),
@@ -471,34 +483,6 @@ class Sentence(Base):
             Note.from_json(session, sentence.id, note_data, token_map)
 
         return sentence
-
-    def get_paragraph_number(self, session: Session, project_id: int) -> int:
-        """
-        Get the paragraph number for this sentence.
-
-        Args:
-            session: SQLAlchemy session
-            project_id: Project ID
-
-        Returns:
-            Paragraph number (1-based)
-        """
-        return self.paragraph_number
-
-    def get_sentence_number_in_paragraph(
-        self, session: Session, project_id: int
-    ) -> int:
-        """
-        Get the sentence number within the paragraph for this sentence.
-
-        Args:
-            session: SQLAlchemy session
-            project_id: Project ID
-
-        Returns:
-            Sentence number within paragraph (1-based)
-        """
-        return self.sentence_number_in_paragraph
 
     def update(self, session, text_oe: str) -> Sentence:
         """

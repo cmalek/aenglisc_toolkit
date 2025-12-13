@@ -126,13 +126,7 @@ class NotesPanel(QWidget):
             layout.addWidget(empty_label)
             return
 
-        # Safely access notes relationship (may be lazy-loaded)
-        try:
-            notes_list = list(self.sentence.notes) if self.sentence.notes else []
-        except Exception:
-            # If relationship access fails, show empty state
-            notes_list = []
-
+        notes_list = list(self.sentence.notes) if self.sentence.notes else []
         if not notes_list:
             # Show empty state
             empty_label = QLabel("(No notes yet)")

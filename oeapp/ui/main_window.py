@@ -362,7 +362,9 @@ class MainWindow(QMainWindow):
             if sentence.is_paragraph_start and len(self.sentence_cards) > 0:
                 separator = QWidget()
                 separator.setFixedHeight(20)
-                separator.setStyleSheet("background-color: #e0e0e0; border-top: 2px solid #999;")
+                separator.setStyleSheet(
+                    "background-color: #e0e0e0; border-top: 2px solid #999;"
+                )
                 self.content_layout.addWidget(separator)
 
             card = SentenceCard(
@@ -601,7 +603,7 @@ class MainWindow(QMainWindow):
 
         self.show_message("Sentence added", duration=2000)
 
-    def _on_sentence_deleted(self, sentence_id: int) -> None:
+    def _on_sentence_deleted(self, sentence_id: int) -> None:  # noqa: ARG002
         """
         Handle sentence deleted signal.
 
@@ -803,7 +805,8 @@ class MainWindowActions:
         - If the undo fails, show a message in the status bar.
         """
         if self.command_manager and self.command_manager.can_undo():
-            # Check if the command to undo is a structural change (like merge or add sentence)
+            # Check if the command to undo is a structural change (like merge or
+            # add sentence)
             needs_full_reload = False
             if self.command_manager.undo_stack:
                 last_command = self.command_manager.undo_stack[-1]
@@ -812,7 +815,8 @@ class MainWindowActions:
 
             if self.command_manager.undo():
                 self.main_window.show_message("Undone")
-                # After undo, the command is in redo_stack, check if it was a structural change
+                # After undo, the command is in redo_stack, check if it was a
+                # structural change
                 if not needs_full_reload and self.command_manager.redo_stack:
                     last_undone = self.command_manager.redo_stack[-1]
                     if isinstance(
@@ -837,7 +841,8 @@ class MainWindowActions:
         - If the redo fails, show a message in the status bar.
         """
         if self.command_manager and self.command_manager.can_redo():
-            # Check if the command to redo is a structural change (like merge or add sentence)
+            # Check if the command to redo is a structural change (like merge or
+            # add sentence)
             needs_full_reload = False
             if self.command_manager.redo_stack:
                 last_command = self.command_manager.redo_stack[-1]
@@ -846,7 +851,8 @@ class MainWindowActions:
 
             if self.command_manager.redo():
                 self.main_window.show_message("Redone")
-                # After redo, the command is in undo_stack, check if it was a structural change
+                # After redo, the command is in undo_stack, check if it was a
+                # structural change
                 if not needs_full_reload and self.command_manager.undo_stack:
                     last_redone = self.command_manager.undo_stack[-1]
                     if isinstance(

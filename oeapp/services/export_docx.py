@@ -63,7 +63,6 @@ class DOCXExporter(AnnotationTextualMixin, TokenOccurrenceMixin):
         doc.add_paragraph()  # Blank line after title
 
         for sentence in project.sentences:
-            display_order = sentence.display_order
             text_modern = sentence.text_modern
 
             # Add paragraph break if this sentence starts a paragraph
@@ -74,7 +73,9 @@ class DOCXExporter(AnnotationTextualMixin, TokenOccurrenceMixin):
             sentence_num_para = doc.add_paragraph()
             paragraph_num = sentence.paragraph_number
             sentence_num = sentence.sentence_number_in_paragraph
-            sentence_num_run = sentence_num_para.add_run(f"¶[{paragraph_num}] S[{sentence_num}] ")
+            sentence_num_run = sentence_num_para.add_run(
+                f"¶[{paragraph_num}] S[{sentence_num}] "
+            )
             sentence_num_run.bold = True
 
             # Build Old English sentence with annotations

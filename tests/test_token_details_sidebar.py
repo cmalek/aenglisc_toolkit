@@ -7,6 +7,7 @@ from urllib.parse import unquote
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import QUrl
 from PySide6.QtGui import QIcon
+from sqlalchemy.orm import Session
 
 from oeapp.models.token import Token
 from oeapp.models.sentence import Sentence

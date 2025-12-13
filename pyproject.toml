@@ -112,7 +112,7 @@ target-version = "py314"
 src = ["directory"]
 # https://docs.astral.sh/ruff/settings/#exclude
 # https://docs.astral.sh/ruff/settings/#extend-exclude
-extend-exclude = ["tests", "htmlcov"]
+extend-exclude = ["tests", "htmlcov", "alembic"]
 
 [tool.ruff.format]
 # Like Black, use double quotes for strings.

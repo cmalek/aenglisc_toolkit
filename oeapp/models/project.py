@@ -248,9 +248,9 @@ class Project(Base):
         return project
 
     @classmethod
-    def split_sentences(
+    def split_sentences(  # noqa: PLR0912, PLR0915
         cls, text: str
-    ) -> builtins.list[tuple[str, bool]]:  # noqa: PLR0912, PLR0915
+    ) -> builtins.list[tuple[str, bool]]:
         """
         Split text into sentences and detect paragraph breaks.
 
@@ -323,7 +323,8 @@ class Project(Base):
                         # End of sentence - save it
                         sentence = current_sentence.strip()
                         if sentence:
-                            # Check for paragraph break (blank lines before this sentence)
+                            # Check for paragraph break (blank lines before this
+                            # sentence)
                             is_paragraph_start = cls._has_paragraph_break(
                                 text, last_sentence_end_pos, i + 1
                             )
@@ -363,7 +364,8 @@ class Project(Base):
                         # End of sentence - save it
                         sentence = current_sentence.strip()
                         if sentence:
-                            # Check for paragraph break (blank lines before this sentence)
+                            # Check for paragraph break (blank lines before this
+                            # sentence)
                             is_paragraph_start = cls._has_paragraph_break(
                                 text, last_sentence_end_pos, i + 1
                             )
@@ -417,7 +419,8 @@ class Project(Base):
     @classmethod
     def _has_paragraph_break(cls, text: str, start_pos: int, end_pos: int) -> bool:
         """
-        Check if there are blank lines (two or more consecutive newlines) between positions.
+        Check if there are blank lines (two or more consecutive newlines)
+        between positions.
 
         Args:
             text: Full text
@@ -426,6 +429,7 @@ class Project(Base):
 
         Returns:
             True if there are blank lines (paragraph break), False otherwise
+
         """
         if start_pos < 0 or start_pos >= len(text):
             # This is the first sentence
@@ -438,7 +442,7 @@ class Project(Base):
         for char in whitespace:
             if char == "\n":
                 newline_count += 1
-                if newline_count >= 2:
+                if newline_count >= 2:  # noqa: PLR2004
                     return True
             elif char not in (" ", "\t", "\r"):
                 # Non-whitespace character resets the count

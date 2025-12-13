@@ -1,5 +1,6 @@
 """Services package initialization."""
 
+from oeapp.services.annotation_preset_service import AnnotationPresetService
 from oeapp.services.autosave import AutosaveService
 from oeapp.services.backup import BackupService
 from oeapp.services.commands import (
@@ -26,12 +27,13 @@ __all__ = [
     "AddNoteCommand",
     "AddSentenceCommand",
     "AnnotateTokenCommand",
+    "AnnotationPresetService",
     "AutosaveService",
     "BackupService",
     "CommandManager",
+    "DOCXExporter",
     "DeleteNoteCommand",
     "DeleteSentenceCommand",
-    "DOCXExporter",
     "EditSentenceCommand",
     "FieldMappingService",
     "MergeSentenceCommand",

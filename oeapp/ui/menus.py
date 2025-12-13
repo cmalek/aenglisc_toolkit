@@ -4,7 +4,14 @@ from typing import TYPE_CHECKING
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import QMenu, QMenuBar
 
-from oeapp.ui.dialogs import AppendTextDialog, NewProjectDialog, OpenProjectDialog
+from oeapp.ui.dialogs import (
+    AnnotationPresetManagementDialog,
+    AppendTextDialog,
+    NewProjectDialog,
+    OpenProjectDialog,
+)
+
+# Import AnnotationPresetManagementDialog lazily when needed to avoid import-time issues
 
 if TYPE_CHECKING:
     from oeapp.ui.main_window import MainWindow
@@ -170,6 +177,23 @@ class ToolsMenu:
         backups_view_action = QAction("&Backups...", self.tools_menu)
         backups_view_action.triggered.connect(self.main_window.show_backups_dialog)
         self.tools_menu.addAction(backups_view_action)
+
+        self.tools_menu.addSeparator()
+
+        pos_presets_action = QAction("POS &Presets...", self.tools_menu)
+
+        # Connect signal using a named function for better debugging
+        def show_dialog():
+            sys.stderr.flush()
+            self._show_pos_presets_dialog()
+
+        pos_presets_action.triggered.connect(show_dialog)
+        self.tools_menu.addAction(pos_presets_action)
+
+    def _show_pos_presets_dialog(self) -> None:
+        """Show the POS presets management dialog."""
+        dialog = AnnotationPresetManagementDialog(self.main_window)
+        dialog.exec()
 
 
 class PreferencesMenu:
