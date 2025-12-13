@@ -36,16 +36,41 @@ class TestBackupService:
     def backup_service(self, mock_db_path, temp_backup_dir, monkeypatch):
         """Create a BackupService instance with mocked paths."""
         with patch("oeapp.services.backup.get_project_db_path", return_value=mock_db_path):
-            service = BackupService()
-            # Override paths after initialization
-            service.db_path = mock_db_path
-            service.backup_dir = temp_backup_dir
-            yield service
+            # Use a temporary QSettings to avoid persistence issues
+            with patch("oeapp.services.backup.QSettings") as mock_qsettings_class:
+                # Create a mock QSettings that behaves like a dict
+                mock_settings = MagicMock()
+                mock_settings_dict = {}
+
+                def mock_value(key, default=None, type=None):
+                    return mock_settings_dict.get(key, default)
+
+                def mock_setValue(key, value):
+                    mock_settings_dict[key] = value
+
+                def mock_remove(key):
+                    mock_settings_dict.pop(key, None)
+
+                def mock_sync():
+                    pass
+
+                mock_settings.value = mock_value
+                mock_settings.setValue = mock_setValue
+                mock_settings.remove = mock_remove
+                mock_settings.sync = mock_sync
+                mock_qsettings_class.return_value = mock_settings
+
+                service = BackupService()
+                # Override paths after initialization
+                service.db_path = mock_db_path
+                service.backup_dir = temp_backup_dir
+                yield service
 
     def test_get_num_backups_default(self, backup_service):
         """Test get_num_backups() returns default value."""
-        # Clear any existing setting
+        # Ensure setting is cleared
         backup_service.settings.remove("backup/num_backups")
+        # Should return default value of 5
         assert backup_service.get_num_backups() == 5
 
     def test_get_num_backups_from_settings(self, backup_service):
@@ -98,7 +123,11 @@ class TestBackupService:
 
     def test_should_backup_no_previous_backup(self, backup_service):
         """Test should_backup() returns True when no previous backup."""
+        # Ensure last_backup_time is cleared
         backup_service.settings.remove("backup/last_backup_time")
+        # Verify get_last_backup_time returns None
+        assert backup_service.get_last_backup_time() is None
+        # Now should_backup should return True
         assert backup_service.should_backup() is True
 
     def test_should_backup_within_interval(self, backup_service):
@@ -133,19 +162,19 @@ class TestBackupService:
         # Create a project in the database
         project = create_test_project(db_session, text="Se cyning")
         db_session.commit()
-        
+
         # Create a real database file for backup
         import shutil
         from sqlalchemy import create_engine
         from oeapp.db import Base
-        
+
         temp_db = tempfile.NamedTemporaryFile(delete=False, suffix='.db')
         temp_db.close()
         db_path = Path(temp_db.name)
-        
+
         engine = create_engine(f"sqlite:///{db_path}")
         Base.metadata.create_all(engine)
-        
+
         # Copy project data
         from sqlalchemy.orm import sessionmaker
         SessionLocal = sessionmaker(bind=engine)
@@ -157,15 +186,15 @@ class TestBackupService:
         finally:
             session.close()
             engine.dispose()
-        
+
         backup_service.db_path = db_path
-        
+
         backup_path = backup_service.create_backup()
-        
+
         assert backup_path.exists()
         assert backup_path.suffix == ".db"
         assert backup_path.parent == backup_service.backup_dir
-        
+
         # Cleanup
         db_path.unlink()
         backup_path.unlink()
@@ -175,19 +204,19 @@ class TestBackupService:
         # Create a project in the database
         project = create_test_project(db_session, text="Se cyning")
         db_session.commit()
-        
+
         # Create a real database file for backup
         import shutil
         from sqlalchemy import create_engine
         from oeapp.db import Base
-        
+
         temp_db = tempfile.NamedTemporaryFile(delete=False, suffix='.db')
         temp_db.close()
         db_path = Path(temp_db.name)
-        
+
         engine = create_engine(f"sqlite:///{db_path}")
         Base.metadata.create_all(engine)
-        
+
         # Copy project data
         from sqlalchemy.orm import sessionmaker
         SessionLocal = sessionmaker(bind=engine)
@@ -199,23 +228,23 @@ class TestBackupService:
         finally:
             session.close()
             engine.dispose()
-        
+
         backup_service.db_path = db_path
-        
+
         backup_path = backup_service.create_backup()
         metadata_path = backup_path.with_suffix(".json")
-        
+
         assert metadata_path.exists()
-        
+
         # Check metadata content
         with metadata_path.open("r") as f:
             metadata = json.load(f)
-        
+
         assert "backup_timestamp" in metadata
         assert "application_version" in metadata
         assert "database_file_size" in metadata
         assert isinstance(metadata["projects"], list)
-        
+
         # Cleanup
         db_path.unlink()
         backup_path.unlink()
@@ -224,16 +253,16 @@ class TestBackupService:
     def test_cleanup_old_backups_removes_excess(self, backup_service, temp_backup_dir):
         """Test cleanup_old_backups() removes backups beyond limit."""
         backup_service.settings.setValue("backup/num_backups", 2)
-        
+
         # Create 3 backup files
         for i in range(3):
             backup_file = temp_backup_dir / f"test_{i}.db"
             backup_file.touch()
             json_file = temp_backup_dir / f"test_{i}.json"
             json_file.touch()
-        
+
         backup_service.cleanup_old_backups()
-        
+
         # Should keep only 2 most recent (by mtime)
         backup_files = list(temp_backup_dir.glob("*.db"))
         assert len(backup_files) <= 2
@@ -251,9 +280,9 @@ class TestBackupService:
         }
         with metadata_file.open("w") as f:
             json.dump(metadata, f)
-        
+
         backups = backup_service.get_backup_list()
-        
+
         assert len(backups) == 1
         assert backups[0]["backup_path"] == backup_file
         assert backups[0]["metadata_path"] == metadata_file
@@ -264,7 +293,7 @@ class TestBackupService:
         # Create a backup file to restore
         backup_file = temp_backup_dir / "backup.db"
         backup_file.write_bytes(b"backup data")
-        
+
         # Mock create_backup to verify it's called
         with patch.object(backup_service, "create_backup") as mock_create:
             backup_service.restore_backup(backup_file)
@@ -276,11 +305,11 @@ class TestBackupService:
         backup_file = temp_backup_dir / "backup.db"
         backup_content = b"restored data"
         backup_file.write_bytes(backup_content)
-        
+
         # Mock create_backup to avoid side effects
         with patch.object(backup_service, "create_backup"):
             result = backup_service.restore_backup(backup_file)
-        
+
         # Check that database was overwritten
         assert mock_db_path.read_bytes() == backup_content
 
@@ -297,10 +326,10 @@ class TestBackupService:
         }
         with metadata_file.open("w") as f:
             json.dump(metadata, f)
-        
+
         with patch.object(backup_service, "create_backup"):
             result = backup_service.restore_backup(backup_file)
-        
+
         assert result is not None
         assert result["application_version"] == "1.0.0"
         assert len(result["projects"]) == 1

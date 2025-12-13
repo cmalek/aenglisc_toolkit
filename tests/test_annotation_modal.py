@@ -1,18 +1,42 @@
 """Unit tests for AnnotationModal."""
 
-import unittest
 import sys
+import pytest
 from unittest.mock import Mock, patch
-
-# Mock PySide6 before importing to avoid Qt dependencies in tests
-sys.modules['PySide6'] = Mock()
-sys.modules['PySide6.QtWidgets'] = Mock()
-sys.modules['PySide6.QtCore'] = Mock()
-sys.modules['PySide6.QtGui'] = Mock()
 
 from oeapp.models.token import Token
 from oeapp.models.annotation import Annotation
 from oeapp.models.annotation_preset import AnnotationPreset
+
+
+@pytest.fixture(autouse=True, scope="module")
+def mock_pyside6():
+    """
+    Mock PySide6 to avoid Qt dependencies in tests.
+
+    This fixture is automatically used for all tests in this module.
+    It mocks PySide6 at the module level to prevent Qt initialization.
+    """
+    # Store original modules if they exist
+    original_modules = {}
+    for module_name in ['PySide6', 'PySide6.QtWidgets', 'PySide6.QtCore', 'PySide6.QtGui']:
+        if module_name in sys.modules:
+            original_modules[module_name] = sys.modules[module_name]
+
+    # Mock PySide6 modules
+    sys.modules['PySide6'] = Mock()
+    sys.modules['PySide6.QtWidgets'] = Mock()
+    sys.modules['PySide6.QtCore'] = Mock()
+    sys.modules['PySide6.QtGui'] = Mock()
+
+    yield
+
+    # Restore original modules after tests
+    for module_name in ['PySide6', 'PySide6.QtWidgets', 'PySide6.QtCore', 'PySide6.QtGui']:
+        if module_name in sys.modules:
+            del sys.modules[module_name]
+        if module_name in original_modules:
+            sys.modules[module_name] = original_modules[module_name]
 
 
 class MockComboBox:
@@ -92,10 +116,11 @@ class MockSlider:
         self.value_int = value
 
 
-class TestAnnotationModal(unittest.TestCase):
+class TestAnnotationModal:
     """Test cases for AnnotationModal."""
 
-    def setUp(self):
+    @pytest.fixture(autouse=True)
+    def setup_token(self):
         """Set up test token and annotation."""
         self.token = Token(
             id=1,
@@ -117,11 +142,11 @@ class TestAnnotationModal(unittest.TestCase):
         )
 
         # Verify annotation data is correct
-        self.assertEqual(annotation.pos, "N")
-        self.assertEqual(annotation.gender, "m")
-        self.assertEqual(annotation.number, "s")
-        self.assertEqual(annotation.case, "n")
-        self.assertEqual(annotation.declension, "strong")
+        assert annotation.pos == "N"
+        assert annotation.gender == "m"
+        assert annotation.number == "s"
+        assert annotation.case == "n"
+        assert annotation.declension == "strong"
 
     def test_load_verb_annotation(self):
         """Test loading existing verb annotation into modal."""
@@ -137,13 +162,13 @@ class TestAnnotationModal(unittest.TestCase):
         )
 
         # Verify verb annotation fields
-        self.assertEqual(annotation.pos, "V")
-        self.assertEqual(annotation.verb_class, "s7")
-        self.assertEqual(annotation.verb_tense, "p")
-        self.assertEqual(annotation.verb_mood, "i")
-        self.assertEqual(annotation.verb_person, 3)
-        self.assertEqual(annotation.number, "s")
-        self.assertEqual(annotation.verb_form, "f")
+        assert annotation.pos == "V"
+        assert annotation.verb_class == "s7"
+        assert annotation.verb_tense == "p"
+        assert annotation.verb_mood == "i"
+        assert annotation.verb_person == 3
+        assert annotation.number == "s"
+        assert annotation.verb_form == "f"
 
     def test_load_pronoun_annotation(self):
         """Test loading existing pronoun annotation into modal."""
@@ -157,11 +182,11 @@ class TestAnnotationModal(unittest.TestCase):
         )
 
         # Verify pronoun annotation fields
-        self.assertEqual(annotation.pos, "R")
-        self.assertEqual(annotation.pronoun_type, "d")
-        self.assertEqual(annotation.gender, "m")
-        self.assertEqual(annotation.number, "s")
-        self.assertEqual(annotation.case, "n")
+        assert annotation.pos == "R"
+        assert annotation.pronoun_type == "d"
+        assert annotation.gender == "m"
+        assert annotation.number == "s"
+        assert annotation.case == "n"
 
     def test_save_noun_annotation_data(self):
         """Test extracting and saving noun annotation data."""
@@ -183,11 +208,11 @@ class TestAnnotationModal(unittest.TestCase):
         )
 
         # Verify saved data
-        self.assertEqual(annotation.pos, pos)
-        self.assertEqual(annotation.gender, gender)
-        self.assertEqual(annotation.number, number)
-        self.assertEqual(annotation.case, case)
-        self.assertEqual(annotation.declension, declension)
+        assert annotation.pos == pos
+        assert annotation.gender == gender
+        assert annotation.number == number
+        assert annotation.case == case
+        assert annotation.declension == declension
 
     def test_save_verb_annotation_data(self):
         """Test extracting and saving verb annotation data."""
@@ -205,14 +230,14 @@ class TestAnnotationModal(unittest.TestCase):
         )
 
         # Verify saved data includes all verb fields
-        self.assertEqual(annotation.pos, "V")
-        self.assertEqual(annotation.verb_class, "w1")
-        self.assertEqual(annotation.verb_tense, "n")
-        self.assertEqual(annotation.verb_mood, "s")
-        self.assertEqual(annotation.verb_person, 2)
-        self.assertEqual(annotation.number, "p")
-        self.assertEqual(annotation.verb_aspect, "p")
-        self.assertEqual(annotation.verb_form, "f")
+        assert annotation.pos == "V"
+        assert annotation.verb_class == "w1"
+        assert annotation.verb_tense == "n"
+        assert annotation.verb_mood == "s"
+        assert annotation.verb_person == 2
+        assert annotation.number == "p"
+        assert annotation.verb_aspect == "p"
+        assert annotation.verb_form == "f"
 
     def test_save_adjective_annotation_data(self):
         """Test extracting and saving adjective annotation data."""
@@ -225,10 +250,10 @@ class TestAnnotationModal(unittest.TestCase):
         )
 
         # Verify adjective fields
-        self.assertEqual(annotation.pos, "A")
-        self.assertEqual(annotation.gender, "f")
-        self.assertEqual(annotation.number, "p")
-        self.assertEqual(annotation.case, "a")
+        assert annotation.pos == "A"
+        assert annotation.gender == "f"
+        assert annotation.number == "p"
+        assert annotation.case == "a"
 
     def test_save_preposition_annotation_data(self):
         """Test extracting and saving preposition annotation data."""
@@ -239,8 +264,8 @@ class TestAnnotationModal(unittest.TestCase):
         )
 
         # Verify preposition field
-        self.assertEqual(annotation.pos, "E")
-        self.assertEqual(annotation.prep_case, "d")
+        assert annotation.pos == "E"
+        assert annotation.prep_case == "d"
 
     def test_pos_specific_fields_visibility(self):
         """Test that POS-specific fields are shown based on selection."""
@@ -253,10 +278,10 @@ class TestAnnotationModal(unittest.TestCase):
             case="n",
             declension="strong"
         )
-        self.assertIsNotNone(noun_annotation.gender)
-        self.assertIsNotNone(noun_annotation.number)
-        self.assertIsNotNone(noun_annotation.case)
-        self.assertIsNotNone(noun_annotation.declension)
+        assert noun_annotation.gender is not None
+        assert noun_annotation.number is not None
+        assert noun_annotation.case is not None
+        assert noun_annotation.declension is not None
 
         # Test verb fields
         verb_annotation = Annotation(
@@ -265,8 +290,8 @@ class TestAnnotationModal(unittest.TestCase):
             verb_tense="p",
             verb_mood="i"
         )
-        self.assertIsNotNone(verb_annotation.verb_tense)
-        self.assertIsNotNone(verb_annotation.verb_mood)
+        assert verb_annotation.verb_tense is not None
+        assert verb_annotation.verb_mood is not None
 
     def test_metadata_fields(self):
         """Test metadata fields (uncertain, alternatives, confidence)."""
@@ -282,9 +307,9 @@ class TestAnnotationModal(unittest.TestCase):
         )
 
         # Verify metadata
-        self.assertTrue(annotation.uncertain)
-        self.assertEqual(annotation.alternatives_json, "w2 / s3")
-        self.assertEqual(annotation.confidence, 75)
+        assert annotation.uncertain is True
+        assert annotation.alternatives_json == "w2 / s3"
+        assert annotation.confidence == 75
 
     def test_extract_noun_values_from_ui(self):
         """Test extracting noun values from UI components."""
@@ -311,9 +336,9 @@ class TestAnnotationModal(unittest.TestCase):
         case = case_map.get(case_combo.currentText())
 
         # Verify extraction
-        self.assertEqual(gender, "m")
-        self.assertEqual(number, "s")
-        self.assertEqual(case, "n")
+        assert gender == "m"
+        assert number == "s"
+        assert case == "n"
 
     def test_extract_verb_values_from_ui(self):
         """Test extracting verb values from UI components."""
@@ -340,9 +365,9 @@ class TestAnnotationModal(unittest.TestCase):
         person = person_map.get(person_combo.currentText())
 
         # Verify extraction
-        self.assertEqual(tense, "n")
-        self.assertEqual(mood, "s")
-        self.assertEqual(person, 3)
+        assert tense == "n"
+        assert mood == "s"
+        assert person == 3
 
     def test_clear_all_fields(self):
         """Test clearing all annotation fields."""
@@ -360,13 +385,14 @@ class TestAnnotationModal(unittest.TestCase):
         # Clear annotation (simulating clear button)
         cleared_annotation = Annotation(token_id=1)
 
-        # Verify all fields are cleared
-        self.assertIsNone(cleared_annotation.pos)
-        self.assertIsNone(cleared_annotation.gender)
-        self.assertIsNone(cleared_annotation.number)
-        self.assertIsNone(cleared_annotation.case)
-        self.assertFalse(cleared_annotation.uncertain)
-        self.assertIsNone(cleared_annotation.confidence)
+        # Verify all fields are cleared (default values)
+        assert cleared_annotation.pos is None
+        assert cleared_annotation.gender is None
+        assert cleared_annotation.number is None
+        assert cleared_annotation.case is None
+        # uncertain defaults to None when not specified
+        assert cleared_annotation.uncertain is None
+        assert cleared_annotation.confidence is None
 
     def test_partial_annotation_save(self):
         """Test saving annotation with only some fields filled."""
@@ -377,10 +403,10 @@ class TestAnnotationModal(unittest.TestCase):
         )
 
         # Verify partial annotation
-        self.assertEqual(annotation.pos, "N")
-        self.assertIsNone(annotation.gender)
-        self.assertIsNone(annotation.number)
-        self.assertIsNone(annotation.case)
+        assert annotation.pos == "N"
+        assert annotation.gender is None
+        assert annotation.number is None
+        assert annotation.case is None
 
     def test_complex_annotation_all_fields(self):
         """Test saving complex annotation with all fields populated."""
@@ -400,17 +426,17 @@ class TestAnnotationModal(unittest.TestCase):
         )
 
         # Verify all fields are saved
-        self.assertEqual(annotation.pos, "V")
-        self.assertEqual(annotation.verb_class, "s3")
-        self.assertEqual(annotation.verb_tense, "p")
-        self.assertEqual(annotation.verb_mood, "i")
-        self.assertEqual(annotation.verb_person, 3)
-        self.assertEqual(annotation.number, "s")
-        self.assertEqual(annotation.verb_aspect, "p")
-        self.assertEqual(annotation.verb_form, "f")
-        self.assertTrue(annotation.uncertain)
-        self.assertEqual(annotation.alternatives_json, "s2 / w1")
-        self.assertEqual(annotation.confidence, 60)
+        assert annotation.pos == "V"
+        assert annotation.verb_class == "s3"
+        assert annotation.verb_tense == "p"
+        assert annotation.verb_mood == "i"
+        assert annotation.verb_person == 3
+        assert annotation.number == "s"
+        assert annotation.verb_aspect == "p"
+        assert annotation.verb_form == "f"
+        assert annotation.uncertain is True
+        assert annotation.alternatives_json == "s2 / w1"
+        assert annotation.confidence == 60
 
     def test_extract_current_field_values_noun(self):
         """Test _extract_current_field_values() extracts noun field values correctly."""
@@ -471,5 +497,3 @@ class TestAnnotationModal(unittest.TestCase):
         # In actual implementation, this would set number_combo to index 0
 
 
-if __name__ == '__main__':
-    unittest.main()

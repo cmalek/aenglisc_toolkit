@@ -1,12 +1,32 @@
 """Shared pytest fixtures and test helpers for Ænglisc Toolkit tests."""
 
 import os
+import sys
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
-from PySide6.QtWidgets import QApplication
+
+# CRITICAL: Create QApplication BEFORE any Qt imports to prevent segmentation faults
+# This must happen at module import time, before any test modules are imported
+# Qt requires QApplication to exist before any Qt widgets can be used
+try:
+    from PySide6.QtWidgets import QApplication
+
+    # Ensure QApplication exists before any test imports
+    # This prevents segfaults when test modules import Qt widgets during collection
+    if QApplication.instance() is None:
+        # Create QApplication with minimal args to avoid requiring display
+        # Use sys.argv if available, otherwise empty list
+        import sys
+        app_args = sys.argv if hasattr(sys, 'argv') else []
+        _ = QApplication(app_args)
+except (ImportError, RuntimeError):
+    # If Qt is not available or can't be initialized, that's okay
+    # Some tests mock Qt, so we can't require it here
+    pass
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -22,6 +42,7 @@ from oeapp.services.migration import MigrationService, MigrationMetadataService
 @pytest.fixture(scope="session")
 def qapp():
     """Create QApplication instance for testing PySide6 widgets."""
+    from PySide6.QtWidgets import QApplication
     app = QApplication.instance()
     if app is None:
         app = QApplication([])
@@ -172,12 +193,12 @@ def mock_migration_services():
     mock_backup = MagicMock()
     mock_engine = MagicMock()
     mock_metadata = MagicMock()
-    
+
     migration_service = MigrationService(
         backup_service=mock_backup,
         engine=mock_engine,
         migration_metadata_service=mock_metadata
     )
-    
+
     return migration_service, mock_metadata
 

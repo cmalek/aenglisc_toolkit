@@ -1,19 +1,10 @@
 """Unit tests for AnnotationPresetManagementDialog."""
 
-import sys
 import pytest
 from unittest.mock import Mock
 
-# Ensure PySide6 is not mocked before importing
-# This handles the case where test_annotation_modal.py runs first and mocks PySide6
-_original_pyside6 = sys.modules.get('PySide6')
-if isinstance(_original_pyside6, Mock):
-    # Clear mocked PySide6 modules so we can import the real ones
-    keys_to_remove = [k for k in list(sys.modules.keys()) if k.startswith('PySide6')]
-    for key in keys_to_remove:
-        del sys.modules[key]
-
-# Now import PySide6 - it will be the real one
+# Import QApplication from conftest's qapp fixture
+# The conftest.py ensures QApplication is created before any test imports
 from PySide6.QtWidgets import QApplication
 
 from oeapp.models.annotation_preset import AnnotationPreset
