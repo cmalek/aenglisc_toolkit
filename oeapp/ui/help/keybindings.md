@@ -15,6 +15,8 @@
 | Action | Shortcut |
 |--------|----------|
 | Annotate Selected Token | **A** |
+| Copy Annotation | **Cmd+C** / **Ctrl+C** |
+| Paste Annotation | **Cmd+V** / **Ctrl+V** |
 | In Annotation Modal: | |
 | - Apply Annotation | **Enter** or **Return** |
 | - Cancel | **Escape** |
@@ -29,6 +31,8 @@
 | - Select POS (Interjection) | **I** |
 
 **Note:** When the token table has focus, pressing **A** opens the annotation dialog. Other letter keys (including **N**, **V**, etc.) can be used for incremental search to find tokens starting with that letter.
+
+**Note:** Copy and Paste annotation shortcuts only work when a token is selected. When editing text fields, these shortcuts work normally for text operations.
 
 ## Editing
 

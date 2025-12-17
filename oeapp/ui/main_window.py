@@ -2,7 +2,7 @@
 
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Final, cast
+from typing import TYPE_CHECKING, Any, Final, cast
 
 from PySide6.QtCore import QSettings, Qt, QTimer
 from PySide6.QtGui import QKeySequence, QShortcut
@@ -24,6 +24,7 @@ from oeapp.models.project import Project
 from oeapp.models.token import Token
 from oeapp.services import (
     AddSentenceCommand,
+    AnnotateTokenCommand,
     AutosaveService,
     BackupService,
     CommandManager,
@@ -85,6 +86,8 @@ class MainWindow(QMainWindow):
         self.action_service = MainWindowActions(self)
         #: Currently selected sentence card
         self.selected_sentence_card: SentenceCard | None = None
+        #: Copied annotation data for paste operation
+        self.copied_annotation: dict[str, Any] | None = None
 
         # Build the main window
         self.build()
@@ -368,7 +371,10 @@ class MainWindow(QMainWindow):
                 self.content_layout.addWidget(separator)
 
             card = SentenceCard(
-                sentence, session=self.session, command_manager=self.command_manager
+                sentence,
+                session=self.session,
+                command_manager=self.command_manager,
+                main_window=self,
             )
             card.set_tokens(sentence.tokens)
             card.translation_edit.textChanged.connect(self._on_translation_changed)
@@ -867,6 +873,154 @@ class MainWindowActions:
                     self.refresh_all_cards()
             else:
                 self.main_window.show_message("Redo failed")
+
+    def copy_annotation(self) -> bool:
+        """
+        Copy the annotation from the currently selected token.
+
+        Returns:
+            True if annotation was copied, False otherwise.
+            Returns False if no token is selected (allows normal clipboard behavior).
+
+        """
+        # Check if a token is selected
+        card = self.main_window.selected_sentence_card
+        if not card or card.selected_token_index is None:
+            # No token selected, allow normal clipboard behavior
+            return False
+
+        # Get the selected token
+        token_index = card.selected_token_index
+        if token_index < 0 or token_index >= len(card.tokens):
+            return False
+
+        token = card.tokens[token_index]
+
+        # Check if token has an annotation
+        if not token.annotation:
+            self.main_window.show_message("No annotation to copy")
+            return True  # Return True to indicate we handled the event
+
+        # Extract annotation fields
+        annotation = token.annotation
+        self.main_window.copied_annotation = {
+            "pos": annotation.pos,
+            "gender": annotation.gender,
+            "number": annotation.number,
+            "case": annotation.case,
+            "declension": annotation.declension,
+            "article_type": annotation.article_type,
+            "pronoun_type": annotation.pronoun_type,
+            "pronoun_number": annotation.pronoun_number,
+            "verb_class": annotation.verb_class,
+            "verb_tense": annotation.verb_tense,
+            "verb_person": annotation.verb_person,
+            "verb_mood": annotation.verb_mood,
+            "verb_aspect": annotation.verb_aspect,
+            "verb_form": annotation.verb_form,
+            "prep_case": annotation.prep_case,
+            "adjective_inflection": annotation.adjective_inflection,
+            "adjective_degree": annotation.adjective_degree,
+            "conjunction_type": annotation.conjunction_type,
+            "adverb_degree": annotation.adverb_degree,
+            "uncertain": annotation.uncertain,
+            "alternatives_json": annotation.alternatives_json,
+            "modern_english_meaning": annotation.modern_english_meaning,
+            "root": annotation.root,
+        }
+
+        self.main_window.show_message("Annotation copied")
+        return True
+
+    def paste_annotation(self) -> bool:
+        """
+        Paste the copied annotation onto the currently selected token.
+
+        Returns:
+            True if annotation was pasted, False otherwise.
+            Returns False if no token is selected (allows normal clipboard behavior).
+
+        """
+        # Check if a token is selected
+        card = self.main_window.selected_sentence_card
+        if not card or card.selected_token_index is None:
+            # No token selected, allow normal clipboard behavior
+            return False
+
+        # Check if there's a copied annotation
+        if self.main_window.copied_annotation is None:
+            self.main_window.show_message("No annotation to paste")
+            return True  # Return True to indicate we handled the event
+
+        # Get the selected token
+        token_index = card.selected_token_index
+        if token_index < 0 or token_index >= len(card.tokens):
+            return False
+
+        token = card.tokens[token_index]
+        if not token.id:
+            return False
+
+        # Capture current annotation state for undo
+        before_state: dict[str, Any] = {}
+        if token.annotation:
+            annotation = token.annotation
+            before_state = {
+                "pos": annotation.pos,
+                "gender": annotation.gender,
+                "number": annotation.number,
+                "case": annotation.case,
+                "declension": annotation.declension,
+                "article_type": annotation.article_type,
+                "pronoun_type": annotation.pronoun_type,
+                "pronoun_number": annotation.pronoun_number,
+                "verb_class": annotation.verb_class,
+                "verb_tense": annotation.verb_tense,
+                "verb_person": annotation.verb_person,
+                "verb_mood": annotation.verb_mood,
+                "verb_aspect": annotation.verb_aspect,
+                "verb_form": annotation.verb_form,
+                "prep_case": annotation.prep_case,
+                "adjective_inflection": annotation.adjective_inflection,
+                "adjective_degree": annotation.adjective_degree,
+                "conjunction_type": annotation.conjunction_type,
+                "adverb_degree": annotation.adverb_degree,
+                "uncertain": annotation.uncertain,
+                "alternatives_json": annotation.alternatives_json,
+                "modern_english_meaning": annotation.modern_english_meaning,
+                "root": annotation.root,
+            }
+
+        # Create and execute the command
+        if not self.command_manager:
+            self.main_window.show_message("Command manager not available")
+            return True
+
+        command = AnnotateTokenCommand(
+            session=self.session,
+            token_id=token.id,
+            before=before_state,
+            after=self.main_window.copied_annotation,
+        )
+
+        if self.command_manager.execute(command):
+            # Refresh the token from database to update relationships
+            self.session.refresh(token)
+
+            # Refresh the sentence card
+            card.set_tokens(card.sentence.tokens)
+
+            # Update sidebar if the pasted token is currently displayed
+            if card.selected_token_index == token_index:
+                self.main_window.token_details_sidebar.update_token(
+                    token, card.sentence
+                )
+
+            self.main_window.show_message("Annotation pasted")
+        else:
+            self.main_window.show_message("Paste failed")
+
+        return True
 
     def refresh_all_cards(self) -> None:
         """

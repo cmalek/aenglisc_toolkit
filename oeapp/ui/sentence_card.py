@@ -7,6 +7,7 @@ from PySide6.QtCore import QPoint, QTimer, Signal
 from PySide6.QtGui import (
     QColor,
     QFont,
+    QKeyEvent,
     QKeySequence,
     QMouseEvent,
     QShortcut,
@@ -53,6 +54,7 @@ if TYPE_CHECKING:
 
     from oeapp.models.note import Note
     from oeapp.models.token import Token
+    from oeapp.ui.main_window import MainWindow
 
 
 class ClickableTextEdit(QTextEdit):
@@ -60,6 +62,9 @@ class ClickableTextEdit(QTextEdit):
 
     clicked = Signal(QPoint, object)  # position, modifiers
     double_clicked = Signal(QPoint)
+    # Signals for annotation copy/paste
+    copy_annotation_requested = Signal()
+    paste_annotation_requested = Signal()
 
     def mousePressEvent(self, event: QMouseEvent) -> None:  # noqa: N802
         """Handle mouse press event and emit clicked signal."""
@@ -70,6 +75,29 @@ class ClickableTextEdit(QTextEdit):
         """Handle mouse double-click event and emit double_clicked signal."""
         super().mouseDoubleClickEvent(event)
         self.double_clicked.emit(event.position().toPoint())
+
+    def keyPressEvent(self, event: QKeyEvent) -> None:  # noqa: N802
+        """
+        Handle key press events for annotation copy/paste.
+
+        Intercepts Cmd/Ctrl+C and Cmd/Ctrl+V to emit signals for annotation
+        copy/paste when a token is selected.
+
+        Args:
+            event: Key event
+
+        """
+        if event.matches(QKeySequence.StandardKey.Copy):
+            self.copy_annotation_requested.emit()
+            event.accept()
+            return
+        if event.matches(QKeySequence.StandardKey.Paste):
+            self.paste_annotation_requested.emit()
+            event.accept()
+            return
+
+        # For all other keys, use default behavior
+        super().keyPressEvent(event)
 
 
 class SentenceCard(TokenOccurrenceMixin, QWidget):
@@ -134,12 +162,14 @@ class SentenceCard(TokenOccurrenceMixin, QWidget):
         sentence: Sentence,
         session: Session | None = None,
         command_manager: CommandManager | None = None,
+        main_window: MainWindow | None = None,
         parent: QWidget | None = None,
     ):
         super().__init__(parent)
         self.sentence = sentence
         self.session = session
         self.command_manager = command_manager
+        self.main_window = main_window
         self.token_table = TokenTable()
         self.tokens: list[Token] = sentence.tokens
         self.annotations: dict[int, Annotation | None] = {
@@ -219,6 +249,41 @@ class SentenceCard(TokenOccurrenceMixin, QWidget):
         current_row = self.token_table.current_row
         if current_row > 1 and self.tokens:
             self.token_table.select_token(current_row - 1)
+
+    def keyPressEvent(self, event: QKeyEvent) -> None:  # noqa: N802
+        """
+        Handle keyboard shortcuts for annotation copy/paste.
+
+        Intercepts Cmd/Ctrl+C and Cmd/Ctrl+V when a token is selected,
+        otherwise lets Qt handle the event normally.
+
+        Args:
+            event: Key event
+
+        """
+        # Check for copy/paste shortcuts only when a token is selected
+        if self.selected_token_index is not None and self.main_window:
+            if event.matches(QKeySequence.StandardKey.Copy):
+                self.main_window.action_service.copy_annotation()
+                event.accept()
+                return
+            if event.matches(QKeySequence.StandardKey.Paste):
+                self.main_window.action_service.paste_annotation()
+                event.accept()
+                return
+
+        # For all other keys, use default behavior
+        super().keyPressEvent(event)
+
+    def _on_copy_annotation_requested(self) -> None:
+        """Handle copy annotation request from OE text edit."""
+        if self.selected_token_index is not None and self.main_window:
+            self.main_window.action_service.copy_annotation()
+
+    def _on_paste_annotation_requested(self) -> None:
+        """Handle paste annotation request from OE text edit."""
+        if self.selected_token_index is not None and self.main_window:
+            self.main_window.action_service.paste_annotation()
 
     def _setup_ui(self):  # noqa: PLR0915
         """Set up the UI layout."""
@@ -314,6 +379,12 @@ class SentenceCard(TokenOccurrenceMixin, QWidget):
         self.oe_text_edit.textChanged.connect(self._on_oe_text_changed)
         self.oe_text_edit.clicked.connect(self._on_oe_text_clicked)
         self.oe_text_edit.double_clicked.connect(self._on_oe_text_double_clicked)
+        self.oe_text_edit.copy_annotation_requested.connect(
+            self._on_copy_annotation_requested
+        )
+        self.oe_text_edit.paste_annotation_requested.connect(
+            self._on_paste_annotation_requested
+        )
         # set the maximum height of the oe_text_edit to just fit the text
         # and its superscripts
         self.oe_text_edit.document().setTextWidth(self.oe_text_edit.viewport().width())

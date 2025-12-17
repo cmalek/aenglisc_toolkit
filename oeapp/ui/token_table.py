@@ -22,6 +22,7 @@ from oeapp.models.token import Token
 
 if TYPE_CHECKING:
     from oeapp.models.annotation import Annotation
+    from oeapp.ui.main_window import MainWindow
 
 
 class AnnotationTableWidget(QTableWidget):
@@ -49,14 +50,32 @@ class AnnotationTableWidget(QTableWidget):
         """
         self._token_table_ref = token_table
 
+    def _get_main_window(self) -> MainWindow | None:
+        """
+        Get the MainWindow by traversing the parent chain.
+
+        Returns:
+            MainWindow instance or None if not found
+
+        """
+        # Import here to avoid circular imports
+        from oeapp.ui.sentence_card import SentenceCard  # noqa: PLC0415
+
+        # Traverse parent chain to find SentenceCard, then get main_window
+        widget = self.parent()
+        while widget is not None:
+            if isinstance(widget, SentenceCard):
+                return widget.main_window
+            widget = widget.parent()
+        return None
+
     def keyPressEvent(self, event: QKeyEvent) -> None:  # noqa: N802
         """
-        Override keyPressEvent to intercept "Shift+A" key. and emit
-        annotation_key_pressed signal.  This is used to open the annotation
-        modal when a token is selected.
+        Override keyPressEvent to intercept "Shift+A" key and emit
+        annotation_key_pressed signal, and to handle copy/paste shortcuts.
 
-        If the key is not "Shift+A", use default behavior (including incremental
-        search).
+        If the key is not "Shift+A" or copy/paste, use default behavior
+        (including incremental search).
 
         If no token is selected, allow default behavior (including incremental
         search).
@@ -65,20 +84,34 @@ class AnnotationTableWidget(QTableWidget):
             event: Key event
 
         """
-        if (
-            event.key() == Qt.Key.Key_A
-            and event.modifiers() == Qt.KeyboardModifier.ShiftModifier
-        ):
-            # Check if a token is selected before handling
-            if self._token_table_ref:
-                token = self._token_table_ref.get_selected_token()
-                if token:
-                    # Emit signal to request annotation
+        # Check if a token is selected
+        if self._token_table_ref:
+            token = self._token_table_ref.get_selected_token()
+            if token:
+                # Handle Shift+A for annotation
+                if (
+                    event.key() == Qt.Key.Key_A
+                    and event.modifiers() == Qt.KeyboardModifier.ShiftModifier
+                ):
                     self.annotation_key_pressed.emit()
-                    # Accept the event to prevent further processing
                     event.accept()
                     return
-            # If no token selected, allow default behavior (incremental search)
+
+                # Handle copy/paste shortcuts
+                if event.matches(QKeySequence.StandardKey.Copy):
+                    main_window = self._get_main_window()
+                    if main_window:
+                        main_window.action_service.copy_annotation()
+                    event.accept()
+                    return
+
+                if event.matches(QKeySequence.StandardKey.Paste):
+                    main_window = self._get_main_window()
+                    if main_window:
+                        main_window.action_service.paste_annotation()
+                    event.accept()
+                    return
+
         # For all other keys, use default behavior (including incremental search)
         super().keyPressEvent(event)
 

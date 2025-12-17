@@ -239,7 +239,7 @@ class AnnotationPresetManagementDialog(AnnotationLookupsMixin, QDialog):
         button_container.addWidget(save_button)
 
         button_container.addStretch()  # Push buttons to the left
-        cast("QLayout", form_group.layout()).addChildLayout(button_container)
+        cast("QLayout", form_group.layout()).addLayout(button_container)  # type: ignore[attr-defined]
 
         layout.addWidget(form_group)
 
