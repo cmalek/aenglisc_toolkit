@@ -304,15 +304,6 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
         self._format_field_label(mod_e_label, annotation.modern_english_meaning)
         self.content_layout.addWidget(mod_e_label)
 
-        # Uncertainty
-        uncertain_value = "Yes" if annotation.uncertain else "?"
-        uncertain_label = QLabel(f"Uncertainty: {uncertain_value}")
-        self._format_field_label(uncertain_label, annotation.uncertain)
-        self.content_layout.addWidget(uncertain_label)
-
-        # TODO: - Note: TODO field may not exist in model, check if needed
-        # For now, we'll skip it or show as "?"
-
         # Confidence
         confidence_value = (
             f"{annotation.confidence}%" if annotation.confidence is not None else "?"

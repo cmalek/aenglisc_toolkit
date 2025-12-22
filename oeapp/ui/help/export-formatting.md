@@ -71,7 +71,6 @@ The word "hē" might appear as:
 ## Handling Missing Data
 
 - Missing annotations: Displayed as "—" or omitted
-- Uncertain annotations: Marked with `?`
 - Alternatives: Displayed as `/` separated values (e.g., `w2 / s3`)
 
 ## Font Sizes
@@ -96,5 +95,4 @@ You can customize these styles in Word after export if needed.
 
 1. **Review before export**: Check your annotations are complete
 2. **Use notes**: Add clarifying notes for complex constructions
-3. **Mark uncertainty**: Use the uncertain flag for questionable annotations
-4. **Consistent formatting**: The export maintains consistent formatting across all sentences
+3. **Consistent formatting**: The export maintains consistent formatting across all sentences

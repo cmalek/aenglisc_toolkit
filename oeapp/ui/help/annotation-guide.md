@@ -75,7 +75,6 @@ features, and metadata.
 
 The following fields are available for all POS types in the Metadata section:
 
-- **Uncertain**: Mark the annotation as uncertain (displays with a "?" in exports)
 - **Alternatives**: Enter alternative interpretations (e.g., "w2 / s3")
 - **Confidence**: Set confidence level from 0-100% using the slider
 - **TODO**: Mark annotation as needing review

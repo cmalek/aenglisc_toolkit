@@ -923,7 +923,6 @@ class MainWindowActions:
             "adjective_degree": annotation.adjective_degree,
             "conjunction_type": annotation.conjunction_type,
             "adverb_degree": annotation.adverb_degree,
-            "uncertain": annotation.uncertain,
             "modern_english_meaning": annotation.modern_english_meaning,
             "root": annotation.root,
         }
@@ -984,7 +983,6 @@ class MainWindowActions:
                 "adjective_degree": annotation.adjective_degree,
                 "conjunction_type": annotation.conjunction_type,
                 "adverb_degree": annotation.adverb_degree,
-                "uncertain": annotation.uncertain,
                 "modern_english_meaning": annotation.modern_english_meaning,
                 "root": annotation.root,
             }

@@ -141,8 +141,6 @@ class Annotation(AnnotationTextualMixin, Base):
     conjunction_type: Mapped[str | None] = mapped_column(String, nullable=True)  # c, s
     #: The adverb degree.
     adverb_degree: Mapped[str | None] = mapped_column(String, nullable=True)  # p, c, s
-    #: Whether the annotation is uncertain.
-    uncertain: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     #: The confidence in the annotation.
     confidence: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 0-100
     #: The last inferred JSON.
@@ -201,7 +199,6 @@ class Annotation(AnnotationTextualMixin, Base):
             "adjective_degree": self.adjective_degree,
             "conjunction_type": self.conjunction_type,
             "adverb_degree": self.adverb_degree,
-            "uncertain": self.uncertain,
             "confidence": self.confidence,
             "last_inferred_json": self.last_inferred_json,
             "modern_english_meaning": self.modern_english_meaning,
@@ -244,7 +241,6 @@ class Annotation(AnnotationTextualMixin, Base):
             adjective_degree=ann_data.get("adjective_degree"),
             conjunction_type=ann_data.get("conjunction_type"),
             adverb_degree=ann_data.get("adverb_degree"),
-            uncertain=ann_data.get("uncertain", False),
             confidence=ann_data.get("confidence"),
             last_inferred_json=ann_data.get("last_inferred_json"),
             modern_english_meaning=ann_data.get("modern_english_meaning"),

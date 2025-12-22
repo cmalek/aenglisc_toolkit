@@ -152,9 +152,6 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         metadata_group = QGroupBox("Metadata")
         metadata_layout = QVBoxLayout()
 
-        self.uncertain_check = QCheckBox("Uncertain (?)")
-        metadata_layout.addWidget(self.uncertain_check)
-
         confidence_layout = QHBoxLayout()
         confidence_layout.addWidget(QLabel("Confidence:"))
         self.confidence_slider = QSlider(Qt.Orientation.Horizontal)
@@ -1129,7 +1126,6 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
             self._load_interjection_values()
 
         # Load metadata
-        self.uncertain_check.setChecked(self.annotation.uncertain)
         if self.annotation.confidence is not None:
             self.confidence_slider.setValue(self.annotation.confidence)
         if self.annotation.modern_english_meaning:
@@ -1306,7 +1302,6 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         """Clear all fields."""
         # Set to index 0 (empty/None selection)
         self.pos_combo.setCurrentIndex(0)
-        self.uncertain_check.setChecked(False)
         self.confidence_slider.setValue(100)
         self.todo_check.setChecked(False)
         self.modern_english_edit.clear()
@@ -1351,7 +1346,6 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
             pass
 
         # Extract metadata
-        self.annotation.uncertain = self.uncertain_check.isChecked()
         self.annotation.confidence = self.confidence_slider.value()
         modern_english_text = self.modern_english_edit.text().strip()
         if modern_english_text:

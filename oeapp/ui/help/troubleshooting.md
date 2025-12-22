@@ -133,5 +133,5 @@ If you encounter bugs or issues:
 1. **Save regularly**: Although autosave is enabled, use Ctrl+S for important milestones
 2. **Use keyboard shortcuts**: Much faster than mouse clicking
 3. **Work incrementally**: Don't try to annotate everything perfectly on first pass
-4. **Use uncertainty flags**: Mark uncertain annotations rather than guessing
+4. **Use confidence level**: Indicate your level of certainty with the confidence slider rather than guessing
 5. **Review exports**: Regularly export and review DOCX files to catch annotation errors

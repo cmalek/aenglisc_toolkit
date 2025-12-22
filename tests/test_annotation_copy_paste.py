@@ -119,7 +119,6 @@ class TestCopyAnnotation:
         assert copied["declension"] == "a-stem"
         assert copied["modern_english_meaning"] == "king"
         assert copied["root"] == "cyning"
-        assert copied["uncertain"] is False
 
     def test_copy_annotation_copies_all_fields(self, db_session, qapp):
         """Test copy_annotation copies all annotation fields including None values."""
@@ -151,7 +150,6 @@ class TestCopyAnnotation:
         annotation.adjective_degree = None
         annotation.conjunction_type = None
         annotation.adverb_degree = None
-        annotation.uncertain = True
         annotation.modern_english_meaning = "to be"
         annotation.root = "bēon"
         db_session.commit()
@@ -185,7 +183,6 @@ class TestCopyAnnotation:
         assert copied["verb_mood"] == "i"
         assert copied["verb_aspect"] == "p"
         assert copied["verb_form"] == "f"
-        assert copied["uncertain"] is True
         assert copied["modern_english_meaning"] == "to be"
         assert copied["root"] == "bēon"
 
@@ -264,7 +261,6 @@ class TestPasteAnnotation:
             "adjective_degree": None,
             "conjunction_type": None,
             "adverb_degree": None,
-            "uncertain": False,
             "modern_english_meaning": "king",
             "root": "cyning",
         }
@@ -327,7 +323,6 @@ class TestPasteAnnotation:
             "adjective_degree": None,
             "conjunction_type": None,
             "adverb_degree": None,
-            "uncertain": False,
             "modern_english_meaning": "king",
             "root": None,
         }
@@ -393,7 +388,6 @@ class TestPasteAnnotation:
             "adjective_degree": None,
             "conjunction_type": None,
             "adverb_degree": None,
-            "uncertain": False,
             "modern_english_meaning": None,
             "root": None,
         }

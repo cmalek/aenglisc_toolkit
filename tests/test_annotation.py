@@ -48,7 +48,6 @@ class TestAnnotation:
             pronoun_type="p",
             pronoun_number="s",
             article_type="d",
-            uncertain=True,
             confidence=75,
             modern_english_meaning="king",
             root="cyning",
@@ -61,7 +60,6 @@ class TestAnnotation:
         assert annotation.gender == "m"
         assert annotation.number == "s"
         assert annotation.case == "n"
-        assert annotation.uncertain is True
         assert annotation.confidence == 75
 
     def test_create_with_partial_fields(self, db_session):
@@ -154,7 +152,6 @@ class TestAnnotation:
         annotation.modern_english_meaning = "king"
         annotation.root = "cyning"
         annotation.confidence = 75
-        annotation.uncertain = True
         db_session.commit()
 
         data = annotation.to_json()
@@ -165,7 +162,6 @@ class TestAnnotation:
         assert data["modern_english_meaning"] == "king"
         assert data["root"] == "cyning"
         assert data["confidence"] == 75
-        assert data["uncertain"] is True
         assert "updated_at" in data
 
     def test_from_json_creates_annotation(self, db_session):

@@ -513,7 +513,6 @@ class SentenceCard(TokenOccurrenceMixin, QWidget):
                 "verb_aspect": before_annotation.verb_aspect,
                 "verb_form": before_annotation.verb_form,
                 "prep_case": before_annotation.prep_case,
-                "uncertain": before_annotation.uncertain,
                 "adverb_degree": before_annotation.adverb_degree,
                 "adjective_inflection": before_annotation.adjective_inflection,
                 "adjective_degree": before_annotation.adjective_degree,
@@ -542,7 +541,6 @@ class SentenceCard(TokenOccurrenceMixin, QWidget):
             "adjective_inflection": annotation.adjective_inflection,
             "adjective_degree": annotation.adjective_degree,
             "conjunction_type": annotation.conjunction_type,
-            "uncertain": annotation.uncertain,
             "confidence": annotation.confidence,
             "modern_english_meaning": annotation.modern_english_meaning,
             "root": annotation.root,
@@ -1452,7 +1450,6 @@ class SentenceCard(TokenOccurrenceMixin, QWidget):
             existing.verb_aspect = annotation.verb_aspect
             existing.verb_form = annotation.verb_form
             existing.prep_case = annotation.prep_case
-            existing.uncertain = annotation.uncertain
             existing.adverb_degree = annotation.adverb_degree
             existing.adjective_inflection = annotation.adjective_inflection
             existing.adjective_degree = annotation.adjective_degree
@@ -1607,8 +1604,12 @@ class SentenceCard(TokenOccurrenceMixin, QWidget):
             return
 
         # Ensure notes relationship is loaded
-        if self.session and self.sentence.id:
-            self.session.refresh(self.sentence, ["notes"])
+        try:
+            if self.session and self.sentence.id:
+                self.session.refresh(self.sentence, ["notes"])
+        except Exception:  # noqa: BLE001
+            # If session is closed or object is detached (e.g. in tests)
+            return
 
         # Check if notes exist (after ensuring they're loaded)
         notes_list = list(self.sentence.notes) if self.sentence.notes else []

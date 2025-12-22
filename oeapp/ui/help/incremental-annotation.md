@@ -40,14 +40,6 @@ All annotation fields are optional. You can:
 - Fill in only what you're certain about
 - Add more details later
 
-## Uncertain Annotations
-
-Use the **Uncertain** checkbox when you're not confident about an annotation:
-
-- Marks the annotation with a `?` in exports
-- Helps identify areas needing review
-- Can be toggled off later when confident
-
 ## Alternatives
 
 Use the **Alternatives** field to record multiple possible interpretations:
@@ -77,7 +69,7 @@ Use the **TODO** checkbox to mark annotations needing further work:
 1. **Start broad**: Begin with POS tags across the entire text
 2. **Work systematically**: Process one sentence at a time
 3. **Refine incrementally**: Add details as you become more familiar with the text
-4. **Use uncertainty**: Mark uncertain annotations rather than guessing
+4. **Use confidence level**: Indicate your level of certainty with the confidence slider rather than guessing
 5. **Review regularly**: Periodically review and refine your annotations
 
 ## Keyboard Efficiency
