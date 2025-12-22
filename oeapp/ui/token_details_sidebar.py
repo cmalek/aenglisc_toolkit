@@ -313,14 +313,6 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
         # TODO: - Note: TODO field may not exist in model, check if needed
         # For now, we'll skip it or show as "?"
 
-        # Alternatives
-        alternatives_value = (
-            annotation.alternatives_json if annotation.alternatives_json else "?"
-        )
-        alternatives_label = QLabel(f"Alternatives: {alternatives_value}")
-        self._format_field_label(alternatives_label, annotation.alternatives_json)
-        self.content_layout.addWidget(alternatives_label)
-
         # Confidence
         confidence_value = (
             f"{annotation.confidence}%" if annotation.confidence is not None else "?"

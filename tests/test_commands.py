@@ -81,7 +81,6 @@ class TestCommandManager(unittest.TestCase):
             "verb_form": None,
             "prep_case": None,
             "uncertain": False,
-            "alternatives_json": None,
             "confidence": None,
         }
         after = {
@@ -99,7 +98,6 @@ class TestCommandManager(unittest.TestCase):
             "verb_form": None,
             "prep_case": None,
             "uncertain": False,
-            "alternatives_json": None,
             "confidence": 95,
         }
 
@@ -172,7 +170,6 @@ class TestCommandManager(unittest.TestCase):
             "verb_form": None,
             "prep_case": None,
             "uncertain": False,
-            "alternatives_json": None,
             "confidence": 80,
         }
         after = {
@@ -190,7 +187,6 @@ class TestCommandManager(unittest.TestCase):
             "verb_form": None,
             "prep_case": None,
             "uncertain": True,  # Now marked as uncertain
-            "alternatives_json": "n",
             "confidence": 60,  # Lower confidence
         }
 
@@ -211,7 +207,6 @@ class TestCommandManager(unittest.TestCase):
         self.assertIsNotNone(annotation)
         self.assertEqual(annotation.case, "a")
         self.assertEqual(annotation.uncertain, True)
-        self.assertEqual(annotation.alternatives_json, "n")
         self.assertEqual(annotation.confidence, 60)
 
         # Undo command
@@ -223,7 +218,6 @@ class TestCommandManager(unittest.TestCase):
         self.assertIsNotNone(annotation)
         self.assertEqual(annotation.case, "n")
         self.assertEqual(annotation.uncertain, False)
-        self.assertIsNone(annotation.alternatives_json)
         self.assertEqual(annotation.confidence, 80)
 
     def test_redo_after_undo(self):
@@ -233,12 +227,12 @@ class TestCommandManager(unittest.TestCase):
                   "declension": None, "pronoun_type": None, "verb_class": None,
                   "verb_tense": None, "verb_person": None, "verb_mood": None,
                   "verb_aspect": None, "verb_form": None, "prep_case": None,
-                  "uncertain": False, "alternatives_json": None, "confidence": None}
+                  "uncertain": False, "confidence": None}
         after = {"pos": "N", "gender": "m", "number": "s", "case": "n",
                  "declension": "strong", "pronoun_type": None, "verb_class": None,
                  "verb_tense": None, "verb_person": None, "verb_mood": None,
                  "verb_aspect": None, "verb_form": None, "prep_case": None,
-                 "uncertain": False, "alternatives_json": None, "confidence": 100}
+                 "uncertain": False, "confidence": 100}
 
         command = AnnotateTokenCommand(self.session, self.token_id, before, after)
         self.command_manager.execute(command)
@@ -285,19 +279,19 @@ class TestCommandManager(unittest.TestCase):
                   "declension": None, "pronoun_type": None, "verb_class": None,
                   "verb_tense": None, "verb_person": None, "verb_mood": None,
                   "verb_aspect": None, "verb_form": None, "prep_case": None,
-                  "uncertain": False, "alternatives_json": None, "confidence": None}
+                  "uncertain": False, "confidence": None}
 
         after1 = {"pos": "R", "gender": "m", "number": "s", "case": "n",
                   "declension": None, "pronoun_type": "d", "verb_class": None,
                   "verb_tense": None, "verb_person": None, "verb_mood": None,
                   "verb_aspect": None, "verb_form": None, "prep_case": None,
-                  "uncertain": False, "alternatives_json": None, "confidence": 100}
+                  "uncertain": False, "confidence": 100}
 
         after2 = {"pos": "N", "gender": "m", "number": "s", "case": "n",
                   "declension": "strong", "pronoun_type": None, "verb_class": None,
                   "verb_tense": None, "verb_person": None, "verb_mood": None,
                   "verb_aspect": None, "verb_form": None, "prep_case": None,
-                  "uncertain": False, "alternatives_json": None, "confidence": 100}
+                  "uncertain": False, "confidence": 100}
 
         command1 = AnnotateTokenCommand(self.session, self.token_id, before, after1)
         command2 = AnnotateTokenCommand(self.session, token_id_2, before, after2)
@@ -338,12 +332,12 @@ class TestCommandManager(unittest.TestCase):
                   "declension": None, "pronoun_type": None, "verb_class": None,
                   "verb_tense": None, "verb_person": None, "verb_mood": None,
                   "verb_aspect": None, "verb_form": None, "prep_case": None,
-                  "uncertain": False, "alternatives_json": None, "confidence": None}
+                  "uncertain": False, "confidence": None}
         after = {"pos": "N", "gender": "m", "number": "s", "case": "n",
                  "declension": None, "pronoun_type": None, "verb_class": None,
                  "verb_tense": None, "verb_person": None, "verb_mood": None,
                  "verb_aspect": None, "verb_form": None, "prep_case": None,
-                 "uncertain": False, "alternatives_json": None, "confidence": 100}
+                 "uncertain": False, "confidence": 100}
         command = AnnotateTokenCommand(self.session, self.token_id, before, after)
         self.command_manager.execute(command)
 

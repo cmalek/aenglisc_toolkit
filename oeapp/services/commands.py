@@ -95,7 +95,6 @@ class AnnotateTokenCommand(Command):
         annotation.conjunction_type = state.get("conjunction_type")
         annotation.adverb_degree = state.get("adverb_degree")
         annotation.uncertain = state.get("uncertain", False)
-        annotation.alternatives_json = state.get("alternatives_json")
         annotation.confidence = state.get("confidence")
         annotation.modern_english_meaning = state.get("modern_english_meaning")
         annotation.root = state.get("root")

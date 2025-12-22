@@ -155,13 +155,6 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         self.uncertain_check = QCheckBox("Uncertain (?)")
         metadata_layout.addWidget(self.uncertain_check)
 
-        alternatives_layout = QHBoxLayout()
-        alternatives_layout.addWidget(QLabel("Alternatives:"))
-        self.alternatives_edit = QLineEdit()
-        self.alternatives_edit.setPlaceholderText("e.g., w2 / s3")
-        alternatives_layout.addWidget(self.alternatives_edit)
-        metadata_layout.addLayout(alternatives_layout)
-
         confidence_layout = QHBoxLayout()
         confidence_layout.addWidget(QLabel("Confidence:"))
         self.confidence_slider = QSlider(Qt.Orientation.Horizontal)
@@ -1137,8 +1130,6 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
 
         # Load metadata
         self.uncertain_check.setChecked(self.annotation.uncertain)
-        if self.annotation.alternatives_json:
-            self.alternatives_edit.setText(self.annotation.alternatives_json)
         if self.annotation.confidence is not None:
             self.confidence_slider.setValue(self.annotation.confidence)
         if self.annotation.modern_english_meaning:
@@ -1316,7 +1307,6 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         # Set to index 0 (empty/None selection)
         self.pos_combo.setCurrentIndex(0)
         self.uncertain_check.setChecked(False)
-        self.alternatives_edit.clear()
         self.confidence_slider.setValue(100)
         self.todo_check.setChecked(False)
         self.modern_english_edit.clear()
@@ -1362,9 +1352,6 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
 
         # Extract metadata
         self.annotation.uncertain = self.uncertain_check.isChecked()
-        alternatives_text = self.alternatives_edit.text().strip()
-        if alternatives_text:
-            self.annotation.alternatives_json = alternatives_text
         self.annotation.confidence = self.confidence_slider.value()
         modern_english_text = self.modern_english_edit.text().strip()
         if modern_english_text:

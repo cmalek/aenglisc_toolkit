@@ -49,7 +49,6 @@ class TestAnnotation:
             pronoun_number="s",
             article_type="d",
             uncertain=True,
-            alternatives_json="w2 / s3",
             confidence=75,
             modern_english_meaning="king",
             root="cyning",

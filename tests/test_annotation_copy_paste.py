@@ -152,7 +152,6 @@ class TestCopyAnnotation:
         annotation.conjunction_type = None
         annotation.adverb_degree = None
         annotation.uncertain = True
-        annotation.alternatives_json = '["alternative1"]'
         annotation.modern_english_meaning = "to be"
         annotation.root = "bēon"
         db_session.commit()
@@ -187,7 +186,6 @@ class TestCopyAnnotation:
         assert copied["verb_aspect"] == "p"
         assert copied["verb_form"] == "f"
         assert copied["uncertain"] is True
-        assert copied["alternatives_json"] == '["alternative1"]'
         assert copied["modern_english_meaning"] == "to be"
         assert copied["root"] == "bēon"
 
@@ -267,7 +265,6 @@ class TestPasteAnnotation:
             "conjunction_type": None,
             "adverb_degree": None,
             "uncertain": False,
-            "alternatives_json": None,
             "modern_english_meaning": "king",
             "root": "cyning",
         }
@@ -331,7 +328,6 @@ class TestPasteAnnotation:
             "conjunction_type": None,
             "adverb_degree": None,
             "uncertain": False,
-            "alternatives_json": None,
             "modern_english_meaning": "king",
             "root": None,
         }
@@ -398,7 +394,6 @@ class TestPasteAnnotation:
             "conjunction_type": None,
             "adverb_degree": None,
             "uncertain": False,
-            "alternatives_json": None,
             "modern_english_meaning": None,
             "root": None,
         }
@@ -469,7 +464,6 @@ class TestPasteAnnotation:
             "conjunction_type": None,
             "adverb_degree": None,
             "uncertain": False,
-            "alternatives_json": None,
             "modern_english_meaning": "new meaning",
             "root": None,
         }

@@ -294,7 +294,7 @@ class TestAnnotationModal:
         assert verb_annotation.verb_mood is not None
 
     def test_metadata_fields(self):
-        """Test metadata fields (uncertain, alternatives, confidence)."""
+        """Test metadata fields (uncertain, confidence)."""
         annotation = Annotation(
             token_id=1,
             pos="N",
@@ -302,13 +302,11 @@ class TestAnnotationModal:
             number="s",
             case="n",
             uncertain=True,
-            alternatives_json="w2 / s3",
             confidence=75
         )
 
         # Verify metadata
         assert annotation.uncertain is True
-        assert annotation.alternatives_json == "w2 / s3"
         assert annotation.confidence == 75
 
     def test_extract_noun_values_from_ui(self):
@@ -421,7 +419,6 @@ class TestAnnotationModal:
             verb_aspect="p",
             verb_form="f",
             uncertain=True,
-            alternatives_json="s2 / w1",
             confidence=60
         )
 
@@ -435,7 +432,6 @@ class TestAnnotationModal:
         assert annotation.verb_aspect == "p"
         assert annotation.verb_form == "f"
         assert annotation.uncertain is True
-        assert annotation.alternatives_json == "s2 / w1"
         assert annotation.confidence == 60
 
     def test_extract_current_field_values_noun(self):

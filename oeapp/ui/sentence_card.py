@@ -518,7 +518,6 @@ class SentenceCard(TokenOccurrenceMixin, QWidget):
                 "adjective_inflection": before_annotation.adjective_inflection,
                 "adjective_degree": before_annotation.adjective_degree,
                 "conjunction_type": before_annotation.conjunction_type,
-                "alternatives_json": before_annotation.alternatives_json,
                 "confidence": before_annotation.confidence,
                 "modern_english_meaning": before_annotation.modern_english_meaning,
                 "root": before_annotation.root,
@@ -544,7 +543,6 @@ class SentenceCard(TokenOccurrenceMixin, QWidget):
             "adjective_degree": annotation.adjective_degree,
             "conjunction_type": annotation.conjunction_type,
             "uncertain": annotation.uncertain,
-            "alternatives_json": annotation.alternatives_json,
             "confidence": annotation.confidence,
             "modern_english_meaning": annotation.modern_english_meaning,
             "root": annotation.root,
@@ -1459,7 +1457,6 @@ class SentenceCard(TokenOccurrenceMixin, QWidget):
             existing.adjective_inflection = annotation.adjective_inflection
             existing.adjective_degree = annotation.adjective_degree
             existing.conjunction_type = annotation.conjunction_type
-            existing.alternatives_json = annotation.alternatives_json
             existing.confidence = annotation.confidence
             existing.modern_english_meaning = annotation.modern_english_meaning
             existing.root = annotation.root
