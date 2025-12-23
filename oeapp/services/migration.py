@@ -333,9 +333,9 @@ class MigrationService(ProjectFoldersMixin):
 
     def __init__(
         self,
-        backup_service: "BackupService | None" = None,
-        engine: "Engine | None" = None,
-        migration_metadata_service: "MigrationMetadataService | None" = None,
+        backup_service: BackupService | None = None,
+        engine: Engine | None = None,
+        migration_metadata_service: MigrationMetadataService | None = None,
     ) -> None:
         """
         Initialize migration service.
@@ -348,7 +348,9 @@ class MigrationService(ProjectFoldersMixin):
 
         """
         # Allow dependency injection for testing, but create defaults for normal use
-        self.backup_service = backup_service if backup_service is not None else BackupService()
+        self.backup_service = (
+            backup_service if backup_service is not None else BackupService()
+        )
         self.engine = engine if engine is not None else create_engine_with_path()
         self.migration_metadata_service = (
             migration_metadata_service

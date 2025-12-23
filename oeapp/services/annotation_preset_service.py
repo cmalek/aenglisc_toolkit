@@ -1,6 +1,6 @@
 """Service for handling annotation presets."""
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from oeapp.models.annotation_preset import AnnotationPreset
 
@@ -8,6 +8,7 @@ if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
     from oeapp.models.annotation import Annotation
+    from oeapp.types import PresetPos
 
 
 class AnnotationPresetService:
@@ -49,7 +50,9 @@ class AnnotationPresetService:
             IntegrityError: If preset with same name and pos already exists
 
         """
-        return AnnotationPreset.create(session, name, pos, **field_values)
+        return AnnotationPreset.create(
+            session, name, cast("PresetPos", pos), **field_values
+        )
 
     @staticmethod
     def update_preset(

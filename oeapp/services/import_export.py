@@ -120,7 +120,8 @@ class ProjectImporter:
 
         Args:
             session: SQLAlchemy session
-            migration_service: Optional MigrationService instance (created if not provided)
+            migration_service: Optional MigrationService instance (created if
+                not provided)
             migration_metadata_service: Optional MigrationMetadataService instance
                 (created if not provided)
 

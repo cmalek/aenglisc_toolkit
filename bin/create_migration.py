@@ -9,9 +9,9 @@ from oeapp.services import FieldMappingService, MigrationService
 
 def main() -> None:
     """Main function."""
-    if len(sys.argv) < 2:
-        print("Usage: create_migration.py <message>", file=sys.stderr)
-        print("Example: create_migration.py 'Add new field'", file=sys.stderr)
+    if len(sys.argv) < 2:  # noqa: PLR2004
+        print("Usage: create_migration.py <message>", file=sys.stderr)  # noqa: T201
+        print("Example: create_migration.py 'Add new field'", file=sys.stderr)  # noqa: T201
         sys.exit(1)
 
     message = sys.argv[1]
@@ -21,18 +21,18 @@ def main() -> None:
     try:
         migration_result = migration_service.create(message)
     except MigrationCreationFailed as e:
-        print(f"Failed to create migration: {e}", file=sys.stderr)
+        print(f"Failed to create migration: {e}", file=sys.stderr)  # noqa: T201
         sys.exit(1)
 
-    print(
+    print(  # noqa: T201
         f"Created migration file: {migration_result.migration_file_path} with revision ID: {migration_result.revision_id}"  # noqa: E501
     )
 
     # Detect field renames
-    print("Detecting field renames...")
+    print("Detecting field renames...")  # noqa: T201
     field_mapping_service = FieldMappingService()
     field_mapping_service.update(migration_result.migration_file_path)
-    print("Migration creation complete!")
+    print("Migration creation complete!")  # noqa: T201
 
 
 if __name__ == "__main__":
