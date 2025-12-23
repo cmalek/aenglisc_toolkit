@@ -111,3 +111,53 @@ class TestTokenDetailsSidebar:
         assert sidebar._current_token == token
         # Should handle None annotation gracefully
         # The method should not crash even if annotation is None
+
+    def test_modern_english_meaning_formatting(self, db_session, qapp):
+        """Test that Modern English Meaning is split into two labels with correct styling."""
+        from PySide6.QtWidgets import QLabel
+        from oeapp.models.annotation import Annotation
+
+        project = create_test_project(db_session, name="Test", text="Se")
+        db_session.commit()
+
+        sentence = project.sentences[0]
+        token = sentence.tokens[0]
+
+        # Ensure token has annotation with a modern meaning
+        if token.annotation:
+            annotation = token.annotation
+        else:
+            annotation = Annotation(token_id=token.id)
+            db_session.add(annotation)
+
+        annotation.pos = "N"  # Need POS for common fields to show
+        annotation.modern_english_meaning = "the king; a ruler of a people"
+        db_session.commit()
+
+        sidebar = TokenDetailsSidebar(parent=None)
+        sidebar.update_token(token, sentence)
+
+        # Find the labels in the layout
+        labels = []
+        for i in range(sidebar.content_layout.count()):
+            widget = sidebar.content_layout.itemAt(i).widget()
+            if isinstance(widget, QLabel):
+                labels.append(widget)
+
+        # Look for the "Modern English Meaning:" label and the value label
+        label_found = False
+        value_found = False
+
+        for i, label in enumerate(labels):
+            if label.text() == "Modern English Meaning:":
+                label_found = True
+                # The value label should be the next QLabel
+                if i + 1 < len(labels):
+                    value_label = labels[i + 1]
+                    if value_label.text() == "the king; a ruler of a people":
+                        value_found = True
+                        assert value_label.wordWrap() is True
+                        assert "background-color: #777" in value_label.styleSheet()
+
+        assert label_found is True
+        assert value_found is True

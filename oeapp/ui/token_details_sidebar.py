@@ -294,15 +294,30 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
         self.content_layout.addWidget(root_widget)
 
         # Modern English Meaning
-        mod_e_value = (
+        # Modern English Meaning Label
+        mod_e_label = QLabel("Modern English Meaning:")
+        mod_e_label.setFont(QFont("Helvetica", 12, QFont.Weight.Bold))
+        mod_e_label.setStyleSheet(
+            "color: #000; font-family: Helvetica; font-weight: bold;"
+        )
+        self.content_layout.addWidget(mod_e_label)
+
+        # Modern English Meaning Value
+        mod_e_value_text = (
             annotation.modern_english_meaning
             if annotation.modern_english_meaning
             else "?"
         )
-        mod_e_label = QLabel(f"Modern English Meaning: {mod_e_value}")
-        mod_e_label.setFont(QFont("Helvetica", 12, QFont.Weight.Bold))
-        self._format_field_label(mod_e_label, annotation.modern_english_meaning)
-        self.content_layout.addWidget(mod_e_label)
+        mod_e_value_label = QLabel(mod_e_value_text)
+        mod_e_value_label.setWordWrap(True)
+        if not annotation.modern_english_meaning:
+            mod_e_value_label.setStyleSheet("color: #999; font-style: italic;")
+        else:
+            mod_e_value_label.setStyleSheet(
+                "background-color: #888; color: #fff; font-family: Helvetica; "
+                "font-weight: normal; padding: 5px; border-radius: 3px;"
+            )
+        self.content_layout.addWidget(mod_e_value_label)
 
         # Confidence
         confidence_value = (
