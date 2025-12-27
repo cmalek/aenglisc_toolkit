@@ -18,18 +18,20 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from oeapp.commands import (
+    AddSentenceCommand,
+    AnnotateTokenCommand,
+    CommandManager,
+    MergeSentenceCommand,
+)
 from oeapp.db import SessionLocal
 from oeapp.exc import MigrationFailed
 from oeapp.models.project import Project
 from oeapp.models.token import Token
 from oeapp.services import (
-    AddSentenceCommand,
-    AnnotateTokenCommand,
     AutosaveService,
     BackupService,
-    CommandManager,
     DOCXExporter,
-    MergeSentenceCommand,
     MigrationService,
     ProjectExporter,
     ProjectImporter,

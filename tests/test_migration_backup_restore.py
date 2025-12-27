@@ -1,17 +1,12 @@
 """Unit tests for migration backup and restore functionality."""
 
 import logging
-import os
-import shutil
-import tempfile
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-from sqlalchemy import create_engine, inspect, text
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy import create_engine, text
 
-from oeapp.db import Base, get_project_db_path
+from oeapp.db import Base
 from oeapp.exc import BackupFailed, MigrationFailed
 from oeapp.services.migration import MigrationService
 

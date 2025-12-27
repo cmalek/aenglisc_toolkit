@@ -14,15 +14,15 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from oeapp.commands import AddNoteCommand, DeleteNoteCommand, UpdateNoteCommand
 from oeapp.db import get_session
 from oeapp.models.note import Note
-from oeapp.services.commands import AddNoteCommand, DeleteNoteCommand, UpdateNoteCommand
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
+    from oeapp.commands import CommandManager
     from oeapp.models.sentence import Sentence
-    from oeapp.services.commands import CommandManager
 
 
 class NoteDialog(QDialog):

@@ -1,10 +1,9 @@
 """Unit tests for NotesPanel."""
 
 import pytest
-from unittest.mock import MagicMock
 
 from oeapp.ui.notes_panel import NotesPanel, ClickableNoteLabel
-from tests.conftest import create_test_project, create_test_sentence
+from tests.conftest import create_test_project
 
 
 class TestNotesPanel:

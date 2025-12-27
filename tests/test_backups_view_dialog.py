@@ -1,6 +1,5 @@
 """Unit tests for BackupsViewDialog."""
 
-import pytest
 from unittest.mock import MagicMock
 from PySide6.QtWidgets import QWidget
 

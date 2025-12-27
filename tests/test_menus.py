@@ -2,7 +2,7 @@
 
 import pytest
 from unittest.mock import MagicMock
-from PySide6.QtWidgets import QMainWindow, QMenuBar, QMenu
+from PySide6.QtWidgets import QMainWindow, QMenu
 
 from oeapp.ui.menus import MainMenu, FileMenu, ProjectMenu, ToolsMenu, HelpMenu, PreferencesMenu
 

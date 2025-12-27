@@ -1,17 +1,13 @@
 """Unit tests for annotation copy/paste functionality."""
 
 import pytest
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock
 
-from oeapp.models.annotation import Annotation
+from oeapp.commands import CommandManager
 from oeapp.models.project import Project
-from oeapp.models.sentence import Sentence
-from oeapp.models.token import Token
-from oeapp.services.commands import CommandManager, AnnotateTokenCommand
 from oeapp.ui.main_window import MainWindowActions
 from oeapp.ui.sentence_card import SentenceCard
 from tests.conftest import create_test_project
-
 
 class TestCopyAnnotation:
     """Test cases for copy_annotation functionality."""

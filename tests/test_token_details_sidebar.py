@@ -3,7 +3,7 @@
 import pytest
 
 from oeapp.ui.token_details_sidebar import TokenDetailsSidebar
-from tests.conftest import create_test_project, create_test_sentence
+from tests.conftest import create_test_project
 
 
 class TestTokenDetailsSidebar:
@@ -157,7 +157,7 @@ class TestTokenDetailsSidebar:
                     if value_label.text() == "the king; a ruler of a people":
                         value_found = True
                         assert value_label.wordWrap() is True
-                        assert "background-color: #777" in value_label.styleSheet()
+                        assert "background-color: #888" in value_label.styleSheet()
 
         assert label_found is True
         assert value_found is True

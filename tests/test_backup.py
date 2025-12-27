@@ -7,7 +7,6 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-from PySide6.QtCore import QSettings
 
 from oeapp.exc import BackupFailed
 from oeapp.services.backup import BackupService

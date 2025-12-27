@@ -5,7 +5,7 @@ import tempfile
 import os
 from pathlib import Path
 from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.orm import sessionmaker
 
 from oeapp.db import Base
 from oeapp.models.token import Token

@@ -1,10 +1,7 @@
 """Unit tests for AutosaveService."""
 
 import time
-from unittest.mock import MagicMock, call
-
-import pytest
-from PySide6.QtCore import QTimer
+from unittest.mock import MagicMock
 
 from oeapp.services.autosave import AutosaveService
 

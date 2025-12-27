@@ -3,7 +3,7 @@
 import pytest
 
 from oeapp.ui.token_table import TokenTable, AnnotationTableWidget
-from tests.conftest import create_test_project, create_test_sentence
+from tests.conftest import create_test_project
 
 
 class TestTokenTable:

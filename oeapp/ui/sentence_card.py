@@ -27,10 +27,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from oeapp.mixins import TokenOccurrenceMixin
-from oeapp.models.annotation import Annotation
-from oeapp.models.sentence import Sentence
-from oeapp.services import (
+from oeapp.commands import (
     AddSentenceCommand,
     AnnotateTokenCommand,
     CommandManager,
@@ -39,6 +36,9 @@ from oeapp.services import (
     MergeSentenceCommand,
     ToggleParagraphStartCommand,
 )
+from oeapp.mixins import TokenOccurrenceMixin
+from oeapp.models.annotation import Annotation
+from oeapp.models.sentence import Sentence
 from oeapp.ui.dialogs import (
     AnnotationModal,
     CaseFilterDialog,

@@ -8,7 +8,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from oeapp.db import Base
-from oeapp.services.commands import (
+from oeapp.commands import (
     AddNoteCommand,
     CommandManager,
     AnnotateTokenCommand,

@@ -1,14 +1,11 @@
 """Unit tests for ProjectExporter and ProjectImporter."""
 
 import json
-import tempfile
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
 from oeapp.services.import_export import ProjectExporter, ProjectImporter
-from oeapp.services.migration import MigrationService, MigrationMetadataService
 from tests.conftest import create_test_project
 
 

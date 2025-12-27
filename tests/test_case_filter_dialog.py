@@ -1,7 +1,5 @@
 """Unit tests for CaseFilterDialog."""
 
-import pytest
-
 from oeapp.ui.dialogs.case_filter import CaseFilterDialog
 
 
