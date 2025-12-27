@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
 )
 
 from oeapp.models.project import Project
+from oeapp.state import CURRENT_PROJECT_ID
 
 from .mixins import TextInputMixin
 
@@ -85,7 +86,7 @@ class AppendTextDialog(TextInputMixin):
         Append text to the current project.
         """
         # Check that a project is open
-        if not self.main_window.current_project_id:
+        if CURRENT_PROJECT_ID not in self.main_window.application_state:
             self.main_window.show_error(
                 "No project is open. Please open a project first."
             )
@@ -94,7 +95,8 @@ class AppendTextDialog(TextInputMixin):
 
         # Get the current project
         project = Project.get(
-            self.main_window.session, self.main_window.current_project_id
+            self.main_window.application_state.session,
+            self.main_window.application_state[CURRENT_PROJECT_ID],
         )
         if project is None:
             self.main_window.show_error("Project not found.")
@@ -109,7 +111,7 @@ class AppendTextDialog(TextInputMixin):
             return
 
         # Append text to project
-        project.append_oe_text(self.main_window.session, text)
+        project.append_oe_text(self.main_window.application_state.session, text)
 
         # Refresh the UI by reloading the project
         self.main_window._configure_project(project)

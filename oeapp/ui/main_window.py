@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final, cast
 
-from PySide6.QtCore import QSettings, Qt, QTimer
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
@@ -19,12 +19,8 @@ from PySide6.QtWidgets import (
 )
 
 from oeapp.commands import (
-    AddSentenceCommand,
     AnnotateTokenCommand,
-    CommandManager,
-    MergeSentenceCommand,
 )
-from oeapp.db import SessionLocal
 from oeapp.exc import MigrationFailed
 from oeapp.models.project import Project
 from oeapp.models.token import Token
@@ -35,6 +31,12 @@ from oeapp.services import (
     MigrationService,
     ProjectExporter,
     ProjectImporter,
+)
+from oeapp.state import (
+    COPIED_ANNOTATION,
+    CURRENT_PROJECT_ID,
+    SELECTED_SENTENCE_CARD,
+    ApplicationState,
 )
 from oeapp.ui.dialogs import (
     BackupsViewDialog,
@@ -73,24 +75,16 @@ class MainWindow(QMainWindow):
         # Handle migrations with backup/restore on failure
         # Note: session is created after migrations to avoid issues
         self._handle_migrations()
-
-        #: SQLAlchemy session
-        self.session = SessionLocal()
-        #: Current project ID
-        self.current_project_id: int | None = None
         #: Sentence cards
         self.sentence_cards: list[SentenceCard] = []
         #: Autosave service
         self.autosave_service: AutosaveService | None = None
-        #: Command manager
-        self.command_manager: CommandManager | None = None
         #: Main window actions
         self.action_service = MainWindowActions(self)
         #: Currently selected sentence card
-        self.selected_sentence_card: SentenceCard | None = None
-        #: Copied annotation data for paste operation
-        self.copied_annotation: dict[str, Any] | None = None
-
+        self.application_state = ApplicationState()
+        self.application_state.reset()
+        self.application_state.set_main_window(self)
         # Build the main window
         self.build()
 
@@ -168,7 +162,7 @@ class MainWindow(QMainWindow):
         """
         Handle database migrations with automatic backup and restore on failure.
         """
-        settings = QSettings()
+        settings = self.application_state.settings
         migration_service = MigrationService()
         skip_until_version = cast(
             "str | None", settings.value("migration/skip_until_version", None, type=str)
@@ -224,7 +218,10 @@ class MainWindow(QMainWindow):
         - If there are projects, show OpenProjectDialog.
         """
         # Check if there are any projects in the database
-        if bool(Project.first(self.session)):
+        if (
+            bool(Project.first(self.application_state.session))
+            and self.application_state.session
+        ):
             # Projects exist, show OpenProjectDialog
             OpenProjectDialog(self).execute()
         else:
@@ -255,11 +252,11 @@ class MainWindow(QMainWindow):
 
         # Undo/Redo shortcuts
         undo_shortcut = QShortcut(QKeySequence("Ctrl+Z"), self)
-        undo_shortcut.activated.connect(self.action_service.undo)
+        undo_shortcut.activated.connect(self.application_state.undo)
         redo_shortcut = QShortcut(QKeySequence("Ctrl+R"), self)
-        redo_shortcut.activated.connect(self.action_service.redo)
+        redo_shortcut.activated.connect(self.application_state.redo)
         redo_shortcut_alt = QShortcut(QKeySequence("Ctrl+Shift+R"), self)
-        redo_shortcut_alt.activated.connect(self.action_service.redo)
+        redo_shortcut_alt.activated.connect(self.application_state.redo)
 
     def show_message(self, message: str, duration: int = 2000) -> None:
         """
@@ -351,11 +348,10 @@ class MainWindow(QMainWindow):
             project: Project to configure
 
         """
-        self.current_project_id = project.id
+        self.application_state[CURRENT_PROJECT_ID] = project.id
 
         # Initialize autosave and command manager
         self.autosave_service = AutosaveService(self.action_service.autosave)
-        self.command_manager = CommandManager(self.session)
 
         # Clear existing content
         for i in reversed(range(self.content_layout.count())):
@@ -374,8 +370,8 @@ class MainWindow(QMainWindow):
 
             card = SentenceCard(
                 sentence,
-                session=self.session,
-                command_manager=self.command_manager,
+                session=self.application_state.session,
+                command_manager=self.application_state.command_manager,
                 main_window=self,
             )
             card.set_tokens(sentence.tokens)
@@ -409,7 +405,10 @@ class MainWindow(QMainWindow):
         """
         Save current project.
         """
-        if not self.session or not self.current_project_id:
+        if (
+            not self.application_state.session
+            or CURRENT_PROJECT_ID not in self.application_state
+        ):
             self.show_warning("No project open")
             return
         if self.autosave_service:
@@ -443,8 +442,11 @@ class MainWindow(QMainWindow):
         dialog = RestoreDialog(self)
         dialog.execute()
         # After restore, we may need to reload
-        if self.current_project_id:
-            project = Project.get(self.session, self.current_project_id)
+        if CURRENT_PROJECT_ID in self.application_state:
+            project = Project.get(
+                self.application_state.session,
+                self.application_state[CURRENT_PROJECT_ID],
+            )
             if project:
                 self._configure_project(project)
 
@@ -467,7 +469,7 @@ class MainWindow(QMainWindow):
 
         Args:
             project_id: Optional project ID to export. If not provided, uses
-                current_project_id.
+                the value of :data:`CURRENT_PROJECT_ID` in :data:`application_state`.
             parent: Optional parent widget for the file dialog. If not provided,
                 uses self.
 
@@ -475,14 +477,15 @@ class MainWindow(QMainWindow):
             True if export was successful, False if canceled or failed
 
         """
-        # Use provided project_id or fall back to current_project_id
-        target_project_id = project_id if project_id else self.current_project_id
-        if not self.session or not target_project_id:
+        target_project_id = (
+            project_id if project_id else self.application_state[CURRENT_PROJECT_ID]
+        )
+        if not self.application_state.session or not target_project_id:
             self.show_warning("No project open")
             return False
 
         # Get project name for default filename
-        project = Project.get(self.session, target_project_id)
+        project = Project.get(self.application_state.session, target_project_id)
         if project is None:
             self.show_warning("Project not found")
             return False
@@ -503,7 +506,7 @@ class MainWindow(QMainWindow):
             return False
 
         # Export project data
-        exporter = ProjectExporter(self.session)
+        exporter = ProjectExporter(self.application_state.session)
         try:
             exporter.export_project_json(target_project_id, file_path)
         except ValueError as e:
@@ -525,16 +528,21 @@ class MainWindow(QMainWindow):
         after a merge operation.
 
         """
-        if not self.session or not self.current_project_id:
+        if (
+            not self.application_state.session
+            or CURRENT_PROJECT_ID not in self.application_state
+        ):
             return
 
         # Reload project from database
-        project = Project.get(self.session, self.current_project_id)
+        project = Project.get(
+            self.application_state.session, self.application_state[CURRENT_PROJECT_ID]
+        )
         if project is None:
             return
 
         # Preserve existing command manager to keep undo history
-        existing_command_manager = self.command_manager
+        existing_command_manager = self.application_state.command_manager
         existing_autosave = self.autosave_service
 
         # Refresh the project configuration (reloads all sentence cards)
@@ -567,16 +575,21 @@ class MainWindow(QMainWindow):
             sentence_id: ID of the newly added sentence
 
         """
-        if not self.session or not self.current_project_id:
+        if (
+            not self.application_state.session
+            or CURRENT_PROJECT_ID not in self.application_state
+        ):
             return
 
         # Reload project from database
-        project = Project.get(self.session, self.current_project_id)
+        project = Project.get(
+            self.application_state.session, self.application_state[CURRENT_PROJECT_ID]
+        )
         if project is None:
             return
 
         # Preserve existing command manager to keep undo history
-        existing_command_manager = self.command_manager
+        existing_command_manager = self.application_state.command_manager
         existing_autosave = self.autosave_service
 
         # Refresh the project configuration (reloads all sentence cards)
@@ -622,16 +635,21 @@ class MainWindow(QMainWindow):
             sentence_id: ID of the deleted sentence
 
         """
-        if not self.session or not self.current_project_id:
+        if (
+            not self.application_state.session
+            or CURRENT_PROJECT_ID not in self.application_state
+        ):
             return
 
         # Reload project from database
-        project = Project.get(self.session, self.current_project_id)
+        project = Project.get(
+            self.application_state.session, self.application_state[CURRENT_PROJECT_ID]
+        )
         if project is None:
             return
 
         # Preserve existing command manager to keep undo history
-        existing_command_manager = self.command_manager
+        existing_command_manager = self.application_state.command_manager
         existing_autosave = self.autosave_service
 
         # Refresh the project configuration (reloads all sentence cards)
@@ -667,20 +685,21 @@ class MainWindow(QMainWindow):
         """
         # If there's a previously selected sentence card (different from current),
         # clear its selection
-        if self.selected_sentence_card and self.selected_sentence_card != sentence_card:
-            self.selected_sentence_card._clear_token_selection()
-
+        card = self.application_state.get(SELECTED_SENTENCE_CARD)
+        if card is not None and card != sentence_card:
+            card._clear_token_selection()
         # Check if token is being deselected (selected_token_index is None)
         if sentence_card.selected_token_index is None:
             # Clear sidebar
             self.token_details_sidebar.clear()
-            self.selected_sentence_card = None
+            if card is not None:
+                del self.application_state[SELECTED_SENTENCE_CARD]
         else:
             # Update sidebar with token details
             self.token_details_sidebar.update_token(token, sentence)
 
             # Store reference to currently selected sentence card
-            self.selected_sentence_card = sentence_card
+            self.application_state[SELECTED_SENTENCE_CARD] = sentence_card
 
     def _on_annotation_applied(self, annotation: Annotation) -> None:
         """
@@ -694,25 +713,80 @@ class MainWindow(QMainWindow):
 
         """
         # Check if this annotation is for the currently selected token
-        if (
-            self.selected_sentence_card
-            and self.selected_sentence_card.selected_token_index is not None
-        ):
-            token_index = self.selected_sentence_card.selected_token_index
+        if CURRENT_PROJECT_ID not in self.application_state:
+            return
+        card = self.application_state.get(SELECTED_SENTENCE_CARD)
+        if card is not None and card.selected_token_index is not None:
+            token_index = card.selected_token_index
             if (
-                token_index < len(self.selected_sentence_card.tokens)
-                and self.selected_sentence_card.tokens[token_index].id
-                == annotation.token_id
+                token_index < len(card.tokens)
+                and card.tokens[token_index].id == annotation.token_id
             ):
                 # Refresh sidebar with updated annotation
-                token = self.selected_sentence_card.tokens[token_index]
+                token = card.tokens[token_index]
                 # Refresh token from database to ensure annotation relationship
                 # is up-to-date
-                if self.session:
-                    self.session.refresh(token)
-                self.token_details_sidebar.update_token(
-                    token, self.selected_sentence_card.sentence
-                )
+                if self.application_state.session:
+                    self.application_state.session.refresh(token)
+                self.token_details_sidebar.update_token(token, card.sentence)
+
+    def reload_project_structure(self) -> None:
+        """
+        Reload the entire project structure from database.
+
+        This is needed after structural changes like merge/undo merge
+        that change the number of sentences.
+        """
+        if (
+            not self.application_state.session
+            or CURRENT_PROJECT_ID not in self.application_state
+        ):
+            return
+
+        # Reload project from database
+        project = Project.get(
+            self.application_state.session, self.application_state[CURRENT_PROJECT_ID]
+        )
+        if project is None:
+            return
+
+        # Preserve existing services
+        existing_command_manager = self.command_manager
+        existing_autosave = self.autosave_service
+
+        # Refresh the project configuration (reloads all sentence cards)
+        self._configure_project(project)
+
+        # Restore preserved services
+        if existing_command_manager:
+            self.command_manager = existing_command_manager
+        if existing_autosave:
+            self.autosave_service = existing_autosave
+
+        # Update all sentence cards to use the preserved command manager
+        for card in self.sentence_cards:
+            card.command_manager = self.application_state.command_manager
+
+        # Ensure UI is updated/repainted
+        self.scroll_area.update()
+        self.update()
+
+    def refresh_all_cards(self) -> None:
+        """
+        Refresh all sentence cards from database.
+
+        - If there is no database or the current project ID is not set, do nothing.
+        - Reload annotations for all sentence cards.
+        """
+        if (
+            not self.application_state.session
+            or CURRENT_PROJECT_ID not in self.application_state
+        ):
+            return
+        # Reload annotations for all cards
+        for card in self.sentence_cards:
+            if card.sentence.id:
+                card.set_tokens(card.sentence.tokens)
 
 
 class MainWindowActions:
@@ -730,16 +804,15 @@ class MainWindowActions:
         Initialize main window actions.
         """
         self.main_window = main_window
-        #: SQLAlchemy session
-        self.session = main_window.session
+        #: Application state
+        self.application_state = ApplicationState()
         #: Sentence cards (reference to main_window's list)
         self.sentence_cards = main_window.sentence_cards
-        #: Filter service
 
     @property
     def command_manager(self):
         """Get the current command manager from main window."""
-        return self.main_window.command_manager
+        return self.application_state.command_manager
 
     @property
     def autosave_service(self):
@@ -804,78 +877,6 @@ class MainWindowActions:
                 card.focus_translation()
                 break
 
-    def undo(self) -> None:
-        """
-        Undo last action.
-
-        - If there is no command manager or the command manager cannot undo, do nothing.
-        - If the command manager can undo, undo the last action.
-        - If the undo fails, show a message in the status bar.
-        """
-        if self.command_manager and self.command_manager.can_undo():
-            # Check if the command to undo is a structural change (like merge or
-            # add sentence)
-            needs_full_reload = False
-            if self.command_manager.undo_stack:
-                last_command = self.command_manager.undo_stack[-1]
-                if isinstance(last_command, (MergeSentenceCommand, AddSentenceCommand)):
-                    needs_full_reload = True
-
-            if self.command_manager.undo():
-                self.main_window.show_message("Undone")
-                # After undo, the command is in redo_stack, check if it was a
-                # structural change
-                if not needs_full_reload and self.command_manager.redo_stack:
-                    last_undone = self.command_manager.redo_stack[-1]
-                    if isinstance(
-                        last_undone, (MergeSentenceCommand, AddSentenceCommand)
-                    ):
-                        needs_full_reload = True
-
-                if needs_full_reload:
-                    # Reload entire project structure after structural change
-                    self._reload_project_structure()
-                else:
-                    self.refresh_all_cards()
-            else:
-                self.main_window.show_message("Undo failed")
-
-    def redo(self) -> None:
-        """
-        Redo last undone action.
-
-        - If there is no command manager or the command manager cannot redo, do nothing.
-        - If the command manager can redo, redo the last action.
-        - If the redo fails, show a message in the status bar.
-        """
-        if self.command_manager and self.command_manager.can_redo():
-            # Check if the command to redo is a structural change (like merge or
-            # add sentence)
-            needs_full_reload = False
-            if self.command_manager.redo_stack:
-                last_command = self.command_manager.redo_stack[-1]
-                if isinstance(last_command, (MergeSentenceCommand, AddSentenceCommand)):
-                    needs_full_reload = True
-
-            if self.command_manager.redo():
-                self.main_window.show_message("Redone")
-                # After redo, the command is in undo_stack, check if it was a
-                # structural change
-                if not needs_full_reload and self.command_manager.undo_stack:
-                    last_redone = self.command_manager.undo_stack[-1]
-                    if isinstance(
-                        last_redone, (MergeSentenceCommand, AddSentenceCommand)
-                    ):
-                        needs_full_reload = True
-
-                if needs_full_reload:
-                    # Reload entire project structure after structural change
-                    self._reload_project_structure()
-                else:
-                    self.refresh_all_cards()
-            else:
-                self.main_window.show_message("Redo failed")
-
     def copy_annotation(self) -> bool:
         """
         Copy the annotation from the currently selected token.
@@ -886,8 +887,8 @@ class MainWindowActions:
 
         """
         # Check if a token is selected
-        card = self.main_window.selected_sentence_card
-        if not card or card.selected_token_index is None:
+        card = self.application_state.get(SELECTED_SENTENCE_CARD)
+        if card is None or card.selected_token_index is None:
             # No token selected, allow normal clipboard behavior
             return False
 
@@ -905,7 +906,7 @@ class MainWindowActions:
 
         # Extract annotation fields
         annotation = token.annotation
-        self.main_window.copied_annotation = {
+        self.application_state[COPIED_ANNOTATION] = {
             "pos": annotation.pos,
             "gender": annotation.gender,
             "number": annotation.number,
@@ -942,13 +943,13 @@ class MainWindowActions:
 
         """
         # Check if a token is selected
-        card = self.main_window.selected_sentence_card
-        if not card or card.selected_token_index is None:
+        card = self.application_state.get(SELECTED_SENTENCE_CARD)
+        if card is None or card.selected_token_index is None:
             # No token selected, allow normal clipboard behavior
             return False
 
         # Check if there's a copied annotation
-        if self.main_window.copied_annotation is None:
+        if COPIED_ANNOTATION not in self.application_state:
             self.main_window.show_message("No annotation to paste")
             return True  # Return True to indicate we handled the event
 
@@ -995,15 +996,15 @@ class MainWindowActions:
             return True
 
         command = AnnotateTokenCommand(
-            session=self.session,
+            session=self.application_state.session,
             token_id=token.id,
             before=before_state,
-            after=self.main_window.copied_annotation,
+            after=self.application_state[COPIED_ANNOTATION],
         )
 
         if self.command_manager.execute(command):
             # Refresh the token from database to update relationships
-            self.session.refresh(token)
+            self.application_state.session.refresh(token)
 
             # Refresh the sentence card
             card.set_tokens(card.sentence.tokens)
@@ -1020,58 +1021,6 @@ class MainWindowActions:
 
         return True
 
-    def refresh_all_cards(self) -> None:
-        """
-        Refresh all sentence cards from database.
-
-        - If there is no database or the current project ID is not set, do nothing.
-        - Reload annotations for all sentence cards.
-        """
-        if not self.session or not self.main_window.current_project_id:
-            return
-        # Reload annotations for all cards
-        for card in self.sentence_cards:
-            if card.sentence.id:
-                card.set_tokens(card.sentence.tokens)
-
-    def _reload_project_structure(self) -> None:
-        """
-        Reload the entire project structure from database.
-
-        This is needed after structural changes like merge/undo merge
-        that change the number of sentences.
-        """
-        if not self.main_window.session or not self.main_window.current_project_id:
-            return
-
-        # Reload project from database
-        project = Project.get(
-            self.main_window.session, self.main_window.current_project_id
-        )
-        if project is None:
-            return
-
-        # Preserve existing services
-        existing_command_manager = self.main_window.command_manager
-        existing_autosave = self.main_window.autosave_service
-
-        # Refresh the project configuration (reloads all sentence cards)
-        self.main_window._configure_project(project)
-
-        # Restore preserved services
-        if existing_command_manager:
-            self.main_window.command_manager = existing_command_manager
-        if existing_autosave:
-            self.main_window.autosave_service = existing_autosave
-
-        # Update all sentence cards to use the preserved command manager
-        for card in self.main_window.sentence_cards:
-            card.command_manager = self.main_window.command_manager
-
-        # Ensure UI is updated/repainted
-        self.main_window.scroll_area.update()
-        self.main_window.update()
-
     def autosave(self) -> None:
         """
         Do an autosave operation.
@@ -1081,12 +1030,13 @@ class MainWindowActions:
         - Show a message in the status bar that the project has been saved.
 
         """
-        assert self.session is not None, "Session not initialized"  # noqa: S101
-        assert self.main_window.current_project_id is not None, (  # noqa: S101
-            "Current project ID not set"
-        )
+        card = self.application_state.get(SELECTED_SENTENCE_CARD)
+        assert (  # noqa: S101
+            card is not None
+        ), "Current project ID not set"
+
         project = Project.get(
-            self.main_window.session, self.main_window.current_project_id
+            self.application_state.session, self.application_state[CURRENT_PROJECT_ID]
         )
         if project is None:
             return
@@ -1100,8 +1050,8 @@ class MainWindowActions:
                 if note.end_token == 0 or note.end_token is False:
                     note.end_token = None
 
-        self.session.add(project)
-        self.session.commit()
+        self.application_state.session.add(project)
+        self.application_state.session.commit()
         self.main_window.show_message("Saved")
 
     def navigate_to_token(self, token_id: int) -> None:
@@ -1116,7 +1066,7 @@ class MainWindowActions:
             token_id: Token ID to navigate to
 
         """
-        token = Token.get(self.session, token_id)
+        token = Token.get(self.application_state.session, token_id)
         if token is None:
             return
         sentence_id = token.sentence_id
@@ -1143,10 +1093,6 @@ class MainWindowActions:
         """
         Import project from JSON format.
         """
-        if not self.session:
-            self.main_window.show_warning("Database session not available")
-            return
-
         # Get file path from user
         file_path, _ = QFileDialog.getOpenFileName(
             self.main_window, "Import Project", "", "JSON Files (*.json);;All Files (*)"
@@ -1159,7 +1105,7 @@ class MainWindowActions:
         try:
             # Import project
             imported_project, was_renamed = ProjectImporter(
-                self.session
+                self.application_state.session
             ).import_project_json(file_path)
 
             # Show confirmation dialog
@@ -1210,7 +1156,10 @@ class MainWindowActions:
         """
         Export project to DOCX.
         """
-        if not self.session or not self.main_window.current_project_id:
+        if (
+            not self.application_state.session
+            or CURRENT_PROJECT_ID not in self.application_state
+        ):
             self.main_window.show_warning("No project open")
             return
 
@@ -1230,10 +1179,10 @@ class MainWindowActions:
         if not file_path.endswith(".docx"):
             file_path += ".docx"
 
-        exporter = DOCXExporter(self.session)
+        exporter = DOCXExporter(self.application_state.session)
         try:
             export_success = exporter.export(
-                self.main_window.current_project_id, Path(file_path)
+                self.application_state[CURRENT_PROJECT_ID], Path(file_path)
             )
         except PermissionError as e:
             self.main_window.show_error(

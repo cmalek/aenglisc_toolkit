@@ -85,6 +85,18 @@ class EditSentenceCommand(Command):
         """
         return f"Edit sentence {self.sentence_id} {self.field}"
 
+    @property
+    def needs_full_reload(self) -> bool:
+        """
+        Whether the command needs a full reload of the project structure after
+        execution.
+
+        Returns:
+            True if the command needs a full reload, False otherwise
+
+        """
+        return True
+
 
 @dataclass
 class MergeSentenceCommand(Command):
@@ -278,6 +290,18 @@ class MergeSentenceCommand(Command):
 
         """
         return f"Merge sentence {self.current_sentence_id} with {self.next_sentence_id}"
+
+    @property
+    def needs_full_reload(self) -> bool:
+        """
+        Whether the command needs a full reload of the project structure after
+        execution.
+
+        Returns:
+            True if the command needs a full reload, False otherwise
+
+        """
+        return True
 
 
 @dataclass

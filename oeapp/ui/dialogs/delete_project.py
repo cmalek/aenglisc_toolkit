@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 )
 
 from oeapp.models.project import Project
+from oeapp.state import CURRENT_PROJECT_ID
 from oeapp.utils import get_logo_pixmap
 
 from .new_project import NewProjectDialog
@@ -146,7 +147,10 @@ class DeleteProjectDialog:
         if project_id is None:
             return None
 
-        return cast("Project", Project.get(self.main_window.session, project_id))
+        return cast(
+            "Project",
+            Project.get(self.main_window.application_state.session, project_id),
+        )
 
     def _export_and_delete(self) -> None:
         """
@@ -201,12 +205,14 @@ class DeleteProjectDialog:
             return
 
         # Check if this is the currently open project
-        is_current_project = self.main_window.current_project_id == project.id
+        is_current_project = (
+            self.main_window.application_state[CURRENT_PROJECT_ID] == project.id
+        )
 
         # Delete the project
         try:
-            self.main_window.session.delete(project)
-            self.main_window.session.commit()
+            self.main_window.application_state.session.delete(project)
+            self.main_window.application_state.session.commit()
         except Exception as e:  # noqa: BLE001
             self.main_window.show_error(
                 f"Failed to delete project:\n{e!s}", title="Delete Error"
@@ -216,7 +222,7 @@ class DeleteProjectDialog:
         # If we deleted the current project, clear the UI
         if is_current_project:
             # Clear current project
-            self.main_window.current_project_id = None
+            del self.main_window.application_state[CURRENT_PROJECT_ID]
 
             # Clear sentence cards
             for i in reversed(range(self.main_window.content_layout.count())):
@@ -226,13 +232,16 @@ class DeleteProjectDialog:
 
             self.main_window.sentence_cards = []
             self.main_window.autosave_service = None
-            self.main_window.command_manager = None
+            self.main_window.application_state.reset()
+            self.main_window.application_state.set_main_window(self.main_window)
 
             # Reset window title
             self.main_window.setWindowTitle("Ænglisc Toolkit")
 
             # Show appropriate dialog based on remaining projects
-            remaining_projects = Project.list(self.main_window.session)
+            remaining_projects = Project.list(
+                self.main_window.application_state.session
+            )
             if not remaining_projects:
                 # No projects remaining, show NewProjectDialog
                 self.dialog.accept()

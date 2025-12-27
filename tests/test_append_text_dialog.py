@@ -4,6 +4,7 @@ import pytest
 from unittest.mock import MagicMock
 from PySide6.QtWidgets import QWidget
 
+from oeapp.state import CURRENT_PROJECT_ID, ApplicationState
 from oeapp.ui.dialogs.append_text import AppendTextDialog
 
 
@@ -12,11 +13,16 @@ class MockMainWindow(QWidget):
 
     def __init__(self, session):
         super().__init__()
-        self.session = session
         self.show_information = MagicMock()
         self.show_warning = MagicMock()
         self.show_error = MagicMock()
-        self.current_project_id = None
+        self.application_state = ApplicationState()
+        self.application_state.reset()
+        self.application_state.set_main_window(self)
+        self.application_state.session = session
+        self.application_state[CURRENT_PROJECT_ID] = None
+
+
 
 
 class TestAppendTextDialog:

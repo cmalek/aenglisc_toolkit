@@ -40,6 +40,17 @@ class Command(ABC):
 
         """
 
+    @property
+    def needs_full_reload(self) -> bool:
+        """
+        Whether the command needs a full reload of the project structure.
+
+        Returns:
+            True if the command needs a full reload, False otherwise
+
+        """
+        return False
+
 
 class CommandManager:
     """Manages undo/redo command stack."""
