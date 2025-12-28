@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
 
 from oeapp.exc import AlreadyExists
 from oeapp.models.project import Project
+from oeapp.state import ApplicationState
 
 from .mixins import TextInputMixin
 
@@ -43,6 +44,7 @@ class NewProjectDialog(TextInputMixin):
         """
         super().__init__()
         self.main_window = main_window
+        self.state = ApplicationState()
 
     def build(self) -> None:
         """
@@ -108,10 +110,10 @@ class NewProjectDialog(TextInputMixin):
 
         """
         # Create project in the shared database
-        project = Project.create(self.main_window.session, text, title)
+        project = Project.create(text, title)
         self.main_window._configure_project(project)
         self.main_window.setWindowTitle(f"Ænglisc Toolkit - {project.name}")
-        self.main_window.show_message("Project created")
+        self.state.show_message("Project created")
 
     def new_project(self) -> None:
         """
@@ -119,7 +121,7 @@ class NewProjectDialog(TextInputMixin):
         """
         title = self.title_edit.text()
         if not title.strip():
-            self.main_window.show_error("Please enter a project title.")
+            self.state.show_error("Please enter a project title.")
             return
 
         # Get text from input using mixin method
@@ -132,11 +134,9 @@ class NewProjectDialog(TextInputMixin):
         try:
             self.create_project(text, title)
             self.dialog.close()
-            self.main_window.show_message(
-                f'Project created: "{title!s}"', duration=2000
-            )
+            self.state.show_message(f'Project created: "{title!s}"', duration=2000)
         except AlreadyExists:
-            self.main_window.show_error(
+            self.state.show_error(
                 f'Project with title "{title!s}" already exists. Please '
                 "choose a different title or delete the existing project."
             )

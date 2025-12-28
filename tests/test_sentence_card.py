@@ -16,7 +16,7 @@ class TestSentenceCard:
         db_session.commit()
 
         sentence = project.sentences[0]
-        card = SentenceCard(sentence, session=db_session, parent=None)
+        card = SentenceCard(sentence, parent=None)
 
         assert card.sentence == sentence
         assert card.session == db_session
@@ -28,7 +28,7 @@ class TestSentenceCard:
         db_session.commit()
 
         sentence = project.sentences[0]
-        card = SentenceCard(sentence, session=db_session, parent=None)
+        card = SentenceCard(sentence, parent=None)
 
         assert card.get_oe_text() == "Se cyning"
 
@@ -41,7 +41,7 @@ class TestSentenceCard:
         sentence.text_modern = "The king"
         db_session.commit()
 
-        card = SentenceCard(sentence, session=db_session, parent=None)
+        card = SentenceCard(sentence, parent=None)
 
         assert card.get_translation() == "The king"
 
@@ -51,7 +51,7 @@ class TestSentenceCard:
         db_session.commit()
 
         sentence = project.sentences[0]
-        card = SentenceCard(sentence, session=db_session, parent=None)
+        card = SentenceCard(sentence, parent=None)
 
         # Update sentence
         sentence.text_oe = "Se cyning fēoll"
@@ -69,7 +69,7 @@ class TestSentenceCard:
         db_session.commit()
 
         sentence = project.sentences[0]
-        card = SentenceCard(sentence, session=db_session, parent=None)
+        card = SentenceCard(sentence, parent=None)
 
         assert "N" in card.POS_COLORS
         assert "n" in card.CASE_COLORS
@@ -82,7 +82,7 @@ class TestSentenceCard:
 
         sentence = project.sentences[0]
         token = sentence.tokens[0]
-        card = SentenceCard(sentence, session=db_session, parent=None)
+        card = SentenceCard(sentence, parent=None)
 
         # Connect signal
         received_token = None
@@ -110,7 +110,7 @@ class TestSentenceCard:
         )
         db_session.commit()
 
-        card = SentenceCard(sentence, session=db_session, parent=None)
+        card = SentenceCard(sentence, parent=None)
 
         assert card.sentence.is_paragraph_start is True
 

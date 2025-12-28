@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from oeapp.db import get_project_db_path
 from oeapp.exc import BackupFailed
 from oeapp.services.backup import BackupService
 from oeapp.models.project import Project
@@ -159,32 +160,10 @@ class TestBackupService:
     def test_create_backup_creates_backup_file(self, backup_service, db_session):
         """Test create_backup() creates backup file."""
         # Create a project in the database
-        project = create_test_project(db_session, text="Se cyning")
+        project = create_test_project(db_session, name="Test project 1", text="Se cyning")
+        project2 = create_test_project(db_session, name="Test project 2", text="Se cyning")
         db_session.commit()
-
-        # Create a real database file for backup
-        import shutil
-        from sqlalchemy import create_engine
-        from oeapp.db import Base
-
-        temp_db = tempfile.NamedTemporaryFile(delete=False, suffix='.db')
-        temp_db.close()
-        db_path = Path(temp_db.name)
-
-        engine = create_engine(f"sqlite:///{db_path}")
-        Base.metadata.create_all(engine)
-
-        # Copy project data
-        from sqlalchemy.orm import sessionmaker
-        SessionLocal = sessionmaker(bind=engine)
-        session = SessionLocal()
-        try:
-            project_copy = Project(name=project.name)
-            session.add(project_copy)
-            session.commit()
-        finally:
-            session.close()
-            engine.dispose()
+        db_path = db_session.info["db_path"]
 
         backup_service.db_path = db_path
 
@@ -195,41 +174,17 @@ class TestBackupService:
         assert backup_path.parent == backup_service.backup_dir
 
         # Cleanup
-        db_path.unlink()
         backup_path.unlink()
 
     def test_create_backup_creates_metadata_file(self, backup_service, db_session):
         """Test create_backup() creates metadata JSON file."""
         # Create a project in the database
-        project = create_test_project(db_session, text="Se cyning")
+        project = create_test_project(db_session, name="Test project 1", text="Se cyning")
+        project2 = create_test_project(db_session, name="Test project 2", text="Se cyning")
         db_session.commit()
 
-        # Create a real database file for backup
-        import shutil
-        from sqlalchemy import create_engine
-        from oeapp.db import Base
-
-        temp_db = tempfile.NamedTemporaryFile(delete=False, suffix='.db')
-        temp_db.close()
-        db_path = Path(temp_db.name)
-
-        engine = create_engine(f"sqlite:///{db_path}")
-        Base.metadata.create_all(engine)
-
-        # Copy project data
-        from sqlalchemy.orm import sessionmaker
-        SessionLocal = sessionmaker(bind=engine)
-        session = SessionLocal()
-        try:
-            project_copy = Project(name=project.name)
-            session.add(project_copy)
-            session.commit()
-        finally:
-            session.close()
-            engine.dispose()
-
+        db_path = db_session.info["db_path"]
         backup_service.db_path = db_path
-
         backup_path = backup_service.create_backup()
         metadata_path = backup_path.with_suffix(".json")
 
@@ -245,7 +200,6 @@ class TestBackupService:
         assert isinstance(metadata["projects"], list)
 
         # Cleanup
-        db_path.unlink()
         backup_path.unlink()
         metadata_path.unlink()
 

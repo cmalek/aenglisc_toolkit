@@ -1,11 +1,12 @@
 import sys
 from typing import TYPE_CHECKING, cast
 
+from PySide6.QtCore import QSettings
+
 from oeapp.commands import CommandManager
 from oeapp.db import SessionLocal
 
 if TYPE_CHECKING:
-    from PySide6.QtCore import QSettings
     from sqlalchemy.orm import Session
 
     from oeapp.ui.main_window import MainWindow
@@ -39,7 +40,13 @@ class ApplicationState(dict):
     main_window: MainWindow | None = None
 
     def __new__(cls) -> ApplicationState:  # noqa: PYI034
-        """Create a new instance of the application state singleton."""
+        """
+        Create a new instance of the application state singleton.
+
+        - If the instance is not initialized, initialize it by calling :meth:`reset`.
+        - Return the instance.
+
+        """
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance.reset()
@@ -47,7 +54,9 @@ class ApplicationState(dict):
 
     def __del__(self) -> None:
         """Delete the application state singleton."""
-        self.session.close()
+        if self._session is not None:
+            self._session.close()
+            self._session = None
         self.__class__._instance = None
 
     @property
@@ -102,21 +111,69 @@ class ApplicationState(dict):
         self._session = None
         self.command_manager = CommandManager(self.session)
         self.main_window = None
+        self.settings = QSettings()
         self.clear()
 
-    def show_message(self, message: str) -> None:
+    def show_message(self, message: str, duration: int = 2000) -> None:
         """
         Show a message in the status bar.
 
         Args:
             message: Message to show
 
+        Keyword Args:
+            duration: Duration of the message in milliseconds (default: 2000)
+
         """
         main_window = cast("MainWindow", self.main_window)
         if main_window:
-            main_window.show_message(message)
+            main_window.show_message(message, duration=duration)
         else:
             sys.stderr.write(message + "\n")
+
+    def show_error(self, message: str, title: str = "Error") -> None:
+        """
+        Show an error message in the status bar.
+
+        Args:
+            message: Message to show
+
+        Keyword Args:
+            title: Title of the message
+
+        """
+        main_window = cast("MainWindow", self.main_window)
+        if main_window:
+            main_window.show_error(message, title)
+        else:
+            sys.stderr.write(f"[{title}] " + message + "\n")
+
+    def show_warning(self, message: str, title: str = "Warning") -> None:
+        """
+        Show a warning message in the status bar.
+
+        Args:
+            message: Message to show
+
+        Keyword Args:
+            title: Title of the message
+
+        """
+        main_window = cast("MainWindow", self.main_window)
+        if main_window:
+            main_window.show_warning(message, title)
+        else:
+            sys.stderr.write(f"[{title}] " + message + "\n")
+
+    def show_information(self, message: str, title: str = "Information") -> None:
+        """
+        Show an information message in the status bar.
+        """
+        main_window = cast("MainWindow", self.main_window)
+        if main_window:
+            main_window.show_information(message, title)
+        else:
+            sys.stderr.write(f"[{title}] " + message + "\n")
 
     def undo(self) -> None:
         """

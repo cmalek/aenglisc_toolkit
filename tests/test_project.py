@@ -30,11 +30,11 @@ class TestProject:
         db_session.add(project)
         db_session.commit()
 
-        assert Project.exists(db_session, "Test Project") is True
+        assert Project.exists("Test Project") is True
 
     def test_exists_returns_false_when_not_exists(self, db_session):
         """Test exists() returns False when project doesn't exist."""
-        assert Project.exists(db_session, "Nonexistent") is False
+        assert Project.exists("Nonexistent") is False
 
     def test_get_returns_existing(self, db_session):
         """Test get() returns existing project."""
@@ -43,14 +43,14 @@ class TestProject:
         db_session.commit()
         project_id = project.id
 
-        retrieved = Project.get(db_session, project_id)
+        retrieved = Project.get(project_id)
         assert retrieved is not None
         assert retrieved.id == project_id
         assert retrieved.name == "Test Project"
 
     def test_get_returns_none_for_nonexistent(self, db_session):
         """Test get() returns None for nonexistent project."""
-        result = Project.get(db_session, 99999)
+        result = Project.get(99999)
         assert result is None
 
     def test_first_returns_first_project(self, db_session):
@@ -61,13 +61,13 @@ class TestProject:
         db_session.add(project2)
         db_session.commit()
 
-        first = Project.first(db_session)
+        first = Project.first()
         assert first is not None
         assert first.name in ["First Project", "Second Project"]
 
     def test_first_returns_none_when_no_projects(self, db_session):
         """Test first() returns None when no projects exist."""
-        result = Project.first(db_session)
+        result = Project.first()
         assert result is None
 
     def test_list_returns_all_projects(self, db_session):
@@ -78,19 +78,19 @@ class TestProject:
         db_session.add(project2)
         db_session.commit()
 
-        projects = Project.list(db_session)
+        projects = Project.list()
         assert len(projects) == 2
         assert all(isinstance(p, Project) for p in projects)
 
     def test_list_returns_empty_when_no_projects(self, db_session):
         """Test list() returns empty list when no projects exist."""
-        projects = Project.list(db_session)
+        projects = Project.list()
         assert projects == []
 
     def test_create_creates_project_with_sentences(self, db_session):
         """Test create() creates project and sentences from text."""
         project = Project.create(
-            session=db_session, text="Se cyning. Þæt scip.", name="Test Project"
+            text="Se cyning. Þæt scip.", name="Test Project"
         )
 
         assert project.id is not None
@@ -102,25 +102,25 @@ class TestProject:
 
     def test_create_raises_already_exists_for_duplicate_name(self, db_session):
         """Test create() raises AlreadyExists for duplicate name."""
-        Project.create(session=db_session, text="Se cyning", name="Test Project")
+        Project.create(text="Se cyning", name="Test Project")
         db_session.commit()
 
         with pytest.raises(AlreadyExists):
-            Project.create(session=db_session, text="Þæt scip", name="Test Project")
+            Project.create(text="Þæt scip", name="Test Project")
 
     def test_create_with_default_name(self, db_session):
         """Test create() uses default name when not provided."""
-        project = Project.create(session=db_session, text="Se cyning")
+        project = Project.create(text="Se cyning")
         assert project.name == "Untitled Project"
 
     def test_total_token_count_returns_count(self, db_session):
         """Test total_token_count() returns total tokens in project."""
         project = Project.create(
-            session=db_session, text="Se cyning. Þæt scip.", name="Test"
+            text="Se cyning. Þæt scip.", name="Test"
         )
         db_session.commit()
 
-        count = project.total_token_count(db_session)
+        count = project.total_token_count()
         assert count > 0
         # Should have tokens from both sentences
         assert count >= 4  # At least "Se", "cyning", "Þæt", "scip"
@@ -131,23 +131,23 @@ class TestProject:
         db_session.add(project)
         db_session.commit()
 
-        count = project.total_token_count(db_session)
+        count = project.total_token_count()
         assert count == 0
 
     def test_delete_removes_project(self, db_session):
         """Test deleting project removes it."""
-        project = Project.create(session=db_session, text="Se cyning", name="To Delete")
+        project = Project.create(text="Se cyning", name="To Delete")
         db_session.commit()
         project_id = project.id
 
         db_session.delete(project)
         db_session.commit()
 
-        assert Project.get(db_session, project_id) is None
+        assert Project.get(project_id) is None
 
     def test_delete_removes_cascade_sentences(self, db_session):
         """Test deleting project cascades to sentences."""
-        project = Project.create(session=db_session, text="Se cyning", name="Test")
+        project = Project.create(text="Se cyning", name="Test")
         db_session.commit()
         sentence_id = project.sentences[0].id
 
@@ -160,11 +160,11 @@ class TestProject:
 
     def test_append_oe_text_appends_sentences(self, db_session):
         """Test append_oe_text() appends sentences to project."""
-        project = Project.create(session=db_session, text="Se cyning", name="Test")
+        project = Project.create(text="Se cyning", name="Test")
         db_session.commit()
         original_count = len(project.sentences)
 
-        project.append_oe_text(db_session, "Þæt scip.")
+        project.append_oe_text("Þæt scip.")
         db_session.refresh(project)
 
         assert len(project.sentences) == original_count + 1
@@ -177,7 +177,7 @@ class TestProject:
         db_session.add(project)
         db_session.commit()
 
-        project.append_oe_text(db_session, "Se cyning.")
+        project.append_oe_text("Se cyning.")
         db_session.refresh(project)
 
         assert len(project.sentences) == 1
@@ -186,7 +186,7 @@ class TestProject:
 
     def test_to_json_serializes_project(self, db_session):
         """Test to_json() serializes project data."""
-        project = Project.create(session=db_session, text="Se cyning", name="Test")
+        project = Project.create(text="Se cyning", name="Test")
         db_session.commit()
 
         data = project.to_json()
@@ -201,7 +201,7 @@ class TestProject:
             "created_at": "2024-01-15T10:30:45+00:00",
             "updated_at": "2024-01-15T10:30:45+00:00",
         }
-        project = Project.from_json(db_session, project_data, "Imported Project")
+        project = Project.from_json(project_data, "Imported Project")
         db_session.commit()
 
         assert project.name == "Imported Project"
@@ -247,7 +247,7 @@ class TestProject:
 
     def test_relationship_with_sentences(self, db_session):
         """Test project has relationship with sentences."""
-        project = Project.create(session=db_session, text="Se cyning", name="Test")
+        project = Project.create(text="Se cyning", name="Test")
         db_session.commit()
 
         assert len(project.sentences) > 0

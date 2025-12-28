@@ -1,59 +1,8 @@
 """Unit tests for Token.update_from_sentence and related methods."""
 
 import pytest
-import tempfile
-import os
-from pathlib import Path
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 
-from oeapp.db import Base
 from oeapp.models.token import Token
-from oeapp.models.project import Project
-from oeapp.models.sentence import Sentence
-
-
-@pytest.fixture
-def db_session():
-    """Create a temporary database and session for testing."""
-    temp_db = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.db')
-    temp_db.close()
-    db_path = Path(temp_db.name)
-
-    # Create engine and session
-    engine = create_engine(f"sqlite:///{db_path}")
-    Base.metadata.create_all(engine)
-    SessionLocal = sessionmaker(bind=engine)
-    session = SessionLocal()
-
-    yield session
-
-    session.close()
-    engine.dispose()
-    os.unlink(temp_db.name)
-
-
-@pytest.fixture
-def project_and_sentence(db_session):
-    """Create a test project and sentence."""
-    project = Project(name="Test Project")
-    db_session.add(project)
-    db_session.flush()
-    project_id = project.id
-
-    sentence = Sentence.create(
-        session=db_session,
-        project_id=project_id,
-        display_order=1,
-        text_oe="Se cyning"
-    )
-    sentence_id = sentence.id
-    return project_id, sentence_id
-
-
-# Note: Tests for private methods _find_matched_token_ids and _process_unmatched_tokens
-# have been removed as these methods no longer exist. The functionality is now
-# implemented directly in Token.update_from_sentence, which is tested in TestUpdateFromSentence.
 
 
 class TestUpdateFromSentence:
@@ -64,7 +13,7 @@ class TestUpdateFromSentence:
         _, sentence_id = project_and_sentence
 
         # Delete existing tokens from the fixture-created sentence
-        existing_tokens = Token.list(db_session, sentence_id)
+        existing_tokens = Token.list(sentence_id)
         for token in existing_tokens:
             db_session.delete(token)
         db_session.commit()
@@ -78,9 +27,9 @@ class TestUpdateFromSentence:
         db_session.flush()
 
         # Update with same text
-        Token.update_from_sentence(db_session, "Se cyning", sentence_id)
+        Token.update_from_sentence("Se cyning", sentence_id)
 
-        tokens = Token.list(db_session, sentence_id)
+        tokens = Token.list(sentence_id)
         assert len(tokens) == 2
         assert tokens[0].surface == "Se"
         assert tokens[0].order_index == 0
@@ -92,7 +41,7 @@ class TestUpdateFromSentence:
         _, sentence_id = project_and_sentence
 
         # Delete existing tokens from the fixture-created sentence
-        existing_tokens = Token.list(db_session, sentence_id)
+        existing_tokens = Token.list(sentence_id)
         for token in existing_tokens:
             db_session.delete(token)
         db_session.commit()
@@ -106,9 +55,9 @@ class TestUpdateFromSentence:
         db_session.flush()
 
         # Add a new token
-        Token.update_from_sentence(db_session, "Se cyning wæs", sentence_id)
+        Token.update_from_sentence("Se cyning wæs", sentence_id)
 
-        tokens = Token.list(db_session, sentence_id)
+        tokens = Token.list(sentence_id)
         assert len(tokens) == 3
         assert tokens[0].surface == "Se"
         assert tokens[1].surface == "cyning"
@@ -122,7 +71,7 @@ class TestUpdateFromSentence:
         _, sentence_id = project_and_sentence
 
         # Delete existing tokens from the fixture-created sentence
-        existing_tokens = Token.list(db_session, sentence_id)
+        existing_tokens = Token.list(sentence_id)
         for token in existing_tokens:
             db_session.delete(token)
         db_session.commit()
@@ -139,9 +88,9 @@ class TestUpdateFromSentence:
         db_session.flush()
 
         # Remove a token
-        Token.update_from_sentence(db_session, "Se cyning", sentence_id)
+        Token.update_from_sentence("Se cyning", sentence_id)
 
-        tokens = Token.list(db_session, sentence_id)
+        tokens = Token.list(sentence_id)
         assert len(tokens) == 2
         assert tokens[0].surface == "Se"
         assert tokens[1].surface == "cyning"
@@ -154,7 +103,7 @@ class TestUpdateFromSentence:
         _, sentence_id = project_and_sentence
 
         # Delete existing tokens from the fixture-created sentence
-        existing_tokens = Token.list(db_session, sentence_id)
+        existing_tokens = Token.list(sentence_id)
         for token in existing_tokens:
             db_session.delete(token)
         db_session.commit()
@@ -168,9 +117,9 @@ class TestUpdateFromSentence:
         db_session.flush()
 
         # Reorder tokens
-        Token.update_from_sentence(db_session, "cyning Se", sentence_id)
+        Token.update_from_sentence("cyning Se", sentence_id)
 
-        tokens = Token.list(db_session, sentence_id)
+        tokens = Token.list(sentence_id)
         assert len(tokens) == 2
         assert tokens[0].surface == "cyning"
         assert tokens[0].order_index == 0
@@ -187,7 +136,7 @@ class TestUpdateFromSentence:
         _, sentence_id = project_and_sentence
 
         # Delete existing tokens from the fixture-created sentence
-        existing_tokens = Token.list(db_session, sentence_id)
+        existing_tokens = Token.list(sentence_id)
         for token in existing_tokens:
             db_session.delete(token)
         db_session.commit()
@@ -202,9 +151,9 @@ class TestUpdateFromSentence:
         original_token_id = token1.id
 
         # Update surface form - "Se" changes to "Þā" at same position
-        Token.update_from_sentence(db_session, "Þā cyning", sentence_id)
+        Token.update_from_sentence("Þā cyning", sentence_id)
 
-        tokens = Token.list(db_session, sentence_id)
+        tokens = Token.list(sentence_id)
         assert len(tokens) == 2
         # First token should be preserved (same position) with updated surface
         assert tokens[0].surface == "Þā"
@@ -218,7 +167,7 @@ class TestUpdateFromSentence:
         _, sentence_id = project_and_sentence
 
         # Delete existing tokens from the fixture-created sentence
-        existing_tokens = Token.list(db_session, sentence_id)
+        existing_tokens = Token.list(sentence_id)
         for token in existing_tokens:
             db_session.delete(token)
         db_session.commit()
@@ -238,9 +187,9 @@ class TestUpdateFromSentence:
         db_session.flush()
 
         # Reorder and change
-        Token.update_from_sentence(db_session, "þā wæs cyning þā", sentence_id)
+        Token.update_from_sentence("þā wæs cyning þā", sentence_id)
 
-        tokens = Token.list(db_session, sentence_id)
+        tokens = Token.list(sentence_id)
         assert len(tokens) == 4
         assert tokens[0].surface == "þā"
         assert tokens[1].surface == "wæs"
@@ -255,7 +204,7 @@ class TestUpdateFromSentence:
         _, sentence_id = project_and_sentence
 
         # Delete existing tokens from the fixture-created sentence
-        existing_tokens = Token.list(db_session, sentence_id)
+        existing_tokens = Token.list(sentence_id)
         for token in existing_tokens:
             db_session.delete(token)
         db_session.commit()
@@ -276,10 +225,10 @@ class TestUpdateFromSentence:
         db_session.commit()
 
         # Update sentence (reorder)
-        Token.update_from_sentence(db_session, "cyning Se", sentence_id)
+        Token.update_from_sentence("cyning Se", sentence_id)
 
         # Verify annotation still exists on the matched token
-        tokens = Token.list(db_session, sentence_id)
+        tokens = Token.list(sentence_id)
         token_with_annotation = None
         for t in tokens:
             if t.id == original_token_id:
@@ -297,7 +246,7 @@ class TestUpdateFromSentence:
         _, sentence_id = project_and_sentence
 
         # Delete existing tokens from the fixture-created sentence
-        existing_tokens = Token.list(db_session, sentence_id)
+        existing_tokens = Token.list(sentence_id)
         for token in existing_tokens:
             db_session.delete(token)
         db_session.commit()
@@ -311,9 +260,9 @@ class TestUpdateFromSentence:
         db_session.flush()
 
         # Insert token in middle
-        Token.update_from_sentence(db_session, "Se wæs cyning", sentence_id)
+        Token.update_from_sentence("Se wæs cyning", sentence_id)
 
-        tokens = Token.list(db_session, sentence_id)
+        tokens = Token.list(sentence_id)
         assert len(tokens) == 3
         # Verify sequential numbering (0, 1, 2)
         for i, token in enumerate(tokens):
@@ -324,7 +273,7 @@ class TestUpdateFromSentence:
         _, sentence_id = project_and_sentence
 
         # Delete existing tokens from the fixture-created sentence
-        existing_tokens = Token.list(db_session, sentence_id)
+        existing_tokens = Token.list(sentence_id)
         for token in existing_tokens:
             db_session.delete(token)
         db_session.commit()
@@ -341,9 +290,9 @@ class TestUpdateFromSentence:
         db_session.flush()
 
         # Delete middle token
-        Token.update_from_sentence(db_session, "Se wæs", sentence_id)
+        Token.update_from_sentence("Se wæs", sentence_id)
 
-        tokens = Token.list(db_session, sentence_id)
+        tokens = Token.list(sentence_id)
         assert len(tokens) == 2
         # Verify sequential numbering (0, 1)
         for i, token in enumerate(tokens):
@@ -354,7 +303,7 @@ class TestUpdateFromSentence:
         _, sentence_id = project_and_sentence
 
         # Delete existing tokens from the fixture-created sentence
-        existing_tokens = Token.list(db_session, sentence_id)
+        existing_tokens = Token.list(sentence_id)
         for token in existing_tokens:
             db_session.delete(token)
         db_session.commit()
@@ -371,9 +320,9 @@ class TestUpdateFromSentence:
         db_session.flush()
 
         # Complete reorder
-        Token.update_from_sentence(db_session, "wæs Se cyning", sentence_id)
+        Token.update_from_sentence("wæs Se cyning", sentence_id)
 
-        tokens = Token.list(db_session, sentence_id)
+        tokens = Token.list(sentence_id)
         assert len(tokens) == 3
         # Verify sequential numbering
         for i, token in enumerate(tokens):
@@ -384,7 +333,7 @@ class TestUpdateFromSentence:
         _, sentence_id = project_and_sentence
 
         # Delete existing tokens from the fixture-created sentence
-        existing_tokens = Token.list(db_session, sentence_id)
+        existing_tokens = Token.list(sentence_id)
         for token in existing_tokens:
             db_session.delete(token)
         db_session.commit()
@@ -401,9 +350,9 @@ class TestUpdateFromSentence:
         db_session.flush()
 
         # Make various changes
-        Token.update_from_sentence(db_session, "Þā cyning", sentence_id)
+        Token.update_from_sentence("Þā cyning", sentence_id)
 
-        tokens = Token.list(db_session, sentence_id)
+        tokens = Token.list(sentence_id)
         order_indices = [token.order_index for token in tokens]
         order_indices.sort()
 
@@ -415,7 +364,7 @@ class TestUpdateFromSentence:
         _, sentence_id = project_and_sentence
 
         # Delete existing tokens from the fixture-created sentence
-        existing_tokens = Token.list(db_session, sentence_id)
+        existing_tokens = Token.list(sentence_id)
         for token in existing_tokens:
             db_session.delete(token)
         db_session.commit()
@@ -428,9 +377,9 @@ class TestUpdateFromSentence:
         db_session.add(token2)
         db_session.flush()
 
-        Token.update_from_sentence(db_session, "Se cyning wæs þā", sentence_id)
+        Token.update_from_sentence("Se cyning wæs þā", sentence_id)
 
-        tokens = Token.list(db_session, sentence_id)
+        tokens = Token.list(sentence_id)
         assert len(tokens) == 4
 
         # Check that we have tokens at positions 0, 1, 2, 3
@@ -442,7 +391,7 @@ class TestUpdateFromSentence:
         _, sentence_id = project_and_sentence
 
         # Delete existing tokens from the fixture-created sentence
-        existing_tokens = Token.list(db_session, sentence_id)
+        existing_tokens = Token.list(sentence_id)
         for token in existing_tokens:
             db_session.delete(token)
         db_session.commit()
@@ -455,9 +404,9 @@ class TestUpdateFromSentence:
         db_session.add(token2)
         db_session.flush()
 
-        Token.update_from_sentence(db_session, "", sentence_id)
+        Token.update_from_sentence("", sentence_id)
 
-        tokens = Token.list(db_session, sentence_id)
+        tokens = Token.list(sentence_id)
         assert len(tokens) == 0
 
     def test_handles_single_token(self, db_session, project_and_sentence):
@@ -465,7 +414,7 @@ class TestUpdateFromSentence:
         _, sentence_id = project_and_sentence
 
         # Delete existing tokens from the fixture-created sentence
-        existing_tokens = Token.list(db_session, sentence_id)
+        existing_tokens = Token.list(sentence_id)
         for token in existing_tokens:
             db_session.delete(token)
         db_session.commit()
@@ -478,9 +427,9 @@ class TestUpdateFromSentence:
         db_session.add(token2)
         db_session.flush()
 
-        Token.update_from_sentence(db_session, "cyning", sentence_id)
+        Token.update_from_sentence("cyning", sentence_id)
 
-        tokens = Token.list(db_session, sentence_id)
+        tokens = Token.list(sentence_id)
         assert len(tokens) == 1
         assert tokens[0].surface == "cyning"
         assert tokens[0].order_index == 0
@@ -490,7 +439,7 @@ class TestUpdateFromSentence:
         _, sentence_id = project_and_sentence
 
         # Delete existing tokens from the fixture-created sentence
-        existing_tokens = Token.list(db_session, sentence_id)
+        existing_tokens = Token.list(sentence_id)
         for token in existing_tokens:
             db_session.delete(token)
         db_session.commit()
@@ -504,22 +453,22 @@ class TestUpdateFromSentence:
         db_session.flush()
 
         # First update
-        Token.update_from_sentence(db_session, "Se cyning wæs", sentence_id)
-        tokens = Token.list(db_session, sentence_id)
+        Token.update_from_sentence("Se cyning wæs", sentence_id)
+        tokens = Token.list(sentence_id)
         assert len(tokens) == 3
         for i, token in enumerate(tokens):
             assert token.order_index == i
 
         # Second update
-        Token.update_from_sentence(db_session, "Þā Se cyning", sentence_id)
-        tokens = Token.list(db_session, sentence_id)
+        Token.update_from_sentence("Þā Se cyning", sentence_id)
+        tokens = Token.list(sentence_id)
         assert len(tokens) == 3
         for i, token in enumerate(tokens):
             assert token.order_index == i
 
         # Third update
-        Token.update_from_sentence(db_session, "Se", sentence_id)
-        tokens = Token.list(db_session, sentence_id)
+        Token.update_from_sentence("Se", sentence_id)
+        tokens = Token.list(sentence_id)
         assert len(tokens) == 1
         assert tokens[0].order_index == 0
 

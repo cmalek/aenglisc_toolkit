@@ -15,13 +15,12 @@ from PySide6.QtWidgets import (
 )
 
 from oeapp.commands import AddNoteCommand, DeleteNoteCommand, UpdateNoteCommand
-from oeapp.db import get_session
 from oeapp.models.note import Note
+from oeapp.state import ApplicationState
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
-    from oeapp.commands import CommandManager
     from oeapp.models.sentence import Sentence
 
 
@@ -33,6 +32,8 @@ class NoteDialog(QDialog):
         sentence: Sentence the note belongs to
         start_token_id: Start token ID for the note
         end_token_id: End token ID for the note
+
+    Keyword Args:
         note: Existing note (if editing), None if creating new
         session: SQLAlchemy session (optional, will create if not provided)
         command_manager: Command manager for undo/redo (optional)
@@ -48,7 +49,6 @@ class NoteDialog(QDialog):
         end_token_id: int,
         note: Note | None = None,
         session: Session | None = None,
-        command_manager: CommandManager | None = None,
         parent: QWidget | None = None,
     ) -> None:
         """
@@ -61,7 +61,8 @@ class NoteDialog(QDialog):
         self.note = note
         self.is_editing = note is not None
         self.session = session
-        self.command_manager = command_manager
+        self.state = ApplicationState()
+        self.command_manager = self.state.command_manager
         self._setup_ui()
 
     def _setup_ui(self) -> None:
@@ -169,7 +170,7 @@ class NoteDialog(QDialog):
             self.reject()
             return
 
-        session: Session = self.session or get_session()
+        session: Session = self.state.session
         command: UpdateNoteCommand | AddNoteCommand | None = None
         try:
             if self.is_editing and self.note:
@@ -190,7 +191,6 @@ class NoteDialog(QDialog):
 
                 if self.command_manager:
                     command = UpdateNoteCommand(
-                        session=session,
                         note_id=self.note.id,
                         before_text=before_text or "",
                         after_text=note_text,
@@ -225,7 +225,6 @@ class NoteDialog(QDialog):
 
                 if self.command_manager:
                     command = AddNoteCommand(
-                        session=session,
                         sentence_id=self.sentence.id,
                         start_token_id=self.start_token_id,
                         end_token_id=self.end_token_id,
@@ -269,15 +268,11 @@ class NoteDialog(QDialog):
         if not self.note or not self.note.id:
             return
 
-        session: Session = self.session or get_session()
         try:
             note_id = self.note.id
 
             if self.command_manager:
-                command = DeleteNoteCommand(
-                    session=session,
-                    note_id=note_id,
-                )
+                command = DeleteNoteCommand(note_id=note_id)
                 if self.command_manager.execute(command):
                     # Emit signal with note_id for cleanup (even though deleted)
                     self.note_saved.emit(note_id)
@@ -285,13 +280,12 @@ class NoteDialog(QDialog):
                     return
             else:
                 # Direct deletion without command manager
-                session.delete(self.note)
-                session.commit()
+                self.state.session.delete(self.note)
+                self.state.session.commit()
                 # Emit signal with note_id for cleanup (even though deleted)
                 self.note_saved.emit(note_id)
                 self.accept()
                 return
         except Exception:
-            if not self.session:  # Only rollback if we created the session
-                session.rollback()
+            self.state.session.rollback()
             raise

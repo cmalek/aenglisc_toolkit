@@ -10,7 +10,6 @@ from oeapp.db import Base
 from oeapp.exc import BackupFailed, MigrationFailed
 from oeapp.services.migration import MigrationService
 
-
 @pytest.fixture
 def temp_db_path(tmp_path):
     """Create a temporary database path for testing."""

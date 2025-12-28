@@ -1,10 +1,9 @@
 """Unit tests for NoteDialog."""
 
-import pytest
 from unittest.mock import MagicMock
 
 from oeapp.ui.dialogs.note_dialog import NoteDialog
-from tests.conftest import create_test_project, create_test_sentence
+from tests.conftest import create_test_project
 
 
 class TestNoteDialog:

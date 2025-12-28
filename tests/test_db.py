@@ -33,6 +33,7 @@ class TestGetProjectDbPath:
 
     def test_returns_path_on_darwin(self, monkeypatch):
         """Test returns correct path on macOS."""
+        monkeypatch.delenv("OE_ANNOTATOR_DB_PATH", raising=False)
         monkeypatch.setattr(sys, "platform", "darwin")
         db_path = get_project_db_path()
         assert isinstance(db_path, Path)
@@ -43,6 +44,7 @@ class TestGetProjectDbPath:
 
     def test_returns_path_on_linux(self, monkeypatch):
         """Test returns correct path on Linux."""
+        monkeypatch.delenv("OE_ANNOTATOR_DB_PATH", raising=False)
         monkeypatch.setattr(sys, "platform", "linux")
         db_path = get_project_db_path()
         assert isinstance(db_path, Path)
@@ -52,6 +54,7 @@ class TestGetProjectDbPath:
 
     def test_returns_path_on_windows(self, monkeypatch):
         """Test returns correct path on Windows."""
+        monkeypatch.delenv("OE_ANNOTATOR_DB_PATH", raising=False)
         monkeypatch.setattr(sys, "platform", "win32")
         db_path = get_project_db_path()
         assert isinstance(db_path, Path)
@@ -62,6 +65,7 @@ class TestGetProjectDbPath:
 
     def test_raises_value_error_for_unsupported_platform(self, monkeypatch):
         """Test raises ValueError for unsupported platform."""
+        monkeypatch.delenv("OE_ANNOTATOR_DB_PATH", raising=False)
         monkeypatch.setattr(sys, "platform", "unsupported")
         with pytest.raises(ValueError, match="Unsupported platform"):
             get_project_db_path()
@@ -78,8 +82,15 @@ class TestGetProjectDbPath:
 class TestCreateEngineWithPath:
     """Test cases for create_engine_with_path()."""
 
+    @pytest.mark.skip(reason="This test can be run in CI, but don't run it if you have a local database, otherwise it will overwrite your database.")
     def test_creates_engine_with_default_path(self):
-        """Test creates engine with default path when None provided."""
+        """
+        Test creates engine with default path when None provided.
+
+        This test can be run in CI, but don't run it if you have a local
+        database, otherwise it will overwrite your database.
+
+        """
         engine = create_engine_with_path(None)
         assert engine is not None
         assert engine.url.database is not None

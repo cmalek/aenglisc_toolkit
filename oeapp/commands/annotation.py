@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from oeapp.models.annotation import Annotation
+from oeapp.models.mixins import SessionMixin
 
 from .abstract import Command
 
@@ -12,11 +13,9 @@ if TYPE_CHECKING:
 
 
 @dataclass
-class AnnotateTokenCommand(Command):
+class AnnotateTokenCommand(SessionMixin, Command):
     """Command for annotating a token."""
 
-    #: The SQLAlchemy session.
-    session: Session
     #: The token ID.
     token_id: int
     #: The before state of the annotation.
@@ -37,6 +36,7 @@ class AnnotateTokenCommand(Command):
             state: New state of the annotation
 
         """
+        session = self._get_session()
         annotation.pos = state.get("pos")
         annotation.gender = state.get("gender")
         annotation.number = state.get("number")
@@ -59,8 +59,8 @@ class AnnotateTokenCommand(Command):
         annotation.confidence = state.get("confidence")
         annotation.modern_english_meaning = state.get("modern_english_meaning")
         annotation.root = state.get("root")
-        self.session.add(annotation)
-        self.session.commit()
+        session.add(annotation)
+        session.commit()
 
     def execute(self) -> bool:
         """
@@ -70,12 +70,13 @@ class AnnotateTokenCommand(Command):
             True if successful
 
         """
-        annotation = Annotation.get(self.session, self.token_id)
+        session = self._get_session()
+        annotation = Annotation.get(self.token_id)
         if annotation is None:
             # Create annotation if it doesn't exist
             annotation = Annotation(token_id=self.token_id)
-            self.session.add(annotation)
-            self.session.flush()
+            session.add(annotation)
+            session.flush()
         self._update_annotation(annotation, self.after)
         return True
 
@@ -87,7 +88,7 @@ class AnnotateTokenCommand(Command):
             True if successful
 
         """
-        annotation = Annotation.get(self.session, self.token_id)
+        annotation = Annotation.get(self.token_id)
         if annotation is None:
             return False
         self._update_annotation(annotation, self.before)

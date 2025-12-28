@@ -32,7 +32,7 @@ def load_projects_into_table(
     project_table.setSortingEnabled(False)
     project_table.setRowCount(0)
 
-    projects = Project.list(main_window.session)
+    projects = Project.list()
     # Sort projects by updated_at in descending order.  We don't expect there
     # to be thousands of projects, so this is a simple list sort.  If we
     # ever need to sort by updated_at in a more efficient way, we can use a

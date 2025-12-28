@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final, cast
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import QSettings, Qt, QTimer
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
@@ -75,6 +75,7 @@ class MainWindow(QMainWindow):
         # Handle migrations with backup/restore on failure
         # Note: session is created after migrations to avoid issues
         self._handle_migrations()
+
         #: Sentence cards
         self.sentence_cards: list[SentenceCard] = []
         #: Autosave service
@@ -162,7 +163,7 @@ class MainWindow(QMainWindow):
         """
         Handle database migrations with automatic backup and restore on failure.
         """
-        settings = self.application_state.settings
+        settings = QSettings()
         migration_service = MigrationService()
         skip_until_version = cast(
             "str | None", settings.value("migration/skip_until_version", None, type=str)
@@ -218,10 +219,7 @@ class MainWindow(QMainWindow):
         - If there are projects, show OpenProjectDialog.
         """
         # Check if there are any projects in the database
-        if (
-            bool(Project.first(self.application_state.session))
-            and self.application_state.session
-        ):
+        if bool(Project.first()) and self.application_state.session:
             # Projects exist, show OpenProjectDialog
             OpenProjectDialog(self).execute()
         else:
@@ -370,7 +368,6 @@ class MainWindow(QMainWindow):
 
             card = SentenceCard(
                 sentence,
-                session=self.application_state.session,
                 command_manager=self.application_state.command_manager,
                 main_window=self,
             )
@@ -444,7 +441,6 @@ class MainWindow(QMainWindow):
         # After restore, we may need to reload
         if CURRENT_PROJECT_ID in self.application_state:
             project = Project.get(
-                self.application_state.session,
                 self.application_state[CURRENT_PROJECT_ID],
             )
             if project:
@@ -485,7 +481,7 @@ class MainWindow(QMainWindow):
             return False
 
         # Get project name for default filename
-        project = Project.get(self.application_state.session, target_project_id)
+        project = Project.get(target_project_id)
         if project is None:
             self.show_warning("Project not found")
             return False
@@ -506,7 +502,7 @@ class MainWindow(QMainWindow):
             return False
 
         # Export project data
-        exporter = ProjectExporter(self.application_state.session)
+        exporter = ProjectExporter()
         try:
             exporter.export_project_json(target_project_id, file_path)
         except ValueError as e:
@@ -535,9 +531,7 @@ class MainWindow(QMainWindow):
             return
 
         # Reload project from database
-        project = Project.get(
-            self.application_state.session, self.application_state[CURRENT_PROJECT_ID]
-        )
+        project = Project.get(self.application_state[CURRENT_PROJECT_ID])
         if project is None:
             return
 
@@ -582,9 +576,7 @@ class MainWindow(QMainWindow):
             return
 
         # Reload project from database
-        project = Project.get(
-            self.application_state.session, self.application_state[CURRENT_PROJECT_ID]
-        )
+        project = Project.get(self.application_state[CURRENT_PROJECT_ID])
         if project is None:
             return
 
@@ -642,9 +634,7 @@ class MainWindow(QMainWindow):
             return
 
         # Reload project from database
-        project = Project.get(
-            self.application_state.session, self.application_state[CURRENT_PROJECT_ID]
-        )
+        project = Project.get(self.application_state[CURRENT_PROJECT_ID])
         if project is None:
             return
 
@@ -744,9 +734,7 @@ class MainWindow(QMainWindow):
             return
 
         # Reload project from database
-        project = Project.get(
-            self.application_state.session, self.application_state[CURRENT_PROJECT_ID]
-        )
+        project = Project.get(self.application_state[CURRENT_PROJECT_ID])
         if project is None:
             return
 
@@ -996,7 +984,6 @@ class MainWindowActions:
             return True
 
         command = AnnotateTokenCommand(
-            session=self.application_state.session,
             token_id=token.id,
             before=before_state,
             after=self.application_state[COPIED_ANNOTATION],
@@ -1035,9 +1022,7 @@ class MainWindowActions:
             card is not None
         ), "Current project ID not set"
 
-        project = Project.get(
-            self.application_state.session, self.application_state[CURRENT_PROJECT_ID]
-        )
+        project = Project.get(self.application_state[CURRENT_PROJECT_ID])
         if project is None:
             return
 
@@ -1066,7 +1051,7 @@ class MainWindowActions:
             token_id: Token ID to navigate to
 
         """
-        token = Token.get(self.application_state.session, token_id)
+        token = Token.get(token_id)
         if token is None:
             return
         sentence_id = token.sentence_id
@@ -1104,9 +1089,9 @@ class MainWindowActions:
 
         try:
             # Import project
-            imported_project, was_renamed = ProjectImporter(
-                self.application_state.session
-            ).import_project_json(file_path)
+            imported_project, was_renamed = ProjectImporter().import_project_json(
+                file_path
+            )
 
             # Show confirmation dialog
             dialog = ImportProjectDialog(
@@ -1179,7 +1164,7 @@ class MainWindowActions:
         if not file_path.endswith(".docx"):
             file_path += ".docx"
 
-        exporter = DOCXExporter(self.application_state.session)
+        exporter = DOCXExporter()
         try:
             export_success = exporter.export(
                 self.application_state[CURRENT_PROJECT_ID], Path(file_path)

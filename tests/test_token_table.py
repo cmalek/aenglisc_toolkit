@@ -1,7 +1,5 @@
 """Unit tests for TokenTable."""
 
-import pytest
-
 from oeapp.ui.token_table import TokenTable, AnnotationTableWidget
 from tests.conftest import create_test_project
 

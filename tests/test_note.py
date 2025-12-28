@@ -17,7 +17,7 @@ class TestNote:
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
         # Use existing tokens created by Sentence.create
-        tokens = Token.list(db_session, sentence.id)
+        tokens = Token.list(sentence.id)
         assert len(tokens) >= 2, "Need at least 2 tokens for this test"
         start_token = tokens[0]
         end_token = tokens[1]
@@ -62,7 +62,7 @@ class TestNote:
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
         # Use existing token created by Sentence.create
-        tokens = Token.list(db_session, sentence.id)
+        tokens = Token.list(sentence.id)
         token = tokens[0]
 
         note = Note(
@@ -75,14 +75,14 @@ class TestNote:
         db_session.commit()
         note_id = note.id
 
-        retrieved = Note.get(db_session, note_id)
+        retrieved = Note.get(note_id)
         assert retrieved is not None
         assert retrieved.id == note_id
         assert retrieved.note_text_md == "Test note"
 
     def test_get_returns_none_for_nonexistent(self, db_session):
         """Test get() returns None for nonexistent note."""
-        result = Note.get(db_session, 99999)
+        result = Note.get(99999)
         assert result is None
 
     def test_sanitize_foreign_keys_converts_zero_to_none(self, db_session):
@@ -102,7 +102,7 @@ class TestNote:
         assert note.end_token is None
 
         # Also test with valid IDs
-        tokens = Token.list(db_session, sentence.id)
+        tokens = Token.list(sentence.id)
         if tokens:
             note2 = Note(
                 sentence_id=sentence.id,
@@ -119,7 +119,7 @@ class TestNote:
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
         # Use existing tokens created by Sentence.create
-        tokens = Token.list(db_session, sentence.id)
+        tokens = Token.list(sentence.id)
         assert len(tokens) >= 2, "Need at least 2 tokens for this test"
         start_token = tokens[0]
         end_token = tokens[1]
@@ -134,7 +134,7 @@ class TestNote:
         db_session.add(note)
         db_session.commit()
 
-        data = note.to_json(db_session)
+        data = note.to_json()
         assert data["note_text_md"] == "Test note"
         assert data["note_type"] == "span"
         assert "start_token_order_index" in data
@@ -158,7 +158,7 @@ class TestNote:
         db_session.add(note)
         db_session.commit()
 
-        data = note.to_json(db_session)
+        data = note.to_json()
         assert "start_token_order_index" not in data
         assert "end_token_order_index" not in data
 
@@ -167,7 +167,7 @@ class TestNote:
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
         # Use existing tokens created by Sentence.create
-        tokens = Token.list(db_session, sentence.id)
+        tokens = Token.list(sentence.id)
         assert len(tokens) >= 2, "Need at least 2 tokens for this test"
         start_token = tokens[0]
         end_token = tokens[1]
@@ -181,7 +181,7 @@ class TestNote:
             "start_token_order_index": start_token.order_index,
             "end_token_order_index": end_token.order_index,
         }
-        note = Note.from_json(db_session, sentence.id, note_data, token_map)
+        note = Note.from_json(sentence.id, note_data, token_map)
         db_session.commit()
 
         assert note.sentence_id == sentence.id
@@ -199,7 +199,7 @@ class TestNote:
             "note_type": "sentence",
         }
         token_map = {}
-        note = Note.from_json(db_session, sentence.id, note_data, token_map)
+        note = Note.from_json(sentence.id, note_data, token_map)
         db_session.commit()
 
         assert note.start_token is None
@@ -215,7 +215,7 @@ class TestNote:
             "start_token_order_index": 999,  # Invalid index
         }
         token_map = {}
-        note = Note.from_json(db_session, sentence.id, note_data, token_map)
+        note = Note.from_json(sentence.id, note_data, token_map)
         db_session.commit()
 
         assert note.start_token is None

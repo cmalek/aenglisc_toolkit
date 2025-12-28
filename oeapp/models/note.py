@@ -4,9 +4,10 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, String
-from sqlalchemy.orm import Mapped, Session, mapped_column, reconstructor, relationship
+from sqlalchemy.orm import Mapped, mapped_column, reconstructor, relationship
 
 from oeapp.db import Base
+from oeapp.models.mixins import SessionMixin
 from oeapp.models.token import Token
 from oeapp.utils import from_utc_iso, to_utc_iso
 
@@ -14,7 +15,7 @@ if TYPE_CHECKING:
     from oeapp.models.sentence import Sentence
 
 
-class Note(Base):
+class Note(SessionMixin, Base):
     """
     Represents a note attached to tokens, spans, or sentences.
     """
@@ -79,7 +80,7 @@ class Note(Base):
             self.end_token = None
 
     @classmethod
-    def get(cls, session: Session, note_id: int) -> Note | None:
+    def get(cls, note_id: int) -> Note | None:
         """
         Get a note by ID.
 
@@ -91,9 +92,10 @@ class Note(Base):
             Note or None if not found
 
         """
+        session = cls._get_session()
         return session.get(cls, note_id)
 
-    def to_json(self, session: Session) -> dict:
+    def to_json(self) -> dict:
         """
         Serialize note to JSON-compatible dictionary (without PKs).
 
@@ -114,11 +116,11 @@ class Note(Base):
         # For notes, we need to reference tokens by order_index
         # since we don't have PKs
         if self.start_token:
-            start_token = Token.get(session, self.start_token)
+            start_token = Token.get(self.start_token)
             if start_token:
                 note_data["start_token_order_index"] = start_token.order_index
         if self.end_token:
-            end_token = Token.get(session, self.end_token)
+            end_token = Token.get(self.end_token)
             if end_token:
                 note_data["end_token_order_index"] = end_token.order_index
 
@@ -127,7 +129,6 @@ class Note(Base):
     @classmethod
     def from_json(
         cls,
-        session: Session,
         sentence_id: int,
         note_data: dict,
         token_map: dict[int, Token],
@@ -136,7 +137,6 @@ class Note(Base):
         Create a note from JSON import data.
 
         Args:
-            session: SQLAlchemy session
             sentence_id: Sentence ID to attach note to
             note_data: Note data dictionary from JSON
             token_map: Map of order_index to Token entities
@@ -145,6 +145,7 @@ class Note(Base):
             Created Note entity
 
         """
+        session = cls._get_session()
         note = cls(
             sentence_id=sentence_id,
             note_text_md=note_data["note_text_md"],

@@ -1,12 +1,11 @@
 """Unit tests for AnnotationModal."""
 
 import sys
+from unittest.mock import Mock
 import pytest
-from unittest.mock import Mock, patch
 
 from oeapp.models.token import Token
 from oeapp.models.annotation import Annotation
-from oeapp.models.annotation_preset import AnnotationPreset
 
 
 @pytest.fixture(autouse=True, scope="module")
@@ -37,7 +36,6 @@ def mock_pyside6():
             del sys.modules[module_name]
         if module_name in original_modules:
             sys.modules[module_name] = original_modules[module_name]
-
 
 class MockComboBox:
     """Mock QComboBox for testing."""

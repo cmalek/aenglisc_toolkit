@@ -15,9 +15,10 @@ from sqlalchemy import (
     UniqueConstraint,
     select,
 )
-from sqlalchemy.orm import Mapped, Session, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from oeapp.db import Base
+from oeapp.models.mixins import SessionMixin
 from oeapp.models.note import Note
 from oeapp.models.token import Token
 from oeapp.utils import from_utc_iso, to_utc_iso
@@ -28,7 +29,7 @@ if TYPE_CHECKING:
     from oeapp.models.project import Project
 
 
-class Sentence(Base):
+class Sentence(SessionMixin, Base):
     """
     Represents a sentence.
 
@@ -103,7 +104,6 @@ class Sentence(Base):
     @classmethod
     def _calculate_paragraph_and_sentence_numbers(
         cls,
-        session: Session,
         project_id: int,
         display_order: int,
         is_paragraph_start: bool,  # noqa: FBT001
@@ -112,7 +112,6 @@ class Sentence(Base):
         Calculate paragraph_number and sentence_number_in_paragraph for a new sentence.
 
         Args:
-            session: SQLAlchemy session
             project_id: Project ID
             display_order: Display order of the new sentence
             is_paragraph_start: Whether this sentence starts a paragraph
@@ -121,6 +120,7 @@ class Sentence(Base):
             Dictionary with 'paragraph_number' and 'sentence_number_in_paragraph'
 
         """
+        session = cls._get_session()
         # Get all sentences before this one, ordered by display_order
         previous_sentences = list(
             session.scalars(
@@ -159,17 +159,19 @@ class Sentence(Base):
         }
 
     @classmethod
-    def get(cls, session: Session, sentence_id: int) -> Sentence | None:
+    def get(cls, sentence_id: int) -> Sentence | None:
         """
         Get a sentence by ID.
         """
+        session = cls._get_session()
         return session.get(cls, sentence_id)
 
     @classmethod
-    def list(cls, session: Session, project_id: int) -> builtins.list[Sentence]:
+    def list(cls, project_id: int) -> builtins.list[Sentence]:
         """
         Check if a sentence exists by project ID and display order.
         """
+        session = cls._get_session()
         return builtins.list(
             session.scalars(
                 select(cls)
@@ -181,14 +183,11 @@ class Sentence(Base):
         )
 
     @classmethod
-    def get_next_sentence(
-        cls, session: Session, project_id: int, display_order: int
-    ) -> Sentence | None:
+    def get_next_sentence(cls, project_id: int, display_order: int) -> Sentence | None:
         """
         Get the next sentence by project ID and display order.
 
         Args:
-            session: SQLAlchemy session
             project_id: Project ID
             display_order: Display order
 
@@ -196,6 +195,7 @@ class Sentence(Base):
             The next sentence or None if there is no next sentence
 
         """
+        session = cls._get_session()
         stmt = (
             select(Sentence)
             .where(
@@ -209,7 +209,6 @@ class Sentence(Base):
     @classmethod
     def create(  # noqa: PLR0913
         cls,
-        session: Session,
         project_id: int,
         display_order: int,
         text_oe: str,
@@ -225,7 +224,6 @@ class Sentence(Base):
         text.
 
         Args:
-            session: SQLAlchemy session
             project_id: Project ID
             display_order: Display order
             text_oe: Old English text
@@ -238,10 +236,11 @@ class Sentence(Base):
             The new :class:`~oeapp.models.sentence.Sentence` object
 
         """
+        session = cls._get_session()
         # Calculate paragraph_number and sentence_number_in_paragraph if not provided
         if paragraph_number is None or sentence_number_in_paragraph is None:
             calculated = cls._calculate_paragraph_and_sentence_numbers(
-                session, project_id, display_order, is_paragraph_start
+                project_id, display_order, is_paragraph_start
             )
             paragraph_number = calculated["paragraph_number"]
             sentence_number_in_paragraph = calculated["sentence_number_in_paragraph"]
@@ -259,7 +258,7 @@ class Sentence(Base):
 
         # Create tokens from sentence text
         tokens = Token.create_from_sentence(
-            session=session, sentence_id=sentence.id, sentence_text=text_oe
+            sentence_id=sentence.id, sentence_text=text_oe
         )
         sentence.tokens = tokens
 
@@ -268,7 +267,7 @@ class Sentence(Base):
 
     @classmethod
     def subsequent_sentences(
-        cls, session: Session, project_id: int, display_order: int
+        cls, project_id: int, display_order: int
     ) -> builtins.list[Sentence]:
         """
         Get the subsequent sentences by project ID and display order.
@@ -282,6 +281,7 @@ class Sentence(Base):
             List of subsequent sentences
 
         """
+        session = cls._get_session()
         return builtins.list(
             session.scalars(
                 select(cls)
@@ -293,7 +293,6 @@ class Sentence(Base):
     @classmethod
     def renumber_sentences(
         cls,
-        session: Session,
         sentences: builtins.list[Sentence],
         order_mapping: dict[int, int] | None = None,
         order_function: Callable[[Sentence], int] | None = None,
@@ -305,7 +304,6 @@ class Sentence(Base):
         to avoid unique constraint violations on (project_id, display_order).
 
         Args:
-            session: SQLAlchemy session
             sentences: List of sentences to update
             order_mapping: Optional dict mapping sentence.id -> new display_order
             order_function: Optional function taking Sentence -> new display_order
@@ -317,6 +315,7 @@ class Sentence(Base):
             ValueError: If neither order_mapping nor order_function is provided
 
         """
+        session = cls._get_session()
         if not sentences:
             return []
 
@@ -359,7 +358,6 @@ class Sentence(Base):
     @classmethod
     def restore_display_orders(
         cls,
-        session: Session,
         changes: builtins.list[tuple[int, int, int]],
     ) -> None:
         """
@@ -370,17 +368,17 @@ class Sentence(Base):
         sentences to their old_order values.
 
         Args:
-            session: SQLAlchemy session
             changes: List of (sentence_id, old_order, new_order) tuples
 
         """
+        session = cls._get_session()
         if not changes:
             return
 
         # Phase 1: Move to temporary positions
         temp_offset = -10000
         for sentence_id, _old_order, _new_order in changes:
-            sentence = cls.get(session, sentence_id)
+            sentence = cls.get(sentence_id)
             if sentence:
                 sentence.display_order = temp_offset
                 temp_offset -= 1
@@ -393,13 +391,13 @@ class Sentence(Base):
             changes, key=lambda x: x[1], reverse=True
         )
         for sentence_id, old_order, _new_order in sorted_changes:
-            sentence = cls.get(session, sentence_id)
+            sentence = cls.get(sentence_id)
             if sentence:
                 sentence.display_order = old_order
                 session.add(sentence)
         session.flush()
 
-    def to_json(self, session: Session) -> dict:
+    def to_json(self) -> dict:
         """
         Serialize sentence to JSON-compatible dictionary (without PKs).
 
@@ -430,20 +428,17 @@ class Sentence(Base):
 
         # Add notes
         for note in self.notes:
-            note_data = note.to_json(session)
+            note_data = note.to_json()
             sentence_data["notes"].append(note_data)
 
         return sentence_data
 
     @classmethod
-    def from_json(
-        cls, session: Session, project_id: int, sentence_data: dict
-    ) -> Sentence:
+    def from_json(cls, project_id: int, sentence_data: dict) -> Sentence:
         """
         Create a sentence and all related entities from JSON import data.
 
         Args:
-            session: SQLAlchemy session
             project_id: Project ID to attach sentence to
             sentence_data: Sentence data dictionary from JSON
 
@@ -451,6 +446,7 @@ class Sentence(Base):
             Created Sentence entity
 
         """
+        session = cls._get_session()
         sentence = cls(
             project_id=project_id,
             display_order=sentence_data["display_order"],
@@ -475,29 +471,29 @@ class Sentence(Base):
         # Create tokens and build token map
         token_map: dict[int, Token] = {}
         for token_data in sentence_data.get("tokens", []):
-            token = Token.from_json(session, sentence.id, token_data)
+            token = Token.from_json(sentence.id, token_data)
             token_map[token.order_index] = token
 
         # Create notes
         for note_data in sentence_data.get("notes", []):
-            Note.from_json(session, sentence.id, note_data, token_map)
+            Note.from_json(sentence.id, note_data, token_map)
 
         return sentence
 
-    def update(self, session, text_oe: str) -> Sentence:
+    def update(self, text_oe: str) -> Sentence:
         """
         Update the sentence.
 
         Args:
-            session: SQLAlchemy session
             text_oe: New Old English text
 
         Returns:
             Updated sentence
 
         """
+        session = self._get_session()
         self.text_oe = text_oe
-        Token.update_from_sentence(session, text_oe, self.id)
+        Token.update_from_sentence(text_oe, self.id)
         session.commit()
         # Refresh to get updated tokens
         session.refresh(self)

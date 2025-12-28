@@ -32,7 +32,7 @@ class TestProjectExporter:
         project = create_test_project(db_session, name="Test Project")
         db_session.commit()
 
-        exporter = ProjectExporter(db_session)
+        exporter = ProjectExporter()
         retrieved = exporter.get_project(project.id)
 
         assert retrieved.id == project.id
@@ -40,7 +40,7 @@ class TestProjectExporter:
 
     def test_get_project_raises_when_not_found(self, db_session):
         """Test get_project() raises ValueError when project not found."""
-        exporter = ProjectExporter(db_session)
+        exporter = ProjectExporter()
 
         with pytest.raises(ValueError, match="Project with ID 99999 not found"):
             exporter.get_project(99999)
@@ -50,7 +50,7 @@ class TestProjectExporter:
         project = create_test_project(db_session, text="Se cyning. Þæt scip.", name="Export Test")
         db_session.commit()
 
-        exporter = ProjectExporter(db_session)
+        exporter = ProjectExporter()
         export_file = tmp_path / "export.json"
 
         exporter.export_project_json(project.id, str(export_file))
@@ -72,7 +72,7 @@ class TestProjectExporter:
         project = create_test_project(db_session, name="Test")
         db_session.commit()
 
-        exporter = ProjectExporter(db_session)
+        exporter = ProjectExporter()
         export_file = tmp_path / "export"  # No extension
 
         exporter.export_project_json(project.id, str(export_file))
@@ -85,7 +85,7 @@ class TestProjectExporter:
         project = create_test_project(db_session, text="Se cyning. Þæt scip.", name="Test")
         db_session.commit()
 
-        exporter = ProjectExporter(db_session)
+        exporter = ProjectExporter()
         export_file = tmp_path / "export.json"
 
         exporter.export_project_json(project.id, str(export_file))
@@ -105,7 +105,6 @@ class TestProjectImporter:
         """Test _resolve_project_name() returns original name when no collision."""
         migration_service, migration_metadata = mock_migration_services
         importer = ProjectImporter(
-            db_session,
             migration_service=migration_service,
             migration_metadata_service=migration_metadata
         )
@@ -123,7 +122,6 @@ class TestProjectImporter:
         db_session.commit()
 
         importer = ProjectImporter(
-            db_session,
             migration_service=migration_service,
             migration_metadata_service=migration_metadata
         )
@@ -142,7 +140,6 @@ class TestProjectImporter:
         db_session.commit()
 
         importer = ProjectImporter(
-            db_session,
             migration_service=migration_service,
             migration_metadata_service=migration_metadata
         )
@@ -156,7 +153,6 @@ class TestProjectImporter:
         """Test _create_project() creates project entity."""
         migration_service, migration_metadata = mock_migration_services
         importer = ProjectImporter(
-            db_session,
             migration_service=migration_service,
             migration_metadata_service=migration_metadata
         )
@@ -194,7 +190,6 @@ class TestProjectImporter:
         """Test import_project_json() raises ValueError when file doesn't exist."""
         migration_service, migration_metadata = mock_migration_services
         importer = ProjectImporter(
-            db_session,
             migration_service=migration_service,
             migration_metadata_service=migration_metadata
         )
@@ -210,7 +205,6 @@ class TestProjectImporter:
         invalid_file.write_text("not valid json")
 
         importer = ProjectImporter(
-            db_session,
             migration_service=migration_service,
             migration_metadata_service=migration_metadata
         )
@@ -223,7 +217,6 @@ class TestProjectImporter:
         """Test _validate_migration_version() raises when version is missing."""
         migration_service, migration_metadata = mock_migration_services
         importer = ProjectImporter(
-            db_session,
             migration_service=migration_service,
             migration_metadata_service=migration_metadata
         )
@@ -237,7 +230,6 @@ class TestProjectImporter:
         """Test _validate_migration_version() accepts matching version."""
         migration_service, migration_metadata = mock_migration_services
         importer = ProjectImporter(
-            db_session,
             migration_service=migration_service,
             migration_metadata_service=migration_metadata
         )
@@ -251,7 +243,6 @@ class TestProjectImporter:
         """Test _transform_data() returns data unchanged when versions match."""
         migration_service, migration_metadata = mock_migration_services
         importer = ProjectImporter(
-            db_session,
             migration_service=migration_service,
             migration_metadata_service=migration_metadata
         )

@@ -1,7 +1,5 @@
 """Unit tests for NotesPanel."""
 
-import pytest
-
 from oeapp.ui.notes_panel import NotesPanel, ClickableNoteLabel
 from tests.conftest import create_test_project
 
@@ -10,7 +8,9 @@ class TestNotesPanel:
     """Test cases for NotesPanel."""
 
     def test_notes_panel_initializes(self, db_session, qapp):
-        """Test NotesPanel initializes correctly."""
+        """
+        Test NotesPanel initializes correctly.
+        """
         panel = NotesPanel(parent=None)
 
         assert panel.sentence is None

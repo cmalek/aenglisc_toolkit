@@ -8,37 +8,31 @@ from docx.oxml.ns import qn
 from docx.shared import Inches, Pt, RGBColor
 
 from oeapp.mixins import AnnotationTextualMixin, TokenOccurrenceMixin
+from oeapp.models.mixins import SessionMixin
 from oeapp.models.project import Project
 
 if TYPE_CHECKING:
     from pathlib import Path
 
     from docx.document import Document as DocumentObject
-    from sqlalchemy.orm import Session
 
     from oeapp.models.annotation import Annotation
     from oeapp.models.sentence import Sentence
     from oeapp.models.token import Token
 
 
-class DOCXExporter(AnnotationTextualMixin, TokenOccurrenceMixin):
+class DOCXExporter(SessionMixin, AnnotationTextualMixin, TokenOccurrenceMixin):
     """
     Exports annotated Old English text to DOCX format.
 
-    Args:
-        session: SQLAlchemy session
-
     """
 
-    def __init__(self, session: Session) -> None:
+    def __init__(self) -> None:
         """
         Initialize exporter.
 
-        Args:
-            session: SQLAlchemy session
-
         """
-        self.session = session
+        self.session = self._get_session()
 
     def export(self, project_id: int, output_path: Path) -> bool:
         """
@@ -54,7 +48,7 @@ class DOCXExporter(AnnotationTextualMixin, TokenOccurrenceMixin):
         """
         doc: DocumentObject = Document()
         self._setup_document_styles(doc)
-        project = Project.get(self.session, project_id)
+        project = Project.get(project_id)
         if project is None:
             return False
 

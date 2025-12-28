@@ -1,23 +1,18 @@
 """Notes related commands."""
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
 
+from oeapp.models.mixins import SessionMixin
 from oeapp.models.note import Note
 from oeapp.models.sentence import Sentence
 
 from .abstract import Command
 
-if TYPE_CHECKING:
-    from sqlalchemy.orm import Session
-
 
 @dataclass
-class AddNoteCommand(Command):
+class AddNoteCommand(SessionMixin, Command):
     """Command for adding a note."""
 
-    #: The SQLAlchemy session.
-    session: Session
     #: The sentence ID.
     sentence_id: int
     #: The start token ID.
@@ -39,6 +34,7 @@ class AddNoteCommand(Command):
             True if successful, False otherwise
 
         """
+        session = self._get_session()
         # Get next note number
         if self.note_number is None:
             self.note_number = self._get_next_note_number()
@@ -56,11 +52,11 @@ class AddNoteCommand(Command):
             note_text_md=self.note_text,
             note_type="span",
         )
-        self.session.add(note)
-        self.session.flush()
+        session.add(note)
+        session.flush()
         self.note_id = note.id
 
-        self.session.commit()
+        session.commit()
         return True
 
     def undo(self) -> bool:
@@ -71,15 +67,16 @@ class AddNoteCommand(Command):
             True if successful, False otherwise
 
         """
+        session = self._get_session()
         if self.note_id is None:
             return False
 
-        note = Note.get(self.session, self.note_id)
+        note = Note.get(self.note_id)
         if note is None:
             return False
 
-        self.session.delete(note)
-        self.session.commit()
+        session.delete(note)
+        session.commit()
         return True
 
     def get_description(self) -> str:
@@ -100,7 +97,7 @@ class AddNoteCommand(Command):
             Next note number
 
         """
-        sentence = Sentence.get(self.session, self.sentence_id)
+        sentence = Sentence.get(self.sentence_id)
         if sentence is None:
             return 1
 
@@ -114,7 +111,7 @@ class AddNoteCommand(Command):
         return len(notes) + 1
 
     @staticmethod
-    def get_note_number(session: Session, sentence_id: int, note_id: int) -> int:
+    def get_note_number(sentence_id: int, note_id: int) -> int:
         """
         Get note number for a note (1-based index in sentence's notes).
 
@@ -130,7 +127,11 @@ class AddNoteCommand(Command):
             Note number (1-based)
 
         """
-        sentence = Sentence.get(session, sentence_id)
+        # Avoid circular import
+        from oeapp.state import ApplicationState  # noqa: PLC0415
+
+        session = ApplicationState().session
+        sentence = Sentence.get(sentence_id)
         if sentence is None:
             return 1
 
@@ -149,7 +150,16 @@ class AddNoteCommand(Command):
                 token_id_to_order[token.id] = token.order_index
 
         def get_note_position(note: Note) -> int:
-            """Get position of note in sentence based on start token."""
+            """
+            Get position of note in sentence based on start token.
+
+            Args:
+                note: Note to get position for
+
+            Returns:
+                Position of note
+
+            """
             if note.start_token and note.start_token in token_id_to_order:
                 return token_id_to_order[note.start_token]
             # Fallback to end_token if start_token not found
@@ -168,11 +178,9 @@ class AddNoteCommand(Command):
 
 
 @dataclass
-class UpdateNoteCommand(Command):
+class UpdateNoteCommand(SessionMixin, Command):
     """Command for updating a note."""
 
-    #: The SQLAlchemy session.
-    session: Session
     #: The note ID.
     note_id: int
     #: The before note text.
@@ -196,7 +204,8 @@ class UpdateNoteCommand(Command):
             True if successful, False otherwise
 
         """
-        note = Note.get(self.session, self.note_id)
+        session = self._get_session()
+        note = Note.get(self.note_id)
         if note is None:
             return False
 
@@ -208,8 +217,8 @@ class UpdateNoteCommand(Command):
         note.end_token = (
             self.after_end_token if self.after_end_token is not None else None
         )
-        self.session.add(note)
-        self.session.commit()
+        session.add(note)
+        session.commit()
         return True
 
     def undo(self) -> bool:
@@ -220,7 +229,8 @@ class UpdateNoteCommand(Command):
             True if successful, False otherwise
 
         """
-        note = Note.get(self.session, self.note_id)
+        session = self._get_session()
+        note = Note.get(self.note_id)
         if note is None:
             return False
 
@@ -232,8 +242,8 @@ class UpdateNoteCommand(Command):
         note.end_token = (
             self.before_end_token if self.before_end_token is not None else None
         )
-        self.session.add(note)
-        self.session.commit()
+        session.add(note)
+        session.commit()
         return True
 
     def get_description(self) -> str:
@@ -248,11 +258,9 @@ class UpdateNoteCommand(Command):
 
 
 @dataclass
-class DeleteNoteCommand(Command):
+class DeleteNoteCommand(SessionMixin, Command):
     """Command for deleting a note."""
 
-    #: The SQLAlchemy session.
-    session: Session
     #: The note ID.
     note_id: int
     #: The note text (for undo).
@@ -278,7 +286,8 @@ class DeleteNoteCommand(Command):
             True if successful, False otherwise
 
         """
-        note = Note.get(self.session, self.note_id)
+        session = self._get_session()
+        note = Note.get(self.note_id)
         if note is None:
             return False
 
@@ -290,11 +299,11 @@ class DeleteNoteCommand(Command):
         if self.sentence_id:
             # Store note number for reference (though it's computed dynamically)
             self.note_number = AddNoteCommand.get_note_number(
-                self.session, self.sentence_id, self.note_id
+                self.sentence_id, self.note_id
             )
 
-        self.session.delete(note)
-        self.session.commit()
+        session.delete(note)
+        session.commit()
         # Note: The UI should refresh after this command executes to renumber
         # remaining notes. This happens via the note_saved signal handler.
         return True
@@ -307,6 +316,7 @@ class DeleteNoteCommand(Command):
             True if successful, False otherwise
 
         """
+        session = self._get_session()
         if (
             self.sentence_id is None
             or self.start_token_id is None
@@ -322,8 +332,8 @@ class DeleteNoteCommand(Command):
             note_text_md=self.note_text,
             note_type="span",
         )
-        self.session.add(note)
-        self.session.commit()
+        session.add(note)
+        session.commit()
         self.note_id = note.id
         return True
 

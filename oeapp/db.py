@@ -1,5 +1,6 @@
 """SQLAlchemy database setup for Ænglisc Toolkit."""
 
+import os
 import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final, cast
@@ -22,6 +23,7 @@ def get_project_db_path() -> Path:
     """
     Get the path to the project database.
 
+    - If OE_ANNOTATOR_DB_PATH environment variable is set, use that.
     - On Windows, the database is created in the user's
         ``AppData/Local/Ænglisc Toolkit/projects`` directory.
     - On macOS, the database is created in the user's
@@ -34,6 +36,10 @@ def get_project_db_path() -> Path:
         Path to the database file
 
     """
+    env_path = os.environ.get("OE_ANNOTATOR_DB_PATH")
+    if env_path:
+        return Path(env_path)
+
     if sys.platform not in ["win32", "darwin", "linux"]:
         msg = f"Unsupported platform: {sys.platform}"
         raise ValueError(msg)

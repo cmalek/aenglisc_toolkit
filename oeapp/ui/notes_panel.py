@@ -31,21 +31,30 @@ class ClickableNoteLabel(QLabel):
     double_clicked = Signal(object)  # Emits Note
 
     def __init__(self, note: Note, parent: QWidget | None = None):
-        """
-        Initialize clickable note label.
-        """
         super().__init__(parent)
         self.note = note
         self.setCursor(Qt.CursorShape.PointingHandCursor)
 
     def mousePressEvent(self, event: QMouseEvent) -> None:  # noqa: N802
-        """Handle mouse press event."""
+        """
+        Handle mouse press event.
+
+        Args:
+            event: Mouse press event
+
+        """
         if event.button() == Qt.MouseButton.LeftButton:
             self.clicked.emit(self.note)
         super().mousePressEvent(event)
 
     def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:  # noqa: N802
-        """Handle mouse double-click event."""
+        """
+        Handle mouse double-click event.
+
+        Args:
+            event: Mouse double-click event
+
+        """
         if event.button() == Qt.MouseButton.LeftButton:
             self.double_clicked.emit(self.note)
         super().mouseDoubleClickEvent(event)
@@ -55,7 +64,7 @@ class NotesPanel(QWidget):
     """
     Widget displaying notes panel.
 
-    Args:
+    Keyword Args:
         sentence: Sentence to display notes for
         parent: Parent widget
 
@@ -69,14 +78,6 @@ class NotesPanel(QWidget):
         sentence: Sentence | None = None,
         parent: QWidget | None = None,
     ):
-        """
-        Initialize notes panel.
-
-        Args:
-            sentence: Sentence to display notes for
-            parent: Parent widget
-
-        """
         super().__init__(parent)
         self.sentence = sentence
         self._setup_ui()

@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
 )
 
 from oeapp.services import BackupService
+from oeapp.state import ApplicationState
 
 from .utils import DateTimeTableWidgetItem
 
@@ -33,6 +34,7 @@ class BackupsViewDialog:
         Initialize backups view dialog.
         """
         self.main_window = main_window
+        self.state = ApplicationState()
 
     def build(self) -> None:
         """
@@ -87,7 +89,7 @@ class BackupsViewDialog:
         self.backup_table.setRowCount(0)
 
         if not backups:
-            self.main_window.show_information("No backups found.", title="No Backups")
+            self.state.show_information("No backups found.", title="No Backups")
             self.backup_table.setSortingEnabled(True)
             return
 

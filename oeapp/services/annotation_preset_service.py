@@ -5,8 +5,6 @@ from typing import TYPE_CHECKING, cast
 from oeapp.models.annotation_preset import AnnotationPreset
 
 if TYPE_CHECKING:
-    from sqlalchemy.orm import Session
-
     from oeapp.models.annotation import Annotation
     from oeapp.types import PresetPos
 
@@ -15,29 +13,25 @@ class AnnotationPresetService:
     """Service for managing annotation presets."""
 
     @staticmethod
-    def get_presets_for_pos(session: Session, pos: str) -> list[AnnotationPreset]:
+    def get_presets_for_pos(pos: str) -> list[AnnotationPreset]:
         """
         Get presets filtered by POS.
 
         Args:
-            session: SQLAlchemy session
             pos: Part of speech (N, V, A, R, D)
 
         Returns:
             List of AnnotationPreset entities ordered by name
 
         """
-        return AnnotationPreset.get_all_by_pos(session, pos)
+        return AnnotationPreset.get_all_by_pos(pos)
 
     @staticmethod
-    def create_preset(
-        session: Session, name: str, pos: str, field_values: dict
-    ) -> AnnotationPreset:
+    def create_preset(name: str, pos: str, field_values: dict) -> AnnotationPreset:
         """
         Create preset with field values dict.
 
         Args:
-            session: SQLAlchemy session
             name: Preset name
             pos: Part of speech (N, V, A, R, D)
             field_values: Dictionary of field values
@@ -50,19 +44,16 @@ class AnnotationPresetService:
             IntegrityError: If preset with same name and pos already exists
 
         """
-        return AnnotationPreset.create(
-            session, name, cast("PresetPos", pos), **field_values
-        )
+        return AnnotationPreset.create(name, cast("PresetPos", pos), **field_values)
 
     @staticmethod
     def update_preset(
-        session: Session, preset_id: int, name: str, field_values: dict
+        preset_id: int, name: str, field_values: dict
     ) -> AnnotationPreset | None:
         """
         Update preset.
 
         Args:
-            session: SQLAlchemy session
             preset_id: Preset ID
             name: New preset name
             field_values: Dictionary of field values to update
@@ -75,22 +66,21 @@ class AnnotationPresetService:
 
         """
         update_data = {"name": name.strip() if name else None, **field_values}
-        return AnnotationPreset.update(session, preset_id, **update_data)
+        return AnnotationPreset.update(preset_id, **update_data)
 
     @staticmethod
-    def delete_preset(session: Session, preset_id: int) -> bool:
+    def delete_preset(preset_id: int) -> bool:
         """
         Delete preset.
 
         Args:
-            session: SQLAlchemy session
             preset_id: Preset ID
 
         Returns:
             True if preset was deleted, False if not found
 
         """
-        return AnnotationPreset.delete(session, preset_id)
+        return AnnotationPreset.delete(preset_id)
 
     @staticmethod
     def apply_preset_to_annotation(  # noqa: PLR0912

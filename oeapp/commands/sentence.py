@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any, Literal
 from sqlalchemy import select
 
 from oeapp.models.annotation import Annotation
+from oeapp.models.mixins import SessionMixin
 from oeapp.models.note import Note
 from oeapp.models.sentence import Sentence
 from oeapp.models.token import Token
@@ -17,11 +18,9 @@ if TYPE_CHECKING:
 
 
 @dataclass
-class EditSentenceCommand(Command):
+class EditSentenceCommand(SessionMixin, Command):
     """Command for editing sentence text or translation."""
 
-    #: The SQLAlchemy session.
-    session: Session
     #: The sentence ID.
     sentence_id: int
     #: The field to edit.
@@ -43,16 +42,17 @@ class EditSentenceCommand(Command):
             True if successful
 
         """
-        sentence = Sentence.get(self.session, self.sentence_id)
+        session = self._get_session()
+        sentence = Sentence.get(self.sentence_id)
         if sentence is None:
             return False
 
         if self.field == "text_oe":
-            sentence.update(self.session, self.after)
+            sentence.update(self.after)
         elif self.field == "text_modern":
             sentence.text_modern = self.after
-            self.session.add(sentence)
-            self.session.commit()
+            session.add(sentence)
+            session.commit()
         return True
 
     def undo(self) -> bool:
@@ -63,16 +63,17 @@ class EditSentenceCommand(Command):
             True if successful, False otherwise
 
         """
-        sentence = Sentence.get(self.session, self.sentence_id)
+        session = self._get_session()
+        sentence = Sentence.get(self.sentence_id)
         if sentence is None:
             return False
 
         if self.field == "text_oe":
-            sentence.update(self.session, self.before)
+            sentence.update(self.before)
         elif self.field == "text_modern":
             sentence.text_modern = self.before
-            self.session.add(sentence)
-            self.session.commit()
+            session.add(sentence)
+            session.commit()
         return True
 
     def get_description(self) -> str:
@@ -99,11 +100,9 @@ class EditSentenceCommand(Command):
 
 
 @dataclass
-class MergeSentenceCommand(Command):
+class MergeSentenceCommand(SessionMixin, Command):
     """Command for merging a sentence with the next sentence."""
 
-    #: The SQLAlchemy session.
-    session: Session
     #: The current sentence ID.
     current_sentence_id: int
     #: The next sentence ID.
@@ -130,8 +129,9 @@ class MergeSentenceCommand(Command):
             True if successful, False otherwise
 
         """
-        current_sentence = Sentence.get(self.session, self.current_sentence_id)
-        next_sentence = Sentence.get(self.session, self.next_sentence_id)
+        session = self._get_session()
+        current_sentence = Sentence.get(self.current_sentence_id)
+        next_sentence = Sentence.get(self.next_sentence_id)
 
         if current_sentence is None or next_sentence is None:
             return False
@@ -181,14 +181,14 @@ class MergeSentenceCommand(Command):
         for idx, token in enumerate(next_tokens):
             token.sentence_id = current_sentence.id
             token.order_index = current_token_count + idx
-            self.session.add(token)
+            session.add(token)
 
-        self.session.flush()
+        session.flush()
 
         # Move all notes from next sentence to current sentence
         for note in next_notes:
             note.sentence_id = current_sentence.id
-            self.session.add(note)
+            session.add(note)
 
         # Merge texts
         merged_text_oe = current_sentence.text_oe + " " + next_sentence.text_oe
@@ -197,9 +197,9 @@ class MergeSentenceCommand(Command):
         merged_text_modern = (current_modern + " " + next_modern).strip() or None
 
         # Update current sentence text (this will re-tokenize and match existing tokens)
-        current_sentence.update(self.session, merged_text_oe)
+        current_sentence.update(merged_text_oe)
         current_sentence.text_modern = merged_text_modern
-        self.session.add(current_sentence)
+        session.add(current_sentence)
 
         # Store next sentence's display_order before deletion
         next_display_order = next_sentence.display_order
@@ -207,13 +207,13 @@ class MergeSentenceCommand(Command):
 
         # Delete next sentence FIRST to avoid unique constraint violation
         # when updating display_order of subsequent sentences
-        self.session.delete(next_sentence)
-        self.session.flush()  # Flush to ensure deletion happens before updates
+        session.delete(next_sentence)
+        session.flush()  # Flush to ensure deletion happens before updates
 
         # Update display_order for all subsequent sentences
         # Query using stored values since next_sentence is now deleted
         subsequent_sentences = Sentence.subsequent_sentences(
-            self.session, next_project_id, next_display_order
+            next_project_id, next_display_order
         )
         for sentence in subsequent_sentences:
             old_order = sentence.display_order
@@ -221,9 +221,9 @@ class MergeSentenceCommand(Command):
             self.display_order_changes.append(
                 (sentence.id, old_order, sentence.display_order)
             )
-            self.session.add(sentence)
+            session.add(sentence)
 
-        self.session.commit()
+        session.commit()
         return True
 
     def undo(self) -> bool:
@@ -234,14 +234,15 @@ class MergeSentenceCommand(Command):
             True if successful, False otherwise
 
         """
-        current_sentence = Sentence.get(self.session, self.current_sentence_id)
+        session = self._get_session()
+        current_sentence = Sentence.get(self.current_sentence_id)
         if current_sentence is None:
             return False
 
         # CRITICAL: Restore display_order for subsequent sentences FIRST
         # This must happen before recreating the next sentence to avoid
         # unique constraint violations
-        Sentence.restore_display_orders(self.session, self.display_order_changes)
+        Sentence.restore_display_orders(self.display_order_changes)
 
         # Now recreate next sentence (will get a new ID, which is fine)
         next_sentence = Sentence(
@@ -250,35 +251,35 @@ class MergeSentenceCommand(Command):
             text_oe=self.next_sentence_data["text_oe"],
             text_modern=self.next_sentence_data["text_modern"],
         )
-        self.session.add(next_sentence)
-        self.session.flush()  # Get the new ID
+        session.add(next_sentence)
+        session.flush()  # Get the new ID
 
         # Restore tokens to next sentence with original order_index
         # CRITICAL: Do this BEFORE updating current sentence text
         for token_data in self.next_sentence_tokens:
-            token = Token.get(self.session, token_data["id"])
+            token = Token.get(token_data["id"])
             if token:
                 token.sentence_id = next_sentence.id  # Use the new sentence ID
                 token.order_index = token_data["order_index"]
-                self.session.add(token)
+                session.add(token)
 
-        self.session.flush()  # Ensure tokens are moved before updating current sentence
+        session.flush()  # Ensure tokens are moved before updating current sentence
 
         # Now restore current sentence texts and update (re-tokenize)
         # This will only affect tokens that belong to current sentence
         current_sentence.text_oe = self.before_text_oe
         current_sentence.text_modern = self.before_text_modern
-        current_sentence.update(self.session, self.before_text_oe)
-        self.session.add(current_sentence)
+        current_sentence.update(self.before_text_oe)
+        session.add(current_sentence)
 
         # Restore notes to next sentence
         for note_data in self.next_sentence_notes:
-            note = self.session.get(Note, note_data["id"])
+            note = Note.get(note_data["id"])
             if note:
                 note.sentence_id = next_sentence.id  # Use the new sentence ID
-                self.session.add(note)
+                session.add(note)
 
-        self.session.commit()
+        session.commit()
         return True
 
     def get_description(self) -> str:
@@ -305,11 +306,9 @@ class MergeSentenceCommand(Command):
 
 
 @dataclass
-class AddSentenceCommand(Command):
+class AddSentenceCommand(SessionMixin, Command):
     """Command for adding a new sentence before or after an existing sentence."""
 
-    #: The SQLAlchemy session.
-    session: Session
     #: The project ID.
     project_id: int
     #: The reference sentence ID (sentence to insert before/after).
@@ -332,7 +331,8 @@ class AddSentenceCommand(Command):
             True if successful, False otherwise
 
         """
-        reference_sentence = Sentence.get(self.session, self.reference_sentence_id)
+        session = self._get_session()
+        reference_sentence = Sentence.get(self.reference_sentence_id)
         if reference_sentence is None:
             return False
 
@@ -347,7 +347,7 @@ class AddSentenceCommand(Command):
             # For "before", we need sentences with display_order >= target_order
             # Query sentences with display_order >= target_order
             affected_sentences = list(
-                self.session.scalars(
+                session.scalars(
                     select(Sentence)
                     .where(
                         Sentence.project_id == self.project_id,
@@ -359,7 +359,7 @@ class AddSentenceCommand(Command):
         else:  # "after"
             # For "after", we need sentences with display_order > reference_order
             affected_sentences = Sentence.subsequent_sentences(
-                self.session, self.project_id, reference_sentence.display_order
+                self.project_id, reference_sentence.display_order
             )
             # Sort descending for processing
             affected_sentences = sorted(
@@ -369,21 +369,19 @@ class AddSentenceCommand(Command):
         # Two-phase approach to avoid constraint violations
         if affected_sentences:
             self.display_order_changes = Sentence.renumber_sentences(
-                self.session,
                 affected_sentences,
                 order_function=lambda s: s.display_order + 1,
             )
 
         # Create new sentence with empty text_oe
         new_sentence = Sentence.create(
-            session=self.session,
             project_id=self.project_id,
             display_order=target_order,
             text_oe="",
         )
         self.new_sentence_id = new_sentence.id
 
-        self.session.commit()
+        session.commit()
         return True
 
     def undo(self) -> bool:
@@ -397,19 +395,20 @@ class AddSentenceCommand(Command):
             True if successful, False otherwise
 
         """
+        session = self._get_session()
         if self.new_sentence_id is None:
             return False
 
         # Delete the new sentence first
-        new_sentence = Sentence.get(self.session, self.new_sentence_id)
+        new_sentence = Sentence.get(self.new_sentence_id)
         if new_sentence:
-            self.session.delete(new_sentence)
-            self.session.flush()
+            session.delete(new_sentence)
+            session.flush()
 
         # Restore display_order using two-phase approach
-        Sentence.restore_display_orders(self.session, self.display_order_changes)
+        Sentence.restore_display_orders(self.display_order_changes)
 
-        self.session.commit()
+        session.commit()
         return True
 
     def get_description(self) -> str:
@@ -425,11 +424,9 @@ class AddSentenceCommand(Command):
 
 
 @dataclass
-class DeleteSentenceCommand(Command):
+class DeleteSentenceCommand(SessionMixin, Command):
     """Command for deleting a sentence."""
 
-    #: The SQLAlchemy session.
-    session: Session
     #: The sentence ID to delete.
     sentence_id: int
     #: Before state: sentence data for restoration
@@ -449,7 +446,8 @@ class DeleteSentenceCommand(Command):
             True if successful, False otherwise
 
         """
-        sentence = Sentence.get(self.session, self.sentence_id)
+        session = self._get_session()
+        sentence = Sentence.get(self.sentence_id)
         if sentence is None:
             return False
 
@@ -505,22 +503,21 @@ class DeleteSentenceCommand(Command):
         project_id = sentence.project_id
 
         # Delete sentence (cascade will delete tokens and notes)
-        self.session.delete(sentence)
-        self.session.flush()  # Flush to ensure deletion happens before updates
+        session.delete(sentence)
+        session.flush()  # Flush to ensure deletion happens before updates
 
         # Update display_order for all subsequent sentences (decrement by 1)
         # Use two-phase approach to avoid unique constraint violations
         subsequent_sentences = Sentence.subsequent_sentences(
-            self.session, project_id, deleted_display_order
+            project_id, deleted_display_order
         )
         if subsequent_sentences:
             self.display_order_changes = Sentence.renumber_sentences(
-                self.session,
                 subsequent_sentences,
                 order_function=lambda s: s.display_order - 1,
             )
 
-        self.session.commit()
+        session.commit()
         return True
 
     def undo(self) -> bool:
@@ -534,11 +531,12 @@ class DeleteSentenceCommand(Command):
             True if successful, False otherwise
 
         """
+        session = self._get_session()
         # CRITICAL: Restore display_order for subsequent sentences FIRST
         # This must happen before recreating the sentence to avoid
         # unique constraint violations
         Sentence.restore_display_orders(
-            self.session, self.display_order_changes
+            self.display_order_changes
         )  # Ensure display_order changes are applied
 
         # Recreate sentence (will get a new ID, which is fine)
@@ -548,13 +546,13 @@ class DeleteSentenceCommand(Command):
             text_oe=self.sentence_data["text_oe"],
             text_modern=self.sentence_data["text_modern"],
         )
-        self.session.add(restored_sentence)
-        self.session.flush()  # Get the new ID
+        session.add(restored_sentence)
+        session.flush()  # Get the new ID
 
         # Update sentence text to trigger tokenization (creates new tokens with new IDs)
-        restored_sentence.update(self.session, self.sentence_data["text_oe"])
-        self.session.add(restored_sentence)
-        self.session.flush()
+        restored_sentence.update(self.sentence_data["text_oe"])
+        session.add(restored_sentence)
+        session.flush()
 
         # Build mapping of order_index to new token IDs
         restored_tokens = list(restored_sentence.tokens)
@@ -570,7 +568,7 @@ class DeleteSentenceCommand(Command):
             if annotation_data and order_index in order_index_to_token_id:
                 new_token_id = order_index_to_token_id[order_index]
                 # Create annotation with new token_id
-                Annotation.from_json(self.session, new_token_id, annotation_data)
+                Annotation.from_json(new_token_id, annotation_data)
 
         # Restore notes using order_index mapping
         for note_data in self.sentence_notes:
@@ -594,9 +592,9 @@ class DeleteSentenceCommand(Command):
                 note_text_md=note_data["note_text_md"],
                 note_type=note_data["note_type"],
             )
-            self.session.add(restored_note)
+            session.add(restored_note)
 
-        self.session.commit()
+        session.commit()
         return True
 
     def get_description(self) -> str:

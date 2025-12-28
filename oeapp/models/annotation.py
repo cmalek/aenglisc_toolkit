@@ -17,11 +17,13 @@ from oeapp.db import Base
 from oeapp.mixins import AnnotationTextualMixin
 from oeapp.utils import from_utc_iso, to_utc_iso
 
+from .mixins import SessionMixin
+
 if TYPE_CHECKING:
     from oeapp.models.token import Token
 
 
-class Annotation(AnnotationTextualMixin, Base):
+class Annotation(AnnotationTextualMixin, SessionMixin, Base):
     """Represents grammatical/morphological annotations for a token."""
 
     __tablename__ = "annotations"
@@ -157,17 +159,19 @@ class Annotation(AnnotationTextualMixin, Base):
     token: Mapped[Token] = relationship("Token", back_populates="annotation")
 
     @classmethod
-    def exists(cls, session: Session, token_id: int) -> bool:
+    def exists(cls, token_id: int) -> bool:
         """
         Check if an annotation exists for a token.
         """
+        session = cls._get_session()
         return session.scalar(select(cls).where(cls.token_id == token_id)) is not None
 
     @classmethod
-    def get(cls, session: Session, annotation_id: int) -> Annotation | None:
+    def get(cls, annotation_id: int) -> Annotation | None:
         """
         Get an annotation by ID.
         """
+        session = cls._get_session()
         return session.get(cls, annotation_id)
 
     def to_json(self) -> dict:
@@ -206,7 +210,7 @@ class Annotation(AnnotationTextualMixin, Base):
         }
 
     @classmethod
-    def from_json(cls, session: Session, token_id: int, ann_data: dict) -> Annotation:
+    def from_json(cls, token_id: int, ann_data: dict) -> Annotation:
         """
         Create an annotation from JSON import data.
 
@@ -219,6 +223,7 @@ class Annotation(AnnotationTextualMixin, Base):
             Created Annotation entity
 
         """
+        session = cls._get_session()
         annotation = cls(
             token_id=token_id,
             pos=ann_data.get("pos"),
