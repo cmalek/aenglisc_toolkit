@@ -32,8 +32,6 @@ from oeapp.ui.dialogs.annotation_preset_management import (
 from oeapp.ui.mixins import AnnotationLookupsMixin
 
 if TYPE_CHECKING:
-    from sqlalchemy.orm import Session
-
     from oeapp.models.token import Token
     from oeapp.types import PresetPos
 
@@ -364,35 +362,9 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
 
         self._update_status_label()
         # Update preset dropdown after POS change
-        # Call directly first, then also schedule for next event loop in case
-        # session isn't ready
         self._update_preset_dropdown()
 
         QTimer.singleShot(100, self._update_preset_dropdown)
-
-    def _get_session(self) -> Session | None:
-        """
-        Get database session from parent.
-
-        Returns:
-            The active SQLAlchemy Session or None if not found
-
-        """
-        parent = self.parent()
-        if not parent:
-            return None
-
-        # Try to get session from parent's main_window (e.g., if parent is a
-        # widget with main_window)
-        if hasattr(parent, "main_window") and hasattr(parent.main_window, "session"):
-            return parent.main_window.session
-
-        # Try to get session directly from parent (e.g., SentenceCard has
-        # session directly)
-        if hasattr(parent, "session"):
-            return parent.session
-
-        return None
 
     def _update_preset_dropdown(self) -> None:
         """Populate preset dropdown based on current POS selection."""
@@ -400,13 +372,6 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         if not hasattr(self, "preset_combo") or not hasattr(
             self, "apply_preset_button"
         ):
-            return
-
-        session = self._get_session()
-        if not session:
-            # Session not available - disable dropdown
-            self.preset_combo.setEnabled(False)
-            self.apply_preset_button.setEnabled(False)
             return
 
         # Get current POS text from combo box
@@ -429,7 +394,7 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
 
         # Get presets for this POS
         try:
-            presets = self.preset_service.get_presets_for_pos(session, pos)
+            presets = self.preset_service.get_presets_for_pos(pos)
         except SQLAlchemyError:
             # Error getting presets - disable dropdown
             self.preset_combo.clear()
@@ -462,15 +427,11 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
             # Empty selection
             return
 
-        session = self._get_session()
-        if not session:
-            return
-
         preset_id = self.preset_combo.currentData()
         if not preset_id:
             return
 
-        preset = AnnotationPreset.get(session, preset_id)
+        preset = AnnotationPreset.get(preset_id)
         if not preset:
             return
 

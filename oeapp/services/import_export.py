@@ -2,29 +2,24 @@
 
 import json
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
+from oeapp.models.mixins import SessionMixin
 from oeapp.models.project import Project
 from oeapp.models.sentence import Sentence
 
 from .migration import MigrationMetadataService, MigrationService
 
-if TYPE_CHECKING:
-    from sqlalchemy.orm import Session
 
-
-class ProjectExporter:
+class ProjectExporter(SessionMixin):
     """Exports projects to JSON format."""
 
-    def __init__(self, session: Session) -> None:
+    def __init__(self) -> None:
         """
         Initialize exporter.
 
-        Args:
-            session: SQLAlchemy session
-
         """
-        self.session = session
+        self.session = self._get_session()
         self.migration_service = MigrationService()
 
     @staticmethod
@@ -52,7 +47,7 @@ class ProjectExporter:
             Project
 
         """
-        project = Project.get(self.session, project_id)
+        project = Project.get(project_id)
         if project is None:
             msg = f"Project with ID {project_id} not found"
             raise ValueError(msg)
@@ -91,7 +86,7 @@ class ProjectExporter:
         sentences = sorted(project.sentences, key=lambda s: s.display_order)
 
         for sentence in sentences:
-            sentence_data = sentence.to_json(self.session)
+            sentence_data = sentence.to_json()
             project_data["sentences"].append(sentence_data)
 
         # Write JSON to file
@@ -106,12 +101,11 @@ class ProjectExporter:
             raise ValueError(msg) from e
 
 
-class ProjectImporter:
+class ProjectImporter(SessionMixin):
     """Processes project import data and creates database entities."""
 
     def __init__(
         self,
-        session: Session,
         migration_service: MigrationService | None = None,
         migration_metadata_service: MigrationMetadataService | None = None,
     ) -> None:
@@ -119,14 +113,13 @@ class ProjectImporter:
         Initialize processor.
 
         Args:
-            session: SQLAlchemy session
             migration_service: Optional MigrationService instance (created if
                 not provided)
             migration_metadata_service: Optional MigrationMetadataService instance
                 (created if not provided)
 
         """
-        self.session = session
+        self.session = self._get_session()
         # Allow dependency injection for testing, but create defaults for normal use
         self.migration_service = (
             migration_service if migration_service is not None else MigrationService()
@@ -326,7 +319,7 @@ class ProjectImporter:
         was_renamed = False
 
         while True:
-            existing = Project.exists(self.session, name)
+            existing = Project.exists(name)
             if existing is None:
                 break
             name = f"{original_name} ({counter})"
@@ -347,7 +340,7 @@ class ProjectImporter:
 
         """
         resolved_name, was_renamed = self._resolve_project_name(project_data["name"])
-        project = Project.from_json(self.session, project_data, resolved_name)
+        project = Project.from_json(project_data, resolved_name)
         return project, was_renamed
 
     def _create_sentence(self, project_id: int, sentence_data: dict[str, Any]) -> None:
@@ -359,7 +352,7 @@ class ProjectImporter:
             sentence_data: Sentence data dictionary
 
         """
-        Sentence.from_json(self.session, project_id, sentence_data)
+        Sentence.from_json(project_id, sentence_data)
 
     def import_project_json(self, filename: str) -> tuple[Project, bool]:
         """

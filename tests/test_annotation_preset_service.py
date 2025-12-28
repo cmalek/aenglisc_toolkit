@@ -8,48 +8,22 @@ from oeapp.models.annotation_preset import AnnotationPreset
 from oeapp.services.annotation_preset_service import AnnotationPresetService
 
 
-@pytest.fixture
-def db_session():
-    """Create a temporary database and session for testing."""
-    import tempfile
-    import os
-    from pathlib import Path
-    from sqlalchemy import create_engine
-    from sqlalchemy.orm import sessionmaker
-    from oeapp.db import Base
-
-    temp_db = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.db')
-    temp_db.close()
-    db_path = Path(temp_db.name)
-
-    engine = create_engine(f"sqlite:///{db_path}")
-    Base.metadata.create_all(engine)
-    SessionLocal = sessionmaker(bind=engine)
-    session = SessionLocal()
-
-    yield session
-
-    session.close()
-    engine.dispose()
-    os.unlink(temp_db.name)
-
-
 class TestAnnotationPresetService:
     """Test cases for AnnotationPresetService."""
 
     def test_get_presets_for_pos_filters_correctly(self, db_session):
         """Test get_presets_for_pos() filters correctly by POS."""
-        AnnotationPreset.create(db_session, name="Noun 1", pos="N")
-        AnnotationPreset.create(db_session, name="Noun 2", pos="N")
-        AnnotationPreset.create(db_session, name="Verb 1", pos="V")
+        AnnotationPreset.create(name="Noun 1", pos="N")
+        AnnotationPreset.create(name="Noun 2", pos="N")
+        AnnotationPreset.create(name="Verb 1", pos="V")
         db_session.commit()
 
         service = AnnotationPresetService()
-        nouns = service.get_presets_for_pos(db_session, "N")
+        nouns = service.get_presets_for_pos("N")
         assert len(nouns) == 2
         assert all(p.pos == "N" for p in nouns)
 
-        verbs = service.get_presets_for_pos(db_session, "V")
+        verbs = service.get_presets_for_pos("V")
         assert len(verbs) == 1
         assert verbs[0].pos == "V"
 
@@ -57,7 +31,7 @@ class TestAnnotationPresetService:
         """Test create_preset() creates preset with field values."""
         service = AnnotationPresetService()
         field_values = {"gender": "m", "number": "s", "case": "n"}
-        preset = service.create_preset(db_session, "Test Noun", "N", field_values)
+        preset = service.create_preset("Test Noun", "N", field_values)
         db_session.commit()
 
         assert preset.id is not None
@@ -71,7 +45,7 @@ class TestAnnotationPresetService:
         """Test create_preset() handles partial field values (None)."""
         service = AnnotationPresetService()
         field_values = {"verb_class": "w1", "verb_tense": None, "verb_mood": "i"}
-        preset = service.create_preset(db_session, "Partial Verb", "V", field_values)
+        preset = service.create_preset("Partial Verb", "V", field_values)
         db_session.commit()
 
         assert preset.verb_class == "w1"
@@ -81,22 +55,22 @@ class TestAnnotationPresetService:
     def test_create_preset_handles_duplicate_error(self, db_session):
         """Test create_preset() handles IntegrityError for duplicates."""
         service = AnnotationPresetService()
-        service.create_preset(db_session, "Duplicate", "N", {})
+        service.create_preset("Duplicate", "N", {})
         db_session.commit()
 
         with pytest.raises(IntegrityError):
-            service.create_preset(db_session, "Duplicate", "N", {})
+            service.create_preset("Duplicate", "N", {})
             db_session.commit()
 
     def test_update_preset_updates_fields(self, db_session):
         """Test update_preset() updates preset fields."""
-        preset = AnnotationPreset.create(db_session, name="Original", pos="A", gender="m")
+        preset = AnnotationPreset.create(name="Original", pos="A", gender="m")
         db_session.commit()
 
         service = AnnotationPresetService()
         field_values = {"gender": "f", "number": "p"}
         updated = service.update_preset(
-            db_session, preset.id, "Updated Name", field_values
+            preset.id, "Updated Name", field_values
         )
         db_session.commit()
 
@@ -107,27 +81,27 @@ class TestAnnotationPresetService:
 
     def test_update_preset_handles_duplicate_error(self, db_session):
         """Test update_preset() handles IntegrityError for duplicates."""
-        AnnotationPreset.create(db_session, name="Existing", pos="N")
-        preset2 = AnnotationPreset.create(db_session, name="To Update", pos="N")
+        AnnotationPreset.create(name="Existing", pos="N")
+        preset2 = AnnotationPreset.create(name="To Update", pos="N")
         db_session.commit()
 
         service = AnnotationPresetService()
         with pytest.raises(IntegrityError):
-            service.update_preset(db_session, preset2.id, "Existing", {})
+            service.update_preset(preset2.id, "Existing", {})
             db_session.commit()
 
     def test_delete_preset_removes_preset(self, db_session):
         """Test delete_preset() removes preset."""
-        preset = AnnotationPreset.create(db_session, name="To Delete", pos="R")
+        preset = AnnotationPreset.create(name="To Delete", pos="R")
         db_session.commit()
         preset_id = preset.id
 
         service = AnnotationPresetService()
-        result = service.delete_preset(db_session, preset_id)
+        result = service.delete_preset(preset_id)
         db_session.commit()
 
         assert result is True
-        assert AnnotationPreset.get(db_session, preset_id) is None
+        assert AnnotationPreset.get(preset_id) is None
 
     def test_apply_preset_to_annotation_applies_only_non_none_values(self, db_session):
         """Test apply_preset_to_annotation() applies only non-None values."""

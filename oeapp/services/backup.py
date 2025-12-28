@@ -130,9 +130,7 @@ class BackupService(QObject):
                 return row[0]
         return None
 
-    def extract_backup_metadata(
-        self, session: Session, engine: Engine
-    ) -> dict[str, Any]:
+    def extract_backup_metadata(self, engine: Engine) -> dict[str, Any]:
         """
         Extract metadata from the database for backup.
 
@@ -152,10 +150,10 @@ class BackupService(QObject):
 
         # Get projects with token counts
         projects_data = []
-        projects = Project.list(session)
+        projects = Project.list()
         for project in projects:
             # Count tokens for this project through sentences
-            total_tokens = project.total_token_count(session)
+            total_tokens = project.total_token_count()
             projects_data.append(
                 {
                     "id": project.id,
@@ -212,7 +210,7 @@ class BackupService(QObject):
             # Extract metadata (may fail if database is empty/fresh or has errors)
 
             try:
-                metadata = self.extract_backup_metadata(temp_session, temp_engine)
+                metadata = self.extract_backup_metadata(temp_engine)
             except (SQLAlchemyError, OSError) as e:
                 # If metadata extraction fails, create minimal metadata
                 print(f"Metadata extraction failed, using minimal metadata: {e}")  # noqa: T201

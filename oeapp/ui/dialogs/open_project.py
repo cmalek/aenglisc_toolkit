@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 )
 
 from oeapp.models.project import Project
+from oeapp.state import ApplicationState
 
 from .new_project import NewProjectDialog
 from .utils import filter_projects_table, load_projects_into_table
@@ -38,6 +39,7 @@ class OpenProjectDialog:
         Initialize open project dialog.
         """
         self.main_window = main_window
+        self.state = ApplicationState()
 
     def build(self) -> None:
         """
@@ -150,17 +152,15 @@ class OpenProjectDialog:
             if name_item:
                 self.project_id = name_item.data(Qt.ItemDataRole.UserRole)
                 # Get the project from the database.
-                project = cast(
-                    "Project", Project.get(self.main_window.session, self.project_id)
-                )
+                project = cast("Project", Project.get(self.project_id))
                 if project is None:
-                    self.main_window.show_warning("Project not found")
+                    self.state.show_warning("Project not found")
                     return
                 # Configure the app for the project.
                 self.main_window._configure_project(project)
                 # Set the window title to the project name.
                 self.main_window.setWindowTitle(f"Ænglisc Toolkit - {project.name}")
-                self.main_window.show_message("Project opened")
+                self.state.show_message("Project opened")
                 self.dialog.accept()
 
     def execute(self) -> None:

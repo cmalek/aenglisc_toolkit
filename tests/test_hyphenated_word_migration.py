@@ -1,38 +1,10 @@
 """Unit tests for hyphenated word migration."""
 
-import pytest
-import tempfile
-import os
-from pathlib import Path
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker
-
-from oeapp.db import Base
 from oeapp.models.token import Token
 from oeapp.models.project import Project
 from oeapp.models.sentence import Sentence
 from oeapp.models.annotation import Annotation
-
-
-@pytest.fixture
-def db_session():
-    """Create a temporary database and session for testing."""
-    temp_db = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.db')
-    temp_db.close()
-    db_path = Path(temp_db.name)
-
-    # Create engine and session
-    engine = create_engine(f"sqlite:///{db_path}")
-    Base.metadata.create_all(engine)
-    SessionLocal = sessionmaker(bind=engine)
-    session = SessionLocal()
-
-    yield session
-
-    session.close()
-    engine.dispose()
-    os.unlink(temp_db.name)
 
 
 def _run_migration(session):
@@ -155,7 +127,7 @@ class TestHyphenatedWordMigration:
         _run_migration(db_session)
 
         # Verify tokens were merged
-        tokens = Token.list(db_session, sentence.id)
+        tokens = Token.list(sentence.id)
         assert len(tokens) == 1
         assert tokens[0].surface == "ġe-wāt"
         assert tokens[0].order_index == 0
@@ -193,7 +165,7 @@ class TestHyphenatedWordMigration:
         _run_migration(db_session)
 
         # Verify both hyphenated words were merged
-        tokens = Token.list(db_session, sentence.id)
+        tokens = Token.list(sentence.id)
         assert len(tokens) == 3
         assert tokens[0].surface == "ġe-wāt"
         assert tokens[1].surface == "and"
@@ -206,20 +178,19 @@ class TestHyphenatedWordMigration:
         db_session.flush()
 
         sentence = Sentence.create(
-            session=db_session,
             project_id=project.id,
             display_order=1,
             text_oe="Se cyning wæs"
         )
 
-        original_tokens = Token.list(db_session, sentence.id)
+        original_tokens = Token.list(sentence.id)
         original_count = len(original_tokens)
 
         # Run migration
         _run_migration(db_session)
 
         # Verify tokens unchanged
-        tokens = Token.list(db_session, sentence.id)
+        tokens = Token.list(sentence.id)
         assert len(tokens) == original_count
         assert tokens[0].surface == "Se"
         assert tokens[1].surface == "cyning"
@@ -270,7 +241,7 @@ class TestHyphenatedWordMigration:
         _run_migration(db_session)
 
         # Verify annotation is preserved
-        tokens = Token.list(db_session, sentence.id)
+        tokens = Token.list(sentence.id)
         assert len(tokens) == 1
         assert tokens[0].annotation is not None
         assert tokens[0].annotation.pos == "V"
@@ -320,7 +291,7 @@ class TestHyphenatedWordMigration:
         _run_migration(db_session)
 
         # Verify prefix token and its annotation are gone
-        tokens = Token.list(db_session, sentence.id)
+        tokens = Token.list(sentence.id)
         assert len(tokens) == 1
         # Annotation should not exist (was on deleted token)
         assert tokens[0].annotation is None
@@ -358,7 +329,7 @@ class TestHyphenatedWordMigration:
         _run_migration(db_session)
 
         # Verify order_index is sequential
-        tokens = Token.list(db_session, sentence.id)
+        tokens = Token.list(sentence.id)
         assert len(tokens) == 3
         for i, token in enumerate(tokens):
             assert token.order_index == i
@@ -396,7 +367,7 @@ class TestHyphenatedWordMigration:
         _run_migration(db_session)
 
         # Verify both hyphenated words were merged
-        tokens = Token.list(db_session, sentence.id)
+        tokens = Token.list(sentence.id)
         assert len(tokens) == 2
         assert tokens[0].surface == "ġe-wāt"
         assert tokens[1].surface == "be-bode"
@@ -429,7 +400,7 @@ class TestHyphenatedWordMigration:
 
         _run_migration(db_session)
 
-        tokens = Token.list(db_session, sentence.id)
+        tokens = Token.list(sentence.id)
         assert len(tokens) == 2
         assert tokens[0].surface == "ġe-wāt"
         assert tokens[1].surface == "cyning"
@@ -462,7 +433,7 @@ class TestHyphenatedWordMigration:
 
         _run_migration(db_session)
 
-        tokens = Token.list(db_session, sentence.id)
+        tokens = Token.list(sentence.id)
         assert len(tokens) == 3
         assert tokens[0].surface == "Se"
         assert tokens[1].surface == "cyning"
@@ -496,7 +467,7 @@ class TestHyphenatedWordMigration:
 
         _run_migration(db_session)
 
-        tokens = Token.list(db_session, sentence.id)
+        tokens = Token.list(sentence.id)
         assert len(tokens) == 1
         assert tokens[0].surface == "ġe–wāt"
 
@@ -528,6 +499,6 @@ class TestHyphenatedWordMigration:
 
         _run_migration(db_session)
 
-        tokens = Token.list(db_session, sentence.id)
+        tokens = Token.list(sentence.id)
         assert len(tokens) == 1
         assert tokens[0].surface == "ġe—wāt"

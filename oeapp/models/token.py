@@ -6,17 +6,18 @@ from datetime import datetime
 from typing import TYPE_CHECKING, ClassVar
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String, UniqueConstraint, select
-from sqlalchemy.orm import Mapped, Session, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from oeapp.db import Base
 from oeapp.models.annotation import Annotation
+from oeapp.models.mixins import SessionMixin
 from oeapp.utils import from_utc_iso, to_utc_iso
 
 if TYPE_CHECKING:
     from oeapp.models.sentence import Sentence
 
 
-class Token(Base):
+class Token(SessionMixin, Base):
     """Represents a tokenized word in a sentence."""
 
     __tablename__ = "tokens"
@@ -84,12 +85,11 @@ class Token(Base):
         return token_data
 
     @classmethod
-    def from_json(cls, session: Session, sentence_id: int, token_data: dict) -> Token:
+    def from_json(cls, sentence_id: int, token_data: dict) -> Token:
         """
         Create a token and annotation from JSON import data.
 
         Args:
-            session: SQLAlchemy session
             sentence_id: Sentence ID to attach token to
             token_data: Token data dictionary from JSON
 
@@ -97,6 +97,7 @@ class Token(Base):
             Created Token entity
 
         """
+        session = cls._get_session()
         token = cls(
             sentence_id=sentence_id,
             order_index=token_data["order_index"],
@@ -115,38 +116,38 @@ class Token(Base):
 
         # Create annotation if it exists
         if "annotation" in token_data:
-            Annotation.from_json(session, token.id, token_data["annotation"])
+            Annotation.from_json(token.id, token_data["annotation"])
 
         return token
 
     @classmethod
-    def get(cls, session: Session, token_id: int) -> Token | None:
+    def get(cls, token_id: int) -> Token | None:
         """
         Get a token by ID.
 
         Args:
-            session: SQLAlchemy session
             token_id: Token ID
 
         Returns:
             Token or None if not found
 
         """
+        session = cls._get_session()
         return session.get(cls, token_id)
 
     @classmethod
-    def list(cls, session: Session, sentence_id: int) -> builtins.list[Token]:
+    def list(cls, sentence_id: int) -> builtins.list[Token]:
         """
         Get all tokens by sentence ID, ordered by order index.
 
         Args:
-            session: SQLAlchemy session
             sentence_id: Sentence ID
 
         Returns:
             List of tokens ordered by order index
 
         """
+        session = cls._get_session()
         return builtins.list(
             session.scalars(
                 select(cls)
@@ -157,7 +158,7 @@ class Token(Base):
 
     @classmethod
     def create_from_sentence(
-        cls, session, sentence_id: int, sentence_text: str
+        cls, sentence_id: int, sentence_text: str
     ) -> builtins.list[Token]:
         """
         Create new tokens for a sentence.
@@ -167,7 +168,6 @@ class Token(Base):
         or surface, it takes the sentence text and sentence id.
 
         Args:
-            session: SQLAlchemy session
             sentence_id: Sentence ID
             sentence_text: Text of the sentence to tokenize
 
@@ -175,6 +175,7 @@ class Token(Base):
             List of :class:`~oeapp.models.token.Token` objects
 
         """
+        session = cls._get_session()
         # Tokenize sentence
         token_strings = cls.tokenize(sentence_text)
         tokens = []
@@ -187,7 +188,7 @@ class Token(Base):
             session.add(token)
             session.flush()  # Get the ID
 
-            if not Annotation.exists(session, token.id):
+            if not Annotation.exists(token.id):
                 annotation = Annotation(token_id=token.id)
                 session.add(annotation)
 
@@ -198,7 +199,6 @@ class Token(Base):
     @classmethod
     def _update_notes_for_token_changes(  # noqa: PLR0912, PLR0915
         cls,
-        session,
         sentence_id: int,
         old_tokens: builtins.list[Token],
         new_token_positions: dict[int, Token],
@@ -208,7 +208,6 @@ class Token(Base):
         Update notes when tokens change.
 
         Args:
-            session: SQLAlchemy session
             sentence_id: Sentence ID
             old_tokens: List of old tokens
             new_token_positions: Dict mapping new position to token
@@ -217,7 +216,8 @@ class Token(Base):
         """
         from oeapp.models.sentence import Sentence  # noqa: PLC0415
 
-        sentence = Sentence.get(session, sentence_id)
+        sentence = Sentence.get(sentence_id)
+        session = cls._get_session()
         if not sentence or not sentence.notes:
             return
 
@@ -443,7 +443,7 @@ class Token(Base):
 
     @classmethod
     def update_from_sentence(  # noqa: PLR0912, PLR0915
-        cls, session, sentence_text: str, sentence_id: int
+        cls, sentence_text: str, sentence_id: int
     ) -> None:
         """
         Update all the tokens in the sentence, removing any tokens that are no
@@ -468,16 +468,16 @@ class Token(Base):
         (e.g., "swā swā") are handled correctly.
 
         Args:
-            session: SQLAlchemy session
             sentence_text: Text of the sentence to tokenize
             sentence_id: Sentence ID
 
         """
+        session = cls._get_session()
         # Tokenize the new sentence text
         token_strings = cls.tokenize(sentence_text)
 
         # Get existing tokens ordered by order_index
-        existing_tokens = cls.list(session, sentence_id)
+        existing_tokens = cls.list(sentence_id)
 
         # Phase 1: Match tokens at same position
         # (handles exact matches and position-based surface updates)
@@ -549,7 +549,7 @@ class Token(Base):
                     session.flush()  # Get the ID
 
                     # Create empty annotation for new token
-                    if not Annotation.exists(session, new_token.id):
+                    if not Annotation.exists(new_token.id):
                         annotation = Annotation(token_id=new_token.id)
                         session.add(annotation)
 
@@ -594,7 +594,7 @@ class Token(Base):
 
         # Update notes for token changes
         cls._update_notes_for_token_changes(
-            session, sentence_id, existing_tokens, matched_positions, matched_token_ids
+            sentence_id, existing_tokens, matched_positions, matched_token_ids
         )
 
         session.commit()

@@ -13,6 +13,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from oeapp.state import ApplicationState
+
 if TYPE_CHECKING:
     from oeapp.ui.main_window import MainWindow
 
@@ -20,6 +22,12 @@ if TYPE_CHECKING:
 class MigrationFailureDialog:
     """
     Dialog shown when migration fails during startup.
+
+    Args:
+        main_window: Main window instance
+        error: The exception that occurred during migration
+        backup_app_version: Application version from the restored backup
+
     """
 
     #: Dialog width
@@ -33,18 +41,10 @@ class MigrationFailureDialog:
         error: Exception,
         backup_app_version: str | None,
     ) -> None:
-        """
-        Initialize migration failure dialog.
-
-        Args:
-            main_window: Main window instance
-            error: The exception that occurred during migration
-            backup_app_version: Application version from the restored backup
-
-        """
         self.main_window = main_window
         self.error = error
         self.backup_app_version = backup_app_version
+        self.state = ApplicationState()
 
     def build(self) -> None:
         """
@@ -125,10 +125,10 @@ class MigrationFailureDialog:
             try:
                 Path(file_path).write_text(trace_str, encoding="utf-8")
             except (OSError, PermissionError) as e:
-                self.main_window.show_error(f"Failed to save stack trace: {e}")
+                self.state.show_error(f"Failed to save stack trace: {e}")
                 return
 
-            self.main_window.show_information(
+            self.state.show_information(
                 f"Stack trace saved to:\n{file_path}", title="Saved"
             )
 
@@ -141,7 +141,7 @@ class MigrationFailureDialog:
             )
         )
         clipboard.setText(trace_str)
-        self.main_window.show_message("Stack trace copied to clipboard")
+        self.state.show_message("Stack trace copied to clipboard")
 
     def execute(self) -> None:
         """

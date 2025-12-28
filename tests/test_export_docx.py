@@ -1,11 +1,11 @@
 """Unit tests for DOCXExporter."""
 
 
-import pytest
 from docx import Document
 
 from oeapp.services.export_docx import DOCXExporter
 from tests.conftest import create_test_project, create_test_sentence
+
 
 
 class TestDOCXExporter:
@@ -16,7 +16,7 @@ class TestDOCXExporter:
         project = create_test_project(db_session, name="Test Project", text="Se cyning.")
         db_session.commit()
 
-        exporter = DOCXExporter(db_session)
+        exporter = DOCXExporter()
         output_path = tmp_path / "test.docx"
 
         result = exporter.export(project.id, output_path)
@@ -26,7 +26,7 @@ class TestDOCXExporter:
 
     def test_export_returns_false_when_project_not_found(self, db_session, tmp_path):
         """Test export() returns False when project doesn't exist."""
-        exporter = DOCXExporter(db_session)
+        exporter = DOCXExporter()
         output_path = tmp_path / "test.docx"
 
         result = exporter.export(99999, output_path)
@@ -38,7 +38,7 @@ class TestDOCXExporter:
         project = create_test_project(db_session, name="My Test Project", text="")
         db_session.commit()
 
-        exporter = DOCXExporter(db_session)
+        exporter = DOCXExporter()
         output_path = tmp_path / "test.docx"
 
         exporter.export(project.id, output_path)
@@ -53,7 +53,7 @@ class TestDOCXExporter:
         project = create_test_project(db_session, name="Test", text="Se cyning. Þæt scip.")
         db_session.commit()
 
-        exporter = DOCXExporter(db_session)
+        exporter = DOCXExporter()
         output_path = tmp_path / "test.docx"
 
         exporter.export(project.id, output_path)
@@ -79,7 +79,7 @@ class TestDOCXExporter:
         )
         db_session.commit()
 
-        exporter = DOCXExporter(db_session)
+        exporter = DOCXExporter()
         output_path = tmp_path / "test.docx"
 
         exporter.export(project.id, output_path)
@@ -98,7 +98,7 @@ class TestDOCXExporter:
         sentence.text_modern = "The king"
         db_session.commit()
 
-        exporter = DOCXExporter(db_session)
+        exporter = DOCXExporter()
         output_path = tmp_path / "test.docx"
 
         exporter.export(project.id, output_path)
@@ -113,7 +113,7 @@ class TestDOCXExporter:
         project = create_test_project(db_session, name="Test", text="Se cyning.")
         db_session.commit()
 
-        exporter = DOCXExporter(db_session)
+        exporter = DOCXExporter()
         output_path = tmp_path / "test.docx"
 
         exporter.export(project.id, output_path)
@@ -143,7 +143,7 @@ class TestDOCXExporter:
         annotation.pronoun_type = "d"
         db_session.commit()
 
-        exporter = DOCXExporter(db_session)
+        exporter = DOCXExporter()
         output_path = tmp_path / "test.docx"
 
         exporter.export(project.id, output_path)
@@ -183,7 +183,7 @@ class TestDOCXExporter:
         annotation.case = "n"
         db_session.commit()
 
-        exporter = DOCXExporter(db_session)
+        exporter = DOCXExporter()
         output_path = tmp_path / "test.docx"
 
         exporter.export(project.id, output_path)
@@ -220,7 +220,7 @@ class TestDOCXExporter:
         db_session.add(note)
         db_session.commit()
 
-        exporter = DOCXExporter(db_session)
+        exporter = DOCXExporter()
         output_path = tmp_path / "test.docx"
 
         exporter.export(project.id, output_path)
@@ -257,7 +257,7 @@ class TestDOCXExporter:
         db_session.add(note1)
         db_session.commit()
 
-        exporter = DOCXExporter(db_session)
+        exporter = DOCXExporter()
         output_path = tmp_path / "test.docx"
 
         exporter.export(project.id, output_path)
@@ -275,7 +275,7 @@ class TestDOCXExporter:
         project = create_test_project(db_session, name="Empty Project", text="")
         db_session.commit()
 
-        exporter = DOCXExporter(db_session)
+        exporter = DOCXExporter()
         output_path = tmp_path / "test.docx"
 
         result = exporter.export(project.id, output_path)
@@ -292,7 +292,7 @@ class TestDOCXExporter:
         """Test _setup_document_styles() sets document margins."""
         from docx import Document as DocxDocument
 
-        exporter = DOCXExporter(db_session)
+        exporter = DOCXExporter()
         doc = DocxDocument()
 
         exporter._setup_document_styles(doc)
@@ -320,7 +320,7 @@ class TestDOCXExporter:
         db_session.add(sentence)
         db_session.commit()
 
-        exporter = DOCXExporter(db_session)
+        exporter = DOCXExporter()
         output_path = tmp_path / "test.docx"
 
         result = exporter.export(project.id, output_path)
@@ -333,7 +333,7 @@ class TestDOCXExporter:
         project = create_test_project(db_session, name="Test", text="Se cyning.")
         db_session.commit()
 
-        exporter = DOCXExporter(db_session)
+        exporter = DOCXExporter()
         output_path = tmp_path / "test.docx"
 
         # Mock Document.save to raise OSError

@@ -38,6 +38,7 @@ from oeapp.commands import (
 )
 from oeapp.mixins import TokenOccurrenceMixin
 from oeapp.models.annotation import Annotation
+from oeapp.models.mixins import SessionMixin
 from oeapp.models.sentence import Sentence
 from oeapp.ui.dialogs import (
     AnnotationModal,
@@ -50,8 +51,6 @@ from oeapp.ui.token_table import TokenTable
 from oeapp.utils import get_logo_pixmap
 
 if TYPE_CHECKING:
-    from sqlalchemy.orm import Session
-
     from oeapp.models.note import Note
     from oeapp.models.token import Token
     from oeapp.ui.main_window import MainWindow
@@ -100,7 +99,7 @@ class ClickableTextEdit(QTextEdit):
         super().keyPressEvent(event)
 
 
-class SentenceCard(TokenOccurrenceMixin, QWidget):
+class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
     """
     Widget representing a sentence card with annotations.
 
@@ -108,7 +107,6 @@ class SentenceCard(TokenOccurrenceMixin, QWidget):
         sentence: Sentence model instance
 
     Keyword Args:
-        session: SQLAlchemy session
         command_manager: Command manager for undo/redo
         parent: Parent widget
 
@@ -160,14 +158,13 @@ class SentenceCard(TokenOccurrenceMixin, QWidget):
     def __init__(
         self,
         sentence: Sentence,
-        session: Session | None = None,
         command_manager: CommandManager | None = None,
         main_window: MainWindow | None = None,
         parent: QWidget | None = None,
     ):
         super().__init__(parent)
         self.sentence = sentence
-        self.session = session
+        self.session = self._get_session()
         self.command_manager = command_manager
         self.main_window = main_window
         self.token_table = TokenTable()
@@ -301,7 +298,6 @@ class SentenceCard(TokenOccurrenceMixin, QWidget):
         header_layout.addWidget(self.sentence_number_label)
 
         # Action buttons
-        # self.split_button = QPushButton("Split")
         self.add_sentence_button = QPushButton("Add Sentence")
         # Create menu for Add Sentence button
         add_sentence_menu = QMenu(self)
@@ -321,7 +317,6 @@ class SentenceCard(TokenOccurrenceMixin, QWidget):
         self.delete_button = QPushButton("Delete")
         self.delete_button.clicked.connect(self._on_delete_clicked)
         header_layout.addStretch()
-        # header_layout.addWidget(self.split_button)
         header_layout.addWidget(self.add_sentence_button)
         header_layout.addWidget(self.toggle_paragraph_button)
         header_layout.addWidget(self.merge_button)
@@ -480,8 +475,8 @@ class SentenceCard(TokenOccurrenceMixin, QWidget):
 
         # Open modal - get or create annotation
         annotation = token.annotation
-        if annotation is None and self.session and token.id:
-            annotation = Annotation.get(self.session, token.id)
+        if annotation is None and token.id:
+            annotation = Annotation.get(token.id)
         modal = AnnotationModal(token, annotation, self)
         modal.annotation_applied.connect(self._on_annotation_applied)
         modal.exec()
@@ -547,11 +542,9 @@ class SentenceCard(TokenOccurrenceMixin, QWidget):
         }
 
         # Create command for undo/redo
-        if self.command_manager and self.session:
+        if self.command_manager:
             assert self.command_manager is not None  # noqa: S101
-            assert self.session is not None  # noqa: S101
             command = AnnotateTokenCommand(
-                session=self.session,
                 token_id=annotation.token_id,
                 before=before_state,
                 after=after_state,
@@ -566,8 +559,7 @@ class SentenceCard(TokenOccurrenceMixin, QWidget):
                 return
 
         # Fallback: direct save if command manager not available
-        if self.session:
-            self._save_annotation(annotation)
+        self._save_annotation(annotation)
 
         # Update local cache
         self.annotations[annotation.token_id] = annotation
@@ -694,8 +686,8 @@ class SentenceCard(TokenOccurrenceMixin, QWidget):
             # Open the annotation modal for this token
             # Get or create annotation
             annotation = token.annotation
-            if annotation is None and self.session and token.id:
-                annotation = Annotation.get(self.session, token.id)
+            if annotation is None and token.id:
+                annotation = Annotation.get(token.id)
             modal = AnnotationModal(token, annotation, self)
             modal.annotation_applied.connect(self._on_annotation_applied)
             modal.exec()
@@ -844,7 +836,7 @@ class SentenceCard(TokenOccurrenceMixin, QWidget):
         self.oe_text_edit.textChanged.connect(self._on_oe_text_changed)
 
         # Get new text and save
-        if not self.session or not self.command_manager or not self.sentence.id:
+        if not self.command_manager or not self.sentence.id:
             self._original_oe_text = None
             # Re-render with superscripts
             self._render_oe_text_with_superscripts()
@@ -855,7 +847,6 @@ class SentenceCard(TokenOccurrenceMixin, QWidget):
 
         if new_text != old_text:
             command = EditSentenceCommand(
-                session=self.session,
                 sentence_id=self.sentence.id,
                 field="text_oe",
                 before=old_text,
@@ -924,7 +915,7 @@ class SentenceCard(TokenOccurrenceMixin, QWidget):
 
     def _on_translation_changed(self) -> None:
         """Handle translation text change."""
-        if not self.session or not self.command_manager or not self.sentence.id:
+        if not self.command_manager or not self.sentence.id:
             return
 
         new_text = self.translation_edit.toPlainText()
@@ -932,7 +923,6 @@ class SentenceCard(TokenOccurrenceMixin, QWidget):
 
         if new_text != old_text:
             command = EditSentenceCommand(
-                session=self.session,
                 sentence_id=self.sentence.id,
                 field="text_modern",
                 before=old_text,
@@ -1429,11 +1419,8 @@ class SentenceCard(TokenOccurrenceMixin, QWidget):
             annotation: Annotation to save
 
         """
-        if not self.session:
-            return
-
         # Check if annotation exists
-        existing = Annotation.get(self.session, annotation.token_id)
+        existing = Annotation.get(annotation.token_id)
         if existing:
             # Update existing annotation
             existing.pos = annotation.pos
@@ -1469,7 +1456,7 @@ class SentenceCard(TokenOccurrenceMixin, QWidget):
         Handle Add Note button click - open note dialog.
 
         """
-        if not self.session or not self.sentence.id:
+        if not self.sentence.id:
             return
 
         # Determine token range
@@ -1496,7 +1483,6 @@ class SentenceCard(TokenOccurrenceMixin, QWidget):
             sentence=self.sentence,
             start_token_id=start_token.id,
             end_token_id=end_token.id,
-            session=self.session,
             command_manager=self.command_manager,
             parent=self,
         )
@@ -1516,16 +1502,15 @@ class SentenceCard(TokenOccurrenceMixin, QWidget):
             note_id: ID of saved/deleted note (may be deleted note ID)
 
         """
-        if self.session:
-            self.session.refresh(self.sentence)
-            # Refresh notes display (will renumber notes dynamically)
-            self._update_notes_display()
-            # Re-render OE text with updated note numbers in superscripts
-            self._render_oe_text_with_superscripts()
+        self.session.refresh(self.sentence)
+        # Refresh notes display (will renumber notes dynamically)
+        self._update_notes_display()
+        # Re-render OE text with updated note numbers in superscripts
+        self._render_oe_text_with_superscripts()
 
     def _update_notes_display(self) -> None:
         """Update notes panel display."""
-        if hasattr(self, "notes_panel") and self.session:
+        if hasattr(self, "notes_panel"):
             # Ensure notes relationship is loaded
             if self.sentence.id:
                 self.session.refresh(self.sentence, ["notes"])
@@ -1549,7 +1534,7 @@ class SentenceCard(TokenOccurrenceMixin, QWidget):
             note: Note that was double-clicked
 
         """
-        if not self.session or not note.start_token or not note.end_token:
+        if not note.start_token or not note.end_token:
             return
 
         # Open dialog for editing note
@@ -1558,7 +1543,6 @@ class SentenceCard(TokenOccurrenceMixin, QWidget):
             start_token_id=note.start_token,
             end_token_id=note.end_token,
             note=note,
-            session=self.session,
             command_manager=self.command_manager,
             parent=self,
         )
@@ -1605,10 +1589,9 @@ class SentenceCard(TokenOccurrenceMixin, QWidget):
 
         # Ensure notes relationship is loaded
         try:
-            if self.session and self.sentence.id:
+            if self.sentence.id:
                 self.session.refresh(self.sentence, ["notes"])
         except Exception:  # noqa: BLE001
-            # If session is closed or object is detached (e.g. in tests)
             return
 
         # Check if notes exist (after ensuring they're loaded)
@@ -1756,11 +1739,11 @@ class SentenceCard(TokenOccurrenceMixin, QWidget):
         - Executes merge command if confirmed
         - Emits signal to refresh UI
         """
-        if not self.session or not self.sentence.id:
+        if not self.sentence.id:
             return
 
         next_sentence = Sentence.get_next_sentence(
-            self.session, self.sentence.project_id, self.sentence.display_order + 1
+            self.sentence.project_id, self.sentence.display_order + 1
         )
         if next_sentence is None:
             QMessageBox.warning(
@@ -1808,7 +1791,6 @@ class SentenceCard(TokenOccurrenceMixin, QWidget):
         before_text_modern = self.sentence.text_modern
 
         command = MergeSentenceCommand(
-            session=self.session,
             current_sentence_id=self.sentence.id,
             next_sentence_id=next_sentence.id,
             before_text_oe=before_text_oe,
@@ -1832,11 +1814,10 @@ class SentenceCard(TokenOccurrenceMixin, QWidget):
 
         Creates a new empty sentence before the current sentence.
         """
-        if not self.session or not self.sentence.id or not self.command_manager:
+        if not self.sentence.id or not self.command_manager:
             return
 
         command = AddSentenceCommand(
-            session=self.session,
             project_id=self.sentence.project_id,
             reference_sentence_id=self.sentence.id,
             position="before",
@@ -1858,11 +1839,10 @@ class SentenceCard(TokenOccurrenceMixin, QWidget):
 
         Creates a new empty sentence after the current sentence.
         """
-        if not self.session or not self.sentence.id or not self.command_manager:
+        if not self.sentence.id or not self.command_manager:
             return
 
         command = AddSentenceCommand(
-            session=self.session,
             project_id=self.sentence.project_id,
             reference_sentence_id=self.sentence.id,
             position="after",
@@ -1884,12 +1864,11 @@ class SentenceCard(TokenOccurrenceMixin, QWidget):
 
         Toggles the is_paragraph_start flag and recalculates paragraph numbers.
         """
-        if not self.session or not self.sentence.id or not self.command_manager:
+        if not self.sentence.id or not self.command_manager:
             return
 
         # Create and execute toggle command
         command = ToggleParagraphStartCommand(
-            session=self.session,
             sentence_id=self.sentence.id,
         )
 
@@ -1932,7 +1911,7 @@ class SentenceCard(TokenOccurrenceMixin, QWidget):
 
         Shows confirmation dialog and deletes the sentence if confirmed.
         """
-        if not self.session or not self.sentence.id or not self.command_manager:
+        if not self.sentence.id or not self.command_manager:
             return
 
         # Show confirmation dialog
@@ -1961,7 +1940,6 @@ class SentenceCard(TokenOccurrenceMixin, QWidget):
 
         # Create and execute delete command
         command = DeleteSentenceCommand(
-            session=self.session,
             sentence_id=self.sentence.id,
         )
 

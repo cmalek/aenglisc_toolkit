@@ -8,16 +8,8 @@ from oeapp.state import ApplicationState, CURRENT_PROJECT_ID
 from oeapp.commands import CommandManager
 
 class TestApplicationState:
-    @pytest.fixture(autouse=True)
-    def setup_state(self):
-        """Reset ApplicationState before each test."""
-        state = ApplicationState()
-        state.reset()
-        yield state
-        # Clean up singleton instance for next tests
-        ApplicationState._instance = None
 
-    def test_singleton(self):
+    def test_singleton(self, db_session):
         """Test that ApplicationState is a singleton."""
         state1 = ApplicationState()
         state2 = ApplicationState()
@@ -60,33 +52,32 @@ class TestApplicationState:
         assert state._session is not None
         assert isinstance(state.command_manager, CommandManager)
 
-    def test_del_closes_session(self):
+    def test_del_closes_session(self, db_session):
         """Test that __del__ closes the session."""
         state = ApplicationState()
         mock_session = MagicMock()
-        state._session = mock_session
+        state.session = mock_session
 
-        # Manually call __del__
         state.__del__()
 
         mock_session.close.assert_called_once()
-        assert ApplicationState._instance is None
+        assert state._session is None
 
-    def test_set_main_window(self):
+    def test_set_main_window(self, db_session):
         """Test setting the main window."""
         state = ApplicationState()
         mock_window = MagicMock()
         state.set_main_window(mock_window)
         assert state.main_window is mock_window
 
-    def test_show_message_with_window(self):
+    def test_show_message_with_window(self, db_session):
         """Test showing a message through the main window."""
         state = ApplicationState()
         mock_window = MagicMock()
         state.set_main_window(mock_window)
 
         state.show_message("Test message")
-        mock_window.show_message.assert_called_once_with("Test message")
+        mock_window.show_message.assert_called_once_with("Test message", duration=2000)
 
     def test_show_message_without_window(self):
         """Test showing a message via stderr when window is not set."""
@@ -97,10 +88,11 @@ class TestApplicationState:
             state.show_message("Error message")
             mock_stderr.assert_called_once_with("Error message\n")
 
-    def test_undo_can_undo_false(self):
+    def test_undo_can_undo_false(self, db_session):
         """Test undo when can_undo is False."""
         state = ApplicationState()
         mock_window = MagicMock()
+        mock_window.application_state = state
         state.set_main_window(mock_window)
 
         state.command_manager = MagicMock()
@@ -109,10 +101,12 @@ class TestApplicationState:
         state.undo()
         state.command_manager.undo.assert_not_called()
 
-    def test_undo_success_no_reload(self):
+    def test_undo_success_no_reload(self, db_session):
         """Test successful undo without structural reload."""
         state = ApplicationState()
         mock_window = MagicMock()
+        mock_window.application_state = state
+        mock_window.show_message = MagicMock()
         state.set_main_window(mock_window)
 
         mock_command = MagicMock()
@@ -130,12 +124,14 @@ class TestApplicationState:
 
         mock_window.refresh_all_cards.assert_called_once()
         mock_window.reload_project_structure.assert_not_called()
-        mock_window.show_message.assert_called_with("Undone")
+        mock_window.show_message.assert_called_with("Undone", duration=2000)
 
-    def test_undo_success_with_reload(self):
+    def test_undo_success_with_reload(self, db_session):
         """Test successful undo with structural reload."""
         state = ApplicationState()
         mock_window = MagicMock()
+        mock_window.application_state = state
+        mock_window.show_message = MagicMock()
         state.set_main_window(mock_window)
 
         mock_command = MagicMock()
@@ -150,12 +146,13 @@ class TestApplicationState:
         state.undo()
 
         mock_window.reload_project_structure.assert_called_once()
-        mock_window.show_message.assert_called_with("Undone")
+        mock_window.show_message.assert_called_with("Undone", duration=2000)
 
-    def test_undo_success_reload_from_redo_stack(self):
+    def test_undo_success_reload_from_redo_stack(self, db_session):
         """Test undo where reload is determined by the command now in redo stack."""
         state = ApplicationState()
         mock_window = MagicMock()
+        mock_window.application_state = state
         state.set_main_window(mock_window)
 
         # Command on undo stack doesn't need reload initially
@@ -176,10 +173,12 @@ class TestApplicationState:
 
         mock_window.reload_project_structure.assert_called_once()
 
-    def test_undo_failed(self):
+    def test_undo_failed(self, db_session):
         """Test failed undo."""
         state = ApplicationState()
         mock_window = MagicMock()
+        mock_window.application_state = state
+        mock_window.show_message = MagicMock()
         state.set_main_window(mock_window)
 
         state.command_manager = MagicMock()
@@ -189,12 +188,13 @@ class TestApplicationState:
 
         state.undo()
 
-        mock_window.show_message.assert_called_with("Undo failed")
+        mock_window.show_message.assert_called_with("Undo failed", duration=2000)
 
     def test_redo_can_redo_false(self):
         """Test redo when can_redo is False."""
         state = ApplicationState()
         mock_window = MagicMock()
+        mock_window.application_state = state
         state.set_main_window(mock_window)
 
         state.command_manager = MagicMock()
@@ -203,10 +203,12 @@ class TestApplicationState:
         state.redo()
         state.command_manager.redo.assert_not_called()
 
-    def test_redo_success_no_reload(self):
+    def test_redo_success_no_reload(self, db_session):
         """Test successful redo without structural reload."""
         state = ApplicationState()
         mock_window = MagicMock()
+        mock_window.application_state = state
+        mock_window.show_message = MagicMock()
         state.set_main_window(mock_window)
 
         mock_command = MagicMock()
@@ -222,12 +224,14 @@ class TestApplicationState:
 
         mock_window.refresh_all_cards.assert_called_once()
         mock_window.reload_project_structure.assert_not_called()
-        mock_window.show_message.assert_called_with("Redone")
+        mock_window.show_message.assert_called_with("Redone", duration=2000)
 
-    def test_redo_success_with_reload(self):
+    def test_redo_success_with_reload(self, db_session):
         """Test successful redo with structural reload."""
         state = ApplicationState()
         mock_window = MagicMock()
+        mock_window.application_state = state
+        mock_window.show_message = MagicMock()
         state.set_main_window(mock_window)
 
         mock_command = MagicMock()
@@ -242,12 +246,13 @@ class TestApplicationState:
         state.redo()
 
         mock_window.reload_project_structure.assert_called_once()
-        mock_window.show_message.assert_called_with("Redone")
+        mock_window.show_message.assert_called_with("Redone", duration=2000)
 
-    def test_redo_success_reload_from_undo_stack(self):
+    def test_redo_success_reload_from_undo_stack(self, db_session):
         """Test redo where reload is determined by the command now in undo stack."""
         state = ApplicationState()
         mock_window = MagicMock()
+        mock_window.application_state = state
         state.set_main_window(mock_window)
 
         mock_command = MagicMock()
@@ -266,10 +271,12 @@ class TestApplicationState:
 
         mock_window.reload_project_structure.assert_called_once()
 
-    def test_redo_failed(self):
+    def test_redo_failed(self, db_session):
         """Test failed redo."""
         state = ApplicationState()
         mock_window = MagicMock()
+        mock_window.application_state = state
+        mock_window.show_message = MagicMock()
         state.set_main_window(mock_window)
 
         state.command_manager = MagicMock()
@@ -279,5 +286,5 @@ class TestApplicationState:
 
         state.redo()
 
-        mock_window.show_message.assert_called_with("Redo failed")
+        mock_window.show_message.assert_called_with("Redo failed", duration=2000)
 

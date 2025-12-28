@@ -17,7 +17,7 @@ class TestTokenOccurrenceMixin:
         text = "Se cyning"
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, text)
-        tokens = Token.list(db_session, sentence.id)
+        tokens = Token.list(sentence.id)
         token = tokens[0]  # "Se"
         result = mixin._find_token_occurrence(text, token, tokens)
         assert result == 0
@@ -28,7 +28,7 @@ class TestTokenOccurrenceMixin:
         text = "cyning cyning cyning"
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, text)
-        tokens = Token.list(db_session, sentence.id)
+        tokens = Token.list(sentence.id)
         # Find "cyning" tokens - should have 3
         cyning_tokens = [t for t in tokens if t.surface == "cyning"]
         assert len(cyning_tokens) >= 2, f"Expected at least 2 'cyning' tokens, got {len(cyning_tokens)}"
@@ -47,7 +47,7 @@ class TestTokenOccurrenceMixin:
         text = "Se cyning"
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, text)
-        tokens = Token.list(db_session, sentence.id)
+        tokens = Token.list(sentence.id)
         # Create a token that doesn't exist in text
         fake_token = Token(surface="missing", order_index=999)
         result = mixin._find_token_occurrence(text, fake_token, tokens)
@@ -59,7 +59,7 @@ class TestTokenOccurrenceMixin:
         text = ""
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, text)
-        tokens = Token.list(db_session, sentence.id)
+        tokens = Token.list(sentence.id)
         if tokens:
             token = tokens[0]
             result = mixin._find_token_occurrence(text, token, tokens)
@@ -71,7 +71,7 @@ class TestTokenOccurrenceMixin:
         text = "Se cyning"
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, text)
-        tokens = Token.list(db_session, sentence.id)
+        tokens = Token.list(sentence.id)
         # Create token with empty surface
         # Note: Python's str.find("") returns 0 (empty string found at start)
         # So the method will return 0, not None. This is technically correct
@@ -90,9 +90,9 @@ class TestAnnotationTextualMixin:
         mixin = AnnotationTextualMixin()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        tokens = Token.list(db_session, sentence.id)
+        tokens = Token.list(sentence.id)
         token = tokens[0]
-        annotation = Annotation.get(db_session, token.id)
+        annotation = Annotation.get(token.id)
         annotation.pos = "N"
         annotation.declension = "s"
         db_session.commit()
@@ -104,9 +104,9 @@ class TestAnnotationTextualMixin:
         mixin = AnnotationTextualMixin()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        tokens = Token.list(db_session, sentence.id)
+        tokens = Token.list(sentence.id)
         token = tokens[0]
-        annotation = Annotation.get(db_session, token.id)
+        annotation = Annotation.get(token.id)
         annotation.pos = "N"
         annotation.declension = None
         db_session.commit()
@@ -118,9 +118,9 @@ class TestAnnotationTextualMixin:
         mixin = AnnotationTextualMixin()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning wæs")
-        tokens = Token.list(db_session, sentence.id)
+        tokens = Token.list(sentence.id)
         verb_token = [t for t in tokens if t.surface == "wæs"][0]
-        annotation = Annotation.get(db_session, verb_token.id)
+        annotation = Annotation.get(verb_token.id)
         annotation.pos = "V"
         annotation.verb_class = "w1"
         db_session.commit()
@@ -132,9 +132,9 @@ class TestAnnotationTextualMixin:
         mixin = AnnotationTextualMixin()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning wæs")
-        tokens = Token.list(db_session, sentence.id)
+        tokens = Token.list(sentence.id)
         verb_token = [t for t in tokens if t.surface == "wæs"][0]
-        annotation = Annotation.get(db_session, verb_token.id)
+        annotation = Annotation.get(verb_token.id)
         annotation.pos = "V"
         annotation.verb_class = None
         db_session.commit()
@@ -146,9 +146,9 @@ class TestAnnotationTextualMixin:
         mixin = AnnotationTextualMixin()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        tokens = Token.list(db_session, sentence.id)
+        tokens = Token.list(sentence.id)
         token = tokens[0]
-        annotation = Annotation.get(db_session, token.id)
+        annotation = Annotation.get(token.id)
         annotation.pos = "A"
         annotation.adjective_inflection = "s"
         annotation.adjective_degree = "p"
@@ -161,9 +161,9 @@ class TestAnnotationTextualMixin:
         mixin = AnnotationTextualMixin()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        tokens = Token.list(db_session, sentence.id)
+        tokens = Token.list(sentence.id)
         token = tokens[0]
-        annotation = Annotation.get(db_session, token.id)
+        annotation = Annotation.get(token.id)
         annotation.pos = "R"
         annotation.pronoun_type = "p"
         db_session.commit()
@@ -175,9 +175,9 @@ class TestAnnotationTextualMixin:
         mixin = AnnotationTextualMixin()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        tokens = Token.list(db_session, sentence.id)
+        tokens = Token.list(sentence.id)
         token = tokens[0]
-        annotation = Annotation.get(db_session, token.id)
+        annotation = Annotation.get(token.id)
         annotation.pos = "D"
         annotation.article_type = "d"
         db_session.commit()
@@ -189,9 +189,9 @@ class TestAnnotationTextualMixin:
         mixin = AnnotationTextualMixin()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        tokens = Token.list(db_session, sentence.id)
+        tokens = Token.list(sentence.id)
         token = tokens[0]
-        annotation = Annotation.get(db_session, token.id)
+        annotation = Annotation.get(token.id)
         annotation.pos = "B"
         annotation.adverb_degree = "p"
         db_session.commit()
@@ -203,9 +203,9 @@ class TestAnnotationTextualMixin:
         mixin = AnnotationTextualMixin()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        tokens = Token.list(db_session, sentence.id)
+        tokens = Token.list(sentence.id)
         token = tokens[0]
-        annotation = Annotation.get(db_session, token.id)
+        annotation = Annotation.get(token.id)
         annotation.pos = "C"
         annotation.conjunction_type = "c"
         db_session.commit()
@@ -217,9 +217,9 @@ class TestAnnotationTextualMixin:
         mixin = AnnotationTextualMixin()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        tokens = Token.list(db_session, sentence.id)
+        tokens = Token.list(sentence.id)
         token = tokens[0]
-        annotation = Annotation.get(db_session, token.id)
+        annotation = Annotation.get(token.id)
         annotation.pos = "E"
         db_session.commit()
         result = mixin.format_pos(annotation)
@@ -230,9 +230,9 @@ class TestAnnotationTextualMixin:
         mixin = AnnotationTextualMixin()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        tokens = Token.list(db_session, sentence.id)
+        tokens = Token.list(sentence.id)
         token = tokens[0]
-        annotation = Annotation.get(db_session, token.id)
+        annotation = Annotation.get(token.id)
         annotation.pos = "I"
         db_session.commit()
         result = mixin.format_pos(annotation)
@@ -243,9 +243,9 @@ class TestAnnotationTextualMixin:
         mixin = AnnotationTextualMixin()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        tokens = Token.list(db_session, sentence.id)
+        tokens = Token.list(sentence.id)
         token = tokens[0]
-        annotation = Annotation.get(db_session, token.id)
+        annotation = Annotation.get(token.id)
         annotation.pos = None
         db_session.commit()
         result = mixin.format_pos(annotation)
@@ -256,9 +256,9 @@ class TestAnnotationTextualMixin:
         mixin = AnnotationTextualMixin()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        tokens = Token.list(db_session, sentence.id)
+        tokens = Token.list(sentence.id)
         token = tokens[0]
-        annotation = Annotation.get(db_session, token.id)
+        annotation = Annotation.get(token.id)
         annotation.pos = "N"
         annotation.gender = "m"
         db_session.commit()
@@ -270,9 +270,9 @@ class TestAnnotationTextualMixin:
         mixin = AnnotationTextualMixin()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        tokens = Token.list(db_session, sentence.id)
+        tokens = Token.list(sentence.id)
         token = tokens[0]
-        annotation = Annotation.get(db_session, token.id)
+        annotation = Annotation.get(token.id)
         annotation.pos = "N"
         annotation.gender = None
         db_session.commit()
@@ -284,9 +284,9 @@ class TestAnnotationTextualMixin:
         mixin = AnnotationTextualMixin()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        tokens = Token.list(db_session, sentence.id)
+        tokens = Token.list(sentence.id)
         token = tokens[0]
-        annotation = Annotation.get(db_session, token.id)
+        annotation = Annotation.get(token.id)
         annotation.pos = "B"  # Adverb
         annotation.gender = "m"
         db_session.commit()
@@ -298,9 +298,9 @@ class TestAnnotationTextualMixin:
         mixin = AnnotationTextualMixin()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        tokens = Token.list(db_session, sentence.id)
+        tokens = Token.list(sentence.id)
         token = tokens[0]
-        annotation = Annotation.get(db_session, token.id)
+        annotation = Annotation.get(token.id)
         annotation.pos = "N"
         annotation.case = "n"
         annotation.number = "s"
@@ -313,9 +313,9 @@ class TestAnnotationTextualMixin:
         mixin = AnnotationTextualMixin()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning wæs")
-        tokens = Token.list(db_session, sentence.id)
+        tokens = Token.list(sentence.id)
         verb_token = [t for t in tokens if t.surface == "wæs"][0]
-        annotation = Annotation.get(db_session, verb_token.id)
+        annotation = Annotation.get(verb_token.id)
         annotation.pos = "V"
         annotation.verb_tense = "p"
         annotation.verb_mood = "i"
@@ -331,9 +331,9 @@ class TestAnnotationTextualMixin:
         mixin = AnnotationTextualMixin()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        tokens = Token.list(db_session, sentence.id)
+        tokens = Token.list(sentence.id)
         token = tokens[0]
-        annotation = Annotation.get(db_session, token.id)
+        annotation = Annotation.get(token.id)
         annotation.pos = "E"
         annotation.prep_case = "d"
         db_session.commit()
@@ -345,9 +345,9 @@ class TestAnnotationTextualMixin:
         mixin = AnnotationTextualMixin()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        tokens = Token.list(db_session, sentence.id)
+        tokens = Token.list(sentence.id)
         token = tokens[0]
-        annotation = Annotation.get(db_session, token.id)
+        annotation = Annotation.get(token.id)
         annotation.pos = None
         db_session.commit()
         result = mixin.format_context(annotation)

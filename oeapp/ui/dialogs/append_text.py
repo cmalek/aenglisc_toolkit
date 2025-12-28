@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
 )
 
 from oeapp.models.project import Project
-from oeapp.state import CURRENT_PROJECT_ID
+from oeapp.state import CURRENT_PROJECT_ID, ApplicationState
 
 from .mixins import TextInputMixin
 
@@ -42,6 +42,7 @@ class AppendTextDialog(TextInputMixin):
         Initialize append text dialog.
         """
         super().__init__()
+        self.state = ApplicationState()
         self.main_window = main_window
 
     def build(self) -> None:
@@ -86,20 +87,15 @@ class AppendTextDialog(TextInputMixin):
         Append text to the current project.
         """
         # Check that a project is open
-        if CURRENT_PROJECT_ID not in self.main_window.application_state:
-            self.main_window.show_error(
-                "No project is open. Please open a project first."
-            )
+        if CURRENT_PROJECT_ID not in self.state:
+            self.state.show_error("No project is open. Please open a project first.")
             self.dialog.reject()
             return
 
         # Get the current project
-        project = Project.get(
-            self.main_window.application_state.session,
-            self.main_window.application_state[CURRENT_PROJECT_ID],
-        )
+        project = Project.get(self.state[CURRENT_PROJECT_ID])
         if project is None:
-            self.main_window.show_error("Project not found.")
+            self.state.show_error("Project not found.")
             self.dialog.reject()
             return
 
@@ -107,15 +103,15 @@ class AppendTextDialog(TextInputMixin):
         try:
             text = self.get_text_from_input()
         except ValueError as e:
-            self.main_window.show_error(str(e))
+            self.state.show_error(str(e))
             return
 
         # Append text to project
-        project.append_oe_text(self.main_window.application_state.session, text)
+        project.append_oe_text(text)
 
         # Refresh the UI by reloading the project
         self.main_window._configure_project(project)
-        self.main_window.show_message("Text appended to project")
+        self.state.show_message("Text appended to project")
         self.dialog.close()
 
     def execute(self) -> None:

@@ -1,11 +1,6 @@
 """Unit tests for MainWindow."""
 
 import pytest
-from unittest.mock import MagicMock, patch, Mock
-
-from oeapp.ui.main_window import MainWindow
-from tests.conftest import create_test_project
-
 
 class TestMainWindow:
     """Test cases for MainWindow.

@@ -3,6 +3,7 @@
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
+from oeapp.models.mixins import SessionMixin
 from oeapp.models.sentence import Sentence
 
 from .abstract import Command
@@ -12,11 +13,9 @@ if TYPE_CHECKING:
 
 
 @dataclass
-class ToggleParagraphStartCommand(Command):
+class ToggleParagraphStartCommand(SessionMixin, Command):
     """Command for toggling paragraph start flag on a sentence."""
 
-    #: The SQLAlchemy session.
-    session: Session
     #: The sentence ID.
     sentence_id: int
     #: Before state: is_paragraph_start value
@@ -36,7 +35,8 @@ class ToggleParagraphStartCommand(Command):
             True if successful, False otherwise
 
         """
-        sentence = Sentence.get(self.session, self.sentence_id)
+        session = self._get_session()
+        sentence = Sentence.get(self.sentence_id)
         if sentence is None:
             return False
 
@@ -45,7 +45,7 @@ class ToggleParagraphStartCommand(Command):
         self.after_is_paragraph_start = not sentence.is_paragraph_start
 
         # Get all sentences in the project, ordered by display_order
-        all_sentences = Sentence.list(self.session, sentence.project_id)
+        all_sentences = Sentence.list(sentence.project_id)
 
         # Store before paragraph and sentence numbers
         self.before_numbers = [
@@ -60,8 +60,8 @@ class ToggleParagraphStartCommand(Command):
 
         # Toggle the flag
         sentence.is_paragraph_start = self.after_is_paragraph_start
-        self.session.add(sentence)
-        self.session.flush()
+        session.add(sentence)
+        session.flush()
 
         # Recalculate paragraph and sentence numbers for all sentences
         self._recalculate_paragraph_numbers(all_sentences)
@@ -77,7 +77,7 @@ class ToggleParagraphStartCommand(Command):
             for s in all_sentences
         ]
 
-        self.session.commit()
+        session.commit()
         return True
 
     def _recalculate_paragraph_numbers(self, sentences: list[Sentence]) -> None:
@@ -105,7 +105,8 @@ class ToggleParagraphStartCommand(Command):
 
             sentence.paragraph_number = paragraph_number
             sentence.sentence_number_in_paragraph = sentence_number_in_paragraph
-            self.session.add(sentence)
+            session = self._get_session()
+            session.add(sentence)
 
     def undo(self) -> bool:
         """
@@ -115,26 +116,27 @@ class ToggleParagraphStartCommand(Command):
             True if successful, False otherwise
 
         """
-        sentence = Sentence.get(self.session, self.sentence_id)
+        session = self._get_session()
+        sentence = Sentence.get(self.sentence_id)
         if sentence is None:
             return False
 
         # Restore before state
         sentence.is_paragraph_start = self.before_is_paragraph_start
-        self.session.add(sentence)
+        session.add(sentence)
 
         # Restore paragraph and sentence numbers
         for before_data in self.before_numbers:
-            s = Sentence.get(self.session, before_data["id"])
+            s = Sentence.get(before_data["id"])
             if s:
                 s.paragraph_number = before_data["paragraph_number"]
                 s.sentence_number_in_paragraph = before_data[
                     "sentence_number_in_paragraph"
                 ]
                 s.is_paragraph_start = before_data["is_paragraph_start"]
-                self.session.add(s)
+                session.add(s)
 
-        self.session.commit()
+        session.commit()
         return True
 
     def get_description(self) -> str:

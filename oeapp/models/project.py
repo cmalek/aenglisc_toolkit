@@ -9,12 +9,14 @@ from sqlalchemy.orm import Mapped, Session, mapped_column, relationship
 
 from oeapp.db import Base
 from oeapp.exc import AlreadyExists
-from oeapp.models.sentence import Sentence
-from oeapp.models.token import Token
 from oeapp.utils import from_utc_iso, to_utc_iso
 
+from .mixins import SessionMixin
+from .sentence import Sentence
+from .token import Token
 
-class Project(Base):
+
+class Project(SessionMixin, Base):
     """
     Represents a project.
     """
@@ -43,49 +45,58 @@ class Project(Base):
     )
 
     @classmethod
-    def exists(cls, session: Session, name: str) -> bool:
+    def exists(cls, name: str) -> bool:
         """
         Get all projects.
         """
+        session = cls._get_session()
         return session.scalar(select(cls).where(cls.name == name)) is not None
 
     @classmethod
-    def get(cls, session: Session, project_id: int) -> Project | None:
+    def get(cls, project_id: int) -> Project | None:
         """
         Get a project by name.
+
+        Args:
+            project_id: Project ID
+
+        Returns:
+            Project or None if not found
+
         """
+        session = cls._get_session()
         return session.get(cls, project_id)
 
     @classmethod
-    def first(cls, session: Session) -> Project | None:
+    def first(cls) -> Project | None:
         """
         Get the first project.
-
-        Args:
-            session: SQLAlchemy session
 
         Returns:
             The first project or None if there are no projects
 
         """
+        session = cls._get_session()
         return session.scalar(select(cls).order_by(cls.id).limit(1))
 
     @classmethod
-    def list(cls, session: Session) -> builtins.list[Project]:
+    def list(cls) -> builtins.list[Project]:
         """
         Get all projects.
+
+        Returns:
+            List of projects
+
         """
+        session = cls._get_session()
         return builtins.list(session.scalars(select(cls)).all())
 
     @classmethod
-    def create(
-        cls, session: Session, text: str, name: str = "Untitled Project"
-    ) -> Project:
+    def create(cls, text: str, name: str = "Untitled Project") -> Project:
         """
         Create a new project.
 
         Args:
-            session: SQLAlchemy session
             text: Old English text to process and add to the project
 
         Keyword Args:
@@ -95,9 +106,9 @@ class Project(Base):
             The new :class:`~oeapp.models.project.Project` object
 
         """
+        session = cls._get_session()
         # Check if project with this name already exists
-
-        if cls.exists(session, name):
+        if cls.exists(name):
             raise AlreadyExists("Project", name)  # noqa: EM101
 
         # Create project
@@ -122,7 +133,6 @@ class Project(Base):
                     paragraph_number = 1
 
             Sentence.create(
-                session=session,
                 project_id=project.id,
                 display_order=order,
                 text_oe=sentence_text,
@@ -134,7 +144,7 @@ class Project(Base):
         session.commit()
         return project
 
-    def append_oe_text(self, session: Session, text: str) -> None:
+    def append_oe_text(self, text: str) -> None:
         """
         Append Old English text to the end of this project.
 
@@ -143,10 +153,10 @@ class Project(Base):
         sentences start from display_order 1.
 
         Args:
-            session: SQLAlchemy session
             text: Old English text to process and append to the project
 
         """
+        session = self._get_session()
         # Find the maximum display_order for existing sentences
         max_order = (
             session.scalar(
@@ -194,7 +204,6 @@ class Project(Base):
                 sentence_number_in_paragraph += 1
 
             Sentence.create(
-                session=session,
                 project_id=self.id,
                 display_order=max_order + order_offset,
                 text_oe=sentence_text,
@@ -220,9 +229,7 @@ class Project(Base):
         }
 
     @classmethod
-    def from_json(
-        cls, session: Session, project_data: dict, resolved_name: str
-    ) -> Project:
+    def from_json(cls, project_data: dict, resolved_name: str) -> Project:
         """
         Create a project from JSON import data.
 
@@ -235,6 +242,7 @@ class Project(Base):
             Created Project entity
 
         """
+        session = cls._get_session()
         project = cls(name=resolved_name)
         created_at = from_utc_iso(project_data.get("created_at"))
         if created_at:
@@ -450,17 +458,18 @@ class Project(Base):
 
         return False
 
-    def total_token_count(self, session: Session) -> int:
+    def total_token_count(self) -> int:
         """
         Get the total number of tokens in the project.
 
         Args:
-            session: SQLAlchemy session
+            text: Old English text to process and add to the project
 
         Returns:
             Total number of tokens in the project
 
         """
+        session = self._get_session()
         return (
             session.scalar(
                 select(func.count(Token.id))

@@ -15,11 +15,13 @@ from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from oeapp.db import Base
 
+from .mixins import SessionMixin
+
 if TYPE_CHECKING:
     from oeapp.types import PresetPos
 
 
-class AnnotationPreset(Base):
+class AnnotationPreset(SessionMixin, Base):
     """Represents a user-defined preset for annotation fields."""
 
     __tablename__ = "annotation_presets"
@@ -90,14 +92,11 @@ class AnnotationPreset(Base):
     )
 
     @classmethod
-    def create(
-        cls, session: Session, name: str, pos: PresetPos, **kwargs
-    ) -> AnnotationPreset:
+    def create(cls, name: str, pos: PresetPos, **kwargs) -> AnnotationPreset:
         """
         Create a new preset.
 
         Args:
-            session: SQLAlchemy session
             name: Preset name
             pos: Part of speech (N, V, A, R, D)
             **kwargs: Field values for the preset
@@ -118,13 +117,14 @@ class AnnotationPreset(Base):
             msg = f"Invalid POS: {pos}. Must be one of: N, V, A, R, D"
             raise ValueError(msg)
 
+        session = cls._get_session()
         preset = cls(name=name.strip(), pos=pos, **kwargs)
         session.add(preset)
         session.flush()
         return preset
 
     @classmethod
-    def get(cls, session: Session, preset_id: int) -> AnnotationPreset | None:
+    def get(cls, preset_id: int) -> AnnotationPreset | None:
         """
         Get a preset by ID.
 
@@ -136,10 +136,11 @@ class AnnotationPreset(Base):
             AnnotationPreset or None if not found
 
         """
+        session = cls._get_session()
         return session.get(cls, preset_id)
 
     @classmethod
-    def get_all_by_pos(cls, session: Session, pos: str) -> list[AnnotationPreset]:
+    def get_all_by_pos(cls, pos: str) -> list[AnnotationPreset]:
         """
         Get all presets for a POS, ordered by name.
 
@@ -151,19 +152,17 @@ class AnnotationPreset(Base):
             List of AnnotationPreset entities ordered by name
 
         """
+        session = cls._get_session()
         return list(
             session.scalars(select(cls).where(cls.pos == pos).order_by(cls.name)).all()
         )
 
     @classmethod
-    def update(
-        cls, session: Session, preset_id: int, **kwargs
-    ) -> AnnotationPreset | None:
+    def update(cls, preset_id: int, **kwargs) -> AnnotationPreset | None:
         """
         Update a preset.
 
         Args:
-            session: SQLAlchemy session
             preset_id: Preset ID
             **kwargs: Field values to update
 
@@ -174,7 +173,8 @@ class AnnotationPreset(Base):
             sqlalchemy.exc.IntegrityError: If name change would create duplicate
 
         """
-        preset = cls.get(session, preset_id)
+        session = cls._get_session()
+        preset = cls.get(preset_id)
         if not preset:
             return None
 
@@ -187,19 +187,19 @@ class AnnotationPreset(Base):
         return preset
 
     @classmethod
-    def delete(cls, session: Session, preset_id: int) -> bool:
+    def delete(cls, preset_id: int) -> bool:
         """
         Delete a preset.
 
         Args:
-            session: SQLAlchemy session
             preset_id: Preset ID
 
         Returns:
             True if preset was deleted, False if not found
 
         """
-        preset = cls.get(session, preset_id)
+        session = cls._get_session()
+        preset = cls.get(preset_id)
         if not preset:
             return False
 

@@ -192,7 +192,7 @@ class ToolsMenu:
 
     def _show_pos_presets_dialog(self) -> None:
         """Show the POS presets management dialog."""
-        dialog = AnnotationPresetManagementDialog(self.main_window)
+        dialog = AnnotationPresetManagementDialog()
         dialog.exec()
 
 

@@ -35,7 +35,6 @@ class TestSentence:
         """Test get() returns existing sentence."""
         project = create_test_project(db_session)
         sentence = Sentence.create(
-            session=db_session,
             project_id=project.id,
             display_order=1,
             text_oe="Se cyning",
@@ -43,49 +42,49 @@ class TestSentence:
         db_session.commit()
         sentence_id = sentence.id
 
-        retrieved = Sentence.get(db_session, sentence_id)
+        retrieved = Sentence.get(sentence_id)
         assert retrieved is not None
         assert retrieved.id == sentence_id
         assert retrieved.text_oe == "Se cyning"
 
     def test_get_returns_none_for_nonexistent(self, db_session):
         """Test get() returns None for nonexistent sentence."""
-        result = Sentence.get(db_session, 99999)
+        result = Sentence.get(99999)
         assert result is None
 
     def test_list_returns_sentences_for_project(self, db_session):
         """Test list() returns sentences for project."""
         project = create_test_project(db_session)
         sentence1 = Sentence.create(
-            session=db_session, project_id=project.id, display_order=1, text_oe="First"
+            project_id=project.id, display_order=1, text_oe="First"
         )
         sentence2 = Sentence.create(
-            session=db_session, project_id=project.id, display_order=2, text_oe="Second"
+            project_id=project.id, display_order=2, text_oe="Second"
         )
         db_session.commit()
 
-        sentences = Sentence.list(db_session, project.id)
+        sentences = Sentence.list(project.id)
         assert len(sentences) == 2
         assert all(s.project_id == project.id for s in sentences)
 
     def test_list_returns_empty_when_no_sentences(self, db_session):
         """Test list() returns empty list when no sentences exist."""
         project = create_test_project(db_session)
-        sentences = Sentence.list(db_session, project.id)
+        sentences = Sentence.list(project.id)
         assert sentences == []
 
     def test_get_next_sentence_returns_next(self, db_session):
         """Test get_next_sentence() returns next sentence."""
         project = create_test_project(db_session)
         sentence1 = Sentence.create(
-            session=db_session, project_id=project.id, display_order=1, text_oe="First"
+            project_id=project.id, display_order=1, text_oe="First"
         )
         sentence2 = Sentence.create(
-            session=db_session, project_id=project.id, display_order=2, text_oe="Second"
+            project_id=project.id, display_order=2, text_oe="Second"
         )
         db_session.commit()
 
-        next_sentence = Sentence.get_next_sentence(db_session, project.id, 2)
+        next_sentence = Sentence.get_next_sentence(project.id, 2)
         assert next_sentence is not None
         assert next_sentence.id == sentence2.id
 
@@ -93,11 +92,11 @@ class TestSentence:
         """Test get_next_sentence() returns None when no next sentence."""
         project = create_test_project(db_session)
         Sentence.create(
-            session=db_session, project_id=project.id, display_order=1, text_oe="First"
+            project_id=project.id, display_order=1, text_oe="First"
         )
         db_session.commit()
 
-        result = Sentence.get_next_sentence(db_session, project.id, 2)
+        result = Sentence.get_next_sentence(project.id, 2)
         assert result is None
 
     def test_create_creates_sentence_with_tokens(self, db_session):
@@ -105,7 +104,6 @@ class TestSentence:
         project = create_test_project(db_session)
 
         sentence = Sentence.create(
-            session=db_session,
             project_id=project.id,
             display_order=1,
             text_oe="Se cyning",
@@ -121,7 +119,6 @@ class TestSentence:
         project = create_test_project(db_session)
 
         sentence = Sentence.create(
-            session=db_session,
             project_id=project.id,
             display_order=1,
             text_oe="Se cyning",
@@ -138,7 +135,6 @@ class TestSentence:
         """Test create() calculates paragraph numbers for continuing paragraph."""
         project = create_test_project(db_session)
         sentence1 = Sentence.create(
-            session=db_session,
             project_id=project.id,
             display_order=1,
             text_oe="First",
@@ -147,7 +143,6 @@ class TestSentence:
         db_session.commit()
 
         sentence2 = Sentence.create(
-            session=db_session,
             project_id=project.id,
             display_order=2,
             text_oe="Second",
@@ -162,7 +157,6 @@ class TestSentence:
         """Test create() calculates paragraph numbers for new paragraph."""
         project = create_test_project(db_session)
         sentence1 = Sentence.create(
-            session=db_session,
             project_id=project.id,
             display_order=1,
             text_oe="First",
@@ -171,7 +165,6 @@ class TestSentence:
         db_session.commit()
 
         sentence2 = Sentence.create(
-            session=db_session,
             project_id=project.id,
             display_order=2,
             text_oe="Second",
@@ -187,7 +180,7 @@ class TestSentence:
         project = create_test_project(db_session)
 
         result = Sentence._calculate_paragraph_and_sentence_numbers(
-            db_session, project.id, 1, True
+            project.id, 1, True
         )
 
         assert result["paragraph_number"] == 1
@@ -197,7 +190,6 @@ class TestSentence:
         """Test _calculate_paragraph_and_sentence_numbers() for continuing sentence."""
         project = create_test_project(db_session)
         sentence1 = Sentence.create(
-            session=db_session,
             project_id=project.id,
             display_order=1,
             text_oe="First",
@@ -206,7 +198,7 @@ class TestSentence:
         db_session.commit()
 
         result = Sentence._calculate_paragraph_and_sentence_numbers(
-            db_session, project.id, 2, False
+            project.id, 2, False
         )
 
         assert result["paragraph_number"] == sentence1.paragraph_number
@@ -216,12 +208,12 @@ class TestSentence:
         """Test update() updates sentence text_oe and retokenizes."""
         project = create_test_project(db_session)
         sentence = Sentence.create(
-            session=db_session, project_id=project.id, display_order=1, text_oe="Original"
+            project_id=project.id, display_order=1, text_oe="Original"
         )
         db_session.commit()
         original_token_count = len(sentence.tokens)
 
-        updated = sentence.update(db_session, "Updated text")
+        updated = sentence.update("Updated text")
         db_session.commit()
 
         assert updated is not None
@@ -233,12 +225,12 @@ class TestSentence:
         """Test to_json() serializes sentence data."""
         project = create_test_project(db_session)
         sentence = Sentence.create(
-            session=db_session, project_id=project.id, display_order=1, text_oe="Se cyning"
+            project_id=project.id, display_order=1, text_oe="Se cyning"
         )
         sentence.text_modern = "The king"
         db_session.commit()
 
-        data = sentence.to_json(db_session)
+        data = sentence.to_json()
         assert data["text_oe"] == "Se cyning"
         assert data["text_modern"] == "The king"
         assert "tokens" in data
@@ -255,7 +247,7 @@ class TestSentence:
             "display_order": 1,
             "is_paragraph_start": False,
         }
-        sentence = Sentence.from_json(db_session, project.id, sentence_data)
+        sentence = Sentence.from_json(project.id, sentence_data)
         db_session.commit()
 
         assert sentence.project_id == project.id
@@ -266,17 +258,17 @@ class TestSentence:
         """Test subsequent_sentences() returns subsequent sentences."""
         project = create_test_project(db_session)
         sentence1 = Sentence.create(
-            session=db_session, project_id=project.id, display_order=1, text_oe="First"
+            project_id=project.id, display_order=1, text_oe="First"
         )
         sentence2 = Sentence.create(
-            session=db_session, project_id=project.id, display_order=2, text_oe="Second"
+            project_id=project.id, display_order=2, text_oe="Second"
         )
         sentence3 = Sentence.create(
-            session=db_session, project_id=project.id, display_order=3, text_oe="Third"
+            project_id=project.id, display_order=3, text_oe="Third"
         )
         db_session.commit()
 
-        subsequent = Sentence.subsequent_sentences(db_session, project.id, 1)
+        subsequent = Sentence.subsequent_sentences(project.id, 1)
         assert len(subsequent) == 2
         assert all(s.display_order > 1 for s in subsequent)
         assert sentence2 in subsequent
@@ -286,27 +278,27 @@ class TestSentence:
         """Test subsequent_sentences() returns empty when no subsequent sentences."""
         project = create_test_project(db_session)
         Sentence.create(
-            session=db_session, project_id=project.id, display_order=1, text_oe="First"
+            project_id=project.id, display_order=1, text_oe="First"
         )
         db_session.commit()
 
-        subsequent = Sentence.subsequent_sentences(db_session, project.id, 1)
+        subsequent = Sentence.subsequent_sentences(project.id, 1)
         assert subsequent == []
 
     def test_renumber_sentences_updates_display_order(self, db_session):
         """Test renumber_sentences() updates display order."""
         project = create_test_project(db_session)
         sentence1 = Sentence.create(
-            session=db_session, project_id=project.id, display_order=1, text_oe="First"
+            project_id=project.id, display_order=1, text_oe="First"
         )
         sentence2 = Sentence.create(
-            session=db_session, project_id=project.id, display_order=2, text_oe="Second"
+            project_id=project.id, display_order=2, text_oe="Second"
         )
         db_session.commit()
 
         order_mapping = {sentence1.id: 2, sentence2.id: 1}
         changes = Sentence.renumber_sentences(
-            db_session, [sentence1, sentence2], order_mapping=order_mapping
+            [sentence1, sentence2], order_mapping=order_mapping
         )
         db_session.commit()
 
@@ -320,12 +312,12 @@ class TestSentence:
         """Test renumber_sentences() raises ValueError without mapping."""
         project = create_test_project(db_session)
         sentence = Sentence.create(
-            session=db_session, project_id=project.id, display_order=1, text_oe="First"
+            project_id=project.id, display_order=1, text_oe="First"
         )
         db_session.commit()
 
         with pytest.raises(ValueError, match="Either order_mapping or order_function"):
-            Sentence.renumber_sentences(db_session, [sentence])
+            Sentence.renumber_sentences([sentence])
 
     def test_created_at_set_on_creation(self, db_session):
         """Test created_at is set on creation."""
@@ -333,7 +325,7 @@ class TestSentence:
 
         before = datetime.now()
         sentence = Sentence.create(
-            session=db_session, project_id=project.id, display_order=1, text_oe="Se cyning"
+            project_id=project.id, display_order=1, text_oe="Se cyning"
         )
         db_session.commit()
         after = datetime.now()
@@ -344,7 +336,7 @@ class TestSentence:
         """Test updated_at updates when sentence is modified."""
         project = create_test_project(db_session)
         sentence = Sentence.create(
-            session=db_session, project_id=project.id, display_order=1, text_oe="Original"
+            project_id=project.id, display_order=1, text_oe="Original"
         )
         db_session.commit()
         original_updated = sentence.updated_at
@@ -363,7 +355,7 @@ class TestSentence:
         """Test sentence has relationship with project."""
         project = create_test_project(db_session)
         sentence = Sentence.create(
-            session=db_session, project_id=project.id, display_order=1, text_oe="Se cyning"
+            project_id=project.id, display_order=1, text_oe="Se cyning"
         )
         db_session.commit()
 
@@ -374,7 +366,7 @@ class TestSentence:
         """Test sentence has relationship with tokens."""
         project = create_test_project(db_session)
         sentence = Sentence.create(
-            session=db_session, project_id=project.id, display_order=1, text_oe="Se cyning"
+            project_id=project.id, display_order=1, text_oe="Se cyning"
         )
         db_session.commit()
 

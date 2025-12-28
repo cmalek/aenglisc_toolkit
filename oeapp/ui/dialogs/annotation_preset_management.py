@@ -27,16 +27,16 @@ from PySide6.QtWidgets import (
 from sqlalchemy.exc import IntegrityError
 
 from oeapp.models.annotation_preset import AnnotationPreset
+from oeapp.models.mixins import SessionMixin
 from oeapp.services.annotation_preset_service import AnnotationPresetService
 from oeapp.ui.mixins import AnnotationLookupsMixin
 from oeapp.utils import get_logo_pixmap
 
 if TYPE_CHECKING:
     from oeapp.types import PresetPos
-    from oeapp.ui.main_window import MainWindow
 
 
-class AnnotationPresetManagementDialog(AnnotationLookupsMixin, QDialog):
+class AnnotationPresetManagementDialog(AnnotationLookupsMixin, SessionMixin, QDialog):
     """
     Dialog for managing annotation presets.
 
@@ -58,7 +58,6 @@ class AnnotationPresetManagementDialog(AnnotationLookupsMixin, QDialog):
 
     def __init__(
         self,
-        main_window: MainWindow,
         save_mode: bool = False,  # noqa: FBT001, FBT002
         initial_pos: PresetPos | None = None,
         initial_field_values: dict | None = None,
@@ -68,8 +67,7 @@ class AnnotationPresetManagementDialog(AnnotationLookupsMixin, QDialog):
         Initialize preset management dialog.
         """
         super().__init__(parent)
-        self.main_window = main_window
-        self.session = main_window.session
+        self.session = self._get_session()
         self.preset_service = AnnotationPresetService()
         self.save_mode = save_mode
         self.initial_pos = initial_pos
@@ -515,7 +513,7 @@ class AnnotationPresetManagementDialog(AnnotationLookupsMixin, QDialog):
             return
 
         preset_list.clear()
-        presets = self.preset_service.get_presets_for_pos(self.session, pos)
+        presets = self.preset_service.get_presets_for_pos(pos)
         for preset in presets:
             preset_list.addItem(preset.name)
             item = preset_list.item(preset_list.count() - 1)
@@ -576,7 +574,7 @@ class AnnotationPresetManagementDialog(AnnotationLookupsMixin, QDialog):
         if not preset_id:
             return
 
-        preset = AnnotationPreset.get(self.session, preset_id)
+        preset = AnnotationPreset.get(preset_id)
         if not preset:
             return
 
@@ -607,7 +605,7 @@ class AnnotationPresetManagementDialog(AnnotationLookupsMixin, QDialog):
         if not preset_id:
             return
 
-        preset = AnnotationPreset.get(self.session, preset_id)
+        preset = AnnotationPreset.get(preset_id)
         if not preset:
             return
 
@@ -625,7 +623,7 @@ class AnnotationPresetManagementDialog(AnnotationLookupsMixin, QDialog):
         reply = msg_box.exec()
 
         if reply == QMessageBox.StandardButton.Yes:
-            self.preset_service.delete_preset(self.session, preset_id)
+            self.preset_service.delete_preset(preset_id)
             self.session.commit()
             self._load_presets_for_pos(cast("PresetPos", pos))
             self._clear_form()
@@ -1238,7 +1236,7 @@ class AnnotationPresetManagementDialog(AnnotationLookupsMixin, QDialog):
         if not pos:
             return False, "POS is required"
 
-        existing_presets = self.preset_service.get_presets_for_pos(self.session, pos)
+        existing_presets = self.preset_service.get_presets_for_pos(pos)
         for preset in existing_presets:
             if (
                 preset.id != self.current_preset_id
@@ -1288,21 +1286,19 @@ class AnnotationPresetManagementDialog(AnnotationLookupsMixin, QDialog):
             # This prevents updating a preset from a different POS tab
             if self.current_preset_id:
                 # Verify the preset still exists and matches the current POS
-                preset = AnnotationPreset.get(self.session, self.current_preset_id)
+                preset = AnnotationPreset.get(self.current_preset_id)
                 if preset and preset.pos == pos:
                     self.preset_service.update_preset(
-                        self.session, self.current_preset_id, name, field_values
+                        self.current_preset_id, name, field_values
                     )
                 else:
                     # Preset doesn't exist or POS doesn't match - create new instead
                     self.current_preset_id = None
                     self.preset_service.create_preset(
-                        self.session, name, cast("str", pos), field_values
+                        name, cast("str", pos), field_values
                     )
             else:
-                self.preset_service.create_preset(
-                    self.session, name, cast("str", pos), field_values
-                )
+                self.preset_service.create_preset(name, cast("str", pos), field_values)
             self.session.commit()
 
             if self.save_mode:
