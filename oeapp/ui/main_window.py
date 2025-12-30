@@ -86,6 +86,9 @@ class MainWindow(QMainWindow):
         self.application_state = ApplicationState()
         self.application_state.reset()
         self.application_state.set_main_window(self)
+        # Handle migrations with backup/restore on failure
+        # Note: session is created after migrations to avoid issues
+        self._handle_migrations()
         # Build the main window
         self.build()
 
@@ -1017,11 +1020,6 @@ class MainWindowActions:
         - Show a message in the status bar that the project has been saved.
 
         """
-        card = self.application_state.get(SELECTED_SENTENCE_CARD)
-        assert (  # noqa: S101
-            card is not None
-        ), "Current project ID not set"
-
         project = Project.get(self.application_state[CURRENT_PROJECT_ID])
         if project is None:
             return
