@@ -51,6 +51,7 @@ from oeapp.ui.dialogs import (
 from oeapp.ui.dialogs.help_dialog import HelpDialog
 from oeapp.ui.menus import MainMenu
 from oeapp.ui.sentence_card import SentenceCard
+from oeapp.ui.shortcuts import GlobalShortcuts
 from oeapp.ui.token_details_sidebar import TokenDetailsSidebar
 from oeapp.utils import get_logo_pixmap
 
@@ -82,7 +83,7 @@ class MainWindow(QMainWindow):
         self.autosave_service: AutosaveService | None = None
         #: Main window actions
         self.action_service = MainWindowActions(self)
-        #: Currently selected sentence card
+        #: The application state
         self.application_state = ApplicationState()
         self.application_state.reset()
         self.application_state.set_main_window(self)
@@ -160,7 +161,7 @@ class MainWindow(QMainWindow):
         """
         self._setup_main_window()
         self._setup_main_menu()
-        self._setup_global_shortcuts()
+        GlobalShortcuts(self).execute()
 
     def _handle_migrations(self) -> None:
         """
@@ -228,36 +229,6 @@ class MainWindow(QMainWindow):
         else:
             # No projects exist, show NewProjectDialog
             NewProjectDialog(self).execute()
-
-    def _setup_global_shortcuts(self) -> None:
-        """
-        Set up global keyboard shortcuts for navigation.
-
-        The following shortcuts are set up:
-        - J/K for next/previous sentence
-        - T for focus translation
-        - Undo: Ctrl+Z
-        - Redo: Ctrl+R or Ctrl+Shift+R
-        """
-        # J/K for next/previous sentence
-        next_sentence_shortcut = QShortcut(QKeySequence("J"), self)
-        next_sentence_shortcut.activated.connect(self.action_service.next_sentence)
-        prev_sentence_shortcut = QShortcut(QKeySequence("K"), self)
-        prev_sentence_shortcut.activated.connect(self.action_service.prev_sentence)
-
-        # T for focus translation
-        focus_translation_shortcut = QShortcut(QKeySequence("T"), self)
-        focus_translation_shortcut.activated.connect(
-            self.action_service.focus_translation
-        )
-
-        # Undo/Redo shortcuts
-        undo_shortcut = QShortcut(QKeySequence("Ctrl+Z"), self)
-        undo_shortcut.activated.connect(self.application_state.undo)
-        redo_shortcut = QShortcut(QKeySequence("Ctrl+R"), self)
-        redo_shortcut.activated.connect(self.application_state.redo)
-        redo_shortcut_alt = QShortcut(QKeySequence("Ctrl+Shift+R"), self)
-        redo_shortcut_alt.activated.connect(self.application_state.redo)
 
     def show_message(self, message: str, duration: int = 2000) -> None:
         """
