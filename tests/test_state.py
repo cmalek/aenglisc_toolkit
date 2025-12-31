@@ -122,8 +122,8 @@ class TestApplicationState:
 
         state.undo()
 
-        mock_window.refresh_all_cards.assert_called_once()
-        mock_window.reload_project_structure.assert_not_called()
+        mock_window.refresh_project.assert_called_once()
+        mock_window.reload_project.assert_not_called()
         mock_window.show_message.assert_called_with("Undone", duration=2000)
 
     def test_undo_success_with_reload(self, db_session):
@@ -145,7 +145,7 @@ class TestApplicationState:
 
         state.undo()
 
-        mock_window.reload_project_structure.assert_called_once()
+        mock_window.reload_project.assert_called_once()
         mock_window.show_message.assert_called_with("Undone", duration=2000)
 
     def test_undo_success_reload_from_redo_stack(self, db_session):
@@ -171,7 +171,7 @@ class TestApplicationState:
 
         state.undo()
 
-        mock_window.reload_project_structure.assert_called_once()
+        mock_window.reload_project.assert_called_once()
 
     def test_undo_failed(self, db_session):
         """Test failed undo."""
@@ -222,8 +222,8 @@ class TestApplicationState:
 
         state.redo()
 
-        mock_window.refresh_all_cards.assert_called_once()
-        mock_window.reload_project_structure.assert_not_called()
+        mock_window.refresh_project.assert_called_once()
+        mock_window.reload_project.assert_not_called()
         mock_window.show_message.assert_called_with("Redone", duration=2000)
 
     def test_redo_success_with_reload(self, db_session):
@@ -245,7 +245,7 @@ class TestApplicationState:
 
         state.redo()
 
-        mock_window.reload_project_structure.assert_called_once()
+        mock_window.reload_project.assert_called_once()
         mock_window.show_message.assert_called_with("Redone", duration=2000)
 
     def test_redo_success_reload_from_undo_stack(self, db_session):
@@ -269,7 +269,7 @@ class TestApplicationState:
 
         state.redo()
 
-        mock_window.reload_project_structure.assert_called_once()
+        mock_window.reload_project.assert_called_once()
 
     def test_redo_failed(self, db_session):
         """Test failed redo."""

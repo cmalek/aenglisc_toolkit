@@ -202,9 +202,9 @@ class ApplicationState(dict):
 
                 if needs_full_reload:
                     # Reload entire project structure after structural change
-                    main_window.reload_project_structure()
+                    main_window.reload_project()
                 else:
-                    main_window.refresh_all_cards()
+                    main_window.refresh_project()
             else:
                 self.show_message("Undo failed")
 
@@ -236,8 +236,8 @@ class ApplicationState(dict):
 
                 if needs_full_reload:
                     # Reload entire project structure after structural change
-                    main_window.reload_project_structure()
+                    main_window.reload_project()
                 else:
-                    main_window.refresh_all_cards()
+                    main_window.refresh_project()
             else:
                 self.show_message("Redo failed")

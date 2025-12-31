@@ -10,7 +10,7 @@ if TYPE_CHECKING:
 
 class GlobalShortcuts:
     """
-    Global shortcuts for the application.
+    Global keyboard shortcuts for the application.
 
     The following shortcuts are set up here:
 
@@ -38,7 +38,7 @@ class GlobalShortcuts:
 
     def add_shortcut(self, key: str, action: Callable[[], None]) -> None:
         """
-        Add a shortcut to the application.
+        Add a keyboard shortcut to the application.
 
         Args:
             key: The key sequence to bind to the action, e.g. "Ctrl+N"

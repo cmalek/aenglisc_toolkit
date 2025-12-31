@@ -110,7 +110,7 @@ class AppendTextDialog(TextInputMixin):
         project.append_oe_text(text)
 
         # Refresh the UI by reloading the project
-        self.main_window._configure_project(project)
+        self.main_window.reload_project()
         self.state.show_message("Text appended to project")
         self.dialog.close()
 

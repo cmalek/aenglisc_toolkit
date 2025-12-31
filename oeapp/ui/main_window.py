@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final, cast
 
 from PySide6.QtCore import QSettings, Qt, QTimer
-from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
@@ -87,6 +86,8 @@ class MainWindow(QMainWindow):
         self.application_state = ApplicationState()
         self.application_state.reset()
         self.application_state.set_main_window(self)
+
+        self.content_layout: QVBoxLayout | None = None
         # Handle migrations with backup/restore on failure
         # Note: session is created after migrations to avoid issues
         self._handle_migrations()
@@ -118,7 +119,8 @@ class MainWindow(QMainWindow):
         scroll_area.setWidgetResizable(True)
         scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.scroll_area = scroll_area
-        # Content widget with layout
+
+        # Content widget with layout.  SentenceCards go here.
         content_widget = QWidget()
         self.content_layout = QVBoxLayout(content_widget)
         self.content_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
@@ -145,23 +147,30 @@ class MainWindow(QMainWindow):
         welcome_label.setStyleSheet("font-size: 14pt; color: #666; padding: 50px;")
         self.content_layout.addWidget(welcome_label)
 
-    def _setup_main_menu(self) -> None:
-        """Set up the main menu."""
-        menu = MainMenu(self)
-        menu.build()
-
     def build(self) -> None:
         """
         Build the main window.
 
         - Setup the main window.
+        - Initialize the project UI class.
         - Setup the main menu.
         - Setup global shortcuts.
 
         """
         self._setup_main_window()
-        self._setup_main_menu()
+        # Create the project UI.  This has to be done after the main window is
+        # built because various widgets need to be added to the main window that
+        # the project UI needs to access.
+        self.project_ui = ProjectUI(self)
+        MainMenu(self).build()
         GlobalShortcuts(self).execute()
+
+    def reload(self) -> None:
+        """
+        Repaint the main window.
+        """
+        self.scroll_area.update()
+        self.update()
 
     def _handle_migrations(self) -> None:
         """
@@ -303,91 +312,6 @@ class MainWindow(QMainWindow):
         """
         self.scroll_area.ensureWidgetVisible(widget)
 
-    def _configure_project(self, project: Project) -> None:
-        """
-        Configure the app for the given project.  This means:
-
-        - Set the current project ID
-        - Initialize autosave and command manager
-        - Clear existing content
-        - Create new sentence cards
-        - Connect signals to the sentence cards
-        - Show the welcome message if there are no projects
-        - Scroll to the first sentence card
-        - Update the window title to the project name
-
-        Args:
-            project: Project to configure
-
-        """
-        self.application_state[CURRENT_PROJECT_ID] = project.id
-
-        # Initialize autosave and command manager
-        self.autosave_service = AutosaveService(self.action_service.autosave)
-
-        # Clear existing content
-        for i in reversed(range(self.content_layout.count())):
-            self.content_layout.itemAt(i).widget().setParent(None)  # type: ignore[union-attr]
-
-        self.sentence_cards = []
-        for sentence in project.sentences:
-            # Add paragraph separator if this sentence starts a paragraph
-            if sentence.is_paragraph_start and len(self.sentence_cards) > 0:
-                separator = QWidget()
-                separator.setFixedHeight(20)
-                separator.setStyleSheet(
-                    "background-color: #e0e0e0; border-top: 2px solid #999;"
-                )
-                self.content_layout.addWidget(separator)
-
-            card = SentenceCard(
-                sentence,
-                command_manager=self.application_state.command_manager,
-                main_window=self,
-            )
-            card.set_tokens(sentence.tokens)
-            card.translation_edit.textChanged.connect(self._on_translation_changed)
-            card.oe_text_edit.textChanged.connect(self._on_sentence_text_changed)
-            card.sentence_merged.connect(self._on_sentence_merged)
-            card.sentence_added.connect(self._on_sentence_added)
-            card.sentence_deleted.connect(self._on_sentence_deleted)
-            card.token_selected_for_details.connect(self._on_token_selected_for_details)
-            card.annotation_applied.connect(self._on_annotation_applied)
-            self.sentence_cards.append(card)
-            self.content_layout.addWidget(card)
-
-    def _on_translation_changed(self) -> None:
-        """
-        Handle translation text change by autosaving.
-        """
-        if self.autosave_service:
-            self.show_message("Saving...", duration=500)
-            self.autosave_service.trigger()
-
-    def _on_sentence_text_changed(self):
-        """
-        Handle sentence text change by autosaving.
-        """
-        if self.autosave_service:
-            self.show_message("Saving...", duration=500)
-            self.autosave_service.trigger()
-
-    def save_project(self) -> None:
-        """
-        Save current project.
-        """
-        if (
-            not self.application_state.session
-            or CURRENT_PROJECT_ID not in self.application_state
-        ):
-            self.show_warning("No project open")
-            return
-        if self.autosave_service:
-            self.autosave_service.save_now()
-            self.show_message("Project saved")
-        else:
-            self.show_information("Project saved (autosave enabled)", title="Info")
-
     def show_help(self, topic: str | None = None) -> None:
         """
         Show help dialog.
@@ -418,7 +342,7 @@ class MainWindow(QMainWindow):
                 self.application_state[CURRENT_PROJECT_ID],
             )
             if project:
-                self._configure_project(project)
+                self.project_ui.load(project)
 
     def show_backups_dialog(self) -> None:
         """
@@ -427,328 +351,39 @@ class MainWindow(QMainWindow):
         dialog = BackupsViewDialog(self)
         dialog.execute()
 
-    def export_project_json(
-        self,
-        project_id: int | bool | None = None,  # noqa: FBT001
-        parent: QWidget | None = None,
-    ) -> bool:
+    def save_project(self) -> None:
         """
-        Export project to JSON format.
+        Save the current project.
+        """
+        self.project_ui.save()
 
-        Note that when called as a callback from a dialog, project_id will be a boolean.
+    def load_project(self, project: Project) -> None:
+        """
+        Load the the project.
 
         Args:
-            project_id: Optional project ID to export. If not provided, uses
-                the value of :data:`CURRENT_PROJECT_ID` in :data:`application_state`.
-            parent: Optional parent widget for the file dialog. If not provided,
-                uses self.
-
-        Returns:
-            True if export was successful, False if canceled or failed
+            project: Project to load
 
         """
-        target_project_id = (
-            project_id if project_id else self.application_state[CURRENT_PROJECT_ID]
-        )
-        if not self.application_state.session or not target_project_id:
-            self.show_warning("No project open")
-            return False
+        self.project_ui.load(project)
 
-        # Get project name for default filename
-        project = Project.get(target_project_id)
-        if project is None:
-            self.show_warning("Project not found")
-            return False
-
-        default_filename = ProjectExporter.sanitize_filename(project.name) + ".json"
-
-        # Get file path from user
-        dialog_parent = parent if parent is not None else self
-        file_path, _ = QFileDialog.getSaveFileName(
-            dialog_parent,
-            "Export Project",
-            default_filename,
-            "JSON Files (*.json);;All Files (*)",
-        )
-
-        # If the user cancels the dialog, do nothing
-        if not file_path:
-            return False
-
-        # Export project data
-        exporter = ProjectExporter()
-        try:
-            exporter.export_project_json(target_project_id, file_path)
-        except ValueError as e:
-            self.show_error(str(e), title="Export Error")
-            return False
-
-        self.show_information(
-            f"Project exported successfully to:\n{file_path}",
-            title="Export Successful",
-        )
-        self.show_message("Export completed", duration=3000)
-        return True
-
-    def _on_sentence_merged(self) -> None:
-        """
-        Handle sentence merge signal.
-
-        Reloads the project from the database to refresh all sentence cards
-        after a merge operation.
-
-        """
-        if (
-            not self.application_state.session
-            or CURRENT_PROJECT_ID not in self.application_state
-        ):
-            return
-
-        # Reload project from database
-        project = Project.get(self.application_state[CURRENT_PROJECT_ID])
-        if project is None:
-            return
-
-        # Preserve existing command manager to keep undo history
-        existing_command_manager = self.application_state.command_manager
-        existing_autosave = self.autosave_service
-
-        # Refresh the project configuration (reloads all sentence cards)
-        self._configure_project(project)
-
-        # Restore preserved services
-        if existing_command_manager:
-            self.command_manager = existing_command_manager
-        if existing_autosave:
-            self.autosave_service = existing_autosave
-
-        # Update all sentence cards to use the preserved command manager
-        for card in self.sentence_cards:
-            card.command_manager = self.command_manager
-
-        # Ensure UI is updated/repainted
-        self.scroll_area.update()
-        self.update()
-
-        self.show_message("Sentences merged", duration=2000)
-
-    def _on_sentence_added(self, sentence_id: int) -> None:
-        """
-        Handle sentence added signal.
-
-        Reloads the project from the database to refresh all sentence cards
-        after adding a new sentence, then puts the new sentence card in edit mode.
-
-        Args:
-            sentence_id: ID of the newly added sentence
-
-        """
-        if (
-            not self.application_state.session
-            or CURRENT_PROJECT_ID not in self.application_state
-        ):
-            return
-
-        # Reload project from database
-        project = Project.get(self.application_state[CURRENT_PROJECT_ID])
-        if project is None:
-            return
-
-        # Preserve existing command manager to keep undo history
-        existing_command_manager = self.application_state.command_manager
-        existing_autosave = self.autosave_service
-
-        # Refresh the project configuration (reloads all sentence cards)
-        self._configure_project(project)
-
-        # Restore preserved services
-        if existing_command_manager:
-            self.command_manager = existing_command_manager
-        if existing_autosave:
-            self.autosave_service = existing_autosave
-
-        # Update all sentence cards to use the preserved command manager
-        for card in self.sentence_cards:
-            card.command_manager = self.command_manager
-
-        # Find the sentence card with matching sentence.id
-        new_card = None
-        for card in self.sentence_cards:
-            if card.sentence.id == sentence_id:
-                new_card = card
-                break
-
-        if new_card:
-            # Scroll card into view
-            self.ensure_visible(new_card)
-            # Enter edit mode and focus OE text box
-            new_card.enter_edit_mode()
-
-        # Ensure UI is updated/repainted
-        self.scroll_area.update()
-        self.update()
-
-        self.show_message("Sentence added", duration=2000)
-
-    def _on_sentence_deleted(self, sentence_id: int) -> None:  # noqa: ARG002
-        """
-        Handle sentence deleted signal.
-
-        Reloads the project from the database to refresh all sentence cards
-        after a deletion operation.
-
-        Args:
-            sentence_id: ID of the deleted sentence
-
-        """
-        if (
-            not self.application_state.session
-            or CURRENT_PROJECT_ID not in self.application_state
-        ):
-            return
-
-        # Reload project from database
-        project = Project.get(self.application_state[CURRENT_PROJECT_ID])
-        if project is None:
-            return
-
-        # Preserve existing command manager to keep undo history
-        existing_command_manager = self.application_state.command_manager
-        existing_autosave = self.autosave_service
-
-        # Refresh the project configuration (reloads all sentence cards)
-        self._configure_project(project)
-
-        # Restore preserved services
-        if existing_command_manager:
-            self.command_manager = existing_command_manager
-        if existing_autosave:
-            self.autosave_service = existing_autosave
-
-        # Update all sentence cards to use the preserved command manager
-        for card in self.sentence_cards:
-            card.command_manager = self.command_manager
-
-        # Ensure UI is updated/repainted
-        self.scroll_area.update()
-        self.update()
-
-        self.show_message("Sentence deleted", duration=2000)
-
-    def _on_token_selected_for_details(
-        self, token: Token, sentence: Sentence, sentence_card: SentenceCard
-    ) -> None:
-        """
-        Handle token selection for details sidebar.
-
-        Args:
-            token: Selected token
-            sentence: Sentence containing the token
-            sentence_card: Sentence card containing the token
-
-        """
-        # If there's a previously selected sentence card (different from current),
-        # clear its selection
-        card = self.application_state.get(SELECTED_SENTENCE_CARD)
-        if card is not None and card != sentence_card:
-            card._clear_token_selection()
-        # Check if token is being deselected (selected_token_index is None)
-        if sentence_card.selected_token_index is None:
-            # Clear sidebar
-            self.token_details_sidebar.clear()
-            if card is not None:
-                del self.application_state[SELECTED_SENTENCE_CARD]
-        else:
-            # Update sidebar with token details
-            self.token_details_sidebar.update_token(token, sentence)
-
-            # Store reference to currently selected sentence card
-            self.application_state[SELECTED_SENTENCE_CARD] = sentence_card
-
-    def _on_annotation_applied(self, annotation: Annotation) -> None:
-        """
-        Handle annotation applied signal.
-
-        If the annotation is for the currently selected token in the sidebar,
-        refresh the sidebar.
-
-        Args:
-            annotation: Applied annotation
-
-        """
-        # Check if this annotation is for the currently selected token
-        if CURRENT_PROJECT_ID not in self.application_state:
-            return
-        card = self.application_state.get(SELECTED_SENTENCE_CARD)
-        if card is not None and card.selected_token_index is not None:
-            token_index = card.selected_token_index
-            if (
-                token_index < len(card.tokens)
-                and card.tokens[token_index].id == annotation.token_id
-            ):
-                # Refresh sidebar with updated annotation
-                token = card.tokens[token_index]
-                # Refresh token from database to ensure annotation relationship
-                # is up-to-date
-                if self.application_state.session:
-                    self.application_state.session.refresh(token)
-                self.token_details_sidebar.update_token(token, card.sentence)
-
-    def reload_project_structure(self) -> None:
+    def reload_project(self) -> None:
         """
         Reload the entire project structure from database.
 
         This is needed after structural changes like merge/undo merge
         that change the number of sentences.
         """
-        if (
-            not self.application_state.session
-            or CURRENT_PROJECT_ID not in self.application_state
-        ):
-            return
+        self.project_ui.reload()
 
-        # Reload project from database
-        project = Project.get(self.application_state[CURRENT_PROJECT_ID])
-        if project is None:
-            return
-
-        # Preserve existing services
-        existing_command_manager = self.command_manager
-        existing_autosave = self.autosave_service
-
-        # Refresh the project configuration (reloads all sentence cards)
-        self._configure_project(project)
-
-        # Restore preserved services
-        if existing_command_manager:
-            self.command_manager = existing_command_manager
-        if existing_autosave:
-            self.autosave_service = existing_autosave
-
-        # Update all sentence cards to use the preserved command manager
-        for card in self.sentence_cards:
-            card.command_manager = self.application_state.command_manager
-
-        # Ensure UI is updated/repainted
-        self.scroll_area.update()
-        self.update()
-
-    def refresh_all_cards(self) -> None:
+    def refresh_project(self) -> None:
         """
-        Refresh all sentence cards from database.
+        Refresh all the sentence cards from the database.
 
-        - If there is no database or the current project ID is not set, do nothing.
+        - If the current project ID is not set, do nothing.
         - Reload annotations for all sentence cards.
         """
-        if (
-            not self.application_state.session
-            or CURRENT_PROJECT_ID not in self.application_state
-        ):
-            return
-        # Reload annotations for all cards
-        for card in self.sentence_cards:
-            if card.sentence.id:
-                card.set_tokens(card.sentence.tokens)
+        self.project_ui.refresh()
 
 
 class MainWindowActions:
@@ -1007,41 +642,6 @@ class MainWindowActions:
         project.save()
         self.main_window.show_message("Saved")
 
-    def navigate_to_token(self, token_id: int) -> None:
-        """
-        Navigate to a specific token.
-
-        - If there is no database or the current project ID is not set, do nothing.
-        - If there is no token with the given ID, do nothing.
-        - If there is a token with the given ID, navigate to the token.
-
-        Args:
-            token_id: Token ID to navigate to
-
-        """
-        token = Token.get(token_id)
-        if token is None:
-            return
-        sentence_id = token.sentence_id
-
-        # Find the sentence card
-        for card in self.sentence_cards:
-            if card.sentence.id == sentence_id:
-                # Scroll to the card
-                self.main_window.ensure_visible(card)
-                # Select the token by finding it in the tokens list
-                token_idx = None
-                for idx, token in enumerate(card.tokens):
-                    if token.id == token_id:
-                        token_idx = idx
-                        break
-                if token_idx is not None:
-                    card.token_table.focus()
-                    card.token_table.select_token(token_idx)
-                    # Open annotation modal
-                    card._open_annotation_modal()
-                break
-
     def import_project_json(self) -> None:
         """
         Import project from JSON format.
@@ -1067,7 +667,7 @@ class MainWindowActions:
             )
             if dialog.execute():
                 # User chose to open the project
-                self.main_window._configure_project(imported_project)
+                ProjectUI(self.main_window).load(imported_project)
                 self.main_window.setWindowTitle(
                     f"Ænglisc Toolkit - {imported_project.name}"
                 )
@@ -1085,6 +685,69 @@ class MainWindowActions:
             self.main_window.show_error(
                 f"An error occurred during import:\n{e!s}", title="Import Error"
             )
+
+    def export_project_json(
+        self,
+        project_id: int | bool | None = None,  # noqa: FBT001
+        parent: QWidget | None = None,
+    ) -> bool:
+        """
+        Export project to JSON format.
+
+        Note that when called as a callback from a dialog, project_id will be a boolean.
+
+        Args:
+            project_id: Optional project ID to export. If not provided, uses
+                the value of :data:`CURRENT_PROJECT_ID` in :data:`application_state`.
+            parent: Optional parent widget for the file dialog. If not provided,
+                uses self.
+
+        Returns:
+            True if export was successful, False if canceled or failed
+
+        """
+        target_project_id = (
+            project_id if project_id else self.application_state[CURRENT_PROJECT_ID]
+        )
+        if not self.application_state.session or not target_project_id:
+            self.main_window.show_warning("No project open")
+            return False
+
+        # Get project name for default filename
+        project = Project.get(target_project_id)
+        if project is None:
+            self.main_window.show_warning("Project not found")
+            return False
+
+        default_filename = ProjectExporter.sanitize_filename(project.name) + ".json"
+
+        # Get file path from user
+        dialog_parent = parent if parent is not None else self.main_window
+        file_path, _ = QFileDialog.getSaveFileName(
+            dialog_parent,
+            "Export Project",
+            default_filename,
+            "JSON Files (*.json);;All Files (*)",
+        )
+
+        # If the user cancels the dialog, do nothing
+        if not file_path:
+            return False
+
+        # Export project data
+        exporter = ProjectExporter()
+        try:
+            exporter.export_project_json(target_project_id, file_path)
+        except ValueError as e:
+            self.main_window.show_error(str(e), title="Export Error")
+            return False
+
+        self.main_window.show_information(
+            f"Project exported successfully to:\n{file_path}",
+            title="Export Successful",
+        )
+        self.main_window.show_message("Export completed", duration=3000)
+        return True
 
     def delete_project(self) -> None:
         """
@@ -1179,3 +842,362 @@ class MainWindowActions:
             self.main_window.show_message("Backup created", duration=2000)
         else:
             self.main_window.show_error("Failed to create backup.")
+
+
+class ProjectUI:
+    """
+    Build out the UI for a particular project inside the main window.
+
+    Important:
+        Only run ``ProjectUI(main_window).load(project_id)`` once the main
+        window has been built, because it needs to access the main window's
+        content+layout.
+
+    """
+
+    def __init__(self, main_window: MainWindow) -> None:
+        self.main_window = main_window
+        self.application_state = main_window.application_state
+        self.action_service = main_window.action_service
+        self.command_manager = self.action_service.command_manager
+        self.sentence_cards: list[SentenceCard] = []
+        self.content_layout: QVBoxLayout = cast(
+            "QVBoxLayout", self.main_window.content_layout
+        )
+        self.token_details_sidebar = main_window.token_details_sidebar
+        self.show_message = main_window.show_message
+        self.show_warning = main_window.show_warning
+        self.show_error = main_window.show_error
+        self.show_information = main_window.show_information
+
+    def load(self, project: Project) -> None:
+        """
+        Build the project.
+
+        Args:
+            project: Project to load
+
+        """
+        self.application_state[CURRENT_PROJECT_ID] = project.id
+
+        # Initialize autosave and command manager
+        self.autosave_service = AutosaveService(self.action_service.autosave)
+
+        # Clear existing content
+        for i in reversed(range(self.content_layout.count())):
+            self.content_layout.itemAt(i).widget().setParent(None)  # type: ignore[union-attr]
+
+        self.sentence_cards = []
+        for sentence in project.sentences:
+            # Add paragraph separator if this sentence starts a paragraph
+            if sentence.is_paragraph_start and len(self.sentence_cards) > 0:
+                separator = QWidget()
+                separator.setFixedHeight(20)
+                separator.setStyleSheet(
+                    "background-color: #e0e0e0; border-top: 2px solid #999;"
+                )
+                self.content_layout.addWidget(separator)
+
+            card = SentenceCard(
+                sentence,
+                command_manager=self.application_state.command_manager,
+                main_window=self.main_window,
+            )
+            card.set_tokens(sentence.tokens)
+            card.translation_edit.textChanged.connect(self._on_translation_changed)
+            card.oe_text_edit.textChanged.connect(self._on_sentence_text_changed)
+            card.sentence_merged.connect(self._on_sentence_merged)
+            card.sentence_added.connect(self._on_sentence_added)
+            card.sentence_deleted.connect(self._on_sentence_deleted)
+            card.token_selected_for_details.connect(self._on_token_selected_for_details)
+            card.annotation_applied.connect(self._on_annotation_applied)
+            self.sentence_cards.append(card)
+            self.content_layout.addWidget(card)
+
+    def reload(self) -> None:
+        """
+        Reload the entire project structure from database.
+
+        This is needed after structural changes like merge/undo merge
+        that change the number of sentences.
+        """
+        if (
+            not self.application_state.session
+            or CURRENT_PROJECT_ID not in self.application_state
+        ):
+            return
+
+        # Reload project from database
+        project = Project.get(self.application_state[CURRENT_PROJECT_ID])
+        if project is None:
+            return
+
+        # Preserve existing services
+        existing_command_manager = self.command_manager
+        existing_autosave = self.autosave_service
+
+        # Refresh the project configuration (reloads all sentence cards)
+        self.load(project)
+
+        # Restore preserved services
+        if existing_command_manager:
+            self.command_manager = existing_command_manager
+        if existing_autosave:
+            self.autosave_service = existing_autosave
+
+        # Update all sentence cards to use the preserved command manager
+        for card in self.sentence_cards:
+            card.command_manager = self.application_state.command_manager
+
+        # Ensure UI is updated/repainted
+        self.main_window.reload()
+
+    def refresh(self) -> None:
+        """
+        Refresh all sentence cards from database.
+
+        - If there is no database or the current project ID is not set, do nothing.
+        - Reload annotations for all sentence cards.
+        """
+        if (
+            not self.application_state.session
+            or CURRENT_PROJECT_ID not in self.application_state
+        ):
+            return
+        # Reload annotations for all cards
+        for card in self.sentence_cards:
+            if card.sentence.id:
+                card.set_tokens(card.sentence.tokens)
+
+    def save(self) -> None:
+        """
+        Save current project.
+        """
+        if (
+            not self.application_state.session
+            or CURRENT_PROJECT_ID not in self.application_state
+        ):
+            self.show_warning("No project open")
+            return
+        if self.autosave_service:
+            self.autosave_service.save_now()
+            self.show_message("Project saved")
+        else:
+            self.show_information("Project saved (autosave enabled)", title="Info")
+
+    def _on_translation_changed(self) -> None:
+        """
+        Handle translation text change by autosaving.
+        """
+        if self.autosave_service:
+            self.show_message("Saving...", duration=500)
+            self.autosave_service.trigger()
+
+    def _on_sentence_text_changed(self):
+        """
+        Handle sentence text change by autosaving.
+        """
+        if self.autosave_service:
+            self.show_message("Saving...", duration=500)
+            self.autosave_service.trigger()
+
+    def _on_sentence_merged(self) -> None:
+        """
+        Handle sentence merge signal.
+
+        Reloads the project from the database to refresh all sentence cards
+        after a merge operation.
+
+        """
+        if (
+            not self.application_state.session
+            or CURRENT_PROJECT_ID not in self.application_state
+        ):
+            return
+
+        # Reload project from database
+        project = Project.get(self.application_state[CURRENT_PROJECT_ID])
+        if project is None:
+            return
+
+        # Preserve existing command manager to keep undo history
+        existing_command_manager = self.application_state.command_manager
+        existing_autosave = self.autosave_service
+
+        # Refresh the project configuration (reloads all sentence cards)
+        self.load(project)
+
+        # Restore preserved services
+        if existing_command_manager:
+            self.command_manager = existing_command_manager
+        if existing_autosave:
+            self.autosave_service = existing_autosave
+
+        # Update all sentence cards to use the preserved command manager
+        for card in self.sentence_cards:
+            card.command_manager = self.command_manager
+
+        # Ensure UI is updated/repainted
+        self.main_window.reload()
+
+        self.show_message("Sentences merged", duration=2000)
+
+    def _on_sentence_added(self, sentence_id: int) -> None:
+        """
+        Handle sentence added signal.
+
+        Reloads the project from the database to refresh all sentence cards
+        after adding a new sentence, then puts the new sentence card in edit mode.
+
+        Args:
+            sentence_id: ID of the newly added sentence
+
+        """
+        if (
+            not self.application_state.session
+            or CURRENT_PROJECT_ID not in self.application_state
+        ):
+            return
+
+        # Reload project from database
+        project = Project.get(self.application_state[CURRENT_PROJECT_ID])
+        if project is None:
+            return
+
+        # Preserve existing command manager to keep undo history
+        existing_command_manager = self.application_state.command_manager
+        existing_autosave = self.autosave_service
+
+        # Refresh the project configuration (reloads all sentence cards)
+        self.load(project)
+
+        # Restore preserved services
+        if existing_command_manager:
+            self.command_manager = existing_command_manager
+        if existing_autosave:
+            self.autosave_service = existing_autosave
+
+        # Update all sentence cards to use the preserved command manager
+        for card in self.sentence_cards:
+            card.command_manager = self.command_manager
+
+        # Find the sentence card with matching sentence.id
+        new_card = None
+        for card in self.sentence_cards:
+            if card.sentence.id == sentence_id:
+                new_card = card
+                break
+
+        if new_card:
+            # Scroll card into view
+            self.main_window.ensure_visible(new_card)
+            # Enter edit mode and focus OE text box
+            new_card.enter_edit_mode()
+
+        # Ensure UI is updated/repainted
+        self.main_window.reload()
+
+        self.show_message("Sentence added", duration=2000)
+
+    def _on_sentence_deleted(self, sentence_id: int) -> None:  # noqa: ARG002
+        """
+        Handle sentence deleted signal.
+
+        Reloads the project from the database to refresh all sentence cards
+        after a deletion operation.
+
+        Args:
+            sentence_id: ID of the deleted sentence
+
+        """
+        if (
+            not self.application_state.session
+            or CURRENT_PROJECT_ID not in self.application_state
+        ):
+            return
+
+        # Reload project from database
+        project = Project.get(self.application_state[CURRENT_PROJECT_ID])
+        if project is None:
+            return
+
+        # Preserve existing command manager to keep undo history
+        existing_command_manager = self.application_state.command_manager
+        existing_autosave = self.autosave_service
+
+        # Refresh the project configuration (reloads all sentence cards)
+        self.load(project)
+
+        # Restore preserved services
+        if existing_command_manager:
+            self.command_manager = existing_command_manager
+        if existing_autosave:
+            self.autosave_service = existing_autosave
+
+        # Update all sentence cards to use the preserved command manager
+        for card in self.sentence_cards:
+            card.command_manager = self.command_manager
+
+        # Ensure UI is updated/repainted
+        self.main_window.reload()
+
+        self.show_message("Sentence deleted", duration=2000)
+
+    def _on_token_selected_for_details(
+        self, token: Token, sentence: Sentence, sentence_card: SentenceCard
+    ) -> None:
+        """
+        Handle token selection for details sidebar.
+
+        Args:
+            token: Selected token
+            sentence: Sentence containing the token
+            sentence_card: Sentence card containing the token
+
+        """
+        # If there's a previously selected sentence card (different from current),
+        # clear its selection
+        card = self.application_state.get(SELECTED_SENTENCE_CARD)
+        if card is not None and card != sentence_card:
+            card._clear_token_selection()
+        # Check if token is being deselected (selected_token_index is None)
+        if sentence_card.selected_token_index is None:
+            # Clear sidebar
+            self.token_details_sidebar.clear()
+            if card is not None:
+                del self.application_state[SELECTED_SENTENCE_CARD]
+        else:
+            # Update sidebar with token details
+            self.token_details_sidebar.update_token(token, sentence)
+
+            # Store reference to currently selected sentence card
+            self.application_state[SELECTED_SENTENCE_CARD] = sentence_card
+
+    def _on_annotation_applied(self, annotation: Annotation) -> None:
+        """
+        Handle annotation applied signal.
+
+        If the annotation is for the currently selected token in the sidebar,
+        refresh the sidebar.
+
+        Args:
+            annotation: Applied annotation
+
+        """
+        # Check if this annotation is for the currently selected token
+        if CURRENT_PROJECT_ID not in self.application_state:
+            return
+        card = self.application_state.get(SELECTED_SENTENCE_CARD)
+        if card is not None and card.selected_token_index is not None:
+            token_index = card.selected_token_index
+            if (
+                token_index < len(card.tokens)
+                and card.tokens[token_index].id == annotation.token_id
+            ):
+                # Refresh sidebar with updated annotation
+                token = card.tokens[token_index]
+                # Refresh token from database to ensure annotation relationship
+                # is up-to-date
+                if self.application_state.session:
+                    self.application_state.session.refresh(token)
+                self.token_details_sidebar.update_token(token, card.sentence)

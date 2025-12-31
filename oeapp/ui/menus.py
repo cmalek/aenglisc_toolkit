@@ -286,7 +286,9 @@ class ProjectMenu:
         self.project_menu.addSeparator()
 
         export_action = QAction("&Export...", self.project_menu)
-        export_action.triggered.connect(self.main_window.export_project_json)
+        export_action.triggered.connect(
+            self.main_window.action_service.export_project_json
+        )
         self.project_menu.addAction(export_action)
 
         import_action = QAction("&Import...", self.project_menu)

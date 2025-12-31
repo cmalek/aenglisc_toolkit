@@ -167,7 +167,7 @@ class DeleteProjectDialog:
             return
 
         # Export the project using export_project_json
-        export_success = self.main_window.export_project_json(
+        export_success = self.main_window.action_service.export_project_json(
             project_id=project.id, parent=self.dialog
         )
 
@@ -227,8 +227,9 @@ class DeleteProjectDialog:
             del self.state[CURRENT_PROJECT_ID]
 
             # Clear sentence cards
-            for i in reversed(range(self.main_window.content_layout.count())):
-                widget = self.main_window.content_layout.itemAt(i).widget()
+            layout = cast("QVBoxLayout", self.main_window.content_layout)
+            for i in reversed(range(layout.count())):
+                widget = layout.itemAt(i).widget()
                 if widget:
                     widget.setParent(None)
 

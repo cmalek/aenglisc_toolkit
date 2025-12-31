@@ -111,7 +111,7 @@ class NewProjectDialog(TextInputMixin):
         """
         # Create project in the shared database
         project = Project.create(text, title)
-        self.main_window._configure_project(project)
+        self.main_window.load_project(project)
         self.main_window.setWindowTitle(f"Ænglisc Toolkit - {project.name}")
         self.state.show_message("Project created")
 

@@ -157,7 +157,7 @@ class OpenProjectDialog:
                     self.state.show_warning("Project not found")
                     return
                 # Configure the app for the project.
-                self.main_window._configure_project(project)
+                self.main_window.load_project(project)
                 # Set the window title to the project name.
                 self.main_window.setWindowTitle(f"Ænglisc Toolkit - {project.name}")
                 self.state.show_message("Project opened")
