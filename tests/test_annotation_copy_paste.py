@@ -30,7 +30,6 @@ class TestCopyAnnotation:
         """Test copy_annotation shows error when token has empty annotation."""
         # Create project with token
         project = create_test_project(db_session, name="Test", text="Se cyning")
-        db_session.commit()
 
         sentence = project.sentences[0]
         token = sentence.tokens[0]
@@ -39,7 +38,7 @@ class TestCopyAnnotation:
         # Clear any fields that might have been set
         if token.annotation:
             token.annotation.pos = None
-            db_session.commit()
+            token.annotation.save()
 
         # Create mock MainWindow with selected token
         main_window = MagicMock()
@@ -67,7 +66,6 @@ class TestCopyAnnotation:
         """Test copy_annotation successfully copies annotation data."""
         # Create project with token and annotation
         project = create_test_project(db_session, name="Test", text="Se cyning")
-        db_session.commit()
 
         sentence = project.sentences[0]
         token = sentence.tokens[0]
@@ -82,7 +80,7 @@ class TestCopyAnnotation:
         annotation.modern_english_meaning = "king"
         annotation.root = "cyning"
         annotation.uncertain = False
-        db_session.commit()
+        annotation.save()
         db_session.refresh(token)
 
         # Create mock MainWindow with selected token
@@ -119,7 +117,6 @@ class TestCopyAnnotation:
         """Test copy_annotation copies all annotation fields including None values."""
         # Create project with token and annotation
         project = create_test_project(db_session, name=f"Test_{id(self)}_2", text="Se cyning")
-        db_session.commit()
 
         sentence = project.sentences[0]
         token = sentence.tokens[0]
@@ -147,7 +144,7 @@ class TestCopyAnnotation:
         annotation.adverb_degree = None
         annotation.modern_english_meaning = "to be"
         annotation.root = "bēon"
-        db_session.commit()
+        annotation.save()
         db_session.refresh(token)
         db_session.refresh(sentence)
 
@@ -204,7 +201,6 @@ class TestPasteAnnotation:
     def test_paste_annotation_no_copied_annotation(self, db_session, qapp):
         """Test paste_annotation shows error when no annotation copied."""
         project = create_test_project(db_session, name="Test", text="Se cyning")
-        db_session.commit()
 
         sentence = project.sentences[0]
 
@@ -227,7 +223,6 @@ class TestPasteAnnotation:
     def test_paste_annotation_success(self, db_session, qapp):
         """Test paste_annotation successfully pastes annotation data."""
         project = create_test_project(db_session, name="Test", text="Se cyning")
-        db_session.commit()
 
         sentence = project.sentences[0]
         token = sentence.tokens[1]  # "cyning"
@@ -295,7 +290,6 @@ class TestPasteAnnotation:
     def test_paste_annotation_is_redoable(self, db_session, qapp):
         """Test paste_annotation can be redone after undo."""
         project = create_test_project(db_session, name="Test", text="Se cyning")
-        db_session.commit()
 
         sentence = project.sentences[0]
         token = sentence.tokens[1]
@@ -355,7 +349,6 @@ class TestPasteAnnotation:
     def test_paste_annotation_overwrites_existing(self, db_session, qapp):
         """Test paste_annotation overwrites existing annotation."""
         project = create_test_project(db_session, name="Test", text="Se cyning")
-        db_session.commit()
 
         sentence = project.sentences[0]
         token = sentence.tokens[1]
@@ -366,7 +359,7 @@ class TestPasteAnnotation:
         existing.gender = None
         existing.number = "p"
         existing.modern_english_meaning = "old meaning"
-        db_session.commit()
+        existing.save()
         db_session.refresh(token)
 
 
@@ -423,7 +416,6 @@ class TestCopyPasteIntegration:
     def test_copy_then_paste_to_different_token(self, db_session, qapp):
         """Test copying annotation from one token and pasting to another."""
         project = create_test_project(db_session, name="Test", text="Se cyning rād")
-        db_session.commit()
 
         sentence = project.sentences[0]
         source_token = sentence.tokens[0]  # "Se"
@@ -437,7 +429,7 @@ class TestCopyPasteIntegration:
         annotation.case = "n"
         annotation.article_type = "d"
         annotation.uncertain = False
-        db_session.commit()
+        annotation.save()
         db_session.refresh(source_token)
 
 
@@ -481,7 +473,6 @@ class TestCopyPasteIntegration:
             name="Multi-sentence Test",
             text="Se cyning.\nSēo cwēn.",
         )
-        db_session.commit()
 
         sentence1 = project.sentences[0]
         sentence2 = project.sentences[1]
@@ -494,7 +485,7 @@ class TestCopyPasteIntegration:
         annotation.gender = "m"
         annotation.number = "s"
         annotation.case = "n"
-        db_session.commit()
+        annotation.save()
         db_session.refresh(source_token)
 
         main_window = MagicMock()
@@ -530,7 +521,6 @@ class TestCopyPasteIntegration:
     def test_paste_to_same_token_is_undoable(self, db_session, qapp):
         """Test pasting to same token creates undoable command."""
         project = create_test_project(db_session, name="Test", text="Se cyning")
-        db_session.commit()
 
         sentence = project.sentences[0]
         token = sentence.tokens[0]
@@ -539,7 +529,7 @@ class TestCopyPasteIntegration:
         annotation = token.annotation
         annotation.pos = "D"
         annotation.gender = "m"
-        db_session.commit()
+        annotation.save()
         db_session.refresh(token)
 
 
@@ -575,7 +565,6 @@ class TestCopyAnnotationWithNoAnnotation:
     def test_copy_empty_annotation_shows_error(self, db_session, qapp):
         """Test copying token with only empty annotation shows error."""
         project = create_test_project(db_session, name="Test", text="Se")
-        db_session.commit()
 
         sentence = project.sentences[0]
         token = sentence.tokens[0]

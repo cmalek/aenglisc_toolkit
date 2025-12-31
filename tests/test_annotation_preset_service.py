@@ -16,7 +16,6 @@ class TestAnnotationPresetService:
         AnnotationPreset.create(name="Noun 1", pos="N")
         AnnotationPreset.create(name="Noun 2", pos="N")
         AnnotationPreset.create(name="Verb 1", pos="V")
-        db_session.commit()
 
         service = AnnotationPresetService()
         nouns = service.get_presets_for_pos("N")
@@ -32,7 +31,6 @@ class TestAnnotationPresetService:
         service = AnnotationPresetService()
         field_values = {"gender": "m", "number": "s", "case": "n"}
         preset = service.create_preset("Test Noun", "N", field_values)
-        db_session.commit()
 
         assert preset.id is not None
         assert preset.name == "Test Noun"
@@ -46,7 +44,6 @@ class TestAnnotationPresetService:
         service = AnnotationPresetService()
         field_values = {"verb_class": "w1", "verb_tense": None, "verb_mood": "i"}
         preset = service.create_preset("Partial Verb", "V", field_values)
-        db_session.commit()
 
         assert preset.verb_class == "w1"
         assert preset.verb_tense is None
@@ -56,23 +53,19 @@ class TestAnnotationPresetService:
         """Test create_preset() handles IntegrityError for duplicates."""
         service = AnnotationPresetService()
         service.create_preset("Duplicate", "N", {})
-        db_session.commit()
 
         with pytest.raises(IntegrityError):
             service.create_preset("Duplicate", "N", {})
-            db_session.commit()
 
     def test_update_preset_updates_fields(self, db_session):
         """Test update_preset() updates preset fields."""
         preset = AnnotationPreset.create(name="Original", pos="A", gender="m")
-        db_session.commit()
 
         service = AnnotationPresetService()
         field_values = {"gender": "f", "number": "p"}
         updated = service.update_preset(
             preset.id, "Updated Name", field_values
         )
-        db_session.commit()
 
         assert updated is not None
         assert updated.name == "Updated Name"
@@ -83,22 +76,18 @@ class TestAnnotationPresetService:
         """Test update_preset() handles IntegrityError for duplicates."""
         AnnotationPreset.create(name="Existing", pos="N")
         preset2 = AnnotationPreset.create(name="To Update", pos="N")
-        db_session.commit()
 
         service = AnnotationPresetService()
         with pytest.raises(IntegrityError):
             service.update_preset(preset2.id, "Existing", {})
-            db_session.commit()
 
     def test_delete_preset_removes_preset(self, db_session):
         """Test delete_preset() removes preset."""
         preset = AnnotationPreset.create(name="To Delete", pos="R")
-        db_session.commit()
         preset_id = preset.id
 
         service = AnnotationPresetService()
         result = service.delete_preset(preset_id)
-        db_session.commit()
 
         assert result is True
         assert AnnotationPreset.get(preset_id) is None
@@ -113,8 +102,7 @@ class TestAnnotationPresetService:
             case=None,  # None value
             declension="s",
         )
-        db_session.add(preset)
-        db_session.commit()
+        preset.save()
 
         annotation = Annotation(token_id=1, gender="f", case="a")
         service = AnnotationPresetService()
@@ -136,8 +124,7 @@ class TestAnnotationPresetService:
             number=None,  # "Clear" was selected
             case="n",
         )
-        db_session.add(preset)
-        db_session.commit()
+        preset.save()
 
         annotation = Annotation(token_id=1, gender="f", number="p", case="a")
         service = AnnotationPresetService()

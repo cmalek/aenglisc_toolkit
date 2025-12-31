@@ -1444,12 +1444,10 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
             existing.confidence = annotation.confidence
             existing.modern_english_meaning = annotation.modern_english_meaning
             existing.root = annotation.root
-            self.session.add(existing)
+            existing.save()
         else:
             # Insert new annotation
-            self.session.add(annotation)
-
-        self.session.commit()
+            annotation.save()
 
     def _on_add_note_clicked(self) -> None:
         """

@@ -95,14 +95,14 @@ class TestCommandManager:
         annotation = session.get(Annotation, token_id)
         if annotation is None:
             annotation = Annotation(token_id=token_id)
-            session.add(annotation)
+            annotation.save()
         annotation.pos = "R"
         annotation.gender = "m"
         annotation.number = "s"
         annotation.case = "n"
         annotation.pronoun_type = "d"
         annotation.confidence = 80
-        session.commit()
+        annotation.save()
 
         # Create command to update annotation
         before = {
@@ -212,12 +212,10 @@ class TestCommandManager:
         tokens = Token.list(sentence_id)
         if len(tokens) < 2:
             token2 = Token(sentence_id=sentence_id, order_index=1, surface="cyning")
-            session.add(token2)
-            session.flush()
+            token2.save()
             token_id_2 = token2.id
         else:
             token_id_2 = tokens[1].id
-        session.commit()
 
         before = {
             k: None
@@ -393,8 +391,7 @@ class TestUpdateNoteCommand:
             end_token=token_id,
             note_text_md="Original note",
         )
-        db_session.add(note)
-        db_session.commit()
+        note.save()
         setup["note_id"] = note.id
         return setup
 
@@ -460,8 +457,7 @@ class TestDeleteNoteCommand:
             end_token=token_id,
             note_text_md="Note to delete",
         )
-        session.add(note)
-        session.commit()
+        note.save()
         setup["note_id"] = note.id
         return setup
 

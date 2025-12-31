@@ -34,7 +34,6 @@ class AddNoteCommand(SessionMixin, Command):
             True if successful, False otherwise
 
         """
-        session = self._get_session()
         # Get next note number
         if self.note_number is None:
             self.note_number = self._get_next_note_number()
@@ -52,11 +51,8 @@ class AddNoteCommand(SessionMixin, Command):
             note_text_md=self.note_text,
             note_type="span",
         )
-        session.add(note)
-        session.flush()
+        note.save()
         self.note_id = note.id
-
-        session.commit()
         return True
 
     def undo(self) -> bool:
@@ -67,7 +63,6 @@ class AddNoteCommand(SessionMixin, Command):
             True if successful, False otherwise
 
         """
-        session = self._get_session()
         if self.note_id is None:
             return False
 
@@ -75,8 +70,7 @@ class AddNoteCommand(SessionMixin, Command):
         if note is None:
             return False
 
-        session.delete(note)
-        session.commit()
+        note.delete()
         return True
 
     def get_description(self) -> str:
@@ -204,7 +198,6 @@ class UpdateNoteCommand(SessionMixin, Command):
             True if successful, False otherwise
 
         """
-        session = self._get_session()
         note = Note.get(self.note_id)
         if note is None:
             return False
@@ -217,8 +210,7 @@ class UpdateNoteCommand(SessionMixin, Command):
         note.end_token = (
             self.after_end_token if self.after_end_token is not None else None
         )
-        session.add(note)
-        session.commit()
+        note.save()
         return True
 
     def undo(self) -> bool:
@@ -229,7 +221,6 @@ class UpdateNoteCommand(SessionMixin, Command):
             True if successful, False otherwise
 
         """
-        session = self._get_session()
         note = Note.get(self.note_id)
         if note is None:
             return False
@@ -242,8 +233,7 @@ class UpdateNoteCommand(SessionMixin, Command):
         note.end_token = (
             self.before_end_token if self.before_end_token is not None else None
         )
-        session.add(note)
-        session.commit()
+        note.save()
         return True
 
     def get_description(self) -> str:
@@ -286,7 +276,6 @@ class DeleteNoteCommand(SessionMixin, Command):
             True if successful, False otherwise
 
         """
-        session = self._get_session()
         note = Note.get(self.note_id)
         if note is None:
             return False
@@ -302,8 +291,7 @@ class DeleteNoteCommand(SessionMixin, Command):
                 self.sentence_id, self.note_id
             )
 
-        session.delete(note)
-        session.commit()
+        note.delete()
         # Note: The UI should refresh after this command executes to renumber
         # remaining notes. This happens via the note_saved signal handler.
         return True
@@ -316,7 +304,6 @@ class DeleteNoteCommand(SessionMixin, Command):
             True if successful, False otherwise
 
         """
-        session = self._get_session()
         if (
             self.sentence_id is None
             or self.start_token_id is None
@@ -332,8 +319,7 @@ class DeleteNoteCommand(SessionMixin, Command):
             note_text_md=self.note_text,
             note_type="span",
         )
-        session.add(note)
-        session.commit()
+        note.save()
         self.note_id = note.id
         return True
 

@@ -31,7 +31,6 @@ class TestTokenTable:
     def test_token_table_sets_tokens(self, db_session, qapp):
         """Test TokenTable sets tokens correctly."""
         project = create_test_project(db_session, name="Test", text="Se cyning")
-        db_session.commit()
 
         sentence = project.sentences[0]
         tokens = list(sentence.tokens)
@@ -45,7 +44,6 @@ class TestTokenTable:
     def test_token_table_updates_annotation(self, db_session, qapp):
         """Test TokenTable updates annotation correctly."""
         project = create_test_project(db_session, name="Test", text="Se cyning")
-        db_session.commit()
 
         sentence = project.sentences[0]
         token = sentence.tokens[0]
@@ -56,11 +54,10 @@ class TestTokenTable:
         else:
             from oeapp.models.annotation import Annotation
             annotation = Annotation(token_id=token.id)
-            db_session.add(annotation)
-            db_session.commit()
+            annotation.save(commit=False)
 
         annotation.pos = "R"
-        db_session.commit()
+        annotation.save()
 
         table = TokenTable(parent=None)
         table.set_tokens([token])
@@ -72,7 +69,6 @@ class TestTokenTable:
     def test_token_table_get_selected_token(self, db_session, qapp):
         """Test TokenTable gets selected token."""
         project = create_test_project(db_session, name="Test", text="Se cyning")
-        db_session.commit()
 
         sentence = project.sentences[0]
         tokens = list(sentence.tokens)
@@ -98,7 +94,6 @@ class TestTokenTable:
     def test_token_table_emits_token_selected_signal(self, db_session, qapp):
         """Test TokenTable emits token_selected signal."""
         project = create_test_project(db_session, name="Test", text="Se cyning")
-        db_session.commit()
 
         sentence = project.sentences[0]
         tokens = list(sentence.tokens)
@@ -121,7 +116,6 @@ class TestTokenTable:
     def test_token_table_select_token(self, db_session, qapp):
         """Test TokenTable select_token method."""
         project = create_test_project(db_session, name="Test", text="Se cyning")
-        db_session.commit()
 
         sentence = project.sentences[0]
         tokens = list(sentence.tokens)

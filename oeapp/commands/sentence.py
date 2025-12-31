@@ -42,7 +42,6 @@ class EditSentenceCommand(SessionMixin, Command):
             True if successful
 
         """
-        session = self._get_session()
         sentence = Sentence.get(self.sentence_id)
         if sentence is None:
             return False
@@ -51,8 +50,7 @@ class EditSentenceCommand(SessionMixin, Command):
             sentence.update(self.after)
         elif self.field == "text_modern":
             sentence.text_modern = self.after
-            session.add(sentence)
-            session.commit()
+            sentence.save()
         return True
 
     def undo(self) -> bool:
@@ -63,7 +61,6 @@ class EditSentenceCommand(SessionMixin, Command):
             True if successful, False otherwise
 
         """
-        session = self._get_session()
         sentence = Sentence.get(self.sentence_id)
         if sentence is None:
             return False
@@ -72,8 +69,7 @@ class EditSentenceCommand(SessionMixin, Command):
             sentence.update(self.before)
         elif self.field == "text_modern":
             sentence.text_modern = self.before
-            session.add(sentence)
-            session.commit()
+            sentence.save()
         return True
 
     def get_description(self) -> str:
@@ -207,8 +203,7 @@ class MergeSentenceCommand(SessionMixin, Command):
 
         # Delete next sentence FIRST to avoid unique constraint violation
         # when updating display_order of subsequent sentences
-        session.delete(next_sentence)
-        session.flush()  # Flush to ensure deletion happens before updates
+        next_sentence.delete(commit=False)
 
         # Update display_order for all subsequent sentences
         # Query using stored values since next_sentence is now deleted
@@ -277,9 +272,8 @@ class MergeSentenceCommand(SessionMixin, Command):
             note = Note.get(note_data["id"])
             if note:
                 note.sentence_id = next_sentence.id  # Use the new sentence ID
-                session.add(note)
+                note.save()
 
-        session.commit()
         return True
 
     def get_description(self) -> str:
@@ -381,7 +375,6 @@ class AddSentenceCommand(SessionMixin, Command):
         )
         self.new_sentence_id = new_sentence.id
 
-        session.commit()
         return True
 
     def undo(self) -> bool:
@@ -395,20 +388,16 @@ class AddSentenceCommand(SessionMixin, Command):
             True if successful, False otherwise
 
         """
-        session = self._get_session()
         if self.new_sentence_id is None:
             return False
 
         # Delete the new sentence first
         new_sentence = Sentence.get(self.new_sentence_id)
         if new_sentence:
-            session.delete(new_sentence)
-            session.flush()
+            new_sentence.delete()
 
         # Restore display_order using two-phase approach
         Sentence.restore_display_orders(self.display_order_changes)
-
-        session.commit()
         return True
 
     def get_description(self) -> str:
@@ -503,8 +492,7 @@ class DeleteSentenceCommand(SessionMixin, Command):
         project_id = sentence.project_id
 
         # Delete sentence (cascade will delete tokens and notes)
-        session.delete(sentence)
-        session.flush()  # Flush to ensure deletion happens before updates
+        sentence.delete()
 
         # Update display_order for all subsequent sentences (decrement by 1)
         # Use two-phase approach to avoid unique constraint violations
@@ -517,7 +505,6 @@ class DeleteSentenceCommand(SessionMixin, Command):
                 order_function=lambda s: s.display_order - 1,
             )
 
-        session.commit()
         return True
 
     def undo(self) -> bool:
@@ -592,9 +579,8 @@ class DeleteSentenceCommand(SessionMixin, Command):
                 note_text_md=note_data["note_text_md"],
                 note_type=note_data["note_type"],
             )
-            session.add(restored_note)
+            restored_note.save()
 
-        session.commit()
         return True
 
     def get_description(self) -> str:

@@ -24,8 +24,7 @@ class TestAnnotation:
         # Delete existing annotation created by Sentence.create
         existing_ann = Annotation.get(token.id)
         if existing_ann:
-            db_session.delete(existing_ann)
-            db_session.commit()
+            existing_ann.delete()
 
         annotation = Annotation(
             token_id=token.id,
@@ -52,8 +51,7 @@ class TestAnnotation:
             modern_english_meaning="king",
             root="cyning",
         )
-        db_session.add(annotation)
-        db_session.commit()
+        annotation.save()
 
         assert annotation.token_id == token.id
         assert annotation.pos == "N"
@@ -73,12 +71,10 @@ class TestAnnotation:
         # Delete existing annotation created by Sentence.create
         existing_ann = Annotation.get(token.id)
         if existing_ann:
-            db_session.delete(existing_ann)
-            db_session.commit()
+            existing_ann.delete()
 
         annotation = Annotation(token_id=token.id, pos="N", gender="m")
-        db_session.add(annotation)
-        db_session.commit()
+        annotation.save()
 
         assert annotation.pos == "N"
         assert annotation.gender == "m"
@@ -97,7 +93,7 @@ class TestAnnotation:
         assert annotation is not None
         annotation.pos = "N"
         annotation.gender = "m"
-        db_session.commit()
+        annotation.save()
         annotation_id = annotation.token_id
 
         retrieved = Annotation.get(annotation_id)
@@ -130,8 +126,7 @@ class TestAnnotation:
         # Delete existing annotation
         existing_ann = Annotation.get(token.id)
         if existing_ann:
-            db_session.delete(existing_ann)
-            db_session.commit()
+            existing_ann.delete()
 
         assert Annotation.exists(token.id) is False
 
@@ -152,7 +147,7 @@ class TestAnnotation:
         annotation.modern_english_meaning = "king"
         annotation.root = "cyning"
         annotation.confidence = 75
-        db_session.commit()
+        annotation.save()
 
         data = annotation.to_json()
         assert data["pos"] == "N"
@@ -174,8 +169,7 @@ class TestAnnotation:
         # Delete existing annotation created by Sentence.create
         existing_ann = Annotation.get(token.id)
         if existing_ann:
-            db_session.delete(existing_ann)
-            db_session.commit()
+            existing_ann.delete()
 
         ann_data = {
             "pos": "N",
@@ -186,7 +180,6 @@ class TestAnnotation:
             "root": "cyning",
         }
         annotation = Annotation.from_json(token.id, ann_data)
-        db_session.commit()
 
         assert annotation.token_id == token.id
         assert annotation.pos == "N"
@@ -204,12 +197,10 @@ class TestAnnotation:
         # Delete existing annotation created by Sentence.create
         existing_ann = Annotation.get(token.id)
         if existing_ann:
-            db_session.delete(existing_ann)
-            db_session.commit()
+            existing_ann.delete()
 
         ann_data = {"pos": "N"}
         annotation = Annotation.from_json(token.id, ann_data)
-        db_session.commit()
 
         assert annotation.pos == "N"
         assert annotation.gender is None
@@ -224,13 +215,11 @@ class TestAnnotation:
         # Delete existing annotation
         existing_ann = Annotation.get(token.id)
         if existing_ann:
-            db_session.delete(existing_ann)
-            db_session.commit()
+            existing_ann.delete()
 
         annotation = Annotation(token_id=token.id, pos="X")
-        db_session.add(annotation)
         with pytest.raises(IntegrityError):
-            db_session.commit()
+            annotation.save()
 
     def test_check_constraint_rejects_invalid_gender(self, db_session):
         """Test check constraint rejects invalid gender values."""
@@ -242,13 +231,11 @@ class TestAnnotation:
         # Delete existing annotation
         existing_ann = Annotation.get(token.id)
         if existing_ann:
-            db_session.delete(existing_ann)
-            db_session.commit()
+            existing_ann.delete()
 
         annotation = Annotation(token_id=token.id, pos="N", gender="x")
-        db_session.add(annotation)
         with pytest.raises(IntegrityError):
-            db_session.commit()
+            annotation.save()
 
     def test_check_constraint_rejects_invalid_number(self, db_session):
         """Test check constraint rejects invalid number values."""
@@ -260,13 +247,10 @@ class TestAnnotation:
         # Delete existing annotation
         existing_ann = Annotation.get(token.id)
         if existing_ann:
-            db_session.delete(existing_ann)
-            db_session.commit()
-
+            existing_ann.delete()
         annotation = Annotation(token_id=token.id, pos="N", number="x")
-        db_session.add(annotation)
         with pytest.raises(IntegrityError):
-            db_session.commit()
+            annotation.save()
 
     def test_check_constraint_rejects_invalid_case(self, db_session):
         """Test check constraint rejects invalid case values."""
@@ -278,13 +262,11 @@ class TestAnnotation:
         # Delete existing annotation
         existing_ann = Annotation.get(token.id)
         if existing_ann:
-            db_session.delete(existing_ann)
-            db_session.commit()
+            existing_ann.delete()
 
         annotation = Annotation(token_id=token.id, pos="N", case="x")
-        db_session.add(annotation)
         with pytest.raises(IntegrityError):
-            db_session.commit()
+            annotation.save()
 
     def test_check_constraint_rejects_invalid_confidence(self, db_session):
         """Test check constraint rejects invalid confidence values."""
@@ -296,22 +278,18 @@ class TestAnnotation:
         # Delete existing annotation
         existing_ann = Annotation.get(token.id)
         if existing_ann:
-            db_session.delete(existing_ann)
-            db_session.commit()
+            existing_ann.delete()
 
         # Confidence > 100
-        annotation = Annotation(token_id=token.id, pos="N", confidence=101)
-        db_session.add(annotation)
         with pytest.raises(IntegrityError):
-            db_session.commit()
+            annotation = Annotation(token_id=token.id, pos="N", confidence=101)
+            annotation.save()
 
         db_session.rollback()
-
         # Confidence < 0
-        annotation2 = Annotation(token_id=token.id, pos="N", confidence=-1)
-        db_session.add(annotation2)
         with pytest.raises(IntegrityError):
-            db_session.commit()
+            annotation2 = Annotation(token_id=token.id, pos="N", confidence=-1)
+            annotation2.save()
 
     def test_updated_at_set_on_creation(self, db_session):
         """Test updated_at is set on creation."""
@@ -325,7 +303,7 @@ class TestAnnotation:
         assert annotation is not None
         before = datetime.now()
         annotation.pos = "N"
-        db_session.commit()
+        annotation.save()
         after = datetime.now()
 
         assert before <= annotation.updated_at <= after
@@ -341,7 +319,7 @@ class TestAnnotation:
         annotation = Annotation.get(token.id)
         assert annotation is not None
         annotation.pos = "N"
-        db_session.commit()
+        annotation.save()
         db_session.refresh(annotation)
         original_updated = annotation.updated_at
 
@@ -350,7 +328,7 @@ class TestAnnotation:
         time.sleep(0.01)  # Small delay to ensure timestamp difference
 
         annotation.pos = "V"
-        db_session.commit()
+        annotation.save()
         db_session.refresh(annotation)
 
         assert annotation.updated_at > original_updated
@@ -366,7 +344,7 @@ class TestAnnotation:
         annotation = Annotation.get(token.id)
         assert annotation is not None
         annotation.pos = "N"
-        db_session.commit()
+        annotation.save()
 
         assert annotation.token.id == token.id
         assert annotation.token.surface in ["Se", "cyning"]  # Could be either token

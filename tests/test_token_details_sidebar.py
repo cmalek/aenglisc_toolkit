@@ -27,7 +27,6 @@ class TestTokenDetailsSidebar:
     def test_token_details_sidebar_displays_token(self, db_session, qapp):
         """Test TokenDetailsSidebar displays token information."""
         project = create_test_project(db_session, name="Test", text="Se cyning")
-        db_session.commit()
 
         sentence = project.sentences[0]
         token = sentence.tokens[0]
@@ -41,7 +40,6 @@ class TestTokenDetailsSidebar:
     def test_token_details_sidebar_updates_token(self, db_session, qapp):
         """Test TokenDetailsSidebar updates when token changes."""
         project = create_test_project(db_session, name="Test", text="Se cyning. Þæt scip.")
-        db_session.commit()
         db_session.refresh(project)
 
         sentences = list(project.sentences)
@@ -67,7 +65,6 @@ class TestTokenDetailsSidebar:
     def test_token_details_sidebar_handles_token_with_annotation(self, db_session, qapp):
         """Test TokenDetailsSidebar handles token with annotation."""
         project = create_test_project(db_session, name="Test", text="Se cyning")
-        db_session.commit()
 
         sentence = project.sentences[0]
         token = sentence.tokens[0]
@@ -78,12 +75,11 @@ class TestTokenDetailsSidebar:
         else:
             from oeapp.models.annotation import Annotation
             annotation = Annotation(token_id=token.id)
-            db_session.add(annotation)
-            db_session.commit()
+            annotation.save(commit=False)
 
         annotation.pos = "R"
         annotation.pronoun_type = "d"
-        db_session.commit()
+        annotation.save()
 
         sidebar = TokenDetailsSidebar(parent=None)
         sidebar.update_token(token, sentence)
@@ -94,15 +90,13 @@ class TestTokenDetailsSidebar:
     def test_token_details_sidebar_handles_token_without_annotation(self, db_session, qapp):
         """Test TokenDetailsSidebar handles token without annotation."""
         project = create_test_project(db_session, name="Test", text="Se cyning")
-        db_session.commit()
 
         sentence = project.sentences[0]
         token = sentence.tokens[0]
 
         # Remove annotation if it exists
         if token.annotation:
-            db_session.delete(token.annotation)
-            db_session.commit()
+            token.annotation.delete(commit=False)
             db_session.refresh(token)
 
         sidebar = TokenDetailsSidebar(parent=None)
@@ -118,7 +112,6 @@ class TestTokenDetailsSidebar:
         from oeapp.models.annotation import Annotation
 
         project = create_test_project(db_session, name="Test", text="Se")
-        db_session.commit()
 
         sentence = project.sentences[0]
         token = sentence.tokens[0]
@@ -128,11 +121,11 @@ class TestTokenDetailsSidebar:
             annotation = token.annotation
         else:
             annotation = Annotation(token_id=token.id)
-            db_session.add(annotation)
+            annotation.save(commit=False)
 
         annotation.pos = "N"  # Need POS for common fields to show
         annotation.modern_english_meaning = "the king; a ruler of a people"
-        db_session.commit()
+        annotation.save()
 
         sidebar = TokenDetailsSidebar(parent=None)
         sidebar.update_token(token, sentence)

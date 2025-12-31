@@ -5,18 +5,18 @@ import re
 from datetime import datetime
 
 from sqlalchemy import DateTime, Integer, String, func, select
-from sqlalchemy.orm import Mapped, Session, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from oeapp.db import Base
 from oeapp.exc import AlreadyExists
 from oeapp.utils import from_utc_iso, to_utc_iso
 
-from .mixins import SessionMixin
+from .mixins import SaveDeleteMixin
 from .sentence import Sentence
 from .token import Token
 
 
-class Project(SessionMixin, Base):
+class Project(SaveDeleteMixin, Base):
     """
     Represents a project.
     """
@@ -92,7 +92,12 @@ class Project(SessionMixin, Base):
         return builtins.list(session.scalars(select(cls)).all())
 
     @classmethod
-    def create(cls, text: str, name: str = "Untitled Project") -> Project:
+    def create(
+        cls,
+        text: str,
+        name: str = "Untitled Project",
+        commit: bool = True,  # noqa: FBT001, FBT002
+    ) -> Project:
         """
         Create a new project.
 
@@ -101,6 +106,7 @@ class Project(SessionMixin, Base):
 
         Keyword Args:
             name: Project name
+            commit: Whether to commit the changes
 
         Returns:
             The new :class:`~oeapp.models.project.Project` object
@@ -139,9 +145,12 @@ class Project(SessionMixin, Base):
                 is_paragraph_start=is_paragraph_start,
                 paragraph_number=paragraph_number,
                 sentence_number_in_paragraph=sentence_number_in_paragraph,
+                commit=False,
             )
 
-        session.commit()
+        if commit:
+            session.commit()
+
         return project
 
     def append_oe_text(self, text: str) -> None:
@@ -229,7 +238,12 @@ class Project(SessionMixin, Base):
         }
 
     @classmethod
-    def from_json(cls, project_data: dict, resolved_name: str) -> Project:
+    def from_json(
+        cls,
+        project_data: dict,
+        resolved_name: str,
+        commit: bool = True,  # noqa: FBT001, FBT002
+    ) -> Project:
         """
         Create a project from JSON import data.
 
@@ -238,11 +252,13 @@ class Project(SessionMixin, Base):
             project_data: Project data dictionary from JSON
             resolved_name: Resolved project name (after collision handling)
 
+        Keyword Args:
+            commit: Whether to commit the changes
+
         Returns:
             Created Project entity
 
         """
-        session = cls._get_session()
         project = cls(name=resolved_name)
         created_at = from_utc_iso(project_data.get("created_at"))
         if created_at:
@@ -250,9 +266,7 @@ class Project(SessionMixin, Base):
         updated_at = from_utc_iso(project_data.get("updated_at"))
         if updated_at:
             project.updated_at = updated_at
-
-        session.add(project)
-        session.flush()
+        project.save(commit=commit)
         return project
 
     @classmethod

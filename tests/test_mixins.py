@@ -95,7 +95,7 @@ class TestAnnotationTextualMixin:
         annotation = Annotation.get(token.id)
         annotation.pos = "N"
         annotation.declension = "s"
-        db_session.commit()
+        annotation.save()
         result = mixin.format_pos(annotation)
         assert result == "n:strong"
 
@@ -109,7 +109,7 @@ class TestAnnotationTextualMixin:
         annotation = Annotation.get(token.id)
         annotation.pos = "N"
         annotation.declension = None
-        db_session.commit()
+        annotation.save()
         result = mixin.format_pos(annotation)
         assert result == "n"
 
@@ -123,7 +123,7 @@ class TestAnnotationTextualMixin:
         annotation = Annotation.get(verb_token.id)
         annotation.pos = "V"
         annotation.verb_class = "w1"
-        db_session.commit()
+        annotation.save()
         result = mixin.format_pos(annotation)
         assert result == "v:weak1"
 
@@ -137,7 +137,7 @@ class TestAnnotationTextualMixin:
         annotation = Annotation.get(verb_token.id)
         annotation.pos = "V"
         annotation.verb_class = None
-        db_session.commit()
+        annotation.save()
         result = mixin.format_pos(annotation)
         assert result == "v"
 
@@ -152,7 +152,7 @@ class TestAnnotationTextualMixin:
         annotation.pos = "A"
         annotation.adjective_inflection = "s"
         annotation.adjective_degree = "p"
-        db_session.commit()
+        annotation.save()
         result = mixin.format_pos(annotation)
         assert result == "adj:strong:pos"
 
@@ -166,7 +166,7 @@ class TestAnnotationTextualMixin:
         annotation = Annotation.get(token.id)
         annotation.pos = "R"
         annotation.pronoun_type = "p"
-        db_session.commit()
+        annotation.save()
         result = mixin.format_pos(annotation)
         assert result == "pron:pers"
 
@@ -180,7 +180,7 @@ class TestAnnotationTextualMixin:
         annotation = Annotation.get(token.id)
         annotation.pos = "D"
         annotation.article_type = "d"
-        db_session.commit()
+        annotation.save()
         result = mixin.format_pos(annotation)
         assert result == "det:def"
 
@@ -194,7 +194,7 @@ class TestAnnotationTextualMixin:
         annotation = Annotation.get(token.id)
         annotation.pos = "B"
         annotation.adverb_degree = "p"
-        db_session.commit()
+        annotation.save()
         result = mixin.format_pos(annotation)
         assert result == "adv:pos"
 
@@ -208,7 +208,7 @@ class TestAnnotationTextualMixin:
         annotation = Annotation.get(token.id)
         annotation.pos = "C"
         annotation.conjunction_type = "c"
-        db_session.commit()
+        annotation.save()
         result = mixin.format_pos(annotation)
         assert result == "conj:coord"
 
@@ -221,7 +221,7 @@ class TestAnnotationTextualMixin:
         token = tokens[0]
         annotation = Annotation.get(token.id)
         annotation.pos = "E"
-        db_session.commit()
+        annotation.save()
         result = mixin.format_pos(annotation)
         assert result == "prep"
 
@@ -234,7 +234,7 @@ class TestAnnotationTextualMixin:
         token = tokens[0]
         annotation = Annotation.get(token.id)
         annotation.pos = "I"
-        db_session.commit()
+        annotation.save()
         result = mixin.format_pos(annotation)
         assert result == "int"
 
@@ -247,7 +247,7 @@ class TestAnnotationTextualMixin:
         token = tokens[0]
         annotation = Annotation.get(token.id)
         annotation.pos = None
-        db_session.commit()
+        annotation.save()
         result = mixin.format_pos(annotation)
         assert result == ""
 
@@ -261,7 +261,7 @@ class TestAnnotationTextualMixin:
         annotation = Annotation.get(token.id)
         annotation.pos = "N"
         annotation.gender = "m"
-        db_session.commit()
+        annotation.save()
         result = mixin.format_gender(annotation)
         assert result == "m"
 
@@ -275,7 +275,7 @@ class TestAnnotationTextualMixin:
         annotation = Annotation.get(token.id)
         annotation.pos = "N"
         annotation.gender = None
-        db_session.commit()
+        annotation.save()
         result = mixin.format_gender(annotation)
         assert result == ""
 
@@ -289,7 +289,7 @@ class TestAnnotationTextualMixin:
         annotation = Annotation.get(token.id)
         annotation.pos = "B"  # Adverb
         annotation.gender = "m"
-        db_session.commit()
+        annotation.save()
         result = mixin.format_gender(annotation)
         assert result == ""
 
@@ -304,7 +304,7 @@ class TestAnnotationTextualMixin:
         annotation.pos = "N"
         annotation.case = "n"
         annotation.number = "s"
-        db_session.commit()
+        annotation.save()
         result = mixin.format_context(annotation)
         assert result == "nom1"
 
@@ -321,7 +321,7 @@ class TestAnnotationTextualMixin:
         annotation.verb_mood = "i"
         annotation.verb_person = "3"
         annotation.number = "s"
-        db_session.commit()
+        annotation.save()
         result = mixin.format_context(annotation)
         # Format is: tense:mood:person:number = "pai3s"
         assert result == "pai3s"
@@ -336,7 +336,7 @@ class TestAnnotationTextualMixin:
         annotation = Annotation.get(token.id)
         annotation.pos = "E"
         annotation.prep_case = "d"
-        db_session.commit()
+        annotation.save()
         result = mixin.format_context(annotation)
         assert result == "dat"
 
@@ -349,7 +349,7 @@ class TestAnnotationTextualMixin:
         token = tokens[0]
         annotation = Annotation.get(token.id)
         annotation.pos = None
-        db_session.commit()
+        annotation.save()
         result = mixin.format_context(annotation)
         assert result == ""
 

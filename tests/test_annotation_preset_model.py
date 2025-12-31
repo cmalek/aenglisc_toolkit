@@ -21,8 +21,7 @@ class TestAnnotationPreset:
             case="n",
             declension="s",
         )
-        db_session.add(preset)
-        db_session.commit()
+        preset.save()
 
         assert preset.id is not None
         assert preset.name == "Test Noun"
@@ -43,8 +42,7 @@ class TestAnnotationPreset:
             verb_tense=None,
             verb_mood=None,
         )
-        db_session.add(preset)
-        db_session.commit()
+        preset.save()
 
         assert preset.id is not None
         assert preset.name == "Partial Preset"
@@ -61,7 +59,6 @@ class TestAnnotationPreset:
             gender="f",
             number="p",
         )
-        db_session.commit()
 
         assert preset.id is not None
         assert preset.name == "Created Preset"
@@ -84,7 +81,6 @@ class TestAnnotationPreset:
         preset = AnnotationPreset.create(
             name="Get Test", pos="N", gender="m"
         )
-        db_session.commit()
 
         retrieved = AnnotationPreset.get(preset.id)
         assert retrieved is not None
@@ -101,7 +97,6 @@ class TestAnnotationPreset:
         AnnotationPreset.create(name="Noun 1", pos="N")
         AnnotationPreset.create(name="Noun 2", pos="N")
         AnnotationPreset.create(name="Verb 1", pos="V")
-        db_session.commit()
 
         nouns = AnnotationPreset.get_all_by_pos("N")
         assert len(nouns) == 2
@@ -118,7 +113,6 @@ class TestAnnotationPreset:
         AnnotationPreset.create(name="Zebra", pos="N")
         AnnotationPreset.create(name="Alpha", pos="N")
         AnnotationPreset.create(name="Beta", pos="N")
-        db_session.commit()
 
         presets = AnnotationPreset.get_all_by_pos("N")
         assert len(presets) == 3
@@ -131,12 +125,10 @@ class TestAnnotationPreset:
         preset = AnnotationPreset.create(
             name="Original", pos="N", gender="m"
         )
-        db_session.commit()
 
         updated = AnnotationPreset.update(
             preset.id, name="Updated", gender="f"
         )
-        db_session.commit()
 
         assert updated is not None
         assert updated.name == "Updated"
@@ -151,26 +143,16 @@ class TestAnnotationPreset:
     def test_delete_class_method(self, db_session):
         """Test delete() class method."""
         preset = AnnotationPreset.create(name="To Delete", pos="N")
-        db_session.commit()
         preset_id = preset.id
 
-        result = AnnotationPreset.delete(preset_id)
-        db_session.commit()
-
-        assert result is True
+        preset.delete()
         assert AnnotationPreset.get(preset_id) is None
-
-    def test_delete_returns_false_for_nonexistent(self, db_session):
-        """Test delete() returns False for nonexistent preset."""
-        result = AnnotationPreset.delete(99999)
-        assert result is False
 
     def test_to_dict_method(self, db_session):
         """Test to_dict() method."""
         preset = AnnotationPreset.create(
             name="Dict Test", pos="R", pronoun_type="p", gender="m"
         )
-        db_session.commit()
 
         data = preset.to_dict()
         assert data["id"] == preset.id
@@ -184,28 +166,23 @@ class TestAnnotationPreset:
     def test_check_constraint_rejects_invalid_pos(self, db_session):
         """Test check constraint rejects invalid POS values."""
         preset = AnnotationPreset(name="Invalid", pos="X")
-        db_session.add(preset)
         with pytest.raises(IntegrityError):
-            db_session.commit()
+            preset.save()
 
     def test_unique_constraint_prevents_duplicates(self, db_session):
         """Test unique constraint prevents duplicate names per POS."""
         AnnotationPreset.create(name="Duplicate", pos="N")
-        db_session.commit()
 
         # Same name, same POS should fail
         with pytest.raises(IntegrityError):
             AnnotationPreset.create(name="Duplicate", pos="N")
-            db_session.commit()
 
     def test_unique_constraint_allows_same_name_different_pos(self, db_session):
         """Test unique constraint allows same name for different POS."""
         AnnotationPreset.create(name="Same Name", pos="N")
-        db_session.commit()
 
         # Same name, different POS should succeed
         preset2 = AnnotationPreset.create(name="Same Name", pos="V")
-        db_session.commit()
         assert preset2.id is not None
 
     def test_nullable_fields_allow_none(self, db_session):
@@ -217,8 +194,7 @@ class TestAnnotationPreset:
             number=None,
             case=None,
         )
-        db_session.add(preset)
-        db_session.commit()
+        preset.save()
 
         assert preset.gender is None
         assert preset.number is None
@@ -228,7 +204,6 @@ class TestAnnotationPreset:
         """Test timestamps are set correctly."""
         before = datetime.now()
         preset = AnnotationPreset.create(name="Timestamp Test", pos="A")
-        db_session.commit()
         after = datetime.now()
 
         assert before <= preset.created_at <= after
@@ -240,14 +215,12 @@ class TestAnnotationPreset:
     def test_updated_at_changes_on_update(self, db_session):
         """Test updated_at changes on update."""
         preset = AnnotationPreset.create(name="Update Test", pos="N")
-        db_session.commit()
         original_updated = preset.updated_at
 
         import time
         time.sleep(0.01)  # Small delay to ensure timestamp difference
 
         AnnotationPreset.update(preset.id, name="Updated Name")
-        db_session.commit()
         db_session.refresh(preset)
 
         assert preset.updated_at > original_updated

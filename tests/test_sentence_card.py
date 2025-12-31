@@ -13,7 +13,6 @@ class TestSentenceCard:
     def test_sentence_card_initializes(self, db_session, qapp):
         """Test SentenceCard initializes correctly."""
         project = create_test_project(db_session, name="Test", text="Se cyning")
-        db_session.commit()
 
         sentence = project.sentences[0]
         card = SentenceCard(sentence, parent=None)
@@ -25,7 +24,6 @@ class TestSentenceCard:
     def test_sentence_card_displays_sentence_text(self, db_session, qapp):
         """Test SentenceCard displays sentence text."""
         project = create_test_project(db_session, name="Test", text="Se cyning")
-        db_session.commit()
 
         sentence = project.sentences[0]
         card = SentenceCard(sentence, parent=None)
@@ -35,11 +33,9 @@ class TestSentenceCard:
     def test_sentence_card_displays_translation(self, db_session, qapp):
         """Test SentenceCard displays translation."""
         project = create_test_project(db_session, name="Test", text="Se cyning")
-        db_session.commit()
 
         sentence = project.sentences[0]
         sentence.text_modern = "The king"
-        db_session.commit()
 
         card = SentenceCard(sentence, parent=None)
 
@@ -48,7 +44,6 @@ class TestSentenceCard:
     def test_sentence_card_updates_sentence(self, db_session, qapp):
         """Test SentenceCard updates when sentence changes."""
         project = create_test_project(db_session, name="Test", text="Se cyning")
-        db_session.commit()
 
         sentence = project.sentences[0]
         card = SentenceCard(sentence, parent=None)
@@ -56,7 +51,6 @@ class TestSentenceCard:
         # Update sentence
         sentence.text_oe = "Se cyning fēoll"
         sentence.text_modern = "The king fell"
-        db_session.commit()
 
         card.update_sentence(sentence)
 
@@ -66,7 +60,6 @@ class TestSentenceCard:
     def test_sentence_card_has_color_maps(self, db_session, qapp):
         """Test SentenceCard has POS and case color maps."""
         project = create_test_project(db_session, name="Test", text="Se cyning")
-        db_session.commit()
 
         sentence = project.sentences[0]
         card = SentenceCard(sentence, parent=None)
@@ -78,7 +71,6 @@ class TestSentenceCard:
     def test_sentence_card_emits_token_selected_signal(self, db_session, qapp):
         """Test SentenceCard emits token_selected_for_details signal."""
         project = create_test_project(db_session, name="Test", text="Se cyning")
-        db_session.commit()
 
         sentence = project.sentences[0]
         token = sentence.tokens[0]
@@ -102,13 +94,11 @@ class TestSentenceCard:
     def test_sentence_card_handles_paragraph_start(self, db_session, qapp):
         """Test SentenceCard handles paragraph start flag."""
         project = create_test_project(db_session, name="Test", text="")
-        db_session.commit()
 
         sentence = create_test_sentence(
             db_session, project_id=project.id, text="First paragraph.",
             display_order=1, is_paragraph_start=True
         )
-        db_session.commit()
 
         card = SentenceCard(sentence, parent=None)
 

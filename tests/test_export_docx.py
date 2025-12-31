@@ -14,7 +14,6 @@ class TestDOCXExporter:
     def test_export_creates_document(self, db_session, tmp_path):
         """Test export() creates a DOCX file."""
         project = create_test_project(db_session, name="Test Project", text="Se cyning.")
-        db_session.commit()
 
         exporter = DOCXExporter()
         output_path = tmp_path / "test.docx"
@@ -36,7 +35,6 @@ class TestDOCXExporter:
     def test_export_includes_project_title(self, db_session, tmp_path):
         """Test export() includes project name as heading."""
         project = create_test_project(db_session, name="My Test Project", text="")
-        db_session.commit()
 
         exporter = DOCXExporter()
         output_path = tmp_path / "test.docx"
@@ -51,7 +49,6 @@ class TestDOCXExporter:
     def test_export_includes_sentence_numbers(self, db_session, tmp_path):
         """Test export() includes paragraph and sentence numbers."""
         project = create_test_project(db_session, name="Test", text="Se cyning. Þæt scip.")
-        db_session.commit()
 
         exporter = DOCXExporter()
         output_path = tmp_path / "test.docx"
@@ -68,7 +65,6 @@ class TestDOCXExporter:
     def test_export_includes_paragraph_breaks(self, db_session, tmp_path):
         """Test export() adds extra blank lines for paragraph starts."""
         project = create_test_project(db_session, name="Test", text="")
-        db_session.commit()
 
         # Create sentences with paragraph breaks
         sentence1 = create_test_sentence(
@@ -77,7 +73,6 @@ class TestDOCXExporter:
         sentence2 = create_test_sentence(
             db_session, project_id=project.id, text="Second paragraph.", display_order=2, is_paragraph_start=True
         )
-        db_session.commit()
 
         exporter = DOCXExporter()
         output_path = tmp_path / "test.docx"
@@ -91,12 +86,11 @@ class TestDOCXExporter:
     def test_export_includes_translation(self, db_session, tmp_path):
         """Test export() includes modern translation when available."""
         project = create_test_project(db_session, name="Test", text="Se cyning.")
-        db_session.commit()
 
         # Get the sentence and add translation
         sentence = project.sentences[0]
         sentence.text_modern = "The king"
-        db_session.commit()
+        sentence.save()
 
         exporter = DOCXExporter()
         output_path = tmp_path / "test.docx"
@@ -111,7 +105,6 @@ class TestDOCXExporter:
     def test_export_handles_missing_translation(self, db_session, tmp_path):
         """Test export() handles sentences without translation."""
         project = create_test_project(db_session, name="Test", text="Se cyning.")
-        db_session.commit()
 
         exporter = DOCXExporter()
         output_path = tmp_path / "test.docx"
@@ -125,7 +118,6 @@ class TestDOCXExporter:
     def test_export_with_annotations_includes_superscripts(self, db_session, tmp_path):
         """Test export() includes superscript POS annotations."""
         project = create_test_project(db_session, name="Test", text="Se cyning")
-        db_session.commit()
 
         sentence = project.sentences[0]
         token = sentence.tokens[0]
@@ -141,7 +133,7 @@ class TestDOCXExporter:
 
         annotation.pos = "R"
         annotation.pronoun_type = "d"
-        db_session.commit()
+        annotation.save()
 
         exporter = DOCXExporter()
         output_path = tmp_path / "test.docx"
@@ -164,7 +156,6 @@ class TestDOCXExporter:
     def test_export_with_annotations_includes_subscripts(self, db_session, tmp_path):
         """Test export() includes subscript gender/context annotations."""
         project = create_test_project(db_session, name="Test", text="Se cyning")
-        db_session.commit()
 
         sentence = project.sentences[0]
         token = sentence.tokens[0]
@@ -181,7 +172,7 @@ class TestDOCXExporter:
         annotation.pos = "N"
         annotation.gender = "m"
         annotation.case = "n"
-        db_session.commit()
+        annotation.save()
 
         exporter = DOCXExporter()
         output_path = tmp_path / "test.docx"
@@ -204,7 +195,6 @@ class TestDOCXExporter:
     def test_export_with_notes_includes_notes(self, db_session, tmp_path):
         """Test export() includes notes for sentences."""
         project = create_test_project(db_session, name="Test", text="Se cyning")
-        db_session.commit()
 
         sentence = project.sentences[0]
         token = sentence.tokens[0]
@@ -217,8 +207,7 @@ class TestDOCXExporter:
             end_token=token.id,
             note_text_md="This is a test note"
         )
-        db_session.add(note)
-        db_session.commit()
+        note.save()
 
         exporter = DOCXExporter()
         output_path = tmp_path / "test.docx"
@@ -234,7 +223,6 @@ class TestDOCXExporter:
     def test_export_with_multiple_notes_orders_correctly(self, db_session, tmp_path):
         """Test export() orders multiple notes by token position."""
         project = create_test_project(db_session, name="Test", text="Se cyning fēoll")
-        db_session.commit()
 
         sentence = project.sentences[0]
         tokens = list(sentence.tokens)
@@ -253,9 +241,8 @@ class TestDOCXExporter:
             end_token=tokens[0].id,
             note_text_md="Note on first token"
         )
-        db_session.add(note2)
-        db_session.add(note1)
-        db_session.commit()
+        note2.save(commit=False)
+        note1.save()
 
         exporter = DOCXExporter()
         output_path = tmp_path / "test.docx"
@@ -273,7 +260,6 @@ class TestDOCXExporter:
     def test_export_empty_project_creates_document(self, db_session, tmp_path):
         """Test export() creates document even for empty project."""
         project = create_test_project(db_session, name="Empty Project", text="")
-        db_session.commit()
 
         exporter = DOCXExporter()
         output_path = tmp_path / "test.docx"
@@ -306,7 +292,6 @@ class TestDOCXExporter:
     def test_export_handles_sentence_without_tokens(self, db_session, tmp_path):
         """Test export() handles sentence with no tokens gracefully."""
         project = create_test_project(db_session, name="Test", text="")
-        db_session.commit()
 
         # Create sentence manually without tokens
         from oeapp.models.sentence import Sentence
@@ -331,7 +316,6 @@ class TestDOCXExporter:
     def test_export_handles_file_write_error(self, db_session, tmp_path, monkeypatch):
         """Test export() handles file write errors gracefully."""
         project = create_test_project(db_session, name="Test", text="Se cyning.")
-        db_session.commit()
 
         exporter = DOCXExporter()
         output_path = tmp_path / "test.docx"

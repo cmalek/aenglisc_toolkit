@@ -11,19 +11,20 @@ from sqlalchemy import (
     String,
     select,
 )
-from sqlalchemy.orm import Mapped, Session, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from oeapp.db import Base
+from oeapp.exc import DoesNotExist
 from oeapp.mixins import AnnotationTextualMixin
 from oeapp.utils import from_utc_iso, to_utc_iso
 
-from .mixins import SessionMixin
+from .mixins import SaveDeleteMixin
 
 if TYPE_CHECKING:
     from oeapp.models.token import Token
 
 
-class Annotation(AnnotationTextualMixin, SessionMixin, Base):
+class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
     """Represents grammatical/morphological annotations for a token."""
 
     __tablename__ = "annotations"
@@ -210,7 +211,12 @@ class Annotation(AnnotationTextualMixin, SessionMixin, Base):
         }
 
     @classmethod
-    def from_json(cls, token_id: int, ann_data: dict) -> Annotation:
+    def from_json(
+        cls,
+        token_id: int,
+        ann_data: dict,
+        commit: bool = True,  # noqa: FBT001, FBT002
+    ) -> Annotation:
         """
         Create an annotation from JSON import data.
 
@@ -219,11 +225,13 @@ class Annotation(AnnotationTextualMixin, SessionMixin, Base):
             token_id: Token ID to attach annotation to
             ann_data: Annotation data dictionary from JSON
 
+        Keyword Args:
+            commit: Whether to commit the changes
+
         Returns:
             Created Annotation entity
 
         """
-        session = cls._get_session()
         annotation = cls(
             token_id=token_id,
             pos=ann_data.get("pos"),
@@ -253,6 +261,5 @@ class Annotation(AnnotationTextualMixin, SessionMixin, Base):
         updated_at = from_utc_iso(ann_data.get("updated_at"))
         if updated_at:
             annotation.updated_at = updated_at
-
-        session.add(annotation)
+        annotation.save(commit=commit)
         return annotation

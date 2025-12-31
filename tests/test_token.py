@@ -4,6 +4,8 @@ from datetime import datetime
 
 import pytest
 
+from sqlalchemy.exc import IntegrityError
+
 from oeapp.models.annotation import Annotation
 from oeapp.models.token import Token
 from tests.conftest import create_test_project, create_test_sentence
@@ -70,11 +72,10 @@ class TestToken:
         # Clear existing tokens
         existing = Token.list(sentence.id)
         for token in existing:
-            db_session.delete(token)
+            token.delete(commit=False)
         db_session.commit()
 
         tokens = Token.create_from_sentence(sentence.id, "Se cyning")
-        db_session.commit()
 
         assert len(tokens) == 2
         assert tokens[0].surface == "Se"
@@ -90,11 +91,10 @@ class TestToken:
         # Clear existing tokens
         existing = Token.list(sentence.id)
         for token in existing:
-            db_session.delete(token)
+            token.delete(commit=False)
         db_session.commit()
 
         tokens = Token.create_from_sentence(sentence.id, "Se cyning")
-        db_session.commit()
 
         # Check that annotations were created
         for token in tokens:
@@ -128,7 +128,7 @@ class TestToken:
         if annotation:
             annotation.pos = "N"
             annotation.gender = "m"
-            db_session.commit()
+            annotation.save()
 
         data = token.to_json()
         assert "annotation" in data
@@ -145,8 +145,7 @@ class TestToken:
         # Ensure no annotation
         annotation = Annotation.get(token.id)
         if annotation:
-            db_session.delete(annotation)
-            db_session.commit()
+            annotation.delete()
 
         data = token.to_json()
         # Annotation key should not be present or should be None
@@ -166,7 +165,6 @@ class TestToken:
             "updated_at": "2024-01-15T10:30:45+00:00",
         }
         token = Token.from_json(sentence.id, token_data)
-        db_session.commit()
 
         assert token.sentence_id == sentence.id
         assert token.order_index == 2
@@ -187,7 +185,6 @@ class TestToken:
             },
         }
         token = Token.from_json(sentence.id, token_data)
-        db_session.commit()
 
         annotation = Annotation.get(token.id)
         assert annotation is not None
@@ -204,7 +201,6 @@ class TestToken:
             "surface": "wæs",
         }
         token = Token.from_json(sentence.id, token_data)
-        db_session.commit()
 
         # Should still create token
         assert token.surface == "wæs"
@@ -218,8 +214,7 @@ class TestToken:
 
         # Delete token directly
         token = Token.get(token_id)
-        db_session.delete(token)
-        db_session.commit()
+        token.delete()
 
         assert Token.get(token_id) is None
 
@@ -234,8 +229,7 @@ class TestToken:
         annotation = Annotation.get(token.id)
         assert annotation is not None
 
-        db_session.delete(token)
-        db_session.commit()
+        token.delete()
 
         # Annotation should be deleted via cascade
         annotation_after = Annotation.get(token.id)
@@ -244,18 +238,15 @@ class TestToken:
     def test_unique_constraint_prevents_duplicate_order(self, db_session):
         """Test unique constraint prevents duplicate order_index per sentence."""
         project = create_test_project(db_session)
-        sentence = create_test_sentence(db_session, project.id, "Se cyning")
+        sentence = create_test_sentence(db_session, project.id, "")
 
         # Try to create token with duplicate order_index
         token1 = Token(sentence_id=sentence.id, order_index=0, surface="first")
-        token2 = Token(sentence_id=sentence.id, order_index=0, surface="second")
-        db_session.add(token1)
-        db_session.add(token2)
-
-        from sqlalchemy.exc import IntegrityError
+        token1.save()
 
         with pytest.raises(IntegrityError):
-            db_session.commit()
+            token2 = Token(sentence_id=sentence.id, order_index=0, surface="second")
+            token2.save()
 
     def test_created_at_set_on_creation(self, db_session):
         """Test created_at is set on creation."""
@@ -264,8 +255,7 @@ class TestToken:
 
         before = datetime.now()
         token = Token(sentence_id=sentence.id, order_index=10, surface="test")
-        db_session.add(token)
-        db_session.commit()
+        token.save()
         after = datetime.now()
 
         assert before <= token.created_at <= after
@@ -283,7 +273,7 @@ class TestToken:
         time.sleep(0.01)
 
         token.surface = "updated"
-        db_session.commit()
+        token.save()
         db_session.refresh(token)
 
         assert token.updated_at > original_updated

@@ -15,7 +15,6 @@ class TestImportProjectDialog:
     def test_import_project_dialog_initializes(self, db_session, mock_main_window, qapp):
         """Test ImportProjectDialog initializes correctly."""
         project = create_test_project(db_session, name="Imported Project", text="")
-        db_session.commit()
 
         dialog = ImportProjectDialog(mock_main_window, project, was_renamed=False)
 
@@ -26,7 +25,6 @@ class TestImportProjectDialog:
     def test_import_project_dialog_builds(self, db_session, mock_main_window, qapp):
         """Test ImportProjectDialog builds correctly."""
         project = create_test_project(db_session, name="Imported Project", text="")
-        db_session.commit()
 
         dialog = ImportProjectDialog(mock_main_window, project, was_renamed=False)
         dialog.build()
@@ -37,7 +35,6 @@ class TestImportProjectDialog:
     def test_import_project_dialog_shows_rename_message(self, db_session, mock_main_window, qapp):
         """Test ImportProjectDialog shows rename message when project was renamed."""
         project = create_test_project(db_session, name="Imported Project", text="")
-        db_session.commit()
 
         dialog = ImportProjectDialog(mock_main_window, project, was_renamed=True)
         dialog.build()

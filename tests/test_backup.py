@@ -162,7 +162,6 @@ class TestBackupService:
         # Create a project in the database
         project = create_test_project(db_session, name="Test project 1", text="Se cyning")
         project2 = create_test_project(db_session, name="Test project 2", text="Se cyning")
-        db_session.commit()
         db_path = db_session.info["db_path"]
 
         backup_service.db_path = db_path
@@ -181,7 +180,6 @@ class TestBackupService:
         # Create a project in the database
         project = create_test_project(db_session, name="Test project 1", text="Se cyning")
         project2 = create_test_project(db_session, name="Test project 2", text="Se cyning")
-        db_session.commit()
 
         db_path = db_session.info["db_path"]
         backup_service.db_path = db_path

@@ -114,14 +114,13 @@ class TestHyphenatedWordMigration:
             order_index=0,
             surface="ġe"
         )
-        db_session.add(token1)
+        token1.save(commit=False)
         token2 = Token(
             sentence_id=sentence.id,
             order_index=1,
             surface="wāt"
         )
-        db_session.add(token2)
-        db_session.commit()
+        token2.save()
 
         # Run migration
         _run_migration(db_session)
@@ -158,7 +157,7 @@ class TestHyphenatedWordMigration:
                 order_index=order_index,
                 surface=surface
             )
-            db_session.add(token)
+            token.save(commit=False)
         db_session.commit()
 
         # Run migration
@@ -199,8 +198,7 @@ class TestHyphenatedWordMigration:
     def test_migration_preserves_main_token_annotation(self, db_session):
         """Test annotation preserved on main word."""
         project = Project(name="Test Project")
-        db_session.add(project)
-        db_session.flush()
+        project.save(commit=False)
 
         sentence = Sentence(
             project_id=project.id,
@@ -209,8 +207,7 @@ class TestHyphenatedWordMigration:
             paragraph_number=1,
             sentence_number_in_paragraph=1
         )
-        db_session.add(sentence)
-        db_session.flush()
+        sentence.save(commit=False)
 
         # Create tokens with annotation on main word
         token1 = Token(
@@ -218,24 +215,21 @@ class TestHyphenatedWordMigration:
             order_index=0,
             surface="ġe"
         )
-        db_session.add(token1)
-        db_session.flush()
+        token1.save(commit=False)
 
         token2 = Token(
             sentence_id=sentence.id,
             order_index=1,
             surface="wāt"
         )
-        db_session.add(token2)
-        db_session.flush()
+        token2.save(commit=False)
 
         # Add annotation to main word token
         annotation = Annotation(
             token_id=token2.id,
             pos="V"
         )
-        db_session.add(annotation)
-        db_session.commit()
+        annotation.save()
 
         # Run migration
         _run_migration(db_session)
@@ -249,8 +243,7 @@ class TestHyphenatedWordMigration:
     def test_migration_discards_prefix_annotation(self, db_session):
         """Test prefix annotation is discarded."""
         project = Project(name="Test Project")
-        db_session.add(project)
-        db_session.flush()
+        project.save(commit=False)
 
         sentence = Sentence(
             project_id=project.id,
@@ -259,8 +252,7 @@ class TestHyphenatedWordMigration:
             paragraph_number=1,
             sentence_number_in_paragraph=1
         )
-        db_session.add(sentence)
-        db_session.flush()
+        sentence.save(commit=False)
 
         # Create tokens with annotation on prefix
         token1 = Token(
@@ -268,24 +260,21 @@ class TestHyphenatedWordMigration:
             order_index=0,
             surface="ġe"
         )
-        db_session.add(token1)
-        db_session.flush()
+        token1.save(commit=False)
 
         token2 = Token(
             sentence_id=sentence.id,
             order_index=1,
             surface="wāt"
         )
-        db_session.add(token2)
-        db_session.flush()
+        token2.save(commit=False)
 
         # Add annotation to prefix token (should be discarded)
         annotation = Annotation(
             token_id=token1.id,
             pos="N"  # Use valid POS value
         )
-        db_session.add(annotation)
-        db_session.commit()
+        annotation.save()
 
         # Run migration
         _run_migration(db_session)
@@ -299,8 +288,7 @@ class TestHyphenatedWordMigration:
     def test_migration_reorders_token_indices(self, db_session):
         """Test order_index values are correctly reordered."""
         project = Project(name="Test Project")
-        db_session.add(project)
-        db_session.flush()
+        project.save(commit=False)
 
         sentence = Sentence(
             project_id=project.id,
@@ -309,8 +297,7 @@ class TestHyphenatedWordMigration:
             paragraph_number=1,
             sentence_number_in_paragraph=1
         )
-        db_session.add(sentence)
-        db_session.flush()
+        sentence.save(commit=False)
 
         # Create tokens: Se, ġe, wāt, cyning
         tokens_data = [
@@ -322,7 +309,7 @@ class TestHyphenatedWordMigration:
                 order_index=order_index,
                 surface=surface
             )
-            db_session.add(token)
+            token.save(commit=False)
         db_session.commit()
 
         # Run migration
@@ -337,8 +324,7 @@ class TestHyphenatedWordMigration:
     def test_migration_multiple_hyphenated_words_in_sentence(self, db_session):
         """Test multiple different hyphenated words."""
         project = Project(name="Test Project")
-        db_session.add(project)
-        db_session.flush()
+        project.save(commit=False)
 
         sentence = Sentence(
             project_id=project.id,
@@ -347,8 +333,7 @@ class TestHyphenatedWordMigration:
             paragraph_number=1,
             sentence_number_in_paragraph=1
         )
-        db_session.add(sentence)
-        db_session.flush()
+        sentence.save(commit=False)
 
         # Create split tokens
         tokens_data = [
@@ -360,7 +345,7 @@ class TestHyphenatedWordMigration:
                 order_index=order_index,
                 surface=surface
             )
-            db_session.add(token)
+            token.save(commit=False)
         db_session.commit()
 
         # Run migration
@@ -375,8 +360,7 @@ class TestHyphenatedWordMigration:
     def test_migration_hyphenated_word_at_start(self, db_session):
         """Test hyphenated word at sentence start."""
         project = Project(name="Test Project")
-        db_session.add(project)
-        db_session.flush()
+        project.save(commit=False)
 
         sentence = Sentence(
             project_id=project.id,
@@ -385,8 +369,7 @@ class TestHyphenatedWordMigration:
             paragraph_number=1,
             sentence_number_in_paragraph=1
         )
-        db_session.add(sentence)
-        db_session.flush()
+        sentence.save(commit=False)
 
         tokens_data = [(0, "ġe"), (1, "wāt"), (2, "cyning")]
         for order_index, surface in tokens_data:
@@ -395,7 +378,7 @@ class TestHyphenatedWordMigration:
                 order_index=order_index,
                 surface=surface
             )
-            db_session.add(token)
+            token.save(commit=False)
         db_session.commit()
 
         _run_migration(db_session)
@@ -408,8 +391,7 @@ class TestHyphenatedWordMigration:
     def test_migration_hyphenated_word_at_end(self, db_session):
         """Test hyphenated word at sentence end."""
         project = Project(name="Test Project")
-        db_session.add(project)
-        db_session.flush()
+        project.save(commit=False)
 
         sentence = Sentence(
             project_id=project.id,
@@ -418,7 +400,7 @@ class TestHyphenatedWordMigration:
             paragraph_number=1,
             sentence_number_in_paragraph=1
         )
-        db_session.add(sentence)
+        sentence.save(commit=False)
         db_session.flush()
 
         tokens_data = [(0, "Se"), (1, "cyning"), (2, "ġe"), (3, "wāt")]
@@ -428,7 +410,7 @@ class TestHyphenatedWordMigration:
                 order_index=order_index,
                 surface=surface
             )
-            db_session.add(token)
+            token.save(commit=False)
         db_session.commit()
 
         _run_migration(db_session)
@@ -442,8 +424,7 @@ class TestHyphenatedWordMigration:
     def test_migration_with_en_dash(self, db_session):
         """Test en-dash (–) handling."""
         project = Project(name="Test Project")
-        db_session.add(project)
-        db_session.flush()
+        project.save(commit=False)
 
         sentence = Sentence(
             project_id=project.id,
@@ -452,8 +433,7 @@ class TestHyphenatedWordMigration:
             paragraph_number=1,
             sentence_number_in_paragraph=1
         )
-        db_session.add(sentence)
-        db_session.flush()
+        sentence.save(commit=False)
 
         tokens_data = [(0, "ġe"), (1, "wāt")]
         for order_index, surface in tokens_data:
@@ -462,7 +442,7 @@ class TestHyphenatedWordMigration:
                 order_index=order_index,
                 surface=surface
             )
-            db_session.add(token)
+            token.save(commit=False)
         db_session.commit()
 
         _run_migration(db_session)
@@ -474,8 +454,7 @@ class TestHyphenatedWordMigration:
     def test_migration_with_em_dash(self, db_session):
         """Test em-dash (—) handling."""
         project = Project(name="Test Project")
-        db_session.add(project)
-        db_session.flush()
+        project.save(commit=False)
 
         sentence = Sentence(
             project_id=project.id,
@@ -484,8 +463,7 @@ class TestHyphenatedWordMigration:
             paragraph_number=1,
             sentence_number_in_paragraph=1
         )
-        db_session.add(sentence)
-        db_session.flush()
+        sentence.save(commit=False)
 
         tokens_data = [(0, "ġe"), (1, "wāt")]
         for order_index, surface in tokens_data:
@@ -494,7 +472,7 @@ class TestHyphenatedWordMigration:
                 order_index=order_index,
                 surface=surface
             )
-            db_session.add(token)
+            token.save(commit=False)
         db_session.commit()
 
         _run_migration(db_session)

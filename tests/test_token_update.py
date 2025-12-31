@@ -15,16 +15,14 @@ class TestUpdateFromSentence:
         # Delete existing tokens from the fixture-created sentence
         existing_tokens = Token.list(sentence_id)
         for token in existing_tokens:
-            db_session.delete(token)
+            token.delete(commit=False)
         db_session.commit()
 
         # Create tokens manually
         token1 = Token(sentence_id=sentence_id, order_index=0, surface="Se")
-        db_session.add(token1)
-        db_session.flush()
+        token1.save(commit=False)
         token2 = Token(sentence_id=sentence_id, order_index=1, surface="cyning")
-        db_session.add(token2)
-        db_session.flush()
+        token2.save()
 
         # Update with same text
         Token.update_from_sentence("Se cyning", sentence_id)
@@ -43,16 +41,14 @@ class TestUpdateFromSentence:
         # Delete existing tokens from the fixture-created sentence
         existing_tokens = Token.list(sentence_id)
         for token in existing_tokens:
-            db_session.delete(token)
+            token.delete(commit=False)
         db_session.commit()
 
         # Create tokens manually
         token1 = Token(sentence_id=sentence_id, order_index=0, surface="Se")
-        db_session.add(token1)
-        db_session.flush()
+        token1.save(commit=False)
         token2 = Token(sentence_id=sentence_id, order_index=1, surface="cyning")
-        db_session.add(token2)
-        db_session.flush()
+        token2.save()
 
         # Add a new token
         Token.update_from_sentence("Se cyning wæs", sentence_id)
@@ -73,19 +69,16 @@ class TestUpdateFromSentence:
         # Delete existing tokens from the fixture-created sentence
         existing_tokens = Token.list(sentence_id)
         for token in existing_tokens:
-            db_session.delete(token)
+            token.delete(commit=False)
         db_session.commit()
 
         # Create tokens manually
         token1 = Token(sentence_id=sentence_id, order_index=0, surface="Se")
-        db_session.add(token1)
-        db_session.flush()
+        token1.save(commit=False)
         token2 = Token(sentence_id=sentence_id, order_index=1, surface="cyning")
-        db_session.add(token2)
-        db_session.flush()
+        token2.save(commit=False)
         token3 = Token(sentence_id=sentence_id, order_index=2, surface="wæs")
-        db_session.add(token3)
-        db_session.flush()
+        token3.save()
 
         # Remove a token
         Token.update_from_sentence("Se cyning", sentence_id)
@@ -105,16 +98,14 @@ class TestUpdateFromSentence:
         # Delete existing tokens from the fixture-created sentence
         existing_tokens = Token.list(sentence_id)
         for token in existing_tokens:
-            db_session.delete(token)
+            token.delete(commit=False)
         db_session.commit()
 
         # Create tokens manually
         token1 = Token(sentence_id=sentence_id, order_index=0, surface="Se")
-        db_session.add(token1)
-        db_session.flush()
+        token1.save(commit=False)
         token2 = Token(sentence_id=sentence_id, order_index=1, surface="cyning")
-        db_session.add(token2)
-        db_session.flush()
+        token2.save()
 
         # Reorder tokens
         Token.update_from_sentence("cyning Se", sentence_id)
@@ -138,16 +129,14 @@ class TestUpdateFromSentence:
         # Delete existing tokens from the fixture-created sentence
         existing_tokens = Token.list(sentence_id)
         for token in existing_tokens:
-            db_session.delete(token)
+            token.delete(commit=False)
         db_session.commit()
 
         # Create tokens manually
         token1 = Token(sentence_id=sentence_id, order_index=0, surface="Se")
-        db_session.add(token1)
-        db_session.flush()
+        token1.save(commit=False)
         token2 = Token(sentence_id=sentence_id, order_index=1, surface="cyning")
-        db_session.add(token2)
-        db_session.flush()
+        token2.save()
         original_token_id = token1.id
 
         # Update surface form - "Se" changes to "Þā" at same position
@@ -169,7 +158,7 @@ class TestUpdateFromSentence:
         # Delete existing tokens from the fixture-created sentence
         existing_tokens = Token.list(sentence_id)
         for token in existing_tokens:
-            db_session.delete(token)
+            token.delete(commit=False)
         db_session.commit()
 
         # Create tokens with duplicates manually
@@ -206,23 +195,20 @@ class TestUpdateFromSentence:
         # Delete existing tokens from the fixture-created sentence
         existing_tokens = Token.list(sentence_id)
         for token in existing_tokens:
-            db_session.delete(token)
+            token.delete(commit=False)
         db_session.commit()
 
         # Create tokens manually
         token1 = Token(sentence_id=sentence_id, order_index=0, surface="Se")
-        db_session.add(token1)
-        db_session.flush()
+        token1.save(commit=False)
         token2 = Token(sentence_id=sentence_id, order_index=1, surface="cyning")
-        db_session.add(token2)
-        db_session.flush()
+        token2.save()
         original_token_id = token1.id
 
         # Add annotation
         from oeapp.models.annotation import Annotation
         annotation = Annotation(token_id=token1.id, pos="R", gender="m", number="s", case="n")
-        db_session.add(annotation)
-        db_session.commit()
+        annotation.save()
 
         # Update sentence (reorder)
         Token.update_from_sentence("cyning Se", sentence_id)
@@ -248,16 +234,14 @@ class TestUpdateFromSentence:
         # Delete existing tokens from the fixture-created sentence
         existing_tokens = Token.list(sentence_id)
         for token in existing_tokens:
-            db_session.delete(token)
+            token.delete(commit=False)
         db_session.commit()
 
         # Create tokens manually
         token1 = Token(sentence_id=sentence_id, order_index=0, surface="Se")
-        db_session.add(token1)
-        db_session.flush()
+        token1.save(commit=False)
         token2 = Token(sentence_id=sentence_id, order_index=1, surface="cyning")
-        db_session.add(token2)
-        db_session.flush()
+        token2.save()
 
         # Insert token in middle
         Token.update_from_sentence("Se wæs cyning", sentence_id)
@@ -275,19 +259,16 @@ class TestUpdateFromSentence:
         # Delete existing tokens from the fixture-created sentence
         existing_tokens = Token.list(sentence_id)
         for token in existing_tokens:
-            db_session.delete(token)
+            token.delete(commit=False)
         db_session.commit()
 
         # Create tokens manually
         token1 = Token(sentence_id=sentence_id, order_index=0, surface="Se")
-        db_session.add(token1)
-        db_session.flush()
+        token1.save(commit=False)
         token2 = Token(sentence_id=sentence_id, order_index=1, surface="cyning")
-        db_session.add(token2)
-        db_session.flush()
+        token2.save(commit=False)
         token3 = Token(sentence_id=sentence_id, order_index=2, surface="wæs")
-        db_session.add(token3)
-        db_session.flush()
+        token3.save()
 
         # Delete middle token
         Token.update_from_sentence("Se wæs", sentence_id)
@@ -305,19 +286,16 @@ class TestUpdateFromSentence:
         # Delete existing tokens from the fixture-created sentence
         existing_tokens = Token.list(sentence_id)
         for token in existing_tokens:
-            db_session.delete(token)
+            token.delete(commit=False)
         db_session.commit()
 
         # Create tokens manually
         token1 = Token(sentence_id=sentence_id, order_index=0, surface="Se")
-        db_session.add(token1)
-        db_session.flush()
+        token1.save(commit=False)
         token2 = Token(sentence_id=sentence_id, order_index=1, surface="cyning")
-        db_session.add(token2)
-        db_session.flush()
+        token2.save(commit=False)
         token3 = Token(sentence_id=sentence_id, order_index=2, surface="wæs")
-        db_session.add(token3)
-        db_session.flush()
+        token3.save()
 
         # Complete reorder
         Token.update_from_sentence("wæs Se cyning", sentence_id)
@@ -335,19 +313,16 @@ class TestUpdateFromSentence:
         # Delete existing tokens from the fixture-created sentence
         existing_tokens = Token.list(sentence_id)
         for token in existing_tokens:
-            db_session.delete(token)
+            token.delete(commit=False)
         db_session.commit()
 
         # Create tokens manually
         token1 = Token(sentence_id=sentence_id, order_index=0, surface="Se")
-        db_session.add(token1)
-        db_session.flush()
+        token1.save(commit=False)
         token2 = Token(sentence_id=sentence_id, order_index=1, surface="cyning")
-        db_session.add(token2)
-        db_session.flush()
+        token2.save(commit=False)
         token3 = Token(sentence_id=sentence_id, order_index=2, surface="wæs")
-        db_session.add(token3)
-        db_session.flush()
+        token3.save()
 
         # Make various changes
         Token.update_from_sentence("Þā cyning", sentence_id)
@@ -366,16 +341,14 @@ class TestUpdateFromSentence:
         # Delete existing tokens from the fixture-created sentence
         existing_tokens = Token.list(sentence_id)
         for token in existing_tokens:
-            db_session.delete(token)
+            token.delete(commit=False)
         db_session.commit()
 
         # Create tokens manually
         token1 = Token(sentence_id=sentence_id, order_index=0, surface="Se")
-        db_session.add(token1)
-        db_session.flush()
+        token1.save(commit=False)
         token2 = Token(sentence_id=sentence_id, order_index=1, surface="cyning")
-        db_session.add(token2)
-        db_session.flush()
+        token2.save()
 
         Token.update_from_sentence("Se cyning wæs þā", sentence_id)
 
@@ -393,16 +366,14 @@ class TestUpdateFromSentence:
         # Delete existing tokens from the fixture-created sentence
         existing_tokens = Token.list(sentence_id)
         for token in existing_tokens:
-            db_session.delete(token)
+            token.delete(commit=False)
         db_session.commit()
 
         # Create tokens manually
         token1 = Token(sentence_id=sentence_id, order_index=0, surface="Se")
-        db_session.add(token1)
-        db_session.flush()
+        token1.save(commit=False)
         token2 = Token(sentence_id=sentence_id, order_index=1, surface="cyning")
-        db_session.add(token2)
-        db_session.flush()
+        token2.save()
 
         Token.update_from_sentence("", sentence_id)
 
@@ -416,16 +387,14 @@ class TestUpdateFromSentence:
         # Delete existing tokens from the fixture-created sentence
         existing_tokens = Token.list(sentence_id)
         for token in existing_tokens:
-            db_session.delete(token)
+            token.delete(commit=False)
         db_session.commit()
 
         # Create tokens manually
         token1 = Token(sentence_id=sentence_id, order_index=0, surface="Se")
-        db_session.add(token1)
-        db_session.flush()
+        token1.save(commit=False)
         token2 = Token(sentence_id=sentence_id, order_index=1, surface="cyning")
-        db_session.add(token2)
-        db_session.flush()
+        token2.save()
 
         Token.update_from_sentence("cyning", sentence_id)
 
@@ -441,16 +410,14 @@ class TestUpdateFromSentence:
         # Delete existing tokens from the fixture-created sentence
         existing_tokens = Token.list(sentence_id)
         for token in existing_tokens:
-            db_session.delete(token)
+            token.delete(commit=False)
         db_session.commit()
 
         # Create tokens manually
         token1 = Token(sentence_id=sentence_id, order_index=0, surface="Se")
-        db_session.add(token1)
-        db_session.flush()
+        token1.save(commit=False)
         token2 = Token(sentence_id=sentence_id, order_index=1, surface="cyning")
-        db_session.add(token2)
-        db_session.flush()
+        token2.save()
 
         # First update
         Token.update_from_sentence("Se cyning wæs", sentence_id)

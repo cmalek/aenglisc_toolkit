@@ -394,5 +394,4 @@ class ProjectImporter(SessionMixin):
         for sentence_data in data["sentences"]:
             self._create_sentence(project.id, sentence_data)
 
-        self.session.commit()
         return project, was_renamed

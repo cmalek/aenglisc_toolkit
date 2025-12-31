@@ -624,7 +624,6 @@ class AnnotationPresetManagementDialog(AnnotationLookupsMixin, SessionMixin, QDi
 
         if reply == QMessageBox.StandardButton.Yes:
             self.preset_service.delete_preset(preset_id)
-            self.session.commit()
             self._load_presets_for_pos(cast("PresetPos", pos))
             self._clear_form()
 
@@ -1299,7 +1298,6 @@ class AnnotationPresetManagementDialog(AnnotationLookupsMixin, SessionMixin, QDi
                     )
             else:
                 self.preset_service.create_preset(name, cast("str", pos), field_values)
-            self.session.commit()
 
             if self.save_mode:
                 self.accept()

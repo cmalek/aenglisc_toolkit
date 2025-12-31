@@ -1033,8 +1033,7 @@ class MainWindowActions:
                 if note.end_token == 0 or note.end_token is False:
                     note.end_token = None
 
-        self.application_state.session.add(project)
-        self.application_state.session.commit()
+        project.save()
         self.main_window.show_message("Saved")
 
     def navigate_to_token(self, token_id: int) -> None:

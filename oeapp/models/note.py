@@ -7,7 +7,7 @@ from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, reconstructor, relationship
 
 from oeapp.db import Base
-from oeapp.models.mixins import SessionMixin
+from oeapp.models.mixins import SaveDeleteMixin
 from oeapp.models.token import Token
 from oeapp.utils import from_utc_iso, to_utc_iso
 
@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from oeapp.models.sentence import Sentence
 
 
-class Note(SessionMixin, Base):
+class Note(SaveDeleteMixin, Base):
     """
     Represents a note attached to tokens, spans, or sentences.
     """
@@ -80,20 +80,20 @@ class Note(SessionMixin, Base):
             self.end_token = None
 
     @classmethod
-    def get(cls, note_id: int) -> Note | None:
+    def get(cls, pk: int) -> Note | None:
         """
         Get a note by ID.
 
         Args:
             session: SQLAlchemy session
-            note_id: Note ID
+            pk: Primary key
 
         Returns:
             Note or None if not found
 
         """
         session = cls._get_session()
-        return session.get(cls, note_id)
+        return session.get(cls, pk)
 
     def to_json(self) -> dict:
         """
@@ -132,6 +132,7 @@ class Note(SessionMixin, Base):
         sentence_id: int,
         note_data: dict,
         token_map: dict[int, Token],
+        commit: bool = True,  # noqa: FBT001, FBT002
     ) -> Note:
         """
         Create a note from JSON import data.
@@ -141,11 +142,13 @@ class Note(SessionMixin, Base):
             note_data: Note data dictionary from JSON
             token_map: Map of order_index to Token entities
 
+        Keyword Args:
+            commit: Whether to commit the changes
+
         Returns:
             Created Note entity
 
         """
-        session = cls._get_session()
         note = cls(
             sentence_id=sentence_id,
             note_text_md=note_data["note_text_md"],
@@ -178,5 +181,5 @@ class Note(SessionMixin, Base):
         else:
             note.end_token = None
 
-        session.add(note)
+        note.save(commit=commit)
         return note

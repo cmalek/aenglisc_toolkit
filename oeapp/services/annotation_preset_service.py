@@ -2,6 +2,7 @@
 
 from typing import TYPE_CHECKING, cast
 
+from oeapp.exc import DoesNotExist
 from oeapp.models.annotation_preset import AnnotationPreset
 
 if TYPE_CHECKING:
@@ -27,7 +28,12 @@ class AnnotationPresetService:
         return AnnotationPreset.get_all_by_pos(pos)
 
     @staticmethod
-    def create_preset(name: str, pos: str, field_values: dict) -> AnnotationPreset:
+    def create_preset(
+        name: str,
+        pos: str,
+        field_values: dict,
+        commit: bool = True,  # noqa: FBT001, FBT002
+    ) -> AnnotationPreset:
         """
         Create preset with field values dict.
 
@@ -35,6 +41,9 @@ class AnnotationPresetService:
             name: Preset name
             pos: Part of speech (N, V, A, R, D)
             field_values: Dictionary of field values
+
+        Keyword Args:
+            commit: Whether to commit the changes
 
         Returns:
             Created AnnotationPreset entity
@@ -44,11 +53,16 @@ class AnnotationPresetService:
             IntegrityError: If preset with same name and pos already exists
 
         """
-        return AnnotationPreset.create(name, cast("PresetPos", pos), **field_values)
+        return AnnotationPreset.create(
+            name, cast("PresetPos", pos), commit=commit, **field_values
+        )
 
     @staticmethod
     def update_preset(
-        preset_id: int, name: str, field_values: dict
+        preset_id: int,
+        name: str,
+        field_values: dict,
+        commit: bool = True,  # noqa: FBT001, FBT002
     ) -> AnnotationPreset | None:
         """
         Update preset.
@@ -58,6 +72,9 @@ class AnnotationPresetService:
             name: New preset name
             field_values: Dictionary of field values to update
 
+        Keyword Args:
+            commit: Whether to commit the changes
+
         Returns:
             Updated AnnotationPreset entity or None if not found
 
@@ -66,7 +83,7 @@ class AnnotationPresetService:
 
         """
         update_data = {"name": name.strip() if name else None, **field_values}
-        return AnnotationPreset.update(preset_id, **update_data)
+        return AnnotationPreset.update(preset_id, commit=commit, **update_data)
 
     @staticmethod
     def delete_preset(preset_id: int) -> bool:
@@ -80,7 +97,11 @@ class AnnotationPresetService:
             True if preset was deleted, False if not found
 
         """
-        return AnnotationPreset.delete(preset_id)
+        preset = AnnotationPreset.get(preset_id)
+        if preset:
+            preset.delete()
+            return True
+        return False
 
     @staticmethod
     def apply_preset_to_annotation(  # noqa: PLR0912

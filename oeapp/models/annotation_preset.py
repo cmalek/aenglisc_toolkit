@@ -11,17 +11,17 @@ from sqlalchemy import (
     UniqueConstraint,
     select,
 )
-from sqlalchemy.orm import Mapped, Session, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column
 
 from oeapp.db import Base
 
-from .mixins import SessionMixin
+from .mixins import SaveDeleteMixin
 
 if TYPE_CHECKING:
     from oeapp.types import PresetPos
 
 
-class AnnotationPreset(SessionMixin, Base):
+class AnnotationPreset(SaveDeleteMixin, Base):
     """Represents a user-defined preset for annotation fields."""
 
     __tablename__ = "annotation_presets"
@@ -92,13 +92,22 @@ class AnnotationPreset(SessionMixin, Base):
     )
 
     @classmethod
-    def create(cls, name: str, pos: PresetPos, **kwargs) -> AnnotationPreset:
+    def create(
+        cls,
+        name: str,
+        pos: PresetPos,
+        commit: bool = True,  # noqa: FBT001, FBT002
+        **kwargs,
+    ) -> AnnotationPreset:
         """
         Create a new preset.
 
         Args:
             name: Preset name
             pos: Part of speech (N, V, A, R, D)
+
+        Keyword Args:
+            commit: Whether to commit the changes
             **kwargs: Field values for the preset
 
         Returns:
@@ -121,6 +130,8 @@ class AnnotationPreset(SessionMixin, Base):
         preset = cls(name=name.strip(), pos=pos, **kwargs)
         session.add(preset)
         session.flush()
+        if commit:
+            session.commit()
         return preset
 
     @classmethod
@@ -158,12 +169,20 @@ class AnnotationPreset(SessionMixin, Base):
         )
 
     @classmethod
-    def update(cls, preset_id: int, **kwargs) -> AnnotationPreset | None:
+    def update(
+        cls,
+        preset_id: int,
+        commit: bool = True,  # noqa: FBT001, FBT002
+        **kwargs,
+    ) -> AnnotationPreset | None:
         """
         Update a preset.
 
         Args:
             preset_id: Preset ID
+
+        Keyword Args:
+            commit: Whether to commit the changes
             **kwargs: Field values to update
 
         Returns:
@@ -184,28 +203,9 @@ class AnnotationPreset(SessionMixin, Base):
 
         session.add(preset)
         session.flush()
+        if commit:
+            session.commit()
         return preset
-
-    @classmethod
-    def delete(cls, preset_id: int) -> bool:
-        """
-        Delete a preset.
-
-        Args:
-            preset_id: Preset ID
-
-        Returns:
-            True if preset was deleted, False if not found
-
-        """
-        session = cls._get_session()
-        preset = cls.get(preset_id)
-        if not preset:
-            return False
-
-        session.delete(preset)
-        session.flush()
-        return True
 
     def to_dict(self) -> dict:
         """

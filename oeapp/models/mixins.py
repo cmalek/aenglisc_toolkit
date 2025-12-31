@@ -22,3 +22,38 @@ class SessionMixin:
         state = ApplicationState()
         assert state.session is not None, "Session is not set"  # noqa: S101
         return state.session
+
+
+class SaveDeleteMixin(SessionMixin):
+    """Mixin for models that need to save and delete."""
+
+    def save(self, commit: bool = True) -> None:  # noqa: FBT001, FBT002
+        """
+        Save the model.
+
+        Keyword Args:
+            commit: Whether to commit the changes
+
+        """
+        session = self._get_session()
+        session.add(self)
+        session.flush()
+        if commit:
+            session.commit()
+
+    def delete(self, commit: bool = True) -> None:  # noqa: FBT001, FBT002
+        """
+        Delete the model.
+
+        Keyword Args:
+            commit: Whether to commit the changes
+
+        Raises:
+            DoesNotExist: If model does not exist
+
+        """
+        session = self._get_session()
+        session.delete(self)
+        session.flush()
+        if commit:
+            session.commit()

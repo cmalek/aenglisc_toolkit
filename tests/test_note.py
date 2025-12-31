@@ -29,8 +29,7 @@ class TestNote:
             note_text_md="This is a test note",
             note_type="span",
         )
-        db_session.add(note)
-        db_session.commit()
+        note.save()
 
         assert note.sentence_id == sentence.id
         assert note.start_token == start_token.id
@@ -50,8 +49,7 @@ class TestNote:
             note_text_md="Sentence-level note",
             note_type="sentence",
         )
-        db_session.add(note)
-        db_session.commit()
+        note.save()
 
         assert note.start_token is None
         assert note.end_token is None
@@ -71,8 +69,7 @@ class TestNote:
             end_token=token.id,
             note_text_md="Test note",
         )
-        db_session.add(note)
-        db_session.commit()
+        note.save()
         note_id = note.id
 
         retrieved = Note.get(note_id)
@@ -131,8 +128,7 @@ class TestNote:
             note_text_md="Test note",
             note_type="span",
         )
-        db_session.add(note)
-        db_session.commit()
+        note.save()
 
         data = note.to_json()
         assert data["note_text_md"] == "Test note"
@@ -155,8 +151,7 @@ class TestNote:
             end_token=None,
             note_text_md="Sentence note",
         )
-        db_session.add(note)
-        db_session.commit()
+        note.save()
 
         data = note.to_json()
         assert "start_token_order_index" not in data
@@ -182,7 +177,6 @@ class TestNote:
             "end_token_order_index": end_token.order_index,
         }
         note = Note.from_json(sentence.id, note_data, token_map)
-        db_session.commit()
 
         assert note.sentence_id == sentence.id
         assert note.start_token == start_token.id
@@ -200,7 +194,6 @@ class TestNote:
         }
         token_map = {}
         note = Note.from_json(sentence.id, note_data, token_map)
-        db_session.commit()
 
         assert note.start_token is None
         assert note.end_token is None
@@ -216,7 +209,6 @@ class TestNote:
         }
         token_map = {}
         note = Note.from_json(sentence.id, note_data, token_map)
-        db_session.commit()
 
         assert note.start_token is None
 
@@ -230,9 +222,8 @@ class TestNote:
             note_text_md="Test",
             note_type="invalid",
         )
-        db_session.add(note)
         with pytest.raises(Exception):  # IntegrityError or similar
-            db_session.commit()
+            note.save()
 
     def test_created_at_set_on_creation(self, db_session):
         """Test created_at is set on creation."""
@@ -241,8 +232,7 @@ class TestNote:
 
         before = datetime.now()
         note = Note(sentence_id=sentence.id, note_text_md="Test")
-        db_session.add(note)
-        db_session.commit()
+        note.save()
         after = datetime.now()
 
         assert before <= note.created_at <= after
@@ -253,8 +243,7 @@ class TestNote:
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
 
         note = Note(sentence_id=sentence.id, note_text_md="Original")
-        db_session.add(note)
-        db_session.commit()
+        note.save()
         original_updated = note.updated_at
 
         import time
@@ -262,7 +251,7 @@ class TestNote:
         time.sleep(0.01)
 
         note.note_text_md = "Updated"
-        db_session.commit()
+        note.save()
         db_session.refresh(note)
 
         assert note.updated_at > original_updated
@@ -273,8 +262,7 @@ class TestNote:
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
 
         note = Note(sentence_id=sentence.id, note_text_md="Test")
-        db_session.add(note)
-        db_session.commit()
+        note.save()
 
         assert note.sentence.id == sentence.id
         assert note.sentence.text_oe == "Se cyning"

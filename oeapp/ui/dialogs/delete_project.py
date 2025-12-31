@@ -214,8 +214,7 @@ class DeleteProjectDialog:
 
         # Delete the project
         try:
-            self.state.session.delete(project)
-            self.state.session.commit()
+            project.delete()
         except Exception as e:  # noqa: BLE001
             self.state.show_error(
                 f"Failed to delete project:\n{e!s}", title="Delete Error"

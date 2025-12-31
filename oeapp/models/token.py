@@ -10,14 +10,14 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from oeapp.db import Base
 from oeapp.models.annotation import Annotation
-from oeapp.models.mixins import SessionMixin
+from oeapp.models.mixins import SaveDeleteMixin
 from oeapp.utils import from_utc_iso, to_utc_iso
 
 if TYPE_CHECKING:
     from oeapp.models.sentence import Sentence
 
 
-class Token(SessionMixin, Base):
+class Token(SaveDeleteMixin, Base):
     """Represents a tokenized word in a sentence."""
 
     __tablename__ = "tokens"
@@ -85,13 +85,21 @@ class Token(SessionMixin, Base):
         return token_data
 
     @classmethod
-    def from_json(cls, sentence_id: int, token_data: dict) -> Token:
+    def from_json(
+        cls,
+        sentence_id: int,
+        token_data: dict,
+        commit: bool = True,  # noqa: FBT001, FBT002
+    ) -> Token:
         """
         Create a token and annotation from JSON import data.
 
         Args:
             sentence_id: Sentence ID to attach token to
             token_data: Token data dictionary from JSON
+
+        Keyword Args:
+            commit: Whether to commit the changes
 
         Returns:
             Created Token entity
@@ -116,7 +124,10 @@ class Token(SessionMixin, Base):
 
         # Create annotation if it exists
         if "annotation" in token_data:
-            Annotation.from_json(token.id, token_data["annotation"])
+            Annotation.from_json(token.id, token_data["annotation"], commit=commit)
+
+        if commit:
+            session.commit()
 
         return token
 
@@ -158,7 +169,10 @@ class Token(SessionMixin, Base):
 
     @classmethod
     def create_from_sentence(
-        cls, sentence_id: int, sentence_text: str
+        cls,
+        sentence_id: int,
+        sentence_text: str,
+        commit: bool = True,  # noqa: FBT001, FBT002
     ) -> builtins.list[Token]:
         """
         Create new tokens for a sentence.
@@ -190,10 +204,12 @@ class Token(SessionMixin, Base):
 
             if not Annotation.exists(token.id):
                 annotation = Annotation(token_id=token.id)
-                session.add(annotation)
+                annotation.save(commit=False)
 
             tokens.append(token)
         session.flush()
+        if commit:
+            session.commit()
         return tokens
 
     @classmethod

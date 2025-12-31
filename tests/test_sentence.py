@@ -23,8 +23,7 @@ class TestSentence:
             text_oe="Se cyning",
             is_paragraph_start=False,
         )
-        db_session.add(sentence)
-        db_session.commit()
+        sentence.save()
 
         assert sentence.id is not None
         assert sentence.project_id == project.id
@@ -39,7 +38,6 @@ class TestSentence:
             display_order=1,
             text_oe="Se cyning",
         )
-        db_session.commit()
         sentence_id = sentence.id
 
         retrieved = Sentence.get(sentence_id)
@@ -61,7 +59,6 @@ class TestSentence:
         sentence2 = Sentence.create(
             project_id=project.id, display_order=2, text_oe="Second"
         )
-        db_session.commit()
 
         sentences = Sentence.list(project.id)
         assert len(sentences) == 2
@@ -82,7 +79,6 @@ class TestSentence:
         sentence2 = Sentence.create(
             project_id=project.id, display_order=2, text_oe="Second"
         )
-        db_session.commit()
 
         next_sentence = Sentence.get_next_sentence(project.id, 2)
         assert next_sentence is not None
@@ -94,7 +90,6 @@ class TestSentence:
         Sentence.create(
             project_id=project.id, display_order=1, text_oe="First"
         )
-        db_session.commit()
 
         result = Sentence.get_next_sentence(project.id, 2)
         assert result is None
@@ -108,7 +103,6 @@ class TestSentence:
             display_order=1,
             text_oe="Se cyning",
         )
-        db_session.commit()
 
         assert sentence.id is not None
         assert len(sentence.tokens) > 0
@@ -124,7 +118,6 @@ class TestSentence:
             text_oe="Se cyning",
             is_paragraph_start=True,
         )
-        db_session.commit()
 
         assert sentence.paragraph_number == 1
         assert sentence.sentence_number_in_paragraph == 1
@@ -140,7 +133,6 @@ class TestSentence:
             text_oe="First",
             is_paragraph_start=True,
         )
-        db_session.commit()
 
         sentence2 = Sentence.create(
             project_id=project.id,
@@ -148,7 +140,6 @@ class TestSentence:
             text_oe="Second",
             is_paragraph_start=False,
         )
-        db_session.commit()
 
         assert sentence2.paragraph_number == sentence1.paragraph_number
         assert sentence2.sentence_number_in_paragraph == 2
@@ -162,7 +153,6 @@ class TestSentence:
             text_oe="First",
             is_paragraph_start=True,
         )
-        db_session.commit()
 
         sentence2 = Sentence.create(
             project_id=project.id,
@@ -170,7 +160,6 @@ class TestSentence:
             text_oe="Second",
             is_paragraph_start=True,
         )
-        db_session.commit()
 
         assert sentence2.paragraph_number == sentence1.paragraph_number + 1
         assert sentence2.sentence_number_in_paragraph == 1
@@ -195,7 +184,6 @@ class TestSentence:
             text_oe="First",
             is_paragraph_start=True,
         )
-        db_session.commit()
 
         result = Sentence._calculate_paragraph_and_sentence_numbers(
             project.id, 2, False
@@ -210,11 +198,9 @@ class TestSentence:
         sentence = Sentence.create(
             project_id=project.id, display_order=1, text_oe="Original"
         )
-        db_session.commit()
         original_token_count = len(sentence.tokens)
 
         updated = sentence.update("Updated text")
-        db_session.commit()
 
         assert updated is not None
         assert updated.text_oe == "Updated text"
@@ -228,7 +214,6 @@ class TestSentence:
             project_id=project.id, display_order=1, text_oe="Se cyning"
         )
         sentence.text_modern = "The king"
-        db_session.commit()
 
         data = sentence.to_json()
         assert data["text_oe"] == "Se cyning"
@@ -248,7 +233,6 @@ class TestSentence:
             "is_paragraph_start": False,
         }
         sentence = Sentence.from_json(project.id, sentence_data)
-        db_session.commit()
 
         assert sentence.project_id == project.id
         assert sentence.text_oe == "Se cyning"
@@ -266,7 +250,6 @@ class TestSentence:
         sentence3 = Sentence.create(
             project_id=project.id, display_order=3, text_oe="Third"
         )
-        db_session.commit()
 
         subsequent = Sentence.subsequent_sentences(project.id, 1)
         assert len(subsequent) == 2
@@ -280,7 +263,6 @@ class TestSentence:
         Sentence.create(
             project_id=project.id, display_order=1, text_oe="First"
         )
-        db_session.commit()
 
         subsequent = Sentence.subsequent_sentences(project.id, 1)
         assert subsequent == []
@@ -294,13 +276,11 @@ class TestSentence:
         sentence2 = Sentence.create(
             project_id=project.id, display_order=2, text_oe="Second"
         )
-        db_session.commit()
 
         order_mapping = {sentence1.id: 2, sentence2.id: 1}
         changes = Sentence.renumber_sentences(
             [sentence1, sentence2], order_mapping=order_mapping
         )
-        db_session.commit()
 
         assert len(changes) == 2
         db_session.refresh(sentence1)
@@ -314,7 +294,6 @@ class TestSentence:
         sentence = Sentence.create(
             project_id=project.id, display_order=1, text_oe="First"
         )
-        db_session.commit()
 
         with pytest.raises(ValueError, match="Either order_mapping or order_function"):
             Sentence.renumber_sentences([sentence])
@@ -327,7 +306,6 @@ class TestSentence:
         sentence = Sentence.create(
             project_id=project.id, display_order=1, text_oe="Se cyning"
         )
-        db_session.commit()
         after = datetime.now()
 
         assert before <= sentence.created_at <= after
@@ -338,7 +316,6 @@ class TestSentence:
         sentence = Sentence.create(
             project_id=project.id, display_order=1, text_oe="Original"
         )
-        db_session.commit()
         original_updated = sentence.updated_at
 
         import time
@@ -346,7 +323,7 @@ class TestSentence:
         time.sleep(0.01)
 
         sentence.text_oe = "Updated"
-        db_session.commit()
+        sentence.save()
         db_session.refresh(sentence)
 
         assert sentence.updated_at > original_updated
@@ -357,7 +334,6 @@ class TestSentence:
         sentence = Sentence.create(
             project_id=project.id, display_order=1, text_oe="Se cyning"
         )
-        db_session.commit()
 
         assert sentence.project.id == project.id
         assert sentence.project.name == project.name
@@ -368,7 +344,6 @@ class TestSentence:
         sentence = Sentence.create(
             project_id=project.id, display_order=1, text_oe="Se cyning"
         )
-        db_session.commit()
 
         assert len(sentence.tokens) > 0
         assert all(token.sentence_id == sentence.id for token in sentence.tokens)

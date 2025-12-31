@@ -86,26 +86,22 @@ def db_session():
 @pytest.fixture
 def sample_project(db_session):
     """Create a sample project with default text."""
-    project = Project.create(
+    return Project.create(
         session=db_session,
         text="Se cyning",
         name=f"Sample Project {id(db_session)}",
     )
-    db_session.commit()
-    return project
 
 
 @pytest.fixture
 def sample_sentence(db_session, sample_project):
     """Create a sample sentence with tokens."""
-    sentence = Sentence.create(
+    return Sentence.create(
         session=db_session,
         project_id=sample_project.id,
         display_order=1,
         text_oe="Se cyning",
     )
-    db_session.commit()
-    return sentence
 
 @pytest.fixture
 def mock_main_window():
@@ -140,15 +136,14 @@ def command_setup(db_session):
 
     # Create test project and sentence
     project = Project(name="Test Project")
-    db_session.add(project)
-    db_session.flush()
+    project.save()
     project_id = project.id
 
     sentence = Sentence.create(
         project_id=project_id, display_order=1, text_oe="Se cyning"
     )
     sentence.text_modern = "The king"
-    db_session.commit()
+    sentence.save()
 
     tokens = Token.list(sentence.id)
     token_id = tokens[0].id
@@ -246,9 +241,7 @@ def create_test_project(session, name=None, text=""):
     """
     if name is None:
         name = f"Test Project {id(session)}"
-    project = Project.create(text=text, name=name)
-    session.commit()
-    return project
+    return Project.create(text=text, name=name)
 
 
 def create_test_sentence(
@@ -287,14 +280,12 @@ def create_test_sentence(
         else:
             display_order = 1
 
-    sentence = Sentence.create(
+    return Sentence.create(
         project_id=project_id,
         display_order=display_order,
         text_oe=text,
         is_paragraph_start=is_paragraph_start,
     )
-    session.commit()
-    return sentence
 
 
 def create_test_token(session, sentence_id, surface="cyning", order_index=0, lemma=None):
@@ -317,8 +308,7 @@ def create_test_token(session, sentence_id, surface="cyning", order_index=0, lem
         surface=surface,
         lemma=lemma,
     )
-    session.add(token)
-    session.commit()
+    token.save()
     return token
 
 

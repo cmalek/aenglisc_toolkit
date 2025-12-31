@@ -213,8 +213,7 @@ class NoteDialog(QDialog):
                     self.note.end_token = (
                         self.end_token_id if self.end_token_id is not None else None
                     )
-                    session.add(self.note)
-                    session.commit()
+                    self.note.save()
                     self.note_saved.emit(self.note.id)
                     self.accept()
                     return
@@ -251,8 +250,7 @@ class NoteDialog(QDialog):
                         note_text_md=note_text,
                         note_type="span",
                     )
-                    session.add(note)
-                    session.commit()
+                    note.save()
                     session.refresh(note)
                     if note.id:
                         self.note_saved.emit(note.id)
@@ -280,8 +278,7 @@ class NoteDialog(QDialog):
                     return
             else:
                 # Direct deletion without command manager
-                self.state.session.delete(self.note)
-                self.state.session.commit()
+                self.note.delete()
                 # Emit signal with note_id for cleanup (even though deleted)
                 self.note_saved.emit(note_id)
                 self.accept()

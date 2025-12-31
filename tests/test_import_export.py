@@ -30,7 +30,6 @@ class TestProjectExporter:
     def test_get_project_returns_project(self, db_session):
         """Test get_project() returns existing project."""
         project = create_test_project(db_session, name="Test Project")
-        db_session.commit()
 
         exporter = ProjectExporter()
         retrieved = exporter.get_project(project.id)
@@ -48,7 +47,6 @@ class TestProjectExporter:
     def test_export_project_json_creates_file(self, db_session, tmp_path):
         """Test export_project_json() creates JSON file."""
         project = create_test_project(db_session, text="Se cyning. Þæt scip.", name="Export Test")
-        db_session.commit()
 
         exporter = ProjectExporter()
         export_file = tmp_path / "export.json"
@@ -70,7 +68,6 @@ class TestProjectExporter:
     def test_export_project_json_adds_json_extension(self, db_session, tmp_path):
         """Test export_project_json() adds .json extension if missing."""
         project = create_test_project(db_session, name="Test")
-        db_session.commit()
 
         exporter = ProjectExporter()
         export_file = tmp_path / "export"  # No extension
@@ -83,7 +80,6 @@ class TestProjectExporter:
     def test_export_project_json_includes_sentences(self, db_session, tmp_path):
         """Test export_project_json() includes sentence data."""
         project = create_test_project(db_session, text="Se cyning. Þæt scip.", name="Test")
-        db_session.commit()
 
         exporter = ProjectExporter()
         export_file = tmp_path / "export.json"
@@ -119,7 +115,6 @@ class TestProjectImporter:
         migration_service, migration_metadata = mock_migration_services
         # Create existing project
         create_test_project(db_session, name="Collision Test")
-        db_session.commit()
 
         importer = ProjectImporter(
             migration_service=migration_service,
@@ -137,7 +132,6 @@ class TestProjectImporter:
         # Create existing projects
         create_test_project(db_session, name="Multi Test")
         create_test_project(db_session, name="Multi Test (1)")
-        db_session.commit()
 
         importer = ProjectImporter(
             migration_service=migration_service,
@@ -163,7 +157,6 @@ class TestProjectImporter:
         }
 
         project, was_renamed = importer._create_project(project_data)
-        db_session.commit()
 
         assert project.id is not None
         assert project.name == "Imported Project"

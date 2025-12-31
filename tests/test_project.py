@@ -16,8 +16,7 @@ class TestProject:
     def test_create_model(self, db_session):
         """Test model creation."""
         project = Project(name="Test Project")
-        db_session.add(project)
-        db_session.commit()
+        project.save()
 
         assert project.id is not None
         assert project.name == "Test Project"
@@ -27,8 +26,7 @@ class TestProject:
     def test_exists_returns_true_when_exists(self, db_session):
         """Test exists() returns True when project exists."""
         project = Project(name="Test Project")
-        db_session.add(project)
-        db_session.commit()
+        project.save()
 
         assert Project.exists("Test Project") is True
 
@@ -39,8 +37,7 @@ class TestProject:
     def test_get_returns_existing(self, db_session):
         """Test get() returns existing project."""
         project = Project(name="Test Project")
-        db_session.add(project)
-        db_session.commit()
+        project.save()
         project_id = project.id
 
         retrieved = Project.get(project_id)
@@ -56,10 +53,9 @@ class TestProject:
     def test_first_returns_first_project(self, db_session):
         """Test first() returns first project."""
         project1 = Project(name="First Project")
+        project1.save(commit=False)
         project2 = Project(name="Second Project")
-        db_session.add(project1)
-        db_session.add(project2)
-        db_session.commit()
+        project2.save()
 
         first = Project.first()
         assert first is not None
@@ -73,10 +69,9 @@ class TestProject:
     def test_list_returns_all_projects(self, db_session):
         """Test list() returns all projects."""
         project1 = Project(name="Project 1")
+        project1.save(commit=False)
         project2 = Project(name="Project 2")
-        db_session.add(project1)
-        db_session.add(project2)
-        db_session.commit()
+        project2.save()
 
         projects = Project.list()
         assert len(projects) == 2
@@ -103,7 +98,6 @@ class TestProject:
     def test_create_raises_already_exists_for_duplicate_name(self, db_session):
         """Test create() raises AlreadyExists for duplicate name."""
         Project.create(text="Se cyning", name="Test Project")
-        db_session.commit()
 
         with pytest.raises(AlreadyExists):
             Project.create(text="Þæt scip", name="Test Project")
@@ -118,7 +112,6 @@ class TestProject:
         project = Project.create(
             text="Se cyning. Þæt scip.", name="Test"
         )
-        db_session.commit()
 
         count = project.total_token_count()
         assert count > 0
@@ -128,8 +121,7 @@ class TestProject:
     def test_total_token_count_returns_zero_for_empty(self, db_session):
         """Test total_token_count() returns 0 for project with no sentences."""
         project = Project(name="Empty Project")
-        db_session.add(project)
-        db_session.commit()
+        project.save()
 
         count = project.total_token_count()
         assert count == 0
@@ -137,22 +129,18 @@ class TestProject:
     def test_delete_removes_project(self, db_session):
         """Test deleting project removes it."""
         project = Project.create(text="Se cyning", name="To Delete")
-        db_session.commit()
         project_id = project.id
 
-        db_session.delete(project)
-        db_session.commit()
+        project.delete()
 
         assert Project.get(project_id) is None
 
     def test_delete_removes_cascade_sentences(self, db_session):
         """Test deleting project cascades to sentences."""
         project = Project.create(text="Se cyning", name="Test")
-        db_session.commit()
         sentence_id = project.sentences[0].id
 
-        db_session.delete(project)
-        db_session.commit()
+        project.delete()
 
         # Sentence should be deleted via cascade
         sentence = db_session.get(Sentence, sentence_id)
@@ -161,7 +149,6 @@ class TestProject:
     def test_append_oe_text_appends_sentences(self, db_session):
         """Test append_oe_text() appends sentences to project."""
         project = Project.create(text="Se cyning", name="Test")
-        db_session.commit()
         original_count = len(project.sentences)
 
         project.append_oe_text("Þæt scip.")
@@ -174,8 +161,7 @@ class TestProject:
     def test_append_oe_text_to_empty_project(self, db_session):
         """Test append_oe_text() works on project with no sentences."""
         project = Project(name="Empty Project")
-        db_session.add(project)
-        db_session.commit()
+        project.save()
 
         project.append_oe_text("Se cyning.")
         db_session.refresh(project)
@@ -187,7 +173,6 @@ class TestProject:
     def test_to_json_serializes_project(self, db_session):
         """Test to_json() serializes project data."""
         project = Project.create(text="Se cyning", name="Test")
-        db_session.commit()
 
         data = project.to_json()
         assert data["name"] == "Test"
@@ -202,7 +187,6 @@ class TestProject:
             "updated_at": "2024-01-15T10:30:45+00:00",
         }
         project = Project.from_json(project_data, "Imported Project")
-        db_session.commit()
 
         assert project.name == "Imported Project"
         assert project.id is not None
@@ -210,20 +194,17 @@ class TestProject:
     def test_unique_constraint_prevents_duplicate_names(self, db_session):
         """Test unique constraint prevents duplicate project names."""
         project1 = Project(name="Duplicate")
-        db_session.add(project1)
-        db_session.commit()
+        project1.save()
 
         project2 = Project(name="Duplicate")
-        db_session.add(project2)
         with pytest.raises(IntegrityError):
-            db_session.commit()
+            project2.save()
 
     def test_created_at_set_on_creation(self, db_session):
         """Test created_at is set on creation."""
         before = datetime.now()
         project = Project(name="Test")
-        db_session.add(project)
-        db_session.commit()
+        project.save()
         after = datetime.now()
 
         assert before <= project.created_at <= after
@@ -231,8 +212,7 @@ class TestProject:
     def test_updated_at_updates_on_change(self, db_session):
         """Test updated_at updates when project is modified."""
         project = Project(name="Test")
-        db_session.add(project)
-        db_session.commit()
+        project.save()
         original_updated = project.updated_at
 
         import time
@@ -240,7 +220,7 @@ class TestProject:
         time.sleep(0.01)
 
         project.name = "Updated"
-        db_session.commit()
+        project.save()
         db_session.refresh(project)
 
         assert project.updated_at > original_updated
@@ -248,7 +228,6 @@ class TestProject:
     def test_relationship_with_sentences(self, db_session):
         """Test project has relationship with sentences."""
         project = Project.create(text="Se cyning", name="Test")
-        db_session.commit()
 
         assert len(project.sentences) > 0
         assert all(s.project_id == project.id for s in project.sentences)

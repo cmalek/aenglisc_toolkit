@@ -33,7 +33,6 @@ class TestOpenProjectDialog:
         # Create test projects
         project1 = create_test_project(db_session, name="Project 1", text="")
         project2 = create_test_project(db_session, name="Project 2", text="")
-        db_session.commit()
 
 
         dialog = OpenProjectDialog(mock_main_window)
@@ -47,7 +46,6 @@ class TestOpenProjectDialog:
         # Create test projects
         project1 = create_test_project(db_session, name="Alpha Project", text="")
         project2 = create_test_project(db_session, name="Beta Project", text="")
-        db_session.commit()
 
 
         dialog = OpenProjectDialog(mock_main_window)

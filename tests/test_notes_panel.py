@@ -19,7 +19,6 @@ class TestNotesPanel:
     def test_notes_panel_initializes_with_sentence(self, db_session, qapp):
         """Test NotesPanel initializes with a sentence."""
         project = create_test_project(db_session, name="Test", text="Se cyning")
-        db_session.commit()
 
         sentence = project.sentences[0]
         panel = NotesPanel(sentence=sentence, parent=None)
@@ -31,7 +30,6 @@ class TestNotesPanel:
         from oeapp.models.note import Note
 
         project = create_test_project(db_session, name="Test", text="Se cyning")
-        db_session.commit()
 
         sentence = project.sentences[0]
         token = sentence.tokens[0]
@@ -49,9 +47,8 @@ class TestNotesPanel:
             end_token=token.id,
             note_text_md="Second note"
         )
-        db_session.add(note1)
-        db_session.add(note2)
-        db_session.commit()
+        note1.save()
+        note2.save()
 
         panel = NotesPanel(sentence=sentence, parent=None)
         panel.update_notes()
@@ -62,7 +59,6 @@ class TestNotesPanel:
     def test_notes_panel_handles_empty_notes(self, db_session, qapp):
         """Test NotesPanel handles sentence with no notes."""
         project = create_test_project(db_session, name="Test", text="Se cyning")
-        db_session.commit()
 
         sentence = project.sentences[0]
         panel = NotesPanel(sentence=sentence, parent=None)
@@ -76,7 +72,6 @@ class TestNotesPanel:
         from oeapp.models.note import Note
 
         project = create_test_project(db_session, name="Test", text="Se cyning")
-        db_session.commit()
 
         sentence = project.sentences[0]
         token = sentence.tokens[0]
@@ -87,8 +82,7 @@ class TestNotesPanel:
             end_token=token.id,
             note_text_md="Test note"
         )
-        db_session.add(note)
-        db_session.commit()
+        note.save()
 
         panel = NotesPanel(sentence=sentence, parent=None)
         panel.update_notes()
@@ -110,7 +104,6 @@ class TestNotesPanel:
         from oeapp.models.note import Note
 
         project = create_test_project(db_session, name="Test", text="Se cyning")
-        db_session.commit()
 
         sentence = project.sentences[0]
         token = sentence.tokens[0]
@@ -121,8 +114,7 @@ class TestNotesPanel:
             end_token=token.id,
             note_text_md="Test note"
         )
-        db_session.add(note)
-        db_session.commit()
+        note.save()
 
         panel = NotesPanel(sentence=sentence, parent=None)
         panel.update_notes()
@@ -144,7 +136,6 @@ class TestNotesPanel:
         from oeapp.models.note import Note
 
         project = create_test_project(db_session, name="Test", text="Se cyning. Þæt scip.")
-        db_session.commit()
 
         sentence1 = project.sentences[0]
         sentence2 = project.sentences[1]
@@ -157,8 +148,7 @@ class TestNotesPanel:
             end_token=token1.id,
             note_text_md="Note for sentence 1"
         )
-        db_session.add(note)
-        db_session.commit()
+        note.save()
 
         panel = NotesPanel(sentence=sentence1, parent=None)
         panel.update_notes()
@@ -179,7 +169,6 @@ class TestClickableNoteLabel:
         from oeapp.models.note import Note
 
         project = create_test_project(db_session, name="Test", text="Se cyning")
-        db_session.commit()
 
         sentence = project.sentences[0]
         token = sentence.tokens[0]
@@ -200,7 +189,6 @@ class TestClickableNoteLabel:
         from oeapp.models.note import Note
 
         project = create_test_project(db_session, name="Test", text="Se cyning")
-        db_session.commit()
 
         sentence = project.sentences[0]
         token = sentence.tokens[0]

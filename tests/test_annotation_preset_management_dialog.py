@@ -75,7 +75,6 @@ class TestAnnotationPresetManagementDialog:
         # Create test presets
         AnnotationPreset.create(name="Preset 1", pos="N")
         AnnotationPreset.create(name="Preset 2", pos="N")
-        db_session.commit()
 
         dialog = AnnotationPresetManagementDialog()
         dialog._load_presets_for_pos("N")
@@ -107,7 +106,6 @@ class TestAnnotationPresetManagementDialog:
 
         # Create existing preset
         AnnotationPreset.create(name="Existing", pos="N")
-        db_session.commit()
 
         dialog = AnnotationPresetManagementDialog(
             save_mode=True, initial_pos="N"

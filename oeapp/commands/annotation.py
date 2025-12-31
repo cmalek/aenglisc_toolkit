@@ -1,15 +1,12 @@
 """Annotation related commands."""
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from oeapp.models.annotation import Annotation
 from oeapp.models.mixins import SessionMixin
 
 from .abstract import Command
-
-if TYPE_CHECKING:
-    from sqlalchemy.orm import Session
 
 
 @dataclass
@@ -36,7 +33,6 @@ class AnnotateTokenCommand(SessionMixin, Command):
             state: New state of the annotation
 
         """
-        session = self._get_session()
         annotation.pos = state.get("pos")
         annotation.gender = state.get("gender")
         annotation.number = state.get("number")
@@ -59,8 +55,7 @@ class AnnotateTokenCommand(SessionMixin, Command):
         annotation.confidence = state.get("confidence")
         annotation.modern_english_meaning = state.get("modern_english_meaning")
         annotation.root = state.get("root")
-        session.add(annotation)
-        session.commit()
+        annotation.save()
 
     def execute(self) -> bool:
         """

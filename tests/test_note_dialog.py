@@ -12,7 +12,6 @@ class TestNoteDialog:
     def test_note_dialog_initializes_for_new_note(self, db_session, qapp):
         """Test NoteDialog initializes correctly for creating a new note."""
         project = create_test_project(db_session, name="Test", text="Se cyning")
-        db_session.commit()
 
         sentence = project.sentences[0]
         token = sentence.tokens[0]
@@ -34,7 +33,6 @@ class TestNoteDialog:
         from oeapp.models.note import Note
 
         project = create_test_project(db_session, name="Test", text="Se cyning")
-        db_session.commit()
 
         sentence = project.sentences[0]
         token = sentence.tokens[0]
@@ -46,8 +44,7 @@ class TestNoteDialog:
             end_token=token.id,
             note_text_md="Existing note text"
         )
-        db_session.add(note)
-        db_session.commit()
+        note.save()
 
         dialog = NoteDialog(
             sentence=sentence,
@@ -64,7 +61,6 @@ class TestNoteDialog:
     def test_note_dialog_displays_token_range(self, db_session, qapp):
         """Test NoteDialog displays the selected token range."""
         project = create_test_project(db_session, name="Test", text="Se cyning")
-        db_session.commit()
 
         sentence = project.sentences[0]
         tokens = list(sentence.tokens)
@@ -86,7 +82,6 @@ class TestNoteDialog:
         from oeapp.models.note import Note
 
         project = create_test_project(db_session, name="Test", text="Se cyning")
-        db_session.commit()
 
         sentence = project.sentences[0]
         token = sentence.tokens[0]
@@ -116,7 +111,6 @@ class TestNoteDialog:
         from oeapp.models.note import Note
 
         project = create_test_project(db_session, name="Test", text="Se cyning")
-        db_session.commit()
 
         sentence = project.sentences[0]
         token = sentence.tokens[0]
@@ -128,8 +122,7 @@ class TestNoteDialog:
             end_token=token.id,
             note_text_md="Original text"
         )
-        db_session.add(note)
-        db_session.commit()
+        note.save()
 
         dialog = NoteDialog(
             sentence=sentence,
@@ -156,7 +149,6 @@ class TestNoteDialog:
         from oeapp.models.note import Note
 
         project = create_test_project(db_session, name="Test", text="Se cyning")
-        db_session.commit()
 
         sentence = project.sentences[0]
         token = sentence.tokens[0]
@@ -168,8 +160,7 @@ class TestNoteDialog:
             end_token=token.id,
             note_text_md="Note to delete"
         )
-        db_session.add(note)
-        db_session.commit()
+        note.save()
         note_id = note.id
 
         dialog = NoteDialog(

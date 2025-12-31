@@ -18,7 +18,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from oeapp.db import Base
-from oeapp.models.mixins import SessionMixin
+from oeapp.models.mixins import SaveDeleteMixin
 from oeapp.models.note import Note
 from oeapp.models.token import Token
 from oeapp.utils import from_utc_iso, to_utc_iso
@@ -29,7 +29,7 @@ if TYPE_CHECKING:
     from oeapp.models.project import Project
 
 
-class Sentence(SessionMixin, Base):
+class Sentence(SaveDeleteMixin, Base):
     """
     Represents a sentence.
 
@@ -215,6 +215,7 @@ class Sentence(SessionMixin, Base):
         is_paragraph_start: bool = False,  # noqa: FBT001, FBT002
         paragraph_number: int | None = None,
         sentence_number_in_paragraph: int | None = None,
+        commit: bool = True,  # noqa: FBT001, FBT002
     ) -> Sentence:
         """
         Import an entire OE text into a project.
@@ -253,8 +254,7 @@ class Sentence(SessionMixin, Base):
             text_oe=text_oe,
             is_paragraph_start=is_paragraph_start,
         )
-        session.add(sentence)
-        session.flush()  # Get the ID
+        sentence.save(commit=False)
 
         # Create tokens from sentence text
         tokens = Token.create_from_sentence(
@@ -262,7 +262,8 @@ class Sentence(SessionMixin, Base):
         )
         sentence.tokens = tokens
 
-        session.commit()
+        if commit:
+            session.commit()
         return sentence
 
     @classmethod
@@ -351,6 +352,7 @@ class Sentence(SessionMixin, Base):
             sentence.display_order = new_order
             changes.append((sentence.id, old_order, new_order))
             session.add(sentence)
+        session.commit()
         session.flush()
 
         return changes
@@ -395,6 +397,7 @@ class Sentence(SessionMixin, Base):
             if sentence:
                 sentence.display_order = old_order
                 session.add(sentence)
+        session.commit()
         session.flush()
 
     def to_json(self) -> dict:
@@ -446,7 +449,6 @@ class Sentence(SessionMixin, Base):
             Created Sentence entity
 
         """
-        session = cls._get_session()
         sentence = cls(
             project_id=project_id,
             display_order=sentence_data["display_order"],
@@ -465,8 +467,7 @@ class Sentence(SessionMixin, Base):
         if updated_at:
             sentence.updated_at = updated_at
 
-        session.add(sentence)
-        session.flush()
+        sentence.save()
 
         # Create tokens and build token map
         token_map: dict[int, Token] = {}
@@ -480,12 +481,15 @@ class Sentence(SessionMixin, Base):
 
         return sentence
 
-    def update(self, text_oe: str) -> Sentence:
+    def update(self, text_oe: str, commit: bool = True) -> Sentence:  # noqa: FBT001, FBT002
         """
         Update the sentence.
 
         Args:
             text_oe: New Old English text
+
+        Keyword Args:
+            commit: Whether to commit the changes to the database
 
         Returns:
             Updated sentence
@@ -494,7 +498,8 @@ class Sentence(SessionMixin, Base):
         session = self._get_session()
         self.text_oe = text_oe
         Token.update_from_sentence(text_oe, self.id)
-        session.commit()
+        if commit:
+            session.commit()
         # Refresh to get updated tokens
         session.refresh(self)
         return self
