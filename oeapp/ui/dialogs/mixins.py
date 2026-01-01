@@ -22,6 +22,7 @@ class TextInputMixin:
     input Old English text either by pasting it directly or importing it from a file.
 
     Classes using this mixin should:
+
     - Have a `dialog` attribute (QDialog instance)
     - Have a `layout` attribute (QVBoxLayout instance)
     - Have a `main_window` attribute (MainWindow instance)

@@ -185,6 +185,9 @@ class Token(SaveDeleteMixin, Base):
             sentence_id: Sentence ID
             sentence_text: Text of the sentence to tokenize
 
+        Keyword Args:
+            commit: Whether to commit the changes to the database
+
         Returns:
             List of :class:`~oeapp.models.token.Token` objects
 

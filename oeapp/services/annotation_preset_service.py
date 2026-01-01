@@ -2,7 +2,6 @@
 
 from typing import TYPE_CHECKING, cast
 
-from oeapp.exc import DoesNotExist
 from oeapp.models.annotation_preset import AnnotationPreset
 
 if TYPE_CHECKING:

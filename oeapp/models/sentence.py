@@ -233,6 +233,9 @@ class Sentence(SaveDeleteMixin, Base):
             sentence_number_in_paragraph: Sentence number in paragraph
               (calculated if not provided)
 
+        Keyword Args:
+            commit: Whether to commit the changes to the database
+
         Returns:
             The new :class:`~oeapp.models.sentence.Sentence` object
 

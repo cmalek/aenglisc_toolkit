@@ -14,7 +14,6 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from oeapp.db import Base
-from oeapp.exc import DoesNotExist
 from oeapp.mixins import AnnotationTextualMixin
 from oeapp.utils import from_utc_iso, to_utc_iso
 

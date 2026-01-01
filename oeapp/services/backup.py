@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, cast
 from PySide6.QtCore import QObject, QSettings
 from sqlalchemy import Engine, create_engine, inspect, text
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.orm import sessionmaker
 
 from oeapp import __version__
 from oeapp.db import get_project_db_path

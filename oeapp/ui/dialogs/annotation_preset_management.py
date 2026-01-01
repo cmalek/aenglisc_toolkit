@@ -1245,7 +1245,7 @@ class AnnotationPresetManagementDialog(AnnotationLookupsMixin, SessionMixin, QDi
 
         return True, ""
 
-    def _save_preset(self) -> None:  # noqa: PLR0912, PLR0915
+    def _save_preset(self) -> None:  # noqa: PLR0912
         """Save preset (create or update) with validation."""
         is_valid, error_msg = self._validate_preset()
         if not is_valid:
