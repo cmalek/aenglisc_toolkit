@@ -24,48 +24,88 @@ class SettingsDialog:
         self.main_window = main_window
         self.settings = QSettings()
 
+    def get_setting_value(self, key: str, default: int) -> int:
+        """
+        Get the value of a setting key that has an integer value.
+
+        Args:
+            key: Key for the settings value
+            default: Default value for the setting
+
+        Returns:
+            Value for the setting
+
+        """
+        value = cast("int", self.settings.value(key, default, type=int))
+        return int(value) if value is not None else default
+
     def build(self) -> None:
         """
         Build the settings dialog.
+        """
+        self.create_layout()
+        # Number of backups
+        num_backups = self.get_setting_value("backup/num_backups", 5)
+        self.num_backups_spin = self.add_spin_box(
+            "Number of backups to keep:", 1, 100, num_backups
+        )
+        interval = self.get_setting_value("backup/interval_minutes", 720)
+        self.interval_spin = self.add_spin_box(
+            "Backup interval (minutes):", 1, 1440, interval
+        )
+
+        self.button_box = self.add_button_box()
+
+    def create_layout(self) -> None:
+        """
+        Create a layout for the settings dialog.
         """
         self.dialog = QDialog(self.main_window)
         self.dialog.setWindowTitle("Preferences")
         self.dialog.setMinimumSize(self.DIALOG_WIDTH, self.DIALOG_HEIGHT)
         self.layout = QVBoxLayout(self.dialog)
 
-        # Number of backups
-        num_backups_label = QLabel("Number of backups to keep:")
-        self.num_backups_spin = QSpinBox(self.dialog)
-        self.num_backups_spin.setMinimum(1)
-        self.num_backups_spin.setMaximum(100)
-        num_backups_val = cast(
-            "int", self.settings.value("backup/num_backups", 5, type=int)
-        )
-        num_backups = int(num_backups_val) if num_backups_val is not None else 5
-        self.num_backups_spin.setValue(num_backups)
-        self.layout.addWidget(num_backups_label)
-        self.layout.addWidget(self.num_backups_spin)
+    def add_spin_box(
+        self, label: str, minimum: int, maximum: int, value: int
+    ) -> QSpinBox:
+        """
+        Create a spin box for a settings key that has an integer value.
 
-        # Backup interval
-        interval_label = QLabel("Backup interval (minutes):")
-        self.interval_spin = QSpinBox(self.dialog)
-        self.interval_spin.setMinimum(1)
-        self.interval_spin.setMaximum(1440)  # 24 hours
-        interval_val = cast(
-            "int", self.settings.value("backup/interval_minutes", 720, type=int)
-        )
-        interval = int(interval_val) if interval_val is not None else 720
-        self.interval_spin.setValue(interval)
-        self.layout.addWidget(interval_label)
-        self.layout.addWidget(self.interval_spin)
+        Args:
+            label: Label for the spin box
+            key: Key for the settings value
+            minimum: Minimum value for the spin box
+            maximum: Maximum value for the spin box
+            value: Value for the spin box
 
-        # Button box
+        Returns:
+            Spin box widget
+
+        """
+        spin_box = QSpinBox(self.dialog)
+        spin_box.setMinimum(minimum)
+        spin_box.setMaximum(maximum)
+        spin_box.setValue(value)
+        self.layout.addWidget(QLabel(label))
+        self.layout.addWidget(spin_box)
+        return spin_box
+
+    def add_button_box(self) -> QDialogButtonBox:
+        """
+        Add the button box to the dialog.  The button box will be used to accept
+        or cancel the dialog.
+
+        Returns:
+            Button box widget
+
+        """
         self.button_box = QDialogButtonBox(self.dialog)
         self.button_box.addButton(QDialogButtonBox.StandardButton.Ok)
         self.button_box.addButton(QDialogButtonBox.StandardButton.Cancel)
         self.button_box.accepted.connect(self.save_settings)
         self.button_box.rejected.connect(self.dialog.reject)
         self.layout.addWidget(self.button_box)
+        return self.button_box
 
     def save_settings(self) -> None:
         """Save settings to QSettings."""
