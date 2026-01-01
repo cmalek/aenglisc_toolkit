@@ -22,7 +22,6 @@ from oeapp.commands import (
 )
 from oeapp.exc import MigrationFailed
 from oeapp.models.project import Project
-from oeapp.models.token import Token
 from oeapp.services import (
     AutosaveService,
     BackupService,
@@ -57,6 +56,7 @@ from oeapp.utils import get_logo_pixmap
 if TYPE_CHECKING:
     from oeapp.models.annotation import Annotation
     from oeapp.models.sentence import Sentence
+    from oeapp.models.token import Token
 
 
 class MainWindow(QMainWindow):
@@ -67,6 +67,8 @@ class MainWindow(QMainWindow):
 
     def __init__(self) -> None:
         super().__init__()
+        #: Messages
+        self.messages = Messages(self)
         #: Backup service
         self.backup_service = BackupService()
         #: Backup check timer
@@ -138,7 +140,7 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central_widget)
 
         # Status bar for autosave status
-        self.show_message("Ready")
+        self.messages.show_message("Ready")
         # Initial message
         welcome_label = QLabel(
             "Welcome to Ænglisc Toolkit\n\nUse File → New Project to get started"
@@ -222,7 +224,7 @@ class MainWindow(QMainWindow):
         if self.backup_service.should_backup():
             backup_path = self.backup_service.create_backup()
             if backup_path:
-                self.show_message("Backup created", duration=2000)
+                self.messages.show_message("Backup created", duration=2000)
 
     def _show_startup_dialog(self) -> None:
         """
@@ -238,69 +240,6 @@ class MainWindow(QMainWindow):
         else:
             # No projects exist, show NewProjectDialog
             NewProjectDialog(self).execute()
-
-    def show_message(self, message: str, duration: int = 2000) -> None:
-        """
-        Show a message in the status bar.
-
-        Args:
-            message: Message to show
-
-        Keyword Args:
-            duration: Duration of the message in milliseconds (default: 2000)
-
-        """
-        self.statusBar().showMessage(message, duration)
-
-    def show_warning(self, message: str, title: str = "Warning") -> None:
-        """
-        Show a warning message.
-
-        Args:
-            message: Message to show
-
-        Keyword Args:
-            title: Title of the message (default: "Warning")
-
-        """
-        QMessageBox.warning(self, title, message)
-
-    def show_error(self, message: str, title: str = "Error") -> None:
-        """
-        Show an error message.
-
-        Args:
-            message: Message to show
-
-        Keyword Args:
-            title: Title of the message (default: "Error")
-
-        """
-        QMessageBox.warning(self, title, message)
-
-    def show_information(self, message: str, title: str = "Information") -> None:
-        """
-        Show an information message.
-
-        Args:
-            message: Message to show
-
-        Keyword Args:
-            title: Title of the message (default: "Information")
-
-        """
-        msg_box = QMessageBox(
-            QMessageBox.Icon.Information,
-            title,
-            message,
-            QMessageBox.StandardButton.Ok,
-            self,
-        )
-        # Set custom icon
-        logo_pixmap = get_logo_pixmap(75)
-        if logo_pixmap:
-            msg_box.setIconPixmap(logo_pixmap)
-        msg_box.exec()
 
     def ensure_visible(self, widget: QWidget) -> None:
         """
@@ -401,10 +340,14 @@ class MainWindowActions:
         Initialize main window actions.
         """
         self.main_window = main_window
+        #: Backup service
+        self.backup_service = BackupService()
         #: Application state
         self.application_state = ApplicationState()
         #: Sentence cards (reference to main_window's list)
         self.sentence_cards = main_window.sentence_cards
+        #: Messages
+        self.messages = main_window.messages
 
     @property
     def command_manager(self):
@@ -498,7 +441,7 @@ class MainWindowActions:
 
         # Check if token has an annotation
         if not token.annotation:
-            self.main_window.show_message("No annotation to copy")
+            self.messages.show_message("No annotation to copy")
             return True  # Return True to indicate we handled the event
 
         # Extract annotation fields
@@ -527,7 +470,7 @@ class MainWindowActions:
             "root": annotation.root,
         }
 
-        self.main_window.show_message("Annotation copied")
+        self.messages.show_message("Annotation copied")
         return True
 
     def paste_annotation(self) -> bool:
@@ -547,7 +490,7 @@ class MainWindowActions:
 
         # Check if there's a copied annotation
         if COPIED_ANNOTATION not in self.application_state:
-            self.main_window.show_message("No annotation to paste")
+            self.messages.show_message("No annotation to paste")
             return True  # Return True to indicate we handled the event
 
         # Get the selected token
@@ -589,7 +532,7 @@ class MainWindowActions:
 
         # Create and execute the command
         if not self.command_manager:
-            self.main_window.show_message("Command manager not available")
+            self.messages.show_message("Command manager not available")
             return True
 
         command = AnnotateTokenCommand(
@@ -611,9 +554,9 @@ class MainWindowActions:
                     token, card.sentence
                 )
 
-            self.main_window.show_message("Annotation pasted")
+            self.messages.show_message("Annotation pasted")
         else:
-            self.main_window.show_message("Paste failed")
+            self.messages.show_message("Paste failed")
 
         return True
 
@@ -621,7 +564,8 @@ class MainWindowActions:
         """
         Do an autosave operation.
 
-        - If there is no database or the current project ID is not set, do nothing.
+        - If the current project ID is not set, do nothing.
+        - Sanitize notes before committing to prevent SQLAlchemy mapping errors
         - Save the current project.
         - Show a message in the status bar that the project has been saved.
 
@@ -640,7 +584,7 @@ class MainWindowActions:
                     note.end_token = None
 
         project.save()
-        self.main_window.show_message("Saved")
+        self.messages.show_message("Saved")
 
     def import_project_json(self) -> None:
         """
@@ -671,18 +615,16 @@ class MainWindowActions:
                 self.main_window.setWindowTitle(
                     f"Ænglisc Toolkit - {imported_project.name}"
                 )
-                self.main_window.show_message(
-                    "Project imported and opened", duration=3000
-                )
+                self.messages.show_message("Project imported and opened", duration=3000)
             else:
-                self.main_window.show_message(
+                self.messages.show_message(
                     "Project imported successfully", duration=2000
                 )
 
         except ValueError as e:
-            self.main_window.show_error(str(e), title="Import Error")
+            self.messages.show_error(str(e), title="Import Error")
         except Exception as e:  # noqa: BLE001
-            self.main_window.show_error(
+            self.messages.show_error(
                 f"An error occurred during import:\n{e!s}", title="Import Error"
             )
 
@@ -710,13 +652,13 @@ class MainWindowActions:
             project_id if project_id else self.application_state[CURRENT_PROJECT_ID]
         )
         if not self.application_state.session or not target_project_id:
-            self.main_window.show_warning("No project open")
+            self.messages.show_warning("No project open")
             return False
 
         # Get project name for default filename
         project = Project.get(target_project_id)
         if project is None:
-            self.main_window.show_warning("Project not found")
+            self.messages.show_warning("Project not found")
             return False
 
         default_filename = ProjectExporter.sanitize_filename(project.name) + ".json"
@@ -739,14 +681,14 @@ class MainWindowActions:
         try:
             exporter.export_project_json(target_project_id, file_path)
         except ValueError as e:
-            self.main_window.show_error(str(e), title="Export Error")
+            self.messages.show_error(str(e), title="Export Error")
             return False
 
-        self.main_window.show_information(
+        self.messages.show_information(
             f"Project exported successfully to:\n{file_path}",
             title="Export Successful",
         )
-        self.main_window.show_message("Export completed", duration=3000)
+        self.messages.show_message("Export completed", duration=3000)
         return True
 
     def delete_project(self) -> None:
@@ -758,7 +700,7 @@ class MainWindowActions:
         # Create backup before any destructive action
         backup_path = self.main_window.backup_service.create_backup()
         if not backup_path:
-            self.main_window.show_error(
+            self.messages.show_error(
                 "Failed to create backup. Deletion cancelled for safety.",
                 title="Backup Failed",
             )
@@ -776,7 +718,7 @@ class MainWindowActions:
             not self.application_state.session
             or CURRENT_PROJECT_ID not in self.application_state
         ):
-            self.main_window.show_warning("No project open")
+            self.messages.show_warning("No project open")
             return
 
         # Get file path from user
@@ -801,26 +743,26 @@ class MainWindowActions:
                 self.application_state[CURRENT_PROJECT_ID], Path(file_path)
             )
         except PermissionError as e:
-            self.main_window.show_error(
+            self.messages.show_error(
                 f"Export failed: Permission denied.\n{e!s}",
                 title="Export Error",
             )
             return
         except OSError as e:
-            self.main_window.show_error(
+            self.messages.show_error(
                 f"Export failed: File not found.\n{e!s}",
                 title="Export Error",
             )
             return
 
         if export_success:
-            self.main_window.show_information(
+            self.messages.show_information(
                 f"Project exported successfully to:\n{file_path}",
                 title="Export Successful",
             )
-            self.main_window.show_message("Export completed", duration=3000)
+            self.messages.show_message("Export completed", duration=3000)
         else:
-            self.main_window.show_warning(
+            self.messages.show_warning(
                 "Failed to export project. Check console for details.",
                 title="Export Failed",
             )
@@ -833,15 +775,87 @@ class MainWindowActions:
         - Show a message in the status bar that the backup has been created
 
         """
-        backup_path = self.main_window.backup_service.create_backup()
+        backup_path = self.backup_service.create_backup()
         if backup_path:
-            self.main_window.show_information(
+            self.messages.show_information(
                 f"Backup created successfully:\n{backup_path.name}",
                 title="Backup Complete",
             )
-            self.main_window.show_message("Backup created", duration=2000)
+            self.messages.show_message("Backup created", duration=2000)
         else:
-            self.main_window.show_error("Failed to create backup.")
+            self.messages.show_error("Failed to create backup.")
+
+
+class Messages:
+    """
+    Helper class for showing messages in the main window.
+    """
+
+    def __init__(self, main_window: MainWindow) -> None:
+        self.main_window = main_window
+
+    def show_message(self, message: str, duration: int = 2000) -> None:
+        """
+        Show a message in the status bar.
+
+        Args:
+            message: Message to show
+
+        Keyword Args:
+            duration: Duration of the message in milliseconds (default: 2000)
+
+        """
+        self.main_window.statusBar().showMessage(message, duration)
+
+    def show_warning(self, message: str, title: str = "Warning") -> None:
+        """
+        Show a warning message.
+
+        Args:
+            message: Message to show
+
+        Keyword Args:
+            title: Title of the message (default: "Warning")
+
+        """
+        QMessageBox.warning(self.main_window, title, message)
+
+    def show_error(self, message: str, title: str = "Error") -> None:
+        """
+        Show an error message.
+
+        Args:
+            message: Message to show
+
+        Keyword Args:
+            title: Title of the message (default: "Error")
+
+        """
+        QMessageBox.warning(self.main_window, title, message)
+
+    def show_information(self, message: str, title: str = "Information") -> None:
+        """
+        Show an information message.
+
+        Args:
+            message: Message to show
+
+        Keyword Args:
+            title: Title of the message (default: "Information")
+
+        """
+        msg_box = QMessageBox(
+            QMessageBox.Icon.Information,
+            title,
+            message,
+            QMessageBox.StandardButton.Ok,
+            self.main_window,
+        )
+        # Set custom icon
+        logo_pixmap = get_logo_pixmap(75)
+        if logo_pixmap:
+            msg_box.setIconPixmap(logo_pixmap)
+        msg_box.exec()
 
 
 class ProjectUI:
@@ -865,10 +879,10 @@ class ProjectUI:
             "QVBoxLayout", self.main_window.content_layout
         )
         self.token_details_sidebar = main_window.token_details_sidebar
-        self.show_message = main_window.show_message
-        self.show_warning = main_window.show_warning
-        self.show_error = main_window.show_error
-        self.show_information = main_window.show_information
+        self.show_message = main_window.messages.show_message
+        self.show_warning = main_window.messages.show_warning
+        self.show_error = main_window.messages.show_error
+        self.show_information = main_window.messages.show_information
 
     def load(self, project: Project) -> None:
         """

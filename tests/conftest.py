@@ -197,10 +197,11 @@ class MockMainWindow(QWidget):
         self.menuBar = MagicMock()
         self.menuBar.return_value = QMenuBar()
 
-        self.show_information = MagicMock()
-        self.show_warning = MagicMock()
-        self.show_error = MagicMock()
-        self.show_information = MagicMock()
+        self.messages = MagicMock()
+        self.messages.show_information = MagicMock()
+        self.messages.show_warning = MagicMock()
+        self.messages.show_error = MagicMock()
+        self.messages.show_information = MagicMock()
 
         self.backup_service = MagicMock()
         self.action_service = MagicMock()

@@ -39,7 +39,7 @@ def load_projects_into_table(
     # SQLAlchemy query.
     projects.sort(key=lambda x: x.updated_at, reverse=True)
     if not projects:
-        main_window.show_information(
+        main_window.messages.show_information(
             "No projects found. Create a new project first.",
             title="No Projects",
         )

@@ -100,7 +100,7 @@ class TestCopyAnnotation:
         result = action_service.copy_annotation()
 
         assert result is True
-        main_window.show_message.assert_called_with("Annotation copied")
+        main_window.messages.show_message.assert_called_with("Annotation copied")
 
         # Verify copied annotation data
         copied = main_window.application_state[COPIED_ANNOTATION]
@@ -218,7 +218,7 @@ class TestPasteAnnotation:
         result = action_service.paste_annotation()
 
         assert result is True  # Event was handled
-        main_window.show_message.assert_called_with("No annotation to paste")
+        main_window.messages.show_message.assert_called_with("No annotation to paste")
 
     def test_paste_annotation_success(self, db_session, qapp):
         """Test paste_annotation successfully pastes annotation data."""

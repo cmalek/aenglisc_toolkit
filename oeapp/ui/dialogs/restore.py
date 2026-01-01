@@ -83,7 +83,9 @@ class RestoreDialog:
         self.backup_table.setRowCount(0)
 
         if not backups:
-            self.main_window.show_information("No backups found.", title="No Backups")
+            self.main_window.messages.show_information(
+                "No backups found.", title="No Backups"
+            )
             self.backup_table.setSortingEnabled(True)
             return
 
@@ -140,7 +142,7 @@ class RestoreDialog:
         # Get the selected row
         selected_row = self.backup_table.currentRow()
         if selected_row < 0:
-            self.main_window.show_warning("Please select a backup to restore.")
+            self.main_window.messages.show_warning("Please select a backup to restore.")
             return
 
         time_item = self.backup_table.item(selected_row, 0)
@@ -185,7 +187,7 @@ class RestoreDialog:
                 and current_code_migration
                 and backup_migration != current_code_migration
             ):
-                self.main_window.show_warning(
+                self.main_window.messages.show_warning(
                     f"The restored backup was created with migration version "
                     f"{backup_migration}, but your application expects version "
                     f"{current_code_migration}.\n\n"
@@ -198,13 +200,13 @@ class RestoreDialog:
             if backup_migration:
                 settings.setValue("migration/last_working_version", backup_migration)
 
-            self.main_window.show_information(
+            self.main_window.messages.show_information(
                 "Backup restored successfully. Please restart the application.",
                 title="Restore Complete",
             )
             self.dialog.accept()
         else:
-            self.main_window.show_error("Failed to restore backup.")
+            self.main_window.messages.show_error("Failed to restore backup.")
 
     def execute(self) -> None:
         """

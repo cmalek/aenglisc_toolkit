@@ -128,7 +128,7 @@ class NewProjectDialog(TextInputMixin):
         try:
             text = self.get_text_from_input()
         except ValueError as e:
-            self.main_window.show_error(str(e))
+            self.state.show_error(str(e))
             return
 
         try:

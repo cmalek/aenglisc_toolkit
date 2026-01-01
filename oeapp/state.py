@@ -127,7 +127,7 @@ class ApplicationState(dict):
         """
         main_window = cast("MainWindow", self.main_window)
         if main_window:
-            main_window.show_message(message, duration=duration)
+            main_window.messages.show_message(message, duration=duration)
         else:
             sys.stderr.write(message + "\n")
 
@@ -144,7 +144,7 @@ class ApplicationState(dict):
         """
         main_window = cast("MainWindow", self.main_window)
         if main_window:
-            main_window.show_error(message, title)
+            main_window.messages.show_error(message, title)
         else:
             sys.stderr.write(f"[{title}] " + message + "\n")
 
@@ -161,7 +161,7 @@ class ApplicationState(dict):
         """
         main_window = cast("MainWindow", self.main_window)
         if main_window:
-            main_window.show_warning(message, title)
+            main_window.messages.show_warning(message, title)
         else:
             sys.stderr.write(f"[{title}] " + message + "\n")
 
@@ -171,7 +171,7 @@ class ApplicationState(dict):
         """
         main_window = cast("MainWindow", self.main_window)
         if main_window:
-            main_window.show_information(message, title)
+            main_window.messages.show_information(message, title)
         else:
             sys.stderr.write(f"[{title}] " + message + "\n")
 
