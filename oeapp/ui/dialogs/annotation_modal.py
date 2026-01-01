@@ -710,7 +710,6 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
 
         try:
             dialog = AnnotationPresetManagementDialog(
-                main_window,
                 save_mode=True,
                 initial_pos=cast("PresetPos", pos),
                 initial_field_values=field_values,
