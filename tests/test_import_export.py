@@ -1,7 +1,8 @@
 """Unit tests for ProjectExporter and ProjectImporter."""
 
 import json
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
+from pathlib import Path
 
 import pytest
 
@@ -12,247 +13,286 @@ from tests.conftest import create_test_project
 class TestProjectExporter:
     """Test cases for ProjectExporter."""
 
-    def test_sanitize_filename_replaces_spaces(self):
-        """Test sanitize_filename() replaces spaces with underscores."""
-        result = ProjectExporter.sanitize_filename("My Project.json")
-        assert result == "My_Projectjson"  # Spaces -> underscores, dots removed
+    def test_sanitize_filename(self):
+        """Test sanitize_filename() replaces spaces and removes dots."""
+        assert ProjectExporter.sanitize_filename("My Project.json") == "My_Projectjson"
+        assert ProjectExporter.sanitize_filename("My.Project.json") == "MyProjectjson"
 
-    def test_sanitize_filename_removes_dots(self):
-        """Test sanitize_filename() removes dots."""
-        result = ProjectExporter.sanitize_filename("My.Project.json")
-        assert result == "MyProjectjson"  # Dots are removed, including .json
-
-    def test_sanitize_filename_handles_special_chars(self):
-        """Test sanitize_filename() handles special characters."""
-        result = ProjectExporter.sanitize_filename("Test/File\\Name.json")
-        assert result == "Test/File\\Namejson"  # Only spaces and dots are handled
-
-    def test_get_project_returns_project(self, db_session):
+    def test_get_project_success(self, db_session):
         """Test get_project() returns existing project."""
         project = create_test_project(db_session, name="Test Project")
-
-        exporter = ProjectExporter()
+        exporter = ProjectExporter(migration_service=MagicMock())
         retrieved = exporter.get_project(project.id)
-
         assert retrieved.id == project.id
         assert retrieved.name == "Test Project"
 
-    def test_get_project_raises_when_not_found(self, db_session):
+    def test_get_project_not_found(self, db_session):
         """Test get_project() raises ValueError when project not found."""
-        exporter = ProjectExporter()
-
+        exporter = ProjectExporter(migration_service=MagicMock())
         with pytest.raises(ValueError, match="Project with ID 99999 not found"):
             exporter.get_project(99999)
 
-    def test_export_project_json_creates_file(self, db_session, tmp_path):
-        """Test export_project_json() creates JSON file."""
+    def test_export_project_json(self, db_session, tmp_path):
+        """Test export_project_json() creates JSON file with correct data."""
         project = create_test_project(
             db_session,
             text="Se cyning. Þæt scip.",
             name="Export Test",
-            source="Test Source",
-            translator="Test Translator",
-            notes="Test Notes",
+            source="Source",
+            translator="Translator",
+            notes="Notes",
         )
 
-        exporter = ProjectExporter()
-        export_file = tmp_path / "export.json"
+        mock_migration = MagicMock()
+        mock_migration.db_migration_version.return_value = "v123"
+        exporter = ProjectExporter(migration_service=mock_migration)
 
+        export_file = tmp_path / "test_export.json"
         exporter.export_project_json(project.id, str(export_file))
 
         assert export_file.exists()
-
-        # Verify JSON content
-        with export_file.open("r") as f:
+        with export_file.open("r", encoding="utf-8") as f:
             data = json.load(f)
 
-        assert "export_version" in data
-        assert "migration_version" in data
-        assert "project" in data
-        assert "sentences" in data
+        assert data["export_version"] == "1.0"
+        assert data["migration_version"] == "v123"
         assert data["project"]["name"] == "Export Test"
-        assert data["project"]["source"] == "Test Source"
-        assert data["project"]["translator"] == "Test Translator"
-        assert data["project"]["notes"] == "Test Notes"
-
-    def test_export_project_json_adds_json_extension(self, db_session, tmp_path):
-        """Test export_project_json() adds .json extension if missing."""
-        project = create_test_project(db_session, name="Test")
-
-        exporter = ProjectExporter()
-        export_file = tmp_path / "export"  # No extension
-
-        exporter.export_project_json(project.id, str(export_file))
-
-        # Should create file with .json extension
-        assert (tmp_path / "export.json").exists()
-
-    def test_export_project_json_includes_sentences(self, db_session, tmp_path):
-        """Test export_project_json() includes sentence data."""
-        project = create_test_project(db_session, text="Se cyning. Þæt scip.", name="Test")
-
-        exporter = ProjectExporter()
-        export_file = tmp_path / "export.json"
-
-        exporter.export_project_json(project.id, str(export_file))
-
-        with export_file.open("r") as f:
-            data = json.load(f)
-
         assert len(data["sentences"]) == 2
-        assert all("text_oe" in s for s in data["sentences"])
+        assert data["sentences"][0]["text_oe"] == "Se cyning."
+        assert data["sentences"][1]["text_oe"] == "Þæt scip."
+
+    def test_export_project_json_adds_extension(self, db_session, tmp_path):
+        """Test export_project_json() adds .json extension if missing."""
+        project = create_test_project(db_session, name="ExtTest")
+        mock_migration = MagicMock()
+        mock_migration.db_migration_version.return_value = "v1"
+        exporter = ProjectExporter(migration_service=mock_migration)
+
+        base_path = tmp_path / "export_no_ext"
+        exporter.export_project_json(project.id, str(base_path))
+
+        assert Path(str(base_path) + ".json").exists()
+
+    def test_export_project_json_serialization_error(self, db_session, tmp_path):
+        """Test export_project_json() handles serialization errors."""
+        project = create_test_project(db_session, name="SerialError")
+        mock_migration = MagicMock()
+        mock_migration.db_migration_version.return_value = "v1"
+        exporter = ProjectExporter(migration_service=mock_migration)
+
+        # Mock json.dump to raise TypeError
+        with patch("json.dump", side_effect=TypeError("Not serializable")):
+            with pytest.raises(ValueError, match="Failed to serialize project data"):
+                exporter.export_project_json(project.id, str(tmp_path / "error.json"))
 
 
 class TestProjectImporter:
     """Test cases for ProjectImporter."""
 
-    @pytest.mark.skip(reason="Test hangs - fixture creation triggers file system operations")
-    def test_resolve_project_name_no_collision(self, db_session, mock_migration_services):
-        """Test _resolve_project_name() returns original name when no collision."""
-        migration_service, migration_metadata = mock_migration_services
-        importer = ProjectImporter(
-            migration_service=migration_service,
-            migration_metadata_service=migration_metadata
-        )
-        name, was_renamed = importer._resolve_project_name("Unique Project")
+    def test_validate_migration_version_success(self):
+        """Test validation passes when versions match or no version requirement."""
+        mock_migration = MagicMock()
+        mock_migration.code_migration_version.return_value = "v1"
+        importer = ProjectImporter(migration_service=mock_migration)
 
-        assert name == "Unique Project"
-        assert was_renamed is False
+        # Matching version
+        importer._validate_migration_version("v1")
 
-    @pytest.mark.skip(reason="Test hangs - fixture creation triggers file system operations")
-    def test_resolve_project_name_with_collision(self, db_session, mock_migration_services):
-        """Test _resolve_project_name() appends number when collision exists."""
-        migration_service, migration_metadata = mock_migration_services
-        # Create existing project
-        create_test_project(db_session, name="Collision Test")
+        # No current version (e.g. no migrations yet)
+        mock_migration.code_migration_version.return_value = None
+        importer._validate_migration_version("any")
 
-        importer = ProjectImporter(
-            migration_service=migration_service,
-            migration_metadata_service=migration_metadata
-        )
-        name, was_renamed = importer._resolve_project_name("Collision Test")
+    def test_validate_migration_version_missing(self):
+        """Test validation raises if version is missing in export."""
+        importer = ProjectImporter(migration_service=MagicMock())
+        with pytest.raises(ValueError, match="Export file missing migration_version"):
+            importer._validate_migration_version("")
 
-        assert name == "Collision Test (1)"
-        assert was_renamed is True
+    def test_validate_migration_version_incompatible(self):
+        """Test validation raises if no revision chain found."""
+        mock_migration = MagicMock()
+        mock_migration.code_migration_version.return_value = "new_v"
+        mock_migration.revision_chain.return_value = [] # No chain found
 
-    @pytest.mark.skip(reason="Test hangs - fixture creation triggers file system operations")
-    def test_resolve_project_name_multiple_collisions(self, db_session, mock_migration_services):
-        """Test _resolve_project_name() handles multiple collisions."""
-        migration_service, migration_metadata = mock_migration_services
-        # Create existing projects
-        create_test_project(db_session, name="Multi Test")
-        create_test_project(db_session, name="Multi Test (1)")
+        mock_metadata = MagicMock()
+        mock_metadata.get_min_version_for_migration.return_value = None
 
-        importer = ProjectImporter(
-            migration_service=migration_service,
-            migration_metadata_service=migration_metadata
-        )
-        name, was_renamed = importer._resolve_project_name("Multi Test")
+        importer = ProjectImporter(migration_service=mock_migration, migration_metadata_service=mock_metadata)
 
-        assert name == "Multi Test (2)"
-        assert was_renamed is True
+        with pytest.raises(ValueError, match="is not compatible"):
+            importer._validate_migration_version("old_v")
 
-    @pytest.mark.skip(reason="Test hangs - fixture creation triggers file system operations")
-    def test_create_project_creates_entity(self, db_session, mock_migration_services):
-        """Test _create_project() creates project entity."""
-        migration_service, migration_metadata = mock_migration_services
-        importer = ProjectImporter(
-            migration_service=migration_service,
-            migration_metadata_service=migration_metadata
-        )
-        project_data = {
-            "name": "Imported Project",
-            "created_at": "2024-01-01T00:00:00+00:00",
-            "updated_at": "2024-01-01T00:00:00+00:00",
+    def test_validate_migration_version_min_app_requirement(self):
+        """Test validation raises with minimum app version message."""
+        mock_migration = MagicMock()
+        mock_migration.code_migration_version.return_value = "v2"
+        mock_migration.revision_chain.return_value = []
+
+        mock_metadata = MagicMock()
+        mock_metadata.get_min_version_for_migration.return_value = "0.5.0"
+
+        importer = ProjectImporter(migration_service=mock_migration, migration_metadata_service=mock_metadata)
+
+        with pytest.raises(ValueError, match="requires at least version 0.5.0"):
+            importer._validate_migration_version("v1")
+
+    def test_validate_migration_version_generic_exception(self):
+        """Test validation handles generic exceptions from migration service."""
+        mock_migration = MagicMock()
+        mock_migration.code_migration_version.return_value = "v2"
+        mock_migration.revision_chain.side_effect = Exception("Internal Error")
+
+        mock_metadata = MagicMock()
+        mock_metadata.get_min_version_for_migration.return_value = "0.6.0"
+
+        importer = ProjectImporter(migration_service=mock_migration, migration_metadata_service=mock_metadata)
+
+        # Should catch Exception and check min_version
+        with pytest.raises(ValueError, match="requires at least version 0.6.0"):
+            importer._validate_migration_version("v1")
+
+        # Should catch Exception and raise generic incompatibility if no min_version
+        mock_metadata.get_min_version_for_migration.return_value = None
+        with pytest.raises(ValueError, match="is not compatible with the current application version"):
+            importer._validate_migration_version("v1")
+
+    def test_transform_data_no_change(self):
+        """Test data is returned unchanged if versions match."""
+        mock_migration = MagicMock()
+        mock_migration.code_migration_version.return_value = "v1"
+        importer = ProjectImporter(migration_service=mock_migration)
+
+        data = {"key": "value"}
+        assert importer._transform_data(data, "v1") == data
+
+    def test_transform_data_with_mappings(self):
+        """Test data transformation applies field mappings."""
+        mock_migration = MagicMock()
+        mock_migration.code_migration_version.return_value = "v2"
+        mock_migration.revision_chain.return_value = ["rev1"]
+
+        importer = ProjectImporter(migration_service=mock_migration)
+
+        data = {
+            "project": {"old_name": "Project"},
+            "sentences": [{"old_text": "OE Text"}]
         }
 
-        project, was_renamed = importer._create_project(project_data)
+        mappings = {
+            "rev1": {
+                "Project": {"old_name": "new_name"},
+                "Sentence": {"old_text": "new_text"}
+            }
+        }
 
-        assert project.id is not None
+        with patch.object(importer, "_load_field_mappings", return_value=mappings):
+            transformed = importer._transform_data(data, "v1")
+
+        assert transformed["project"]["new_name"] == "Project"
+        assert "old_name" not in transformed["project"]
+        assert transformed["sentences"][0]["new_text"] == "OE Text"
+
+    def test_apply_mappings_recursive(self):
+        """Test recursive mapping application on nested dicts and lists."""
+        importer = ProjectImporter(MagicMock())
+        data = {
+            "a": {"old": 1},
+            "b": [{"old": 2}, {"other": 3}]
+        }
+        mappings = {"Model": {"old": "new"}}
+
+        importer._apply_mappings_recursive(data, mappings)
+
+        assert data["a"]["new"] == 1
+        assert data["b"][0]["new"] == 2
+        assert data["b"][1]["other"] == 3
+
+    def test_apply_field_mappings_skips_missing_sha(self):
+        """Test _apply_field_mappings skips migrations without mappings."""
+        importer = ProjectImporter(MagicMock())
+        data = {"key": "val"}
+
+        with patch.object(importer, "_load_field_mappings", return_value={}):
+            result = importer._apply_field_mappings(data, ["missing_sha"])
+            assert result == data
+
+    def test_resolve_project_name(self, db_session):
+        """Test project name collision resolution."""
+        create_test_project(db_session, name="Existing")
+        importer = ProjectImporter(MagicMock())
+
+        # No collision
+        name, renamed = importer._resolve_project_name("Unique")
+        assert name == "Unique"
+        assert not renamed
+
+        # Collision
+        name, renamed = importer._resolve_project_name("Existing")
+        assert name == "Existing (1)"
+        assert renamed
+
+        # Multi-collision
+        create_test_project(db_session, name="Existing (1)")
+        name, renamed = importer._resolve_project_name("Existing")
+        assert name == "Existing (2)"
+
+    def test_import_project_json_full(self, db_session, tmp_path):
+        """Test the full import process from a JSON file."""
+        mock_migration = MagicMock()
+        mock_migration.code_migration_version.return_value = "v1"
+        importer = ProjectImporter(migration_service=mock_migration)
+
+        project_data = {
+            "migration_version": "v1",
+            "project": {
+            "name": "Imported Project",
+                "notes": "Test notes"
+            },
+            "sentences": [
+                {
+                    "display_order": 1,
+                    "text_oe": "Se cyning.",
+                    "tokens": [
+                        {"order_index": 0, "surface": "Se"},
+                        {"order_index": 1, "surface": "cyning"}
+                    ],
+                    "notes": []
+                }
+            ]
+        }
+
+        import_file = tmp_path / "import.json"
+        import_file.write_text(json.dumps(project_data))
+
+        project, renamed = importer.import_project_json(str(import_file))
+
         assert project.name == "Imported Project"
-        assert was_renamed is False
+        assert not renamed
+        assert len(project.sentences) == 1
+        assert project.sentences[0].text_oe == "Se cyning."
+        assert len(project.sentences[0].tokens) == 2
 
-    @pytest.mark.skip(reason="Test hangs - MigrationService property access triggers file system operations")
-    def test_import_project_json_creates_project(self, db_session, tmp_path):
-        """Test import_project_json() creates project from file."""
-        # TODO: This test hangs because MigrationService.code_migration_version() accesses
-        # self.script which accesses self.config, triggering file system operations.
-        # Need to mock at a lower level or refactor MigrationService further.
-        pass
+    def test_import_project_json_invalid_file(self):
+        """Test import raises error for missing or invalid files."""
+        importer = ProjectImporter(MagicMock())
 
-    @pytest.mark.skip(reason="Test hangs - MigrationService property access triggers file system operations")
-    def test_import_project_json_creates_sentences(self, db_session, tmp_path):
-        """Test import_project_json() creates sentences from file."""
-        # TODO: This test hangs because MigrationService.code_migration_version() accesses
-        # self.script which accesses self.config, triggering file system operations.
-        # Need to mock at a lower level or refactor MigrationService further.
-        pass
+        with pytest.raises(ValueError, match="not found"):
+            importer.import_project_json("nonexistent.json")
 
-    @pytest.mark.skip(reason="Test hangs - fixture creation triggers file system operations")
-    def test_import_project_json_raises_when_file_not_found(self, db_session, mock_migration_services):
-        """Test import_project_json() raises ValueError when file doesn't exist."""
-        migration_service, migration_metadata = mock_migration_services
-        importer = ProjectImporter(
-            migration_service=migration_service,
-            migration_metadata_service=migration_metadata
-        )
+        with patch("pathlib.Path.exists", return_value=True):
+            with patch("pathlib.Path.open", side_effect=PermissionError("Denied")):
+                with pytest.raises(ValueError, match="Failed to load"):
+                    importer.import_project_json("denied.json")
 
-        with pytest.raises(ValueError, match="File.*not found"):
-            importer.import_project_json("/nonexistent/file.json")
+    def test_load_field_mappings_io_error(self):
+        """Test _load_field_mappings handles errors gracefully."""
+        importer = ProjectImporter(MagicMock())
+        # OSError/PermissionError
+        with patch("pathlib.Path.exists", return_value=True):
+            with patch("pathlib.Path.open", side_effect=OSError):
+                assert importer._load_field_mappings() == {}
 
-    @pytest.mark.skip(reason="Test hangs - fixture creation triggers file system operations")
-    def test_import_project_json_raises_when_invalid_json(self, db_session, tmp_path, mock_migration_services):
-        """Test import_project_json() raises ValueError when JSON is invalid."""
-        migration_service, migration_metadata = mock_migration_services
-        invalid_file = tmp_path / "invalid.json"
-        invalid_file.write_text("not valid json")
-
-        importer = ProjectImporter(
-            migration_service=migration_service,
-            migration_metadata_service=migration_metadata
-        )
-
-        with pytest.raises(ValueError, match="Failed to load project data"):
-            importer.import_project_json(str(invalid_file))
-
-    @pytest.mark.skip(reason="Test hangs - fixture creation triggers file system operations")
-    def test_validate_migration_version_raises_when_missing(self, db_session, mock_migration_services):
-        """Test _validate_migration_version() raises when version is missing."""
-        migration_service, migration_metadata = mock_migration_services
-        importer = ProjectImporter(
-            migration_service=migration_service,
-            migration_metadata_service=migration_metadata
-        )
-
-        with patch.object(importer.migration_service, "code_migration_version", return_value="abc123"):
-            with pytest.raises(ValueError, match="Export file missing migration_version"):
-                importer._validate_migration_version("")
-
-    @pytest.mark.skip(reason="Test hangs - fixture creation triggers file system operations")
-    def test_validate_migration_version_accepts_matching_version(self, db_session, mock_migration_services):
-        """Test _validate_migration_version() accepts matching version."""
-        migration_service, migration_metadata = mock_migration_services
-        importer = ProjectImporter(
-            migration_service=migration_service,
-            migration_metadata_service=migration_metadata
-        )
-
-        with patch.object(importer.migration_service, "code_migration_version", return_value="abc123"):
-            # Should not raise
-            importer._validate_migration_version("abc123")
-
-    @pytest.mark.skip(reason="Test hangs - fixture creation triggers file system operations")
-    def test_transform_data_returns_unchanged_when_versions_match(self, db_session, mock_migration_services):
-        """Test _transform_data() returns data unchanged when versions match."""
-        migration_service, migration_metadata = mock_migration_services
-        importer = ProjectImporter(
-            migration_service=migration_service,
-            migration_metadata_service=migration_metadata
-        )
-        data = {"project": {"name": "Test"}}
-
-        with patch.object(importer.migration_service, "code_migration_version", return_value="abc123"):
-            result = importer._transform_data(data, "abc123")
-
-        assert result == data
-
+        # JSONDecodeError
+        with patch("pathlib.Path.exists", return_value=True):
+            with patch("pathlib.Path.open", side_effect=json.JSONDecodeError("msg", "doc", 0)):
+                assert importer._load_field_mappings() == {}

@@ -2,6 +2,12 @@
 
 import os
 import sys
+
+# Set QT_QPA_PLATFORM to offscreen for headless environments (like tests)
+# This must be done BEFORE any PySide6 modules are imported
+if "QT_QPA_PLATFORM" not in os.environ:
+    os.environ["QT_QPA_PLATFORM"] = "offscreen"
+
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock

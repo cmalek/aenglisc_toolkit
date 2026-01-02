@@ -14,13 +14,19 @@ from .migration import MigrationMetadataService, MigrationService
 class ProjectExporter(SessionMixin):
     """Exports projects to JSON format."""
 
-    def __init__(self) -> None:
+    def __init__(self, migration_service: MigrationService | None = None) -> None:
         """
         Initialize exporter.
 
+        Args:
+            migration_service: Optional MigrationService instance (created if
+                not provided)
+
         """
         self.session = self._get_session()
-        self.migration_service = MigrationService()
+        self.migration_service = (
+            migration_service if migration_service is not None else MigrationService()
+        )
 
     @staticmethod
     def sanitize_filename(filename: str) -> str:
@@ -319,8 +325,7 @@ class ProjectImporter(SessionMixin):
         was_renamed = False
 
         while True:
-            existing = Project.exists(name)
-            if existing is None:
+            if not Project.exists(name):
                 break
             name = f"{original_name} ({counter})"
             counter += 1
