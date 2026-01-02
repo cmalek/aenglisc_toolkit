@@ -5,7 +5,6 @@ import sys
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock
-from oeapp.models import *
 
 # Set a temporary database path for tests before any other imports
 # This prevents oeapp.db from trying to create a directory in the user's home
@@ -13,6 +12,8 @@ if "OE_ANNOTATOR_DB_PATH" not in os.environ:
     _temp_db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
     _temp_db.close()
     os.environ["OE_ANNOTATOR_DB_PATH"] = _temp_db.name
+
+from oeapp.models import *
 
 from oeapp.commands import CommandManager
 
