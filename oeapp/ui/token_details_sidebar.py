@@ -188,6 +188,10 @@ class AdjectiveRenderer(AbstractPartOfSpeechRenderer):
         - Gender
         - Number
         - Case
+
+        Args:
+            parent_layout: Parent layout to add the fields to
+
         """
         super().render(parent_layout)
         annotation = cast("Annotation", self.annotation)
@@ -200,7 +204,6 @@ class AdjectiveRenderer(AbstractPartOfSpeechRenderer):
         adjective_inflection_value = self.ADJECTIVE_INFLECTION_MAP.get(
             annotation.adjective_inflection, "?"
         )
-        print(f"adjective_inflection_value: {adjective_inflection_value}")
         self.field_renderer.format_field(
             "Inflection", adjective_inflection_value, parent_layout
         )
@@ -221,6 +224,10 @@ class PronounRenderer(AbstractPartOfSpeechRenderer):
         - Gender
         - Number
         - Case
+
+        Args:
+            parent_layout: Parent layout to add the fields to
+
         """
         super().render(parent_layout)
         annotation = cast("Annotation", self.annotation)
@@ -245,6 +252,10 @@ class ArticleRenderer(AbstractPartOfSpeechRenderer):
         - Gender
         - Number
         - Case
+
+        Args:
+            parent_layout: Parent layout to add the fields to
+
         """
         super().render(parent_layout)
         annotation = cast("Annotation", self.annotation)
@@ -266,6 +277,10 @@ class PrepositionRenderer(AbstractPartOfSpeechRenderer):
         Render the preposition.  This renders these fields:
 
         - Governed Case
+
+        Args:
+            parent_layout: Parent layout to add the fields to
+
         """
         super().render(parent_layout)
         annotation = cast("Annotation", self.annotation)
@@ -283,6 +298,10 @@ class AdverbRenderer(AbstractPartOfSpeechRenderer):
         Render the adverb.  This renders these fields:
 
         - Adverb Degree
+
+        Args:
+            parent_layout: Parent layout to add the fields to
+
         """
         super().render(parent_layout)
         annotation = cast("Annotation", self.annotation)
@@ -298,6 +317,10 @@ class ConjunctionRenderer(AbstractPartOfSpeechRenderer):
         Render the conjunction.  This renders these fields:
 
         - Conjunction Type
+
+        Args:
+            parent_layout: Parent layout to add the fields to
+
         """
         super().render(parent_layout)
         annotation = cast("Annotation", self.annotation)

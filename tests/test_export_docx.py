@@ -34,7 +34,14 @@ class TestDOCXExporter:
 
     def test_export_includes_project_title(self, db_session, tmp_path):
         """Test export() includes project name as heading."""
-        project = create_test_project(db_session, name="My Test Project", text="")
+        project = create_test_project(
+            db_session,
+            name="My Test Project",
+            text="",
+            source="Test Source",
+            translator="Test Translator",
+            notes="Test Notes",
+        )
 
         exporter = DOCXExporter()
         output_path = tmp_path / "test.docx"
@@ -45,6 +52,12 @@ class TestDOCXExporter:
         # First paragraph should be the heading
         assert len(doc.paragraphs) > 0
         assert doc.paragraphs[0].text == "My Test Project"
+
+        # Check metadata
+        full_text = "\n".join([p.text for p in doc.paragraphs])
+        assert "Source: Test Source" in full_text
+        assert "Translator: Test Translator" in full_text
+        assert "Notes: Test Notes" in full_text
 
     def test_export_includes_sentence_numbers(self, db_session, tmp_path):
         """Test export() includes paragraph and sentence numbers."""

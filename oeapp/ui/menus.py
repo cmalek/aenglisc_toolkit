@@ -271,11 +271,16 @@ class ProjectMenu:
         This means adding a "Project" menu to the main menu bar, with the
         following actions: with the following actions:
 
+        - Edit Project...
         - Append OE text...
         - Export...
         - Import...
         """
         self.project_menu = self.main_menu.add_menu("&Project")
+
+        edit_action = QAction("&Edit Project...", self.project_menu)
+        edit_action.triggered.connect(self.main_window.action_service.edit_project)
+        self.project_menu.addAction(edit_action)
 
         append_action = QAction("Append &OE text...", self.project_menu)
         append_action.triggered.connect(

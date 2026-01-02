@@ -1,3 +1,5 @@
+import contextlib
+import getpass
 from typing import TYPE_CHECKING, Final
 
 from PySide6.QtWidgets import (
@@ -5,6 +7,7 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QLabel,
     QLineEdit,
+    QTextEdit,
     QVBoxLayout,
 )
 
@@ -36,7 +39,7 @@ class NewProjectDialog(TextInputMixin):
     #: Dialog width
     DIALOG_WIDTH: Final[int] = 600
     #: Dialog height
-    DIALOG_HEIGHT: Final[int] = 500
+    DIALOG_HEIGHT: Final[int] = 700
 
     def __init__(self, main_window: MainWindow) -> None:
         """
@@ -63,6 +66,7 @@ class NewProjectDialog(TextInputMixin):
         self.dialog.setMinimumSize(self.DIALOG_WIDTH, self.DIALOG_HEIGHT)
         self.layout = QVBoxLayout(self.dialog)
         self._add_title_edit()
+        self._add_metadata_fields()
         self._add_input_method_selector()
         self._add_text_area()
         self._add_file_browser_widget()
@@ -84,6 +88,30 @@ class NewProjectDialog(TextInputMixin):
         self.layout.addWidget(QLabel("Project Title:"))
         self.layout.addWidget(self.title_edit)
 
+    def _add_metadata_fields(self) -> None:
+        """
+        Add bibliographic and translator information fields to the dialog.
+        """
+        self.source_edit = QTextEdit(self.dialog)
+        self.source_edit.setPlaceholderText("Enter bibliographic source...")
+        self.source_edit.setMaximumHeight(100)
+        self.layout.addWidget(QLabel("Source:"))
+        self.layout.addWidget(self.source_edit)
+
+        self.translator_edit = QLineEdit(self.dialog)
+        self.translator_edit.setPlaceholderText("Enter translator name...")
+        # Default to current OS user
+        with contextlib.suppress(ImportError, KeyError, OSError):
+            self.translator_edit.setText(getpass.getuser())
+        self.layout.addWidget(QLabel("Translator:"))
+        self.layout.addWidget(self.translator_edit)
+
+        self.notes_edit = QTextEdit(self.dialog)
+        self.notes_edit.setPlaceholderText("Enter project notes...")
+        self.notes_edit.setMaximumHeight(100)
+        self.layout.addWidget(QLabel("Notes:"))
+        self.layout.addWidget(self.notes_edit)
+
     def _add_button_box(self) -> None:
         """
         Add the button box to the dialog.  The button box will be used to accept
@@ -92,11 +120,18 @@ class NewProjectDialog(TextInputMixin):
         self.button_box = QDialogButtonBox(self.dialog)
         self.button_box.addButton(QDialogButtonBox.StandardButton.Ok)
         self.button_box.addButton(QDialogButtonBox.StandardButton.Cancel)
-        self.button_box.accepted.connect(self.new_project)
+        self.button_box.accepted.connect(self.dialog.accept)
         self.button_box.rejected.connect(self.dialog.reject)
         self.layout.addWidget(self.button_box)
 
-    def create_project(self, text: str, title: str) -> None:
+    def create_project(
+        self,
+        text: str,
+        title: str,
+        source: str | None = None,
+        translator: str | None = None,
+        notes: str | None = None,
+    ) -> None:
         """
         Create a new project from the text, split into sentences, split
         sentences into tokens, and create sentence cards.
@@ -107,10 +142,19 @@ class NewProjectDialog(TextInputMixin):
         Args:
             text: Old English text to process
             title: Project title
+            source: Bibliographic source
+            translator: Translator name
+            notes: Project notes
 
         """
         # Create project in the shared database
-        project = Project.create(text, title)
+        project = Project.create(
+            text=text,
+            name=title,
+            source=source,
+            translator=translator,
+            notes=notes,
+        )
         self.main_window.load_project(project)
         self.main_window.setWindowTitle(f"Ænglisc Toolkit - {project.name}")
         self.state.show_message("Project created")
@@ -124,6 +168,10 @@ class NewProjectDialog(TextInputMixin):
             self.state.show_error("Please enter a project title.")
             return
 
+        source = self.source_edit.toPlainText().strip() or None
+        translator = self.translator_edit.text().strip() or None
+        notes = self.notes_edit.toPlainText().strip() or None
+
         # Get text from input using mixin method
         try:
             text = self.get_text_from_input()
@@ -132,8 +180,13 @@ class NewProjectDialog(TextInputMixin):
             return
 
         try:
-            self.create_project(text, title)
-            self.dialog.close()
+            self.create_project(
+                text=text,
+                title=title,
+                source=source,
+                translator=translator,
+                notes=notes,
+            )
             self.state.show_message(f'Project created: "{title!s}"', duration=2000)
         except AlreadyExists:
             self.state.show_error(

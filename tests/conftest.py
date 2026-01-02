@@ -104,27 +104,10 @@ def sample_sentence(db_session, sample_project):
     )
 
 @pytest.fixture
-def mock_main_window():
+def mock_main_window(db_session):
     """Create a mock main window with session."""
-
-    temp_db = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.db')
-    temp_db.close()
-    db_path = Path(temp_db.name)
-
-    engine = create_engine_with_path(db_path)
-    Base.metadata.create_all(engine)
-    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-    session = SessionLocal()
-    session.info["db_path"] = db_path
-
-    main_window = MockMainWindow(session)
-
-    yield main_window
-
-    del main_window
-    session.close()
-    engine.dispose()
-    os.unlink(temp_db.name)
+    main_window = MockMainWindow(db_session)
+    return main_window
 
 @pytest.fixture
 def command_setup(db_session):
@@ -222,13 +205,19 @@ class MockMainWindow(QWidget):
         self.import_project_json = MagicMock()
         self.export_project_json = MagicMock()
         self.show_settings_dialog = MagicMock()
+        self.load_project = MagicMock()
+        self.reload_project = MagicMock()
+        self.refresh_project = MagicMock()
+        self.setWindowTitle = MagicMock()
 
 
 
 # Test helper functions (not fixtures, but available for import)
 
 
-def create_test_project(session, name=None, text=""):
+def create_test_project(
+    session, name=None, text="", source=None, translator=None, notes=None
+):
     """
     Helper to create a project with defaults.
 
@@ -236,13 +225,18 @@ def create_test_project(session, name=None, text=""):
         session: SQLAlchemy session
         name: Project name (if None, generates unique name)
         text: Old English text (defaults to empty to avoid creating sentences)
+        source: Bibliographic source
+        translator: Translator name
+        notes: Project notes
 
     Returns:
         Created Project instance
     """
     if name is None:
         name = f"Test Project {id(session)}"
-    return Project.create(text=text, name=name)
+    return Project.create(
+        text=text, name=name, source=source, translator=translator, notes=notes
+    )
 
 
 def create_test_sentence(

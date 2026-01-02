@@ -54,7 +54,24 @@ class DOCXExporter(SessionMixin, AnnotationTextualMixin, TokenOccurrenceMixin):
 
         # Add title
         doc.add_heading(project.name, level=1)
-        doc.add_paragraph()  # Blank line after title
+
+        # Add metadata
+        if project.source:
+            source_para = doc.add_paragraph()
+            source_para.add_run("Source: ").bold = True
+            source_para.add_run(project.source)
+
+        if project.translator:
+            translator_para = doc.add_paragraph()
+            translator_para.add_run("Translator: ").bold = True
+            translator_para.add_run(project.translator)
+
+        if project.notes:
+            notes_para = doc.add_paragraph()
+            notes_para.add_run("Notes: ").bold = True
+            notes_para.add_run(project.notes)
+
+        doc.add_paragraph()  # Blank line after metadata
 
         for sentence in project.sentences:
             text_modern = sentence.text_modern

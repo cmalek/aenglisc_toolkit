@@ -39,6 +39,7 @@ from oeapp.state import (
 from oeapp.ui.dialogs import (
     BackupsViewDialog,
     DeleteProjectDialog,
+    EditProjectDialog,
     ImportProjectDialog,
     MigrationFailureDialog,
     NewProjectDialog,
@@ -708,6 +709,22 @@ class MainWindowActions:
 
         # Open delete project dialog
         dialog = DeleteProjectDialog(self.main_window)
+        dialog.execute()
+
+    def edit_project(self) -> None:
+        """
+        Edit the current project's metadata.
+        """
+        if CURRENT_PROJECT_ID not in self.application_state:
+            self.messages.show_warning("No project open")
+            return
+
+        project = Project.get(self.application_state[CURRENT_PROJECT_ID])
+        if project is None:
+            self.messages.show_warning("Project not found")
+            return
+
+        dialog = EditProjectDialog(self.main_window, project)
         dialog.execute()
 
     def export_project_docx(self) -> None:

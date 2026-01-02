@@ -27,6 +27,12 @@ class Project(SaveDeleteMixin, Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     #: The project name.
     name: Mapped[str] = mapped_column(String, unique=True, nullable=False)
+    #: The bibliographic source of the OE text.
+    source: Mapped[str | None] = mapped_column(String, nullable=True)
+    #: The name of the translator.
+    translator: Mapped[str | None] = mapped_column(String, nullable=True)
+    #: Free form notes field about the text.
+    notes: Mapped[str | None] = mapped_column(String, nullable=True)
     #: The date and time the project was created.
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.now, nullable=False
@@ -92,10 +98,13 @@ class Project(SaveDeleteMixin, Base):
         return builtins.list(session.scalars(select(cls)).all())
 
     @classmethod
-    def create(
+    def create(  # noqa: PLR0913
         cls,
         text: str,
         name: str = "Untitled Project",
+        source: str | None = None,
+        translator: str | None = None,
+        notes: str | None = None,
         commit: bool = True,  # noqa: FBT001, FBT002
     ) -> Project:
         """
@@ -106,6 +115,9 @@ class Project(SaveDeleteMixin, Base):
 
         Keyword Args:
             name: Project name
+            source: Bibliographic source
+            translator: Translator name
+            notes: Project notes
             commit: Whether to commit the changes
 
         Returns:
@@ -118,7 +130,7 @@ class Project(SaveDeleteMixin, Base):
             raise AlreadyExists("Project", name)  # noqa: EM101
 
         # Create project
-        project = cls(name=name)
+        project = cls(name=name, source=source, translator=translator, notes=notes)
         session.add(project)
         session.flush()  # Get the ID
 
@@ -233,6 +245,9 @@ class Project(SaveDeleteMixin, Base):
         """
         return {
             "name": self.name,
+            "source": self.source,
+            "translator": self.translator,
+            "notes": self.notes,
             "created_at": to_utc_iso(self.created_at),
             "updated_at": to_utc_iso(self.updated_at),
         }
@@ -259,7 +274,12 @@ class Project(SaveDeleteMixin, Base):
             Created Project entity
 
         """
-        project = cls(name=resolved_name)
+        project = cls(
+            name=resolved_name,
+            source=project_data.get("source"),
+            translator=project_data.get("translator"),
+            notes=project_data.get("notes"),
+        )
         created_at = from_utc_iso(project_data.get("created_at"))
         if created_at:
             project.created_at = created_at

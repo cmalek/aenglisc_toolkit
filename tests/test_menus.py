@@ -71,6 +71,15 @@ class TestProjectMenu:
         # Should not raise error
         assert project_menu is not None
 
+    def test_project_menu_has_edit_project_action(self, db_session, mock_main_window, qapp):
+        """Test ProjectMenu has Edit Project action."""
+        main_menu = MainMenu(mock_main_window)
+        project_menu = ProjectMenu(main_menu, mock_main_window)
+
+        actions = project_menu.project_menu.actions()
+        texts = [a.text() for a in actions]
+        assert "&Edit Project..." in texts
+
 
 class TestToolsMenu:
     """Test cases for ToolsMenu."""

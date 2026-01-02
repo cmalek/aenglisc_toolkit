@@ -15,11 +15,19 @@ class TestProject:
 
     def test_create_model(self, db_session):
         """Test model creation."""
-        project = Project(name="Test Project")
+        project = Project(
+            name="Test Project",
+            source="Test Source",
+            translator="Test Translator",
+            notes="Test Notes",
+        )
         project.save()
 
         assert project.id is not None
         assert project.name == "Test Project"
+        assert project.source == "Test Source"
+        assert project.translator == "Test Translator"
+        assert project.notes == "Test Notes"
         assert isinstance(project.created_at, datetime)
         assert isinstance(project.updated_at, datetime)
 
@@ -85,11 +93,18 @@ class TestProject:
     def test_create_creates_project_with_sentences(self, db_session):
         """Test create() creates project and sentences from text."""
         project = Project.create(
-            text="Se cyning. Þæt scip.", name="Test Project"
+            text="Se cyning. Þæt scip.",
+            name="Test Project",
+            source="Test Source",
+            translator="Test Translator",
+            notes="Test Notes",
         )
 
         assert project.id is not None
         assert project.name == "Test Project"
+        assert project.source == "Test Source"
+        assert project.translator == "Test Translator"
+        assert project.notes == "Test Notes"
         assert len(project.sentences) == 2
         # Sentence splitter includes punctuation
         assert project.sentences[0].text_oe == "Se cyning."
@@ -172,10 +187,19 @@ class TestProject:
 
     def test_to_json_serializes_project(self, db_session):
         """Test to_json() serializes project data."""
-        project = Project.create(text="Se cyning", name="Test")
+        project = Project.create(
+            text="Se cyning",
+            name="Test",
+            source="Test Source",
+            translator="Test Translator",
+            notes="Test Notes",
+        )
 
         data = project.to_json()
         assert data["name"] == "Test"
+        assert data["source"] == "Test Source"
+        assert data["translator"] == "Test Translator"
+        assert data["notes"] == "Test Notes"
         assert "created_at" in data
         assert "updated_at" in data
 
@@ -183,12 +207,18 @@ class TestProject:
         """Test from_json() creates project from data."""
         project_data = {
             "name": "Imported Project",
+            "source": "Test Source",
+            "translator": "Test Translator",
+            "notes": "Test Notes",
             "created_at": "2024-01-15T10:30:45+00:00",
             "updated_at": "2024-01-15T10:30:45+00:00",
         }
         project = Project.from_json(project_data, "Imported Project")
 
         assert project.name == "Imported Project"
+        assert project.source == "Test Source"
+        assert project.translator == "Test Translator"
+        assert project.notes == "Test Notes"
         assert project.id is not None
 
     def test_unique_constraint_prevents_duplicate_names(self, db_session):

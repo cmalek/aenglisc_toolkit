@@ -6,6 +6,7 @@ from .append_text import AppendTextDialog
 from .backups_view import BackupsViewDialog
 from .case_filter import CaseFilterDialog
 from .delete_project import DeleteProjectDialog
+from .edit_project import EditProjectDialog
 from .help_dialog import HelpDialog
 from .import_project import ImportProjectDialog
 from .migration_failure import MigrationFailureDialog
@@ -23,6 +24,7 @@ __all__ = [
     "BackupsViewDialog",
     "CaseFilterDialog",
     "DeleteProjectDialog",
+    "EditProjectDialog",
     "HelpDialog",
     "ImportProjectDialog",
     "MigrationFailureDialog",

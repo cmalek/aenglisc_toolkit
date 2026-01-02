@@ -46,7 +46,14 @@ class TestProjectExporter:
 
     def test_export_project_json_creates_file(self, db_session, tmp_path):
         """Test export_project_json() creates JSON file."""
-        project = create_test_project(db_session, text="Se cyning. Þæt scip.", name="Export Test")
+        project = create_test_project(
+            db_session,
+            text="Se cyning. Þæt scip.",
+            name="Export Test",
+            source="Test Source",
+            translator="Test Translator",
+            notes="Test Notes",
+        )
 
         exporter = ProjectExporter()
         export_file = tmp_path / "export.json"
@@ -64,6 +71,9 @@ class TestProjectExporter:
         assert "project" in data
         assert "sentences" in data
         assert data["project"]["name"] == "Export Test"
+        assert data["project"]["source"] == "Test Source"
+        assert data["project"]["translator"] == "Test Translator"
+        assert data["project"]["notes"] == "Test Notes"
 
     def test_export_project_json_adds_json_extension(self, db_session, tmp_path):
         """Test export_project_json() adds .json extension if missing."""
