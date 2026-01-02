@@ -434,15 +434,18 @@ class MainWindowActions:
 
         """
         if not self.sentence_cards:
-            self.sentence_cards[0].focus()
             return
+
         # Find currently focused sentence card
         current_index = -1
         for i, card in enumerate(self.sentence_cards):
             if card.has_focus:
                 current_index = i
                 break
-        if current_index >= 0 and current_index < len(self.sentence_cards) - 1:
+
+        if current_index == -1:
+            self.sentence_cards[0].focus()
+        elif current_index < len(self.sentence_cards) - 1:
             self.sentence_cards[current_index + 1].focus()
 
     def prev_sentence(self) -> None:
@@ -454,15 +457,18 @@ class MainWindowActions:
 
         """
         if not self.sentence_cards:
-            self.sentence_cards[-1].focus()
             return
+
         # Find currently focused sentence card
         current_index = -1
         for i, card in enumerate(self.sentence_cards):
             if card.has_focus:
                 current_index = i
                 break
-        if current_index > 0:
+
+        if current_index == -1:
+            self.sentence_cards[-1].focus()
+        elif current_index > 0:
             self.sentence_cards[current_index - 1].focus()
 
     def focus_translation(self) -> None:
