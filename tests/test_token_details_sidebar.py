@@ -32,7 +32,7 @@ class TestTokenDetailsSidebar:
         token = sentence.tokens[0]
 
         sidebar = TokenDetailsSidebar(parent=None)
-        sidebar.update_token(token, sentence)
+        sidebar.render_token(token, sentence)
 
         assert sidebar._current_token == token
         assert sidebar._current_sentence == sentence
@@ -50,14 +50,14 @@ class TestTokenDetailsSidebar:
         token1 = sentence1.tokens[0]
 
         sidebar = TokenDetailsSidebar(parent=None)
-        sidebar.update_token(token1, sentence1)
+        sidebar.render_token(token1, sentence1)
 
         assert sidebar._current_token == token1
 
         # Update to different token
         sentence2 = sentences[1]
         token2 = sentence2.tokens[0]
-        sidebar.update_token(token2, sentence2)
+        sidebar.render_token(token2, sentence2)
 
         assert sidebar._current_token == token2
         assert sidebar._current_sentence == sentence2
@@ -82,7 +82,7 @@ class TestTokenDetailsSidebar:
         annotation.save()
 
         sidebar = TokenDetailsSidebar(parent=None)
-        sidebar.update_token(token, sentence)
+        sidebar.render_token(token, sentence)
 
         assert sidebar._current_token == token
         assert sidebar._current_token.annotation is not None
@@ -100,7 +100,7 @@ class TestTokenDetailsSidebar:
             db_session.refresh(token)
 
         sidebar = TokenDetailsSidebar(parent=None)
-        sidebar.update_token(token, sentence)
+        sidebar.render_token(token, sentence)
 
         assert sidebar._current_token == token
         # Should handle None annotation gracefully
@@ -128,7 +128,7 @@ class TestTokenDetailsSidebar:
         annotation.save()
 
         sidebar = TokenDetailsSidebar(parent=None)
-        sidebar.update_token(token, sentence)
+        sidebar.render_token(token, sentence)
 
         # Find the labels in the layout
         labels = []

@@ -117,8 +117,9 @@ class TestUpdateFromSentence:
         assert tokens[1].surface == "Se"
         assert tokens[1].order_index == 1
 
-    def test_update_token_surface(self, db_session, project_and_sentence):
-        """Test updating token surface form.
+    def test_render_token_surface(self, db_session, project_and_sentence):
+        """
+        Test render token surface form.
 
         When surface form changes at the same position, the token is preserved
         and its surface is updated. The algorithm matches by position first,

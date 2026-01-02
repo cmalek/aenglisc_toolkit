@@ -1,11 +1,14 @@
 """Utility functions for Ænglisc Toolkit."""
 
+import re
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
+from urllib.parse import quote
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QPixmap
+from PySide6.QtCore import QUrl, Qt
+from PySide6.QtGui import QDesktopServices, QIcon, QPainter, QPixmap
+from PySide6.QtSvg import QSvgRenderer
 
 
 def get_resource_path(relative_path: str) -> Path:
@@ -93,3 +96,49 @@ def get_logo_pixmap(size: int = 75) -> QPixmap | None:
         Qt.AspectRatioMode.KeepAspectRatio,
         Qt.TransformationMode.SmoothTransformation,
     )
+
+
+def render_svg(svg_data: str, size: int = 16) -> QIcon:
+    """
+    Render SVG data to a QPixmap at the specified size.
+
+    Args:
+        svg_data: SVG data to render
+        size: Size of the pixmap in pixels (default: 16)
+
+    Returns:
+        QPixmap of the rendered SVG, or None if SVG data is invalid
+
+    """
+    renderer = QSvgRenderer()
+    renderer.load(svg_data.encode("utf-8"))
+
+    pixmap = QPixmap(size, size)
+    pixmap.fill(Qt.GlobalColor.transparent)
+
+    painter = QPainter(pixmap)
+    renderer.render(painter)
+    painter.end()
+
+    return QIcon(pixmap)
+
+
+def open_bosworth_toller(root_value: str) -> None:
+    """
+    Open the Bosworth-Toller dictionary search page for the given root value.
+
+    Args:
+        root_value: The root value to search for
+
+    """
+    # Remove hyphens, en-dashes, and em-dashes
+    cleaned_root = re.sub(r"[-–—]", "", root_value)  # noqa: RUF001
+
+    # URL-encode the cleaned root value
+    encoded_root = quote(cleaned_root)
+
+    # Construct URL
+    url = QUrl(f"https://bosworthtoller.com/search?q={encoded_root}")
+
+    # Open in default browser
+    QDesktopServices.openUrl(url)

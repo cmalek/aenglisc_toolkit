@@ -13,6 +13,13 @@ class DoesNotExist(Exception):  # noqa: N818
         super().__init__(f'{resource_type} with ID "{resource_id!s}" does not exist')
 
 
+class NoAnnotationAvailable(Exception):  # noqa: N818
+    """Exception raised when no annotation is available."""
+
+    def __init__(self):
+        super().__init__("No annotation available")
+
+
 class AlreadyExists(Exception):  # noqa: N818
     """Exception raised when a resource already exists."""
 

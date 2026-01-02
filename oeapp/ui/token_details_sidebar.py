@@ -1,12 +1,9 @@
 """Token details sidebar widget."""
 
-import re
-from typing import TYPE_CHECKING, Final, cast
-from urllib.parse import quote
+from typing import TYPE_CHECKING, Any, Final, cast
 
-from PySide6.QtCore import Qt, QUrl
-from PySide6.QtGui import QDesktopServices, QFont, QIcon, QPainter, QPixmap
-from PySide6.QtSvg import QSvgRenderer
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -16,12 +13,308 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from oeapp.exc import NoAnnotationAvailable
 from oeapp.ui.mixins import AnnotationLookupsMixin
+from oeapp.utils import open_bosworth_toller, render_svg
 
 if TYPE_CHECKING:
     from oeapp.models.annotation import Annotation
     from oeapp.models.sentence import Sentence
     from oeapp.models.token import Token
+
+
+class FieldRenderer(AnnotationLookupsMixin):
+    #: Style for label text (e.g. Part of Speech:)
+    LABEL_STYLE: Final[str] = "color: #666; font-family: Helvetica; font-weight: bold;"
+    #: Style for unset value text (e.g. ?)
+    UNSET_VALUE_STYLE: Final[str] = "color: #999; font-style: italic;"
+    #: Style for set value text (e.g. Dog)
+    SET_VALUE_STYLE: Final[str] = "color: #333; font-family: Helvetica; "
+
+    @classmethod
+    def format_field(
+        cls,
+        label: str,
+        value: Any,
+        parent_layout: QVBoxLayout | QHBoxLayout,
+        spacing: int = 25,
+    ) -> None:
+        """
+        Format a field label based on whether value is set.
+
+        Args:
+            label: Label to format
+            value: Field value (None or empty means unset)
+            parent_layout: Parent layout to add the label widget to
+
+        Keyword Args:
+            spacing: Spacing between the label and the value
+
+        """
+        container = QHBoxLayout()
+        container.setContentsMargins(0, 0, 0, 0)
+        label_widget = QLabel(f"{label}: ")
+        label_widget.setStyleSheet(cls.LABEL_STYLE)
+        container.addWidget(label_widget)
+        container.addSpacing(spacing)
+        if isinstance(value, QWidget):
+            container.addWidget(value)
+        else:
+            if value is None:
+                value = "?"
+            value_widget = QLabel(str(value))
+            value_widget.setStyleSheet(cls.SET_VALUE_STYLE)
+            container.addWidget(value_widget)
+        parent_layout.addLayout(container)
+
+
+class AbstractPartOfSpeechRenderer(AnnotationLookupsMixin):
+    #: Font for part of speech label text (e.g. Part of Speech:)
+    POS_LABEL_STYLE: Final[str] = (
+        "color: #999; font-family: Helvetica; font-size: 18px;"
+    )
+
+    def __init__(self, annotation: Annotation | None) -> None:
+        """
+        Initialize the part of speech renderer.
+
+        Args:
+            annotation: Annotation to render
+
+        """
+        super().__init__()
+        self.annotation: Annotation | None = annotation
+        self.field_renderer = FieldRenderer
+
+    def render(self, parent_layout: QVBoxLayout) -> None:
+        """
+        Render the part of speech.  This renders the part of speech label and
+        the fields for the part of speech.  It also raises an error if no
+        annotation is available.
+
+        Args:
+            parent_layout: Parent layout to add the fields to
+
+        Raises:
+            NoAnnotationAvailable: If no annotation is available
+
+        """
+        if not self.annotation or not self.annotation.pos:
+            # No annotation or POS set
+            no_pos_label = QLabel("No annotation available")
+            no_pos_label.setStyleSheet("color: #999; font-style: italic;")
+            parent_layout.addWidget(no_pos_label)
+            raise NoAnnotationAvailable
+        pos_text = self.PART_OF_SPEECH_MAP[self.annotation.pos]
+        if pos_text:
+            pos_label = QLabel(pos_text)
+            pos_label.setStyleSheet(self.POS_LABEL_STYLE)
+            parent_layout.addWidget(pos_label)
+            parent_layout.addSpacing(23)
+
+
+class NounRenderer(AbstractPartOfSpeechRenderer):
+    def render(self, parent_layout: QVBoxLayout) -> None:
+        """
+        Render the noun.  This renders these fields:
+
+        - Gender
+        - Number
+        - Case
+        - Declension
+
+        Args:
+            parent_layout: Parent layout to add the fields to
+
+        """
+        super().render(parent_layout)
+        annotation = cast("Annotation", self.annotation)
+        gender_value = self.GENDER_MAP.get(annotation.gender, "?")
+        self.field_renderer.format_field("Gender", gender_value, parent_layout)
+        number_value = self.NUMBER_MAP.get(annotation.number, "?")
+        self.field_renderer.format_field("Number", number_value, parent_layout)
+        case_value = self.CASE_MAP.get(annotation.case, "?")
+        self.field_renderer.format_field("Case", case_value, parent_layout)
+        declension_value = (
+            self.DECLENSION_MAP.get(annotation.declension, "?")
+            if annotation.declension is not None
+            else "?"
+        )
+        self.field_renderer.format_field("Declension", declension_value, parent_layout)
+
+
+class VerbRenderer(AbstractPartOfSpeechRenderer):
+    def render(self, parent_layout: QVBoxLayout) -> None:
+        """
+        Render the verb.  This renders these fields:
+
+        - Verb Class
+        - Verb Tense
+        - Verb Mood
+        - Verb Person
+        - Number
+        - Verb Aspect
+        - Verb Form
+
+        Args:
+            parent_layout: Parent layout to add the fields to
+
+        """
+        super().render(parent_layout)
+        annotation = cast("Annotation", self.annotation)
+        verb_class_value = self.VERB_CLASS_MAP.get(annotation.verb_class, "?")
+        self.field_renderer.format_field("Verb Class", verb_class_value, parent_layout)
+        tense_value = self.VERB_TENSE_MAP.get(annotation.verb_tense, "?")
+        self.field_renderer.format_field("Tense", tense_value, parent_layout)
+        mood_value = self.VERB_MOOD_MAP.get(annotation.verb_mood, "?")
+        self.field_renderer.format_field("Mood", mood_value, parent_layout)
+        person_value = self.VERB_PERSON_MAP.get(annotation.verb_person, "?")
+        self.field_renderer.format_field("Person", person_value, parent_layout)
+        number_value = self.NUMBER_MAP.get(annotation.number, "?")
+        self.field_renderer.format_field("Number", number_value, parent_layout)
+        aspect_value = self.VERB_ASPECT_MAP.get(annotation.verb_aspect, "?")
+        self.field_renderer.format_field("Aspect", aspect_value, parent_layout)
+        form_value = self.VERB_FORM_MAP.get(annotation.verb_form, "?")
+        self.field_renderer.format_field("Form", form_value, parent_layout)
+
+
+class AdjectiveRenderer(AbstractPartOfSpeechRenderer):
+    def render(self, parent_layout: QVBoxLayout) -> None:
+        """
+        Render the adjective.  This renders these fields:
+
+        - Degree
+        - Inflection
+        - Gender
+        - Number
+        - Case
+        """
+        super().render(parent_layout)
+        annotation = cast("Annotation", self.annotation)
+        adjective_degree_value = self.ADJECTIVE_DEGREE_MAP.get(
+            annotation.adjective_degree, "?"
+        )
+        self.field_renderer.format_field(
+            "Degree", adjective_degree_value, parent_layout
+        )
+        adjective_inflection_value = self.ADJECTIVE_INFLECTION_MAP.get(
+            annotation.adjective_inflection, "?"
+        )
+        print(f"adjective_inflection_value: {adjective_inflection_value}")
+        self.field_renderer.format_field(
+            "Inflection", adjective_inflection_value, parent_layout
+        )
+        gender_value = self.GENDER_MAP.get(annotation.gender, "?")
+        self.field_renderer.format_field("Gender", gender_value, parent_layout)
+        number_value = self.NUMBER_MAP.get(annotation.number, "?")
+        self.field_renderer.format_field("Number", number_value, parent_layout)
+        case_value = self.CASE_MAP.get(annotation.case, "?")
+        self.field_renderer.format_field("Case", case_value, parent_layout)
+
+
+class PronounRenderer(AbstractPartOfSpeechRenderer):
+    def render(self, parent_layout: QVBoxLayout) -> None:
+        """
+        Render the pronoun.  This renders these fields:
+
+        - Pronoun Type
+        - Gender
+        - Number
+        - Case
+        """
+        super().render(parent_layout)
+        annotation = cast("Annotation", self.annotation)
+        pronoun_type_value = self.PRONOUN_TYPE_MAP.get(annotation.pronoun_type, "?")
+        self.field_renderer.format_field(
+            "Pronoun Type", pronoun_type_value, parent_layout
+        )
+        gender_value = self.GENDER_MAP.get(annotation.gender, "?")
+        self.field_renderer.format_field("Gender", gender_value, parent_layout)
+        number_value = self.NUMBER_MAP.get(annotation.number, "?")
+        self.field_renderer.format_field("Number", number_value, parent_layout)
+        case_value = self.CASE_MAP.get(annotation.case, "?")
+        self.field_renderer.format_field("Case", case_value, parent_layout)
+
+
+class ArticleRenderer(AbstractPartOfSpeechRenderer):
+    def render(self, parent_layout: QVBoxLayout) -> None:
+        """
+        Render the article.  This renders these fields:
+
+        - Article Type
+        - Gender
+        - Number
+        - Case
+        """
+        super().render(parent_layout)
+        annotation = cast("Annotation", self.annotation)
+        article_type_value = self.ARTICLE_TYPE_MAP.get(annotation.article_type, "?")
+        self.field_renderer.format_field(
+            "Article Type", article_type_value, parent_layout
+        )
+        gender_value = self.GENDER_MAP.get(annotation.gender, "?")
+        self.field_renderer.format_field("Gender", gender_value, parent_layout)
+        number_value = self.NUMBER_MAP.get(annotation.number, "?")
+        self.field_renderer.format_field("Number", number_value, parent_layout)
+        case_value = self.CASE_MAP.get(annotation.case, "?")
+        self.field_renderer.format_field("Case", case_value, parent_layout)
+
+
+class PrepositionRenderer(AbstractPartOfSpeechRenderer):
+    def render(self, parent_layout: QVBoxLayout) -> None:
+        """
+        Render the preposition.  This renders these fields:
+
+        - Governed Case
+        """
+        super().render(parent_layout)
+        annotation = cast("Annotation", self.annotation)
+        preposition_case_value = self.PREPOSITION_CASE_MAP.get(
+            annotation.prep_case, "?"
+        )
+        self.field_renderer.format_field(
+            "Governed Case", preposition_case_value, parent_layout
+        )
+
+
+class AdverbRenderer(AbstractPartOfSpeechRenderer):
+    def render(self, parent_layout: QVBoxLayout) -> None:
+        """
+        Render the adverb.  This renders these fields:
+
+        - Adverb Degree
+        """
+        super().render(parent_layout)
+        annotation = cast("Annotation", self.annotation)
+        adverb_degree_value = self.ADVERB_DEGREE_MAP.get(annotation.adverb_degree, "?")
+        self.field_renderer.format_field(
+            "Adverb Degree", adverb_degree_value, parent_layout
+        )
+
+
+class ConjunctionRenderer(AbstractPartOfSpeechRenderer):
+    def render(self, parent_layout: QVBoxLayout) -> None:
+        """
+        Render the conjunction.  This renders these fields:
+
+        - Conjunction Type
+        """
+        super().render(parent_layout)
+        annotation = cast("Annotation", self.annotation)
+        conjunction_type_value = self.CONJUNCTION_TYPE_MAP.get(
+            annotation.conjunction_type, "?"
+        )
+        self.field_renderer.format_field(
+            "Conjunction Type", conjunction_type_value, parent_layout
+        )
+
+
+class InterjectionRenderer(AbstractPartOfSpeechRenderer):
+    pass
+
+
+class NoneRenderer(AbstractPartOfSpeechRenderer):
+    pass
 
 
 class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
@@ -38,9 +331,6 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
 
     """
 
-    #: URL for the Bosworth-Toller dictionary search.  The placeholder is
-    #: for the root value.
-    DICTIONARY_URL: Final[str] = "https://bosworthtoller.com/search?q={}"
     #: Size of the book icon in pixels.  This is used for the Bosworth-Toller
     #: dictionary icon.
     BOOK_ICON_SIZE: Final[int] = 16
@@ -56,11 +346,46 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
 <path d="M21 6l0 13" />
 </svg>"""  # noqa: E501
 
+    #: A lookup map for POS codes to their render method.  The key is the POS
+    #: code, and the value is the name of the method to call to render the fields.
+    POS_RENDER_MAP: Final[dict[str | None, type[AbstractPartOfSpeechRenderer]]] = {
+        "N": NounRenderer,
+        "V": VerbRenderer,
+        "A": AdjectiveRenderer,
+        "R": PronounRenderer,
+        "D": ArticleRenderer,
+        "E": PrepositionRenderer,
+        "B": AdverbRenderer,
+        "C": ConjunctionRenderer,
+        "I": InterjectionRenderer,
+        "": NoneRenderer,
+        None: NoneRenderer,
+    }
+
+    #: Font for line labels (e.g. [1] ¶:1 S:1)
+    LINE_LABEL_FONT: Final[QFont] = QFont("Helvetica", 12, QFont.Weight.Bold)
+    #: Style for line labels (e.g. [1] ¶:1 S:1)
+    LINE_LABEL_STYLE: Final[str] = "color: #333;"
+
+    #: Font for label text (e.g. Part of Speech: Noun)
+    LABEL_FONT: Final[QFont] = QFont("Helvetica", 12, QFont.Weight.Bold)
+
+    #: Style for superscript text (e.g. N) for the surface form
+    SUP_STYLE: Final[str] = "color: #666; font-family: Helvetica; font-weight: normal;"
+    #: Style for subscript text (e.g. M) for the surface form
+    SUB_STYLE: Final[str] = SUP_STYLE
+    #: Style for the token text (e.g. Dog) for the surface form
+    TOKEN_STYLE: Final[str] = (
+        "color: #000; font-family: Helvetica; font-weight: normal;"  # noqa: S105
+    )
+    TOKEN_FONT: Final[QFont] = QFont("Anvers", 18, QFont.Weight.Bold)
+
     def __init__(self, parent: QWidget | None = None) -> None:
         """Initialize the token details sidebar."""
         super().__init__(parent)
         self._current_token: Token | None = None
         self._current_sentence: Sentence | None = None
+        self.field_renderer = FieldRenderer
         self._setup_ui()
 
     def _setup_ui(self) -> None:
@@ -82,11 +407,13 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
         layout.addWidget(scroll_area)
 
         # Show empty state initially
-        self._show_empty_state()
+        self.show_empty()
 
-    def _show_empty_state(self) -> None:
+    def show_empty(self) -> None:
         """Show empty state with centered 'Word details' text."""
-        self._clear_content()
+        self.clear_sidebar()
+        self._current_token = None
+        self._current_sentence = None
 
         empty_label = QLabel("Word details")
         empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -97,164 +424,108 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
         self.content_layout.addWidget(empty_label)
         self.content_layout.addStretch()
 
-    def _clear_content(self) -> None:
-        """Clear all content from the sidebar."""
-        while self.content_layout.count():
-            item = self.content_layout.takeAt(0)
+    def clear_sidebar(self, layout: QVBoxLayout | QHBoxLayout | None = None) -> None:
+        """
+        Clear all content from the sidebar and reset the current token and
+        sentence.
+        """
+        if not layout:
+            layout = self.content_layout
+        while layout.count():
+            item = layout.takeAt(0)
+
             widget = item.widget()
             if widget is not None:
+                widget.setParent(None)
                 widget.deleteLater()
+                continue
 
-    def _get_book_icon(self, size: int = 16) -> QIcon:
+            child_layout = item.layout()
+            if child_layout is not None:
+                self.clear_sidebar(cast("QVBoxLayout | QHBoxLayout", child_layout))
+                child_layout.deleteLater()
+
+    def part_of_speech(self, annotation: Annotation) -> None:
         """
-        Create a book icon from the :attr:`BOOK_ICON_SVG`.
+        Display the part of speech field and its associated fields.
+
+        If the annotation has no part of speech, display a label indicating that
+        no part of speech is available.
 
         Args:
-            size: Size of the icon in pixels (default: 16)
-
-        Returns:
-            QIcon with the book icon
+            annotation: Annotation to display
 
         """
-        renderer = QSvgRenderer()
-        renderer.load(self.BOOK_ICON_SVG.encode("utf-8"))
+        if annotation is None:
+            renderer = NoneRenderer(annotation)
+            renderer.render(self.content_layout)
+            return
+        renderer = self.POS_RENDER_MAP[annotation.pos](annotation)
+        renderer.render(self.content_layout)
 
-        pixmap = QPixmap(size, size)
-        pixmap.fill(Qt.GlobalColor.transparent)
+    def rule(self) -> None:
+        """Display a horizontal rule."""
+        separator = QLabel("─" * 24)
+        separator.setStyleSheet(
+            "color: #ccc; font-family: Helvetica; font-weight: normal;"
+        )
+        self.content_layout.addWidget(separator)
+        self.content_layout.addSpacing(10)
 
-        painter = QPainter(pixmap)
-        renderer.render(painter)
-        painter.end()
-
-        return QIcon(pixmap)
-
-    def _open_bosworth_toller(self, root_value: str) -> None:
+    def surface_form(self, token: Token) -> None:
         """
-        Open the Bosworth-Toller dictionary search page for the given root value.
-
-        Args:
-            root_value: The root value to search for
-
-        """
-        # Remove hyphens, en-dashes, and em-dashes
-        cleaned_root = re.sub(r"[-–—]", "", root_value)  # noqa: RUF001
-
-        # URL-encode the cleaned root value
-        encoded_root = quote(cleaned_root)
-
-        # Construct URL
-        url = QUrl(self.DICTIONARY_URL.format(encoded_root))
-
-        # Open in default browser
-        QDesktopServices.openUrl(url)
-
-    def update_token(self, token: Token, sentence: Sentence) -> None:  # noqa: PLR0912, PLR0915
-        """
-        Update the sidebar with token details.
+        Display the surface form of the token.  This is the word plus
+        annotations as superscript and subscript.
 
         Args:
             token: Token to display
-            sentence: Sentence containing the token
 
         """
-        self._current_token = token
-        self._current_sentence = sentence
-        self._clear_content()
-
         annotation = cast("Annotation", token.annotation)
-        pos_str = ""
+        if annotation is None:
+            return
         gender_str = ""
         context_str = ""
         if annotation is not None:
             pos_str = annotation.format_pos(annotation)
             gender_str = annotation.format_gender(annotation)
             context_str = annotation.format_context(annotation)
-
-        # Paragraph/sentence number label on its own line
-        paragraph_num = sentence.paragraph_number
-        sentence_num = sentence.sentence_number_in_paragraph
-        number_label = QLabel(
-            f"[{sentence.display_order}] ¶:{paragraph_num} S:{sentence_num}"
-        )
-        number_label.setFont(QFont("Helvetica", 12, QFont.Weight.Bold))
-        number_label.setStyleSheet("color: #333;")
-        self.content_layout.addWidget(number_label)
-
-        # Horizontal rule
-        separator = QLabel("─" * 30)
-        separator.setStyleSheet(
-            "color: #ccc; font-family: Helvetica; font-weight: normal;"
-        )
-        self.content_layout.addWidget(separator)
-
-        # Token surface with annotations
-        style = "color: #666; font-family: Helvetica; font-weight: normal;"
         token_text = ""
         if pos_str:
-            token_text += f"<sup style='{style}'>{pos_str}</sup>"
+            token_text += f"<sup style='{self.SUP_STYLE}'>{pos_str}</sup>"
         if gender_str:
-            token_text += f"<sub style='{style}'>{gender_str}</sub>"
+            token_text += f"<sub style='{self.SUB_STYLE}'>{gender_str}</sub>"
         token_text += f"{token.surface}"
         if context_str:
-            token_text += f"<sub style='{style}'>{context_str}</sub>"
+            token_text += f"<sub style='{self.SUB_STYLE}'>{context_str}</sub>"
         token_label = QLabel(token_text)
-        token_label.setFont(QFont("Anvers", 18, QFont.Weight.Bold))
+        token_label.setFont(self.TOKEN_FONT)
         token_label.setWordWrap(True)
         self.content_layout.addWidget(token_label)
-
         self.content_layout.addSpacing(10)
 
-        if not annotation or not annotation.pos:
-            # No annotation or POS set
-            no_pos_label = QLabel("No annotation available")
-            no_pos_label.setStyleSheet("color: #999; font-style: italic;")
-            self.content_layout.addWidget(no_pos_label)
-            return
-
-        # Display POS
-        pos_text = self.PART_OF_SPEECH_MAP.get(annotation.pos, "Unknown")
-        if pos_text:
-            pos_label = QLabel(f"Part of Speech: {pos_text}")
-            pos_label.setFont(QFont("Helvetica", 12, QFont.Weight.Bold))
-            self.content_layout.addWidget(pos_label)
-            self.content_layout.addSpacing(5)
-
-        # Display POS-specific fields
-        if annotation.pos == "N":
-            self._display_noun_fields(annotation)
-        elif annotation.pos == "V":
-            self._display_verb_fields(annotation)
-        elif annotation.pos == "A":
-            self._display_adjective_fields(annotation)
-        elif annotation.pos == "R":
-            self._display_pronoun_fields(annotation)
-        elif annotation.pos == "D":
-            self._display_article_fields(annotation)
-        elif annotation.pos == "E":
-            self._display_preposition_fields(annotation)
-        elif annotation.pos == "B":
-            self._display_adverb_fields(annotation)
-        elif annotation.pos == "C":
-            self._display_conjunction_fields(annotation)
-        elif annotation.pos == "I":
-            self._display_interjection_fields(annotation)
-
-        # Common fields for all POS
-        self.content_layout.addSpacing(10)
-        separator = QLabel("─" * 30)
-        separator.setStyleSheet(
-            "color: #ccc; font-family: Helvetica; font-weight: normal;"
-        )
-        self.content_layout.addWidget(separator)
-        self.content_layout.addSpacing(10)
-
-        self._display_common_fields(annotation)
-
-        self.content_layout.addStretch()
-
-    def _display_common_fields(self, annotation: Annotation) -> None:
+    def line_label(self, sentence: Sentence) -> None:
         """
-        Display fields common to all POS types.
+        Display the line label for the given sentence.  The line label is
+        displayed on its own line, and is used to identify the paragraph and
+        sentence line of text in the source text.
+
+        Example: [1] ¶:1 S:1
+
+        Args:
+            sentence: Sentence to display
+
+        """
+        number_label = QLabel(
+            f"[{sentence.display_order}] ¶:{sentence.paragraph_number} S:{sentence.sentence_number_in_paragraph}"  # noqa: E501
+        )
+        number_label.setFont(self.LINE_LABEL_FONT)
+        number_label.setStyleSheet(self.LINE_LABEL_STYLE)
+        self.content_layout.addWidget(number_label)
+
+    def root(self, annotation: Annotation) -> None:
+        """
+        Display the root field and its associated dictionary icon button.
 
         Args:
             annotation: Annotation to display
@@ -262,41 +533,56 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
         """
         # Root
         root_value = annotation.root if annotation.root else "?"
-        root_label = QLabel(f"Root: {root_value}")
-        self._format_field_label(root_label, annotation.root)
-
-        # Create horizontal layout for root field with optional dictionary icon
-        root_layout = QHBoxLayout()
-        root_layout.setContentsMargins(0, 0, 0, 0)
-        root_layout.addWidget(root_label)
-
-        # Add dictionary icon button if root is not empty
-        if annotation.root:
+        if root_value == "?":
+            self.field_renderer.format_field(
+                "Root", root_value, parent_layout=self.content_layout
+            )
+        else:
+            root_layout = QHBoxLayout()
+            root_layout.setContentsMargins(0, 0, 0, 0)
+            value_widget = QLabel(str(root_value))
+            value_widget.setStyleSheet(self.field_renderer.SET_VALUE_STYLE)
+            root_layout.addWidget(value_widget)
             dict_button = QPushButton()
-            dict_button.setIcon(self._get_book_icon(self.BOOK_ICON_SIZE))
+            dict_button.setIcon(render_svg(self.BOOK_ICON_SVG, self.BOOK_ICON_SIZE))
+            dict_button.setMaximumWidth(25)
             dict_button.setToolTip("Open in Bosworth-Toller dictionary")
-            dict_button.setFlat(True)
             dict_button.setStyleSheet(
-                "QPushButton { border: none; padding: 2px; } "
+                "QPushButton { padding: 2px; } "
                 "QPushButton:hover { background-color: #f0f0f0; border-radius: 3px; }"
             )
             dict_button.clicked.connect(
-                lambda _checked=False, rv=annotation.root: self._open_bosworth_toller(
-                    rv
-                )
+                lambda _checked=False, rv=annotation.root: open_bosworth_toller(rv)
             )
             root_layout.addWidget(dict_button)
-            root_layout.addStretch()
+            root_widget = QWidget()
+            root_widget.setLayout(root_layout)
+            self.field_renderer.format_field(
+                "Root", root_widget, parent_layout=self.content_layout
+            )
 
-        # Create a widget to hold the layout
-        root_widget = QWidget()
-        root_widget.setLayout(root_layout)
-        self.content_layout.addWidget(root_widget)
+    def modern_english_meaning(self, annotation: Annotation) -> None:
+        """
+        Display the modern English meaning field.
 
+        Args:
+            annotation: Annotation to display
+
+        """
         # Modern English Meaning
         # Modern English Meaning Label
-        mod_e_label = QLabel("Modern English Meaning:")
+        mod_e_label = QLabel("Modern English Meaning:", wordWrap=True)
         mod_e_label.setFont(QFont("Helvetica", 12, QFont.Weight.Bold))
+        if not annotation.modern_english_meaning:
+            mod_e_label.setStyleSheet("color: #999; font-style: bold;")
+            container = QHBoxLayout()
+            container.setContentsMargins(0, 0, 0, 0)
+            container.addWidget(mod_e_label)
+            container.addSpacing(30)
+            mod_e_value_label = QLabel("?")
+            container.addWidget(mod_e_value_label)
+            self.content_layout.addLayout(container)
+            return
         mod_e_label.setStyleSheet(
             "color: #000; font-family: Helvetica; font-weight: bold;"
         )
@@ -310,6 +596,7 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
         )
         mod_e_value_label = QLabel(mod_e_value_text)
         mod_e_value_label.setWordWrap(True)
+        self.content_layout.addWidget(mod_e_value_label)
         if not annotation.modern_english_meaning:
             mod_e_value_label.setStyleSheet("color: #999; font-style: italic;")
         else:
@@ -317,248 +604,62 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
                 "background-color: #888; color: #fff; font-family: Helvetica; "
                 "font-weight: normal; padding: 5px; border-radius: 3px;"
             )
-        self.content_layout.addWidget(mod_e_value_label)
+            mod_e_value_label.setSizePolicy(
+                mod_e_value_label.sizePolicy().horizontalPolicy(),
+                mod_e_value_label.sizePolicy().verticalPolicy(),
+            )
+            mod_e_value_label.setMaximumWidth(
+                int(mod_e_value_label.parentWidget().width() * 0.8)  # type: ignore[union-attr]
+                if mod_e_value_label.parentWidget()
+                else 16777215
+            )
+            mod_e_value_label.setMinimumWidth(0)
+            mod_e_value_label.setMaximumHeight(16777215)
 
+    def confidence(self, annotation: Annotation) -> None:
+        """
+        Display the confidence field.
+
+        Args:
+            annotation: Annotation to display
+
+        """
         # Confidence
         confidence_value = (
             f"{annotation.confidence}%" if annotation.confidence is not None else "?"
         )
-        confidence_label = QLabel(f"Confidence: {confidence_value}")
-        self._format_field_label(confidence_label, annotation.confidence)
-        self.content_layout.addWidget(confidence_label)
-
-    def _format_field_label(
-        self,
-        label: QLabel,
-        value: str | int | bool | None,  # noqa: FBT001
-    ) -> None:
-        """
-        Format a field label based on whether value is set.
-
-        Args:
-            label: Label to format
-            value: Field value (None or empty means unset)
-
-        """
-        if value is None or value == "" or value is False:
-            label.setStyleSheet("color: #999; font-style: italic;")
-        else:
-            label.setStyleSheet(
-                "color: #000; font-family: Helvetica; font-weight: normal;"
-            )
-
-    def _display_noun_fields(self, annotation: Annotation) -> None:
-        """
-        Display noun-specific fields.
-
-        Args:
-            annotation: Annotation to display
-
-        """
-        # Gender
-        gender_value = self.GENDER_MAP.get(annotation.gender, "?")
-        gender_label = QLabel(f"Gender: {gender_value}")
-        self._format_field_label(gender_label, annotation.gender)
-        self.content_layout.addWidget(gender_label)
-
-        # Number
-        number_value = self.NUMBER_MAP.get(annotation.number, "?")
-        number_label = QLabel(f"Number: {number_value}")
-        self._format_field_label(number_label, annotation.number)
-        self.content_layout.addWidget(number_label)
-
-        # Case
-        case_value = self.CASE_MAP.get(annotation.case, "?")
-        case_label = QLabel(f"Case: {case_value}")
-        case_label.setFont(QFont("Helvetica", 12, QFont.Weight.Bold))
-        self._format_field_label(case_label, annotation.case)
-        self.content_layout.addWidget(case_label)
-
-        # Declension
-        declension_value = (
-            self.DECLENSION_MAP.get(annotation.declension, "?")
-            if annotation.declension is not None
-            else "?"
+        self.field_renderer.format_field(
+            "Confidence", confidence_value, parent_layout=self.content_layout
         )
-        declension_label = QLabel(f"Declension: {declension_value}")
-        self._format_field_label(declension_label, annotation.declension)
-        self.content_layout.addWidget(declension_label)
 
-    def _display_verb_fields(self, annotation: Annotation) -> None:
+    def render_token(self, token: Token, sentence: Sentence) -> None:
         """
-        Display verb-specific fields.
+        Update the sidebar with token details.
 
         Args:
-            annotation: Annotation to display
+            token: Token to display
+            sentence: Sentence containing the token
 
         """
-        # Verb Class
-        verb_class_value = self.VERB_CLASS_MAP.get(annotation.verb_class, "?")
-        verb_class_label = QLabel(f"Verb Class: {verb_class_value}")
-        self._format_field_label(verb_class_label, annotation.verb_class)
-        self.content_layout.addWidget(verb_class_label)
+        self._current_token = token
+        self._current_sentence = sentence
+        self.clear_sidebar()
 
-        # Verb Tense
-        tense_value = self.VERB_TENSE_MAP.get(annotation.verb_tense, "?")
-        tense_label = QLabel(f"Tense: {tense_value}")
-        self._format_field_label(tense_label, annotation.verb_tense)
-        self.content_layout.addWidget(tense_label)
+        annotation = cast("Annotation", token.annotation)
 
-        # Verb Mood
-        mood_value = self.VERB_MOOD_MAP.get(annotation.verb_mood, "?")
-        mood_label = QLabel(f"Mood: {mood_value}")
-        self._format_field_label(mood_label, annotation.verb_mood)
-        self.content_layout.addWidget(mood_label)
-
-        # Verb Person
-        person_value = (
-            self.VERB_PERSON_MAP.get(annotation.verb_person, "?")
-            if annotation.verb_person is not None
-            else "?"
-        )
-        person_label = QLabel(f"Person: {person_value}")
-        self._format_field_label(person_label, annotation.verb_person)
-        self.content_layout.addWidget(person_label)
-
-        # Number
-        number_value = self.NUMBER_MAP.get(annotation.number, "?")
-        number_label = QLabel(f"Number: {number_value}")
-        self._format_field_label(number_label, annotation.number)
-        self.content_layout.addWidget(number_label)
-
-        # Verb Aspect
-        aspect_value = self.VERB_ASPECT_MAP.get(annotation.verb_aspect, "?")
-        aspect_label = QLabel(f"Aspect: {aspect_value}")
-        self._format_field_label(aspect_label, annotation.verb_aspect)
-        self.content_layout.addWidget(aspect_label)
-
-        # Verb Form
-        form_value = self.VERB_FORM_MAP.get(annotation.verb_form, "?")
-        form_label = QLabel(f"Form: {form_value}")
-        self._format_field_label(form_label, annotation.verb_form)
-        self.content_layout.addWidget(form_label)
-
-    def _display_adjective_fields(self, annotation: Annotation) -> None:
-        """
-        Display adjective-specific fields.
-
-        Args:
-            annotation: Annotation to display
-
-        """
-        # Note: Degree and inflection may not be directly stored in annotation model
-        # For now, we'll show what's available
-
-        # Gender
-        gender_value = self.GENDER_MAP.get(annotation.gender, "?")
-        gender_label = QLabel(f"Gender: {gender_value}")
-        self._format_field_label(gender_label, annotation.gender)
-        self.content_layout.addWidget(gender_label)
-
-        # Number
-        number_value = self.NUMBER_MAP.get(annotation.number, "?")
-        number_label = QLabel(f"Number: {number_value}")
-        self._format_field_label(number_label, annotation.number)
-        self.content_layout.addWidget(number_label)
-
-        # Case
-        case_value = self.CASE_MAP.get(annotation.case, "?")
-        case_label = QLabel(f"Case: {case_value}")
-        self._format_field_label(case_label, annotation.case)
-        self.content_layout.addWidget(case_label)
-
-    def _display_pronoun_fields(self, annotation: Annotation) -> None:
-        """
-        Display pronoun-specific fields.
-
-        Args:
-            annotation: Annotation to display
-
-        """
-        # Pronoun Type
-        pro_type_value = self.PRONOUN_TYPE_MAP.get(annotation.pronoun_type, "?")
-        pro_type_label = QLabel(f"Pronoun Type: {pro_type_value}")
-        self._format_field_label(pro_type_label, annotation.pronoun_type)
-        self.content_layout.addWidget(pro_type_label)
-
-        # Gender
-        gender_value = self.GENDER_MAP.get(annotation.gender, "?")
-        gender_label = QLabel(f"Gender: {gender_value}")
-        self._format_field_label(gender_label, annotation.gender)
-        self.content_layout.addWidget(gender_label)
-
-        # Number
-        number_value = self.PRONOUN_NUMBER_MAP.get(annotation.pronoun_number, "?")
-        number_label = QLabel(f"Number: {number_value}")
-        self._format_field_label(number_label, annotation.number)
-        self.content_layout.addWidget(number_label)
-
-        # Case
-        case_value = self.CASE_MAP.get(annotation.case, "?")
-        case_label = QLabel(f"Case: {case_value}")
-        self._format_field_label(case_label, annotation.case)
-        self.content_layout.addWidget(case_label)
-
-    def _display_article_fields(self, annotation: Annotation) -> None:
-        """
-        Display article/determiner-specific fields.
-
-        Args:
-            annotation: Annotation to display
-
-        """
-        # Article Type
-        article_type_value = self.ARTICLE_TYPE_MAP.get(annotation.article_type, "?")
-        article_type_label = QLabel(f"Article Type: {article_type_value}")
-        self._format_field_label(article_type_label, annotation.article_type)
-        self.content_layout.addWidget(article_type_label)
-
-        # Gender
-        gender_value = self.GENDER_MAP.get(annotation.gender, "?")
-        gender_label = QLabel(f"Gender: {gender_value}")
-        self._format_field_label(gender_label, annotation.gender)
-        self.content_layout.addWidget(gender_label)
-
-        # Number
-        number_value = self.NUMBER_MAP.get(annotation.number, "?")
-        number_label = QLabel(f"Number: {number_value}")
-        self._format_field_label(number_label, annotation.number)
-        self.content_layout.addWidget(number_label)
-
-        # Case
-        case_value = self.CASE_MAP.get(annotation.case, "?")
-        case_label = QLabel(f"Case: {case_value}")
-        self._format_field_label(case_label, annotation.case)
-        self.content_layout.addWidget(case_label)
-
-    def _display_preposition_fields(self, annotation: Annotation) -> None:
-        """
-        Display preposition-specific fields.
-
-        Args:
-            annotation: Annotation to display
-
-        """
-        # Preposition Case
-        prep_case_value = self.PREPOSITION_CASE_MAP.get(annotation.prep_case, "?")
-        prep_case_label = QLabel(f"Governed Case: {prep_case_value}")
-        self._format_field_label(prep_case_label, annotation.prep_case)
-        self.content_layout.addWidget(prep_case_label)
-
-    def _display_adverb_fields(self, annotation: Annotation) -> None:
-        """Display adverb-specific fields."""
-        # Adverbs have minimal fields
-
-    def _display_conjunction_fields(self, annotation: Annotation) -> None:
-        """Display conjunction-specific fields."""
-        # Conjunctions have minimal fields
-
-    def _display_interjection_fields(self, annotation: Annotation) -> None:
-        """Display interjection-specific fields."""
-        # Interjections have minimal fields
-
-    def clear(self) -> None:
-        """Clear the sidebar and show empty state."""
-        self._current_token = None
-        self._current_sentence = None
-        self._show_empty_state()
+        # Line label, e.g. [1] ¶:1 S:1
+        self.line_label(sentence)
+        # Horizontal rule
+        self.rule()
+        # Token surface form
+        self.surface_form(token)
+        self.rule()
+        self.content_layout.addSpacing(10)
+        try:
+            self.part_of_speech(annotation)
+        except NoAnnotationAvailable:
+            return
+        self.root(annotation)
+        self.modern_english_meaning(annotation)
+        self.confidence(annotation)
+        self.content_layout.addStretch()

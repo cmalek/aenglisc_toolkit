@@ -550,7 +550,7 @@ class MainWindowActions:
 
             # Update sidebar if the pasted token is currently displayed
             if card.selected_token_index == token_index:
-                self.main_window.token_details_sidebar.update_token(
+                self.main_window.token_details_sidebar.render_token(
                     token, card.sentence
                 )
 
@@ -1177,12 +1177,12 @@ class ProjectUI:
         # Check if token is being deselected (selected_token_index is None)
         if sentence_card.selected_token_index is None:
             # Clear sidebar
-            self.token_details_sidebar.clear()
+            self.token_details_sidebar.clear_sidebar()
             if card is not None:
                 del self.application_state[SELECTED_SENTENCE_CARD]
         else:
             # Update sidebar with token details
-            self.token_details_sidebar.update_token(token, sentence)
+            self.token_details_sidebar.render_token(token, sentence)
 
             # Store reference to currently selected sentence card
             self.application_state[SELECTED_SENTENCE_CARD] = sentence_card
@@ -1214,4 +1214,4 @@ class ProjectUI:
                 # is up-to-date
                 if self.application_state.session:
                     self.application_state.session.refresh(token)
-                self.token_details_sidebar.update_token(token, card.sentence)
+                self.token_details_sidebar.render_token(token, card.sentence)
