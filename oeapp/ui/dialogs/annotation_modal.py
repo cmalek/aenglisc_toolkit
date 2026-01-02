@@ -71,6 +71,8 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         # Get or create annotation
         if annotation:
             self.annotation = annotation
+        elif token.annotation:
+            self.annotation = token.annotation
         else:
             # Annotation will be created when saved if it doesn't exist
             self.annotation = Annotation(token_id=cast("int", token.id))
@@ -482,11 +484,11 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
                 "gender": ("gender_combo", self.GENDER_REVERSE_MAP),
                 "number": ("number_combo", self.NUMBER_REVERSE_MAP),
                 "case": ("case_combo", self.CASE_REVERSE_MAP),
-                "declension": ("declension_combo", None),  # Editable combo
+                "declension": ("declension_combo", self.DECLENSION_REVERSE_MAP),
             }
         if pos == "V":
             return {
-                "verb_class": ("verb_class_combo", None),  # Editable combo
+                "verb_class": ("verb_class_combo", self.VERB_CLASS_REVERSE_MAP),
                 "verb_tense": ("verb_tense_combo", self.VERB_TENSE_REVERSE_MAP),
                 "verb_mood": ("verb_mood_combo", self.VERB_MOOD_REVERSE_MAP),
                 "verb_person": ("verb_person_combo", self.VERB_PERSON_REVERSE_MAP),
@@ -1040,22 +1042,15 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
 
         # Set POS
         # Note: Index 0 is empty string, so POS options start at index 1
-        pos_map = {
-            None: 0,
-            "": 0,
-            "N": 1,
-            "V": 2,
-            "A": 3,
-            "R": 4,
-            "D": 5,
-            "B": 6,
-            "C": 7,
-            "E": 8,
-            "I": 9,
-        }
+        pos_index = 0
+        if self.annotation.pos:
+            pos_text = self.PART_OF_SPEECH_MAP.get(self.annotation.pos)
+            if pos_text:
+                pos_index = self.pos_combo.findText(pos_text)
+
         # Block signals temporarily to prevent double-triggering
         self.pos_combo.blockSignals(True)  # noqa: FBT003
-        self.pos_combo.setCurrentIndex(pos_map.get(self.annotation.pos, 0))
+        self.pos_combo.setCurrentIndex(max(0, pos_index))
         self.pos_combo.blockSignals(False)  # noqa: FBT003
 
         # Trigger field creation
@@ -1093,154 +1088,157 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         if self.annotation.root:
             self.root_edit.setText(self.annotation.root)
 
+    def _find_index_for_code(self, reverse_map: dict[int, str], code: str | None) -> int:
+        """Find the combo box index for a given code using a reverse map."""
+        if code is None:
+            return 0
+        for idx, mapped_code in reverse_map.items():
+            if mapped_code == code:
+                return idx
+        return 0
+
     def _load_article_values(self) -> None:
         """Load article annotation values."""
-        type_map = {"d": 1, "i": 2, "p": 3, "D": 4}
-        if self.annotation.article_type:
-            self.article_type_combo.setCurrentIndex(
-                type_map.get(self.annotation.article_type, 0)
+        self.article_type_combo.setCurrentIndex(
+            self._find_index_for_code(
+                self.ARTICLE_TYPE_REVERSE_MAP, self.annotation.article_type
             )
-        gender_map = {"m": 1, "f": 2, "n": 3}
-        if self.annotation.gender:
-            self.article_gender_combo.setCurrentIndex(
-                gender_map.get(self.annotation.gender, 0)
-            )
-        number_map = {"s": 1, "p": 2}
-        if self.annotation.number:
-            self.article_number_combo.setCurrentIndex(
-                number_map.get(self.annotation.number, 0)
-            )
-        case_map = {"n": 1, "a": 2, "g": 3, "d": 4, "i": 5}
-        if self.annotation.case:
-            self.article_case_combo.setCurrentIndex(
-                case_map.get(self.annotation.case, 0)
-            )
+        )
+        self.article_gender_combo.setCurrentIndex(
+            self._find_index_for_code(self.GENDER_REVERSE_MAP, self.annotation.gender)
+        )
+        self.article_number_combo.setCurrentIndex(
+            self._find_index_for_code(self.NUMBER_REVERSE_MAP, self.annotation.number)
+        )
+        self.article_case_combo.setCurrentIndex(
+            self._find_index_for_code(self.CASE_REVERSE_MAP, self.annotation.case)
+        )
 
     def _load_noun_values(self) -> None:
         """Load noun annotation values."""
-        gender_map = {"m": 1, "f": 2, "n": 3}
-        if self.annotation.gender:
-            self.gender_combo.setCurrentIndex(gender_map.get(self.annotation.gender, 0))
-        number_map = {"s": 1, "p": 2}
-        if self.annotation.number:
-            self.number_combo.setCurrentIndex(number_map.get(self.annotation.number, 0))
-        case_map = {"n": 1, "a": 2, "g": 3, "d": 4, "i": 5}
-        if self.annotation.case:
-            self.case_combo.setCurrentIndex(case_map.get(self.annotation.case, 0))
+        self.gender_combo.setCurrentIndex(
+            self._find_index_for_code(self.GENDER_REVERSE_MAP, self.annotation.gender)
+        )
+        self.number_combo.setCurrentIndex(
+            self._find_index_for_code(self.NUMBER_REVERSE_MAP, self.annotation.number)
+        )
+        self.case_combo.setCurrentIndex(
+            self._find_index_for_code(self.CASE_REVERSE_MAP, self.annotation.case)
+        )
         if self.annotation.declension:
-            self.declension_combo.setCurrentText(self.annotation.declension)
+            idx = self._find_index_for_code(
+                self.DECLENSION_REVERSE_MAP, self.annotation.declension
+            )
+            if idx > 0:
+                self.declension_combo.setCurrentIndex(idx)
+            else:
+                self.declension_combo.setCurrentText(self.annotation.declension)
 
     def _load_verb_values(self) -> None:
         """Load verb annotation values."""
         if self.annotation.verb_class:
-            # Try to find matching class
-            for i in range(self.verb_class_combo.count()):
-                if self.annotation.verb_class in self.verb_class_combo.itemText(i):
-                    self.verb_class_combo.setCurrentIndex(i)
-                    break
+            idx = self._find_index_for_code(
+                self.VERB_CLASS_REVERSE_MAP, self.annotation.verb_class
+            )
+            if idx > 0:
+                self.verb_class_combo.setCurrentIndex(idx)
             else:
                 self.verb_class_combo.setCurrentText(self.annotation.verb_class)
-        tense_map = {"p": 1, "n": 2}
-        if self.annotation.verb_tense:
-            self.verb_tense_combo.setCurrentIndex(
-                tense_map.get(self.annotation.verb_tense, 0)
+
+        self.verb_tense_combo.setCurrentIndex(
+            self._find_index_for_code(
+                self.VERB_TENSE_REVERSE_MAP, self.annotation.verb_tense
             )
-        mood_map = {"i": 1, "s": 2, "imp": 3}
-        if self.annotation.verb_mood:
-            self.verb_mood_combo.setCurrentIndex(
-                mood_map.get(self.annotation.verb_mood, 0)
+        )
+        self.verb_mood_combo.setCurrentIndex(
+            self._find_index_for_code(
+                self.VERB_MOOD_REVERSE_MAP, self.annotation.verb_mood
             )
-        person_map = {"1": 1, "2": 2, "3": 3, "pl": 4}
-        if self.annotation.verb_person:
-            self.verb_person_combo.setCurrentIndex(
-                person_map.get(self.annotation.verb_person, 0)
+        )
+        self.verb_person_combo.setCurrentIndex(
+            self._find_index_for_code(
+                self.VERB_PERSON_REVERSE_MAP, self.annotation.verb_person
             )
-        number_map = {"s": 1, "p": 2}
-        if self.annotation.number:
-            self.verb_number_combo.setCurrentIndex(
-                number_map.get(self.annotation.number, 0)
+        )
+        self.verb_number_combo.setCurrentIndex(
+            self._find_index_for_code(self.NUMBER_REVERSE_MAP, self.annotation.number)
+        )
+        self.verb_aspect_combo.setCurrentIndex(
+            self._find_index_for_code(
+                self.VERB_ASPECT_REVERSE_MAP, self.annotation.verb_aspect
             )
-        if self.annotation.verb_aspect:
-            aspect_map = {"p": 1, "prg": 2, "gn": 3}
-            self.verb_aspect_combo.setCurrentIndex(
-                aspect_map.get(self.annotation.verb_aspect, 0)
+        )
+        self.verb_form_combo.setCurrentIndex(
+            self._find_index_for_code(
+                self.VERB_FORM_REVERSE_MAP, self.annotation.verb_form
             )
-        form_map = {"f": 1, "i": 2, "p": 3}
-        if self.annotation.verb_form:
-            self.verb_form_combo.setCurrentIndex(
-                form_map.get(self.annotation.verb_form, 0)
-            )
+        )
 
     def _load_adjective_values(self) -> None:
         """Load adjective annotation values."""
-        if self.annotation.adjective_degree:
-            degree_map = {"p": 1, "c": 2, "s": 3}
-            self.adj_degree_combo.setCurrentIndex(
-                degree_map.get(self.annotation.adjective_degree, 0)
+        self.adj_degree_combo.setCurrentIndex(
+            self._find_index_for_code(
+                self.ADJECTIVE_DEGREE_REVERSE_MAP, self.annotation.adjective_degree
             )
-        if self.annotation.adjective_inflection:
-            inflection_map = {"s": 1, "w": 2}
-            self.adj_inflection_combo.setCurrentIndex(
-                inflection_map.get(self.annotation.adjective_inflection, 0)
+        )
+        self.adj_inflection_combo.setCurrentIndex(
+            self._find_index_for_code(
+                self.ADJECTIVE_INFLECTION_REVERSE_MAP,
+                self.annotation.adjective_inflection,
             )
-        if self.annotation.gender:
-            gender_map = {"m": 1, "f": 2, "n": 3}
-            self.adj_gender_combo.setCurrentIndex(
-                gender_map.get(self.annotation.gender, 0)
-            )
-        if self.annotation.number:
-            number_map = {"s": 1, "p": 2}
-            self.adj_number_combo.setCurrentIndex(
-                number_map.get(self.annotation.number, 0)
-            )
-        if self.annotation.case:
-            case_map = {"n": 1, "a": 2, "g": 3, "d": 4, "i": 5}
-            self.adj_case_combo.setCurrentIndex(case_map.get(self.annotation.case, 0))
+        )
+        self.adj_gender_combo.setCurrentIndex(
+            self._find_index_for_code(self.GENDER_REVERSE_MAP, self.annotation.gender)
+        )
+        self.adj_number_combo.setCurrentIndex(
+            self._find_index_for_code(self.NUMBER_REVERSE_MAP, self.annotation.number)
+        )
+        self.adj_case_combo.setCurrentIndex(
+            self._find_index_for_code(self.CASE_REVERSE_MAP, self.annotation.case)
+        )
 
-    def _load_pronoun_values(self):
+    def _load_pronoun_values(self) -> None:
         """Load pronoun annotation values."""
-        type_map = {"p": 1, "r": 2, "d": 3, "i": 4}
-        if self.annotation.pronoun_type:
-            self.pro_type_combo.setCurrentIndex(
-                type_map.get(self.annotation.pronoun_type, 0)
+        self.pro_type_combo.setCurrentIndex(
+            self._find_index_for_code(
+                self.PRONOUN_TYPE_REVERSE_MAP, self.annotation.pronoun_type
             )
-        if self.annotation.gender:
-            gender_map = {"m": 1, "f": 2, "n": 3}
-            self.pro_gender_combo.setCurrentIndex(
-                gender_map.get(self.annotation.gender, 0)
+        )
+        self.pro_gender_combo.setCurrentIndex(
+            self._find_index_for_code(self.GENDER_REVERSE_MAP, self.annotation.gender)
+        )
+        self.pro_number_combo.setCurrentIndex(
+            self._find_index_for_code(
+                self.PRONOUN_NUMBER_REVERSE_MAP, self.annotation.pronoun_number
             )
-        if self.annotation.pronoun_number:
-            number_map = {"s": 1, "d": 2, "pl": 3}
-            self.pro_number_combo.setCurrentIndex(
-                number_map.get(self.annotation.pronoun_number, 0)
-            )
-        if self.annotation.case:
-            case_map = {"n": 1, "a": 2, "g": 3, "d": 4, "i": 5}
-            self.pro_case_combo.setCurrentIndex(case_map.get(self.annotation.case, 0))
+        )
+        self.pro_case_combo.setCurrentIndex(
+            self._find_index_for_code(self.CASE_REVERSE_MAP, self.annotation.case)
+        )
 
-    def _load_preposition_values(self):
+    def _load_preposition_values(self) -> None:
         """Load preposition annotation values."""
-        case_map = {"a": 1, "d": 2, "g": 3}
-        if self.annotation.prep_case:
-            self.prep_case_combo.setCurrentIndex(
-                case_map.get(self.annotation.prep_case, 0)
+        self.prep_case_combo.setCurrentIndex(
+            self._find_index_for_code(
+                self.PREPOSITION_CASE_REVERSE_MAP, self.annotation.prep_case
             )
+        )
 
-    def _load_adverb_values(self):
+    def _load_adverb_values(self) -> None:
         """Load adverb annotation values."""
-        degree_map = {"p": 1, "c": 2, "s": 3}
-        if self.annotation.adverb_degree:
-            self.adv_degree_combo.setCurrentIndex(
-                degree_map.get(self.annotation.adverb_degree, 0)
+        self.adv_degree_combo.setCurrentIndex(
+            self._find_index_for_code(
+                self.ADVERB_DEGREE_REVERSE_MAP, self.annotation.adverb_degree
             )
+        )
 
-    def _load_conjunction_values(self):
+    def _load_conjunction_values(self) -> None:
         """Load conjunction annotation values."""
-        type_map = {"c": 1, "s": 2}
-        if self.annotation.conjunction_type:
-            self.conj_type_combo.setCurrentIndex(
-                type_map.get(self.annotation.conjunction_type, 0)
+        self.conj_type_combo.setCurrentIndex(
+            self._find_index_for_code(
+                self.CONJUNCTION_TYPE_REVERSE_MAP, self.annotation.conjunction_type
             )
+        )
 
     def _load_interjection_values(self):
         """Load interjection annotation values."""
@@ -1349,15 +1347,22 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
             self.number_combo.currentIndex()
         )
         self.annotation.case = self.CASE_REVERSE_MAP.get(self.case_combo.currentIndex())
-        self.annotation.declension = self.DECLENSION_REVERSE_MAP.get(
-            self.declension_combo.currentIndex()
-        )
+        idx = self.declension_combo.currentIndex()
+        if idx > 0:
+            self.annotation.declension = self.DECLENSION_REVERSE_MAP.get(idx)
+        else:
+            text = self.declension_combo.currentText().strip()
+            self.annotation.declension = text if text else None
 
     def _extract_verb_values(self):
         """Extract verb annotation values."""
-        self.annotation.verb_class = self.VERB_CLASS_REVERSE_MAP.get(
-            self.verb_class_combo.currentIndex()
-        )
+        idx = self.verb_class_combo.currentIndex()
+        if idx > 0:
+            self.annotation.verb_class = self.VERB_CLASS_REVERSE_MAP.get(idx)
+        else:
+            text = self.verb_class_combo.currentText().strip()
+            self.annotation.verb_class = text if text else None
+
         self.annotation.verb_tense = self.VERB_TENSE_REVERSE_MAP.get(
             self.verb_tense_combo.currentIndex()
         )
