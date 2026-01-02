@@ -65,6 +65,12 @@ class MainWindow(QMainWindow):
 
     #: Main window geometry
     MAIN_WINDOW_GEOMETRY: Final[tuple[int, int, int, int]] = (100, 100, 1600, 800)
+    #: Sidebar Width
+    SIDEBAR_WIDTH: Final[int] = 350
+    #: Sidebar Style
+    SIDEBAR_STYLE: Final[str] = (
+        "background-color: #f5f5f5; border-left: 1px solid #ddd;"
+    )
 
     def __init__(self) -> None:
         super().__init__()
@@ -100,56 +106,6 @@ class MainWindow(QMainWindow):
         # Setup backup checking
         self._setup_backup_checking()
 
-    def _setup_main_window(self) -> None:
-        """
-        Set up the main window.
-        """
-        self.setWindowTitle("Ænglisc Toolkit")
-        # Set window icon from application icon
-        app = QApplication.instance()
-        if isinstance(app, QApplication) and not app.windowIcon().isNull():
-            self.setWindowIcon(app.windowIcon())
-        self.setGeometry(100, 100, 1600, 800)
-
-        # Central widget with two-column layout
-        central_widget = QWidget()
-        central_layout = QHBoxLayout(central_widget)
-        central_layout.setContentsMargins(0, 0, 0, 0)
-        central_layout.setSpacing(0)
-
-        # Left column: scroll area with sentence cards
-        scroll_area = QScrollArea()
-        scroll_area.setWidgetResizable(True)
-        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        self.scroll_area = scroll_area
-
-        # Content widget with layout.  SentenceCards go here.
-        content_widget = QWidget()
-        self.content_layout = QVBoxLayout(content_widget)
-        self.content_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-        scroll_area.setWidget(content_widget)
-        central_layout.addWidget(scroll_area, stretch=1)
-
-        # Right column: token details sidebar
-        self.token_details_sidebar = TokenDetailsSidebar()
-        self.token_details_sidebar.setFixedWidth(350)
-        self.token_details_sidebar.setStyleSheet(
-            "background-color: #f5f5f5; border-left: 1px solid #ddd;"
-        )
-        central_layout.addWidget(self.token_details_sidebar)
-
-        self.setCentralWidget(central_widget)
-
-        # Status bar for autosave status
-        self.messages.show_message("Ready")
-        # Initial message
-        welcome_label = QLabel(
-            "Welcome to Ænglisc Toolkit\n\nUse File → New Project to get started"
-        )
-        welcome_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        welcome_label.setStyleSheet("font-size: 14pt; color: #666; padding: 50px;")
-        self.content_layout.addWidget(welcome_label)
-
     def build(self) -> None:
         """
         Build the main window.
@@ -160,19 +116,128 @@ class MainWindow(QMainWindow):
         - Setup global shortcuts.
 
         """
-        self._setup_main_window()
+        self.main_window()
         # Create the project UI.  This has to be done after the main window is
-        # built because various widgets need to be added to the main window that
-        # the project UI needs to access.
+        # built because various widgets need to exist in the main window so that
+        # the project UI can access them.
         self.project_ui = ProjectUI(self)
         MainMenu(self).build()
         GlobalShortcuts(self).execute()
+
+    def main_window(self) -> None:
+        """
+        Set up the main window.
+        """
+        # Create the QApplicaiton
+        self.application()
+        # Create a two-column layout for the main window.
+        central_layout = self.main_container()
+        # Create the main content area.  This is a scroll area that contains the
+        # sentence cards.
+        self.main_column = self.main_content_area()
+        self.content_layout = self.main_content(self.main_column, central_layout)
+        self.token_details_sidebar = self.sidebar_area(central_layout)
+        self.show_empty(self.content_layout)
+
+    def application(self) -> None:
+        """
+        Build the QApplication window.
+        """
+        self.setWindowTitle("Ænglisc Toolkit")
+        # Set window icon from application icon
+        app = QApplication.instance()
+        if isinstance(app, QApplication) and not app.windowIcon().isNull():
+            self.setWindowIcon(app.windowIcon())
+        self.setGeometry(100, 100, 1600, 800)
+
+    def show_empty(self, layout: QVBoxLayout) -> None:
+        """
+        Show the empty state.
+        """
+        # Status bar for autosave status
+        self.messages.show_message("Ready")
+        welcome_label = QLabel(
+            "Welcome to Ænglisc Toolkit\n\nUse File → New Project to get started"
+        )
+        welcome_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        welcome_label.setStyleSheet("font-size: 14pt; color: #666; padding: 50px;")
+        layout.addWidget(welcome_label)
+
+    def main_container(self) -> QHBoxLayout:
+        """
+        Build the content area widget.  This is where the columns are located.
+
+        Returns:
+            tuple[QWidget, QHBoxLayout]: The main window's content area widget
+            and layout
+
+        """
+        # Central widget with two-column layout
+        central_widget = QWidget()
+        central_layout = QHBoxLayout(central_widget)
+        central_layout.setContentsMargins(0, 0, 0, 0)
+        central_layout.setSpacing(0)
+        self.setCentralWidget(central_widget)
+        return central_layout
+
+    def main_content_area(self) -> QScrollArea:
+        """
+        Build the main content area scroll area.  This is where the sentence
+        cards are located, and takes up the majority of the main window.
+
+        Returns:
+            QScrollArea: The main content area scroll area
+
+        """
+        # Left column: scroll area with sentence cards
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        return scroll_area
+
+    def main_content(self, container: QScrollArea, layout: QHBoxLayout) -> QVBoxLayout:
+        """
+        Build the main content area layout.  This is where the sentence cards
+        are located.
+
+        Args:
+            container: The container to add the main content to
+            layout: The layout to add the main content to
+
+        Returns:
+            QVBoxLayout: The main content area layout
+
+        """
+        content_widget = QWidget()
+        content_layout = QVBoxLayout(content_widget)
+        content_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        container.setWidget(content_widget)
+        layout.addWidget(container, stretch=1)
+        return content_layout
+
+    def sidebar_area(self, layout: QHBoxLayout) -> TokenDetailsSidebar:
+        """
+        Build the sidebar area widget.  This is where the token details sidebar is
+        located.
+
+        Args:
+            layout: The layout to add the sidebar to
+
+        Returns:
+            QWidget: The sidebar area widget
+
+        """
+        sidebar = TokenDetailsSidebar()
+        sidebar.setFixedWidth(self.SIDEBAR_WIDTH)
+        sidebar.setStyleSheet(self.SIDEBAR_STYLE)
+        layout.addWidget(sidebar)
+        return sidebar
 
     def reload(self) -> None:
         """
         Repaint the main window.
         """
-        self.scroll_area.update()
+        self.main_column.update()
         self.update()
 
     def _handle_migrations(self) -> None:
@@ -250,7 +315,7 @@ class MainWindow(QMainWindow):
             widget: Widget to ensure visible
 
         """
-        self.scroll_area.ensureWidgetVisible(widget)
+        self.main_column.ensureWidgetVisible(widget)
 
     def show_help(self, topic: str | None = None) -> None:
         """
