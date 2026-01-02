@@ -1173,12 +1173,16 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
 
     def _load_adjective_values(self) -> None:
         """Load adjective annotation values."""
-        if self.annotation.verb_aspect:  # Reusing field for degree
+        if self.annotation.adjective_degree:
             degree_map = {"p": 1, "c": 2, "s": 3}
             self.adj_degree_combo.setCurrentIndex(
-                degree_map.get(self.annotation.verb_aspect, 0)
+                degree_map.get(self.annotation.adjective_degree, 0)
             )
-        # Note: verb_aspect was used incorrectly above, need proper field
+        if self.annotation.adjective_inflection:
+            inflection_map = {"s": 1, "w": 2}
+            self.adj_inflection_combo.setCurrentIndex(
+                inflection_map.get(self.annotation.adjective_inflection, 0)
+            )
         if self.annotation.gender:
             gender_map = {"m": 1, "f": 2, "n": 3}
             self.adj_gender_combo.setCurrentIndex(
@@ -1375,7 +1379,14 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
 
     def _extract_adjective_values(self):
         """Extract adjective annotation values."""
-        # Note: Need proper degree field
+        self.annotation.adjective_degree = self.ADJECTIVE_DEGREE_REVERSE_MAP.get(
+            self.adj_degree_combo.currentIndex()
+        )
+        self.annotation.adjective_inflection = (
+            self.ADJECTIVE_INFLECTION_REVERSE_MAP.get(
+                self.adj_inflection_combo.currentIndex()
+            )
+        )
         self.annotation.gender = self.GENDER_REVERSE_MAP.get(
             self.adj_gender_combo.currentIndex()
         )
