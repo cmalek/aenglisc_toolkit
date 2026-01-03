@@ -1,13 +1,13 @@
 """Unit tests for AnnotationModal using pytest-qt and real database."""
 
 import pytest
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication, QMessageBox
 
 from oeapp.models.annotation import Annotation
 from oeapp.models.annotation_preset import AnnotationPreset
 from oeapp.ui.dialogs.annotation_modal import AnnotationModal
-from tests.conftest import create_test_project, create_test_sentence, create_test_token
+from tests.conftest import create_test_project, create_test_sentence
 
 
 class TestAnnotationModal:
