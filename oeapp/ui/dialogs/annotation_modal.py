@@ -327,6 +327,13 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
 
         pos = self.PART_OF_SPEECH_REVERSE_MAP.get(self.pos_combo.currentText())
 
+        # If switching between actual POS types (not from/to empty),
+        # clear the lexical fields to prevent cross-token corruption
+        prev_pos = self.annotation.pos
+        if pos and prev_pos and pos != prev_pos:
+            self.root_edit.clear()
+            self.modern_english_edit.clear()
+
         # Update Save as Preset button state
         self.save_as_preset_button.setEnabled(pos in ("N", "V", "A", "R", "D"))
 
@@ -1088,7 +1095,9 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         if self.annotation.root:
             self.root_edit.setText(self.annotation.root)
 
-    def _find_index_for_code(self, reverse_map: dict[int, str], code: str | None) -> int:
+    def _find_index_for_code(
+        self, reverse_map: dict[int, str], code: str | None
+    ) -> int:
         """Find the combo box index for a given code using a reverse map."""
         if code is None:
             return 0

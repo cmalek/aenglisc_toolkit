@@ -505,11 +505,10 @@ class MainWindowActions:
             return False
 
         # Get the selected token
-        token_index = card.selected_token_index
-        if token_index < 0 or token_index >= len(card.tokens):
+        order_index = card.selected_token_index
+        token = card.tokens_by_index.get(order_index)
+        if not token:
             return False
-
-        token = card.tokens[token_index]
 
         # Check if token has an annotation
         if not token.annotation:
@@ -566,12 +565,9 @@ class MainWindowActions:
             return True  # Return True to indicate we handled the event
 
         # Get the selected token
-        token_index = card.selected_token_index
-        if token_index < 0 or token_index >= len(card.tokens):
-            return False
-
-        token = card.tokens[token_index]
-        if not token.id:
+        order_index = card.selected_token_index
+        token = card.tokens_by_index.get(order_index)
+        if not token or not token.id:
             return False
 
         # Capture current annotation state for undo
@@ -621,7 +617,7 @@ class MainWindowActions:
             card.set_tokens(card.sentence.tokens)
 
             # Update sidebar if the pasted token is currently displayed
-            if card.selected_token_index == token_index:
+            if card.selected_token_index == order_index:
                 self.main_window.token_details_sidebar.render_token(
                     token, card.sentence
                 )
@@ -1257,16 +1253,17 @@ class ProjectUI:
             sentence_card: Sentence card containing the token
 
         """
-        # If there's a previously selected sentence card (different from current),
-        # clear its selection
-        card = self.application_state.get(SELECTED_SENTENCE_CARD)
-        if card is not None and card != sentence_card:
-            card._clear_token_selection()
+        # Clear selection on all other sentence cards to ensure only one selection
+        # exists across the entire project view
+        for other_card in self.sentence_cards:
+            if other_card != sentence_card:
+                other_card._clear_token_selection()
+
         # Check if token is being deselected (selected_token_index is None)
         if sentence_card.selected_token_index is None:
             # Clear sidebar
             self.token_details_sidebar.clear_sidebar()
-            if card is not None:
+            if SELECTED_SENTENCE_CARD in self.application_state:
                 del self.application_state[SELECTED_SENTENCE_CARD]
         else:
             # Update sidebar with token details
@@ -1291,13 +1288,13 @@ class ProjectUI:
             return
         card = self.application_state.get(SELECTED_SENTENCE_CARD)
         if card is not None and card.selected_token_index is not None:
-            token_index = card.selected_token_index
+            order_index = card.selected_token_index
+            token = card.tokens_by_index.get(order_index)
             if (
-                token_index < len(card.tokens)
-                and card.tokens[token_index].id == annotation.token_id
+                token
+                and token.id == annotation.token_id
             ):
                 # Refresh sidebar with updated annotation
-                token = card.tokens[token_index]
                 # Refresh token from database to ensure annotation relationship
                 # is up-to-date
                 if self.application_state.session:

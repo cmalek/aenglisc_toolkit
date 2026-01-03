@@ -126,6 +126,9 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
     # Signal emitted when an annotation is applied
     annotation_applied = Signal(Annotation)
 
+    # Property ID for token index in QTextCharFormat
+    TOKEN_INDEX_PROPERTY: ClassVar[int] = 1000
+
     # Color maps for highlighting
     POS_COLORS: ClassVar[dict[str | None, QColor]] = {
         "N": QColor(173, 216, 230),  # Light blue for Noun
@@ -187,6 +190,12 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
         self._pos_filter_dialog: POSFilterDialog | None = None
         # Track selected token index for details sidebar
         self.selected_token_index: int | None = None
+        # Mapping of token order_index to Token object
+        self.tokens_by_index: dict[int, Token] = {}
+        # Mapping of token order_index to index in self.tokens list
+        self.order_to_list_index: dict[int, int] = {}
+        # Mapping of token ID to its (start, end) position in the editor
+        self._token_positions: dict[int, tuple[int, int]] = {}
         # Track selected token range for notes (start_index, end_index inclusive)
         self._selected_token_range: tuple[int, int] | None = None
         # Timer to delay deselection to allow double-click to cancel it
@@ -447,6 +456,8 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
 
         """
         self.tokens = tokens
+        self.tokens_by_index = {t.order_index: t for t in tokens}
+        self.order_to_list_index = {t.order_index: i for i, t in enumerate(tokens)}
         self.annotations = {
             cast("int", token.id): token.annotation for token in self.tokens if token.id
         }
@@ -601,8 +612,8 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
         # Find which token contains this cursor position
         # We need to map cursor position to token by finding which token's
         # surface text spans that position
-        token_index = self._find_token_at_position(text, cursor_pos)
-        if token_index is not None:
+        order_index = self._find_token_at_position(text, cursor_pos)
+        if order_index is not None:
             # Cancel any pending deselection (in case this is part of a double-click)
             if self._deselect_timer.isActive():
                 self._deselect_timer.stop()
@@ -612,45 +623,47 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
             if modifiers & Qt.KeyboardModifier.ShiftModifier:
                 # Shift+click: extend selection to create a range
                 if self.selected_token_index is not None:
-                    # Create range from selected_token_index to clicked token_index
-                    start_idx = min(self.selected_token_index, token_index)
-                    end_idx = max(self.selected_token_index, token_index)
-                    self._selected_token_range = (start_idx, end_idx)
-                    self._highlight_token_range(start_idx, end_idx)
+                    # Create range from selected_token_index to clicked order_index
+                    start_order = min(self.selected_token_index, order_index)
+                    end_order = max(self.selected_token_index, order_index)
+                    self._selected_token_range = (start_order, end_order)
+                    self._highlight_token_range(start_order, end_order)
                     # Clear single token selection and sidebar when range is selected
                     self.selected_token_index = None
-                    # Emit signal to clear sidebar (main window checks
-                    # selected_token_index)
-                    token = self.tokens[start_idx]
-                    self.token_selected_for_details.emit(token, self.sentence, self)
+                    # Emit signal to clear sidebar
+                    token = self.tokens_by_index.get(start_order)
+                    if token:
+                        self.token_selected_for_details.emit(token, self.sentence, self)
                     # Enable Add Note button when range is selected
                     self.add_note_button.setEnabled(True)
                 else:
                     # No previous selection, just select this token
-                    self.selected_token_index = token_index
+                    self.selected_token_index = order_index
                     self._selected_token_range = None
-                    token = self.tokens[token_index]
-                    self._highlight_token_in_text(token)
-                    self.token_selected_for_details.emit(token, self.sentence, self)
+                    token = self.tokens_by_index.get(order_index)
+                    if token:
+                        self._highlight_token_in_text(token)
+                        self.token_selected_for_details.emit(token, self.sentence, self)
                     # Enable Add Note button when token is selected
                     self.add_note_button.setEnabled(True)
             else:
                 # Normal click: select single token
                 self._selected_token_range = None
                 # Check if clicking the same token (schedule deselection after delay)
-                if self.selected_token_index == token_index:
+                if self.selected_token_index == order_index:
                     # Schedule deselection with a delay to allow double-click to
                     # cancel it
-                    self._pending_deselect_token_index = token_index
+                    self._pending_deselect_token_index = order_index
                     self._deselect_timer.start(
                         300
                     )  # 300ms delay, typical double-click timeout
                 else:
                     # Select the token and emit signal for sidebar
-                    self.selected_token_index = token_index
-                    token = self.tokens[token_index]
-                    self._highlight_token_in_text(token)
-                    self.token_selected_for_details.emit(token, self.sentence, self)
+                    self.selected_token_index = order_index
+                    token = self.tokens_by_index.get(order_index)
+                    if token:
+                        self._highlight_token_in_text(token)
+                        self.token_selected_for_details.emit(token, self.sentence, self)
 
     def _on_oe_text_double_clicked(self, position: QPoint) -> None:
         """
@@ -670,104 +683,72 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
             return
 
         # Find which token contains this cursor position
-        token_index = self._find_token_at_position(text, cursor_pos)
-        if token_index is not None:
+        order_index = self._find_token_at_position(text, cursor_pos)
+        if order_index is not None:
             # Cancel any pending deselection timer (from single-click)
             if self._deselect_timer.isActive():
                 self._deselect_timer.stop()
                 self._pending_deselect_token_index = None
-            # Select the token in the table
-            self.token_table.select_token(token_index)
-            # Set selected token index and update sidebar
-            self.selected_token_index = token_index
-            token = self.tokens[token_index]
-            self._highlight_token_in_text(token)
-            self.token_selected_for_details.emit(token, self.sentence, self)
-            # Open the annotation modal for this token
-            # Get or create annotation
-            annotation = token.annotation
-            if annotation is None and token.id:
-                annotation = Annotation.get(token.id)
-            modal = AnnotationModal(token, annotation, self)
-            modal.annotation_applied.connect(self._on_annotation_applied)
-            modal.exec()
+
+            token = self.tokens_by_index.get(order_index)
+            if token:
+                # Select the token in the table
+                list_index = self.order_to_list_index.get(order_index)
+                if list_index is not None:
+                    self.token_table.select_token(list_index)
+
+                # Set selected token index and update sidebar
+                self.selected_token_index = order_index
+                self._highlight_token_in_text(token)
+                self.token_selected_for_details.emit(token, self.sentence, self)
+                # Open the annotation modal for this token
+                # Get or create annotation
+                annotation = token.annotation
+                if annotation is None and token.id:
+                    annotation = Annotation.get(token.id)
+                modal = AnnotationModal(token, annotation, self)
+                modal.annotation_applied.connect(self._on_annotation_applied)
+                modal.exec()
 
     def _find_token_at_position(self, text: str, position: int) -> int | None:
         """
         Find the token index that contains the given character position.
 
-        This method works correctly with hyphenated tokens (e.g., "ġe-wāt") because:
-        - The token's surface includes the full hyphenated word including the hyphen
-        - The token_end calculation includes the full surface length
-        - So clicking on any part of the hyphenated word (prefix, hyphen, or main word)
-          will correctly select the entire token
+        Uses the custom TOKEN_INDEX_PROPERTY stored in the QTextCharFormat.
+        Checks both the character after and before the cursor to handle edge clicks.
 
         Args:
-            text: The full sentence text
-            position: Character position in the text
+            text: The full sentence text (ignored, kept for compatibility)
+            position: Character position in the document
 
         Returns:
             Token index if found, None otherwise
-
         """
         if not self.tokens:
             return None
 
-        # Build a mapping of token positions in the text
-        token_positions: list[tuple[int, int, int]] = []  # (start, end, token_index)
+        # Get the cursor at the position
+        doc = self.oe_text_edit.document()
+        cursor = QTextCursor(doc)
+        cursor.setPosition(position)
 
-        for token_idx, token in enumerate(self.tokens):
-            surface = token.surface
-            if not surface:
-                continue
+        # 1. Try character AFTER the cursor (preferred for clicks on left half of char)
+        if position < doc.characterCount() - 1:
+            test_cursor = QTextCursor(doc)
+            test_cursor.setPosition(position)
+            test_cursor.movePosition(QTextCursor.MoveOperation.Right, QTextCursor.MoveMode.KeepAnchor)
+            fmt = test_cursor.charFormat()
+            val = fmt.property(self.TOKEN_INDEX_PROPERTY)
+            if val is not None:
+                return cast("int", val)
 
-            token_start = self._find_token_occurrence(text, token, self.tokens)
-            if token_start is None:
-                continue
+        # 2. Try character BEFORE the cursor (for clicks on right half of char)
+        fmt = cursor.charFormat()
+        val = fmt.property(self.TOKEN_INDEX_PROPERTY)
+        if val is not None:
+            return cast("int", val)
 
-            token_end = token_start + len(surface)
-            token_positions.append((token_start, token_end, token_idx))
-
-        # Find which token contains the position
-        for start, end, token_idx in token_positions:
-            if start <= position < end:
-                return token_idx
-
-        # If position is not within any token, find the nearest token
-        # (useful for whitespace between tokens)
-        return self._find_nearest_token(token_positions, position)
-
-    def _find_nearest_token(
-        self, token_positions: list[tuple[int, int, int]], position: int
-    ) -> int | None:
-        """
-        Find the nearest token to the given position.
-
-        Args:
-            token_positions: List of (start, end, token_index) tuples
-            position: Character position in the text
-
-        Returns:
-            Token index of nearest token, or None if no tokens found
-
-        """
-        nearest_token = None
-        min_distance = float("inf")
-        for start, end, token_idx in token_positions:
-            # Check distance to start and end of token
-            if position < start:
-                distance = start - position
-            elif position >= end:
-                distance = position - end + 1
-            else:
-                # Position is within token (shouldn't happen here, but handle it)
-                return token_idx
-
-            if distance < min_distance:
-                min_distance = distance
-                nearest_token = token_idx
-
-        return nearest_token
+        return None
 
     def _on_oe_text_changed(self) -> None:
         """Handle Old English text change."""
@@ -1186,30 +1167,22 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
 
         Args:
             token: Token to highlight
-            text: The full sentence text
+            text: The full sentence text (ignored)
             color: Color to use for highlighting
 
         Returns:
             ExtraSelection object or None if token not found
 
         """
-        surface = token.surface
-        if not surface:
+        if token.id not in self._token_positions:
             return None
 
-        # Find the occurrence position of this token
-        token_start = self._find_token_occurrence(text, token, self.tokens)
-        if token_start is None:
-            return None
+        token_start, token_end = self._token_positions[token.id]
 
         # Create cursor and highlight the text
         cursor = QTextCursor(self.oe_text_edit.document())
         cursor.setPosition(token_start)
-        cursor.movePosition(
-            QTextCursor.MoveOperation.Right,
-            QTextCursor.MoveMode.KeepAnchor,
-            len(surface),
-        )
+        cursor.setPosition(token_end, QTextCursor.MoveMode.KeepAnchor)
 
         # Apply highlight format
         char_format = QTextCharFormat()
@@ -1244,10 +1217,11 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
         for selection in existing_selections:
             cursor = selection.cursor  # type: ignore[attr-defined]
             # Check if this is the selection highlight (yellow) by position
+            # We match exactly on start and end
             if (
-                cursor.position() >= self._current_highlight_start
+                cursor.anchor() == self._current_highlight_start
                 and cursor.position()
-                <= self._current_highlight_start + self._current_highlight_length
+                == self._current_highlight_start + self._current_highlight_length
             ):
                 # This is the selection highlight, skip it
                 continue
@@ -1269,45 +1243,10 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
         # Clear any existing highlight first
         self._clear_highlight()
 
-        # Get the text from the editor
-        text = self.oe_text_edit.toPlainText()
-        if not text:
+        if token.id not in self._token_positions:
             return
 
-        # Get the token surface text
-        surface = token.surface
-        if not surface:
-            return
-
-        # Find all occurrences of the surface text
-        occurrences = []
-        start = 0
-        while True:
-            pos = text.find(surface, start)
-            if pos == -1:
-                break
-            occurrences.append(pos)
-            start = pos + 1
-
-        # If no occurrences found, return
-        if not occurrences:
-            return
-
-        # Use order_index to determine which occurrence to highlight
-        # Count how many tokens with the same surface appear before this one
-        same_surface_count = 0
-        for t in self.tokens:
-            if t.order_index >= token.order_index:
-                break
-            if t.surface == surface:
-                same_surface_count += 1
-
-        # Select the occurrence at the same_surface_count index
-        if same_surface_count < len(occurrences):
-            highlight_pos = occurrences[same_surface_count]
-        else:
-            # Fallback to first occurrence if index is out of range
-            highlight_pos = occurrences[0]
+        highlight_pos, highlight_end = self._token_positions[token.id]
 
         # Get existing extra selections (for highlighting mode)
         existing_selections = self.oe_text_edit.extraSelections()
@@ -1315,11 +1254,7 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
         # Create cursor and highlight the text using extraSelections
         cursor = QTextCursor(self.oe_text_edit.document())
         cursor.setPosition(highlight_pos)
-        cursor.movePosition(
-            QTextCursor.MoveOperation.Right,
-            QTextCursor.MoveMode.KeepAnchor,
-            len(surface),
-        )
+        cursor.setPosition(highlight_end, QTextCursor.MoveMode.KeepAnchor)
 
         # Apply highlight format for selection (yellow, semi-transparent)
         char_format = QTextCharFormat()
@@ -1338,27 +1273,21 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
 
         # Store position for reference
         self._current_highlight_start = highlight_pos
-        self._current_highlight_length = len(surface)
+        self._current_highlight_length = highlight_end - highlight_pos
 
-    def _highlight_token_range(self, start_index: int, end_index: int) -> None:
+    def _highlight_token_range(self, start_order: int, end_order: int) -> None:
         """
         Highlight a range of tokens in the oe_text_edit.
 
         Args:
-            start_index: Starting token index (inclusive)
-            end_index: Ending token index (inclusive)
+            start_order: Starting token order_index (inclusive)
+            end_order: Ending token order_index (inclusive)
 
         """
         # Clear any existing highlight first
         self._clear_highlight()
 
-        # Get the text from the editor
-        text = self.oe_text_edit.toPlainText()
-        if not text or not self.tokens:
-            return
-
-        # Validate indices
-        if start_index < 0 or end_index >= len(self.tokens) or start_index > end_index:
+        if not self.tokens:
             return
 
         # Get existing extra selections (for highlighting mode)
@@ -1366,16 +1295,10 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
 
         # Build list of token positions
         token_positions: list[tuple[int, int]] = []  # (start_pos, end_pos)
-        for token_idx in range(start_index, end_index + 1):
-            token = self.tokens[token_idx]
-            surface = token.surface
-            if not surface:
-                continue
-
-            token_start = self._find_token_occurrence(text, token, self.tokens)
-            if token_start is not None:
-                token_end = token_start + len(surface)
-                token_positions.append((token_start, token_end))
+        for order_idx in range(start_order, end_order + 1):
+            token = self.tokens_by_index.get(order_idx)
+            if token and token.id in self._token_positions:
+                token_positions.append(self._token_positions[token.id])
 
         if not token_positions:
             return
@@ -1385,11 +1308,7 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
         for token_start, token_end in token_positions:
             cursor = QTextCursor(self.oe_text_edit.document())
             cursor.setPosition(token_start)
-            cursor.movePosition(
-                QTextCursor.MoveOperation.Right,
-                QTextCursor.MoveMode.KeepAnchor,
-                token_end - token_start,
-            )
+            cursor.setPosition(token_end, QTextCursor.MoveMode.KeepAnchor)
 
             # Apply highlight format for selection (yellow, semi-transparent)
             char_format = QTextCharFormat()
@@ -1457,23 +1376,20 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
         if not self.sentence.id:
             return
 
-        # Determine token range
+        # Determine token range (order indices)
         if self._selected_token_range:
-            start_idx, end_idx = self._selected_token_range
+            start_order, end_order = self._selected_token_range
         elif self.selected_token_index is not None:
-            start_idx = self.selected_token_index
-            end_idx = self.selected_token_index
+            start_order = self.selected_token_index
+            end_order = self.selected_token_index
         else:
             return
 
         # Get tokens
-        if start_idx < 0 or end_idx >= len(self.tokens):
-            return
+        start_token = self.tokens_by_index.get(start_order)
+        end_token = self.tokens_by_index.get(end_order)
 
-        start_token = self.tokens[start_idx]
-        end_token = self.tokens[end_idx]
-
-        if not start_token.id or not end_token.id:
+        if not start_token or not end_token or not start_token.id or not end_token.id:
             return
 
         # Open dialog for creating new note
@@ -1561,24 +1477,23 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
         ):
             return
 
-        # Find token indices
-        start_idx = None
-        end_idx = None
-        for idx, token in enumerate(self.tokens):
+        # Find token order indices
+        start_order = None
+        end_order = None
+        for token in self.tokens:
             if token.id == note.start_token:
-                start_idx = idx
+                start_order = token.order_index
             if token.id == note.end_token:
-                end_idx = idx
+                end_order = token.order_index
 
-        if start_idx is not None and end_idx is not None:
-            self._highlight_token_range(start_idx, end_idx)
+        if start_order is not None and end_order is not None:
+            self._highlight_token_range(start_order, end_order)
 
     def _render_oe_text_with_superscripts(self) -> None:  # noqa: PLR0912
         """
         Render OE text with note superscripts.
 
         Only renders superscripts when NOT in edit mode.
-
         """
         if self._oe_edit_mode or not self.sentence:
             return
@@ -1590,90 +1505,112 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
         except Exception:  # noqa: BLE001
             return
 
-        # Check if notes exist (after ensuring they're loaded)
-        notes_list = list(self.sentence.notes) if self.sentence.notes else []
-        if not notes_list:
-            # No notes, just show plain text
-            self.oe_text_edit.setPlainText(self.sentence.text_oe)
-            return
+        # Clear token positions map
+        self._token_positions.clear()
 
-        # Get sorted notes by token position in sentence (earlier tokens = lower
-        # numbers) Note: Numbers are computed dynamically, so if a note is
-        # deleted, remaining notes are automatically renumbered in the
-        # superscripts
+        # Get sorted notes
+        notes_list = list(self.sentence.notes) if self.sentence.notes else []
         notes = self._sort_notes_by_position(notes_list)
 
-        # Build mapping of token ID to note numbers (computed dynamically)
-        token_to_notes: dict[int, list[int]] = {}  # token_id -> list of note numbers
+        # Build mapping of token ID to note numbers
+        token_to_notes: dict[int, list[int]] = {}
         for note_idx, note in enumerate(notes, start=1):
             if note.end_token:
                 if note.end_token not in token_to_notes:
                     token_to_notes[note.end_token] = []
                 token_to_notes[note.end_token].append(note_idx)
 
-        # Build HTML with tokens and superscripts
-        html_parts = []
+        # Build token positions map sequentially in one pass
         text = self.sentence.text_oe
-
-        # Tokenize to get token positions
         if not self.tokens:
-            # Fallback to plain text if no tokens
             self.oe_text_edit.setPlainText(text)
             return
 
-        # Build token positions map
-        # Track which positions we've already used to avoid duplicates
-        used_positions: set[tuple[int, int]] = set()  # (start, end) positions
-        token_positions: list[tuple[int, int, int]] = []  # (start, end, token_id)
-
-        # Sort tokens by order_index to process them in order
+        token_id_to_start: dict[int, int] = {}
+        current_pos = 0
         sorted_tokens = sorted(self.tokens, key=lambda t: t.order_index)
 
         for token in sorted_tokens:
-            if not token.id or not token.surface:
+            if not token.surface:
                 continue
-            token_start = self._find_token_occurrence(text, token, self.tokens)
-            if token_start is not None:
-                token_end = token_start + len(token.surface)
-                position_key = (token_start, token_end)
 
-                # Only add if this position hasn't been used yet
-                if position_key not in used_positions:
-                    token_positions.append((token_start, token_end, token.id))
-                    used_positions.add(position_key)
+            # Find next occurrence of token's surface sequentially
+            pos = text.find(token.surface, current_pos)
+            if pos != -1:
+                token_id_to_start[cast("int", token.id)] = pos
+                current_pos = pos + len(token.surface)
+            # No fallback - if it's not found sequentially, it's not where we expect it.
+            # This prevents misidentifying tokens like "of" inside other words.
 
-        # Sort by position
-        token_positions.sort(key=lambda x: x[0])
+        # Re-sort tokens by their actual position in text to build document
+        render_tokens = sorted(
+            [t for t in self.tokens if t.id in token_id_to_start],
+            key=lambda t: token_id_to_start[cast("int", t.id)],
+        )
 
-        # Build HTML
+        # Prepare to build the document
+        self.oe_text_edit.clear()
+        cursor = QTextCursor(self.oe_text_edit.document())
+
+        # Use a clean format for non-token text
+        default_format = QTextCharFormat()
+
         last_pos = 0
-        for token_start, token_end, token_id in token_positions:
+        for token in render_tokens:
+            token_id = cast("int", token.id)
+            token_start = token_id_to_start[token_id]
+            token_end = token_start + len(token.surface)
+
             # Skip if this token overlaps with a previous one
-            # (shouldn't happen, but safety check)
             if token_start < last_pos:
-                # Token overlaps - skip it
                 continue
-            # Add text before token
+
+            # Insert text before token with default format
             if token_start > last_pos:
-                html_parts.append(self._escape_html(text[last_pos:token_start]))
-            # Add token
-            token_text = self._escape_html(text[token_start:token_end])
-            # Add superscript if this token ends a note
+                cursor.insertText(text[last_pos:token_start], default_format)
+
+            # Insert token with its index property
+            token_format = QTextCharFormat()
+            token_format.setProperty(self.TOKEN_INDEX_PROPERTY, token.order_index)
+
+            # Start position of token in editor
+            editor_token_start = cursor.position()
+            cursor.insertText(text[token_start:token_end], token_format)
+            # End position of token in editor
+            editor_token_end = cursor.position()
+
+            # Store editor position mapping
+            self._token_positions[token_id] = (editor_token_start, editor_token_end)
+
+            # Insert superscripts if any
             if token_id in token_to_notes:
                 note_numbers = token_to_notes[token_id]
-                superscripts = "".join(f"<sup>{n}</sup>" for n in note_numbers)
-                html_parts.append(f"{token_text}{superscripts}")
-            else:
-                html_parts.append(token_text)
+                super_format = QTextCharFormat()
+                super_format.setVerticalAlignment(
+                    QTextCharFormat.VerticalAlignment.AlignSuperScript
+                )
+                # Ensure superscripts don't carry the token index property
+                # and are slightly smaller
+                font = super_format.font()
+                font.setPointSize(int(font.pointSize() * 0.7))
+                super_format.setFont(font)
+
+                cursor.insertText(",".join(map(str, note_numbers)), super_format)
+
             last_pos = token_end
 
-        # Add remaining text
+        # Insert remaining text with default format
         if last_pos < len(text):
-            html_parts.append(self._escape_html(text[last_pos:]))
+            cursor.insertText(text[last_pos:], default_format)
+        if last_pos < len(text):
+            cursor.insertText(text[last_pos:], default_format)
 
-        # Set HTML content
-        html_content = "".join(html_parts)
-        self.oe_text_edit.setHtml(html_content)
+        # Restore highlight if a token was selected
+        if self.selected_token_index is not None:
+            token = self.tokens_by_index.get(self.selected_token_index)
+            if token:
+                self._highlight_token_in_text(token)
+
 
     def _sort_notes_by_position(self, notes: list[Note]) -> list[Note]:
         """
@@ -2032,14 +1969,16 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
             # Only deselect if the token index still matches (user didn't select
             # different token)
             if self.selected_token_index == self._pending_deselect_token_index:
+                order_index = self._pending_deselect_token_index
                 self.selected_token_index = None
                 self._selected_token_range = None
                 self._clear_highlight()
                 # Disable Add Note button when deselected
                 self.add_note_button.setEnabled(False)
                 # Emit signal to clear sidebar
-                token = self.tokens[self._pending_deselect_token_index]
-                self.token_selected_for_details.emit(token, self.sentence, self)
+                token = self.tokens_by_index.get(order_index)
+                if token:
+                    self.token_selected_for_details.emit(token, self.sentence, self)
             self._pending_deselect_token_index = None
 
     def _clear_token_selection(self) -> None:

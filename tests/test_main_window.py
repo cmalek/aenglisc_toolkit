@@ -137,6 +137,7 @@ class TestMainWindowActions:
         mock_card = MagicMock()
         mock_card.selected_token_index = 0
         mock_card.tokens = [mock_token]
+        mock_card.tokens_by_index = {0: mock_token}
 
         state[SELECTED_SENTENCE_CARD] = mock_card
 
@@ -166,6 +167,7 @@ class TestMainWindowActions:
         mock_card = MagicMock()
         mock_card.selected_token_index = 0
         mock_card.tokens = [mock_token]
+        mock_card.tokens_by_index = {0: mock_token}
         mock_card.sentence = MagicMock()
 
         state[SELECTED_SENTENCE_CARD] = mock_card

@@ -73,13 +73,10 @@ class TestTokenOccurrenceMixin:
         sentence = create_test_sentence(db_session, project.id, text)
         tokens = Token.list(sentence.id)
         # Create token with empty surface
-        # Note: Python's str.find("") returns 0 (empty string found at start)
-        # So the method will return 0, not None. This is technically correct
-        # but not very useful. The test accepts this behavior.
         empty_token = Token(surface="", order_index=999)
         result = mixin._find_token_occurrence(text, empty_token, tokens)
-        # Empty string.find("") returns 0, so result will be 0
-        assert result == 0
+        # Should return None for empty surface
+        assert result is None
 
 
 class TestAnnotationTextualMixin:

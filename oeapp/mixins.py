@@ -374,8 +374,8 @@ class TokenOccurrenceMixin:
         """
         Find the occurrence position of a token's surface text in the sentence.
 
-        Uses the token's order_index to determine which occurrence it represents
-        when the same surface text appears multiple times in the sentence.
+        Uses the order of tokens to find the correct occurrence, which is more
+        robust than just counting occurrences of the same surface text.
 
         Args:
             text: The full sentence text
@@ -387,32 +387,34 @@ class TokenOccurrenceMixin:
 
         """
         surface = token.surface
-        # Find all occurrences of this surface text
-        occurrences = []
-        start = 0
-        while True:
-            pos = text.find(surface, start)
-            if pos == -1:
-                break
-            occurrences.append(pos)
-            start = pos + 1
-
-        if not occurrences:
+        if not surface:
             return None
 
-        # Use order_index to determine which occurrence this token represents
-        # Count how many tokens with the same surface appear before this one
-        # Sort tokens by order_index to ensure correct counting
+        # Sort tokens by order_index to ensure we process them in order
         sorted_tokens = sorted(tokens, key=lambda t: t.order_index)
-        same_surface_count = 0
-        for t in sorted_tokens:
-            if t.order_index >= token.order_index:
-                break
-            if t.surface == surface:
-                same_surface_count += 1
 
-        # Select the occurrence at the same_surface_count index
-        if same_surface_count < len(occurrences):
-            return occurrences[same_surface_count]
-        # Fallback to first occurrence if index is out of range
-        return occurrences[0]
+        current_pos = 0
+        for t in sorted_tokens:
+            if not t.surface:
+                continue
+
+            # Find the next occurrence of this token's surface
+            pos = text.find(t.surface, current_pos)
+
+            # If not found from current_pos, we don't move current_pos backwards!
+            # This handles cases where some tokens might be missing or out of order.
+            if pos == -1:
+                # If this is the token we are looking for, try finding it from the start
+                # as a last resort.
+                if t.id == token.id or (t.order_index == token.order_index and t.surface == token.surface):
+                    res = text.find(t.surface)
+                    return res if res != -1 else None
+                continue
+
+            if t.id == token.id or (t.order_index == token.order_index and t.surface == token.surface):
+                return pos
+
+            # Move current_pos past this token for the next iteration
+            current_pos = pos + len(t.surface)
+
+        return None
