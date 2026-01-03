@@ -238,7 +238,7 @@ class PronounRenderer(AbstractPartOfSpeechRenderer):
         )
         gender_value = self.GENDER_MAP.get(annotation.gender, "?")
         self.field_renderer.format_field("Gender", gender_value, parent_layout)
-        number_value = self.NUMBER_MAP.get(annotation.pronoun_number, "?")
+        number_value = self.PRONOUN_NUMBER_MAP.get(annotation.pronoun_number, "?")
         self.field_renderer.format_field("Number", number_value, parent_layout)
         case_value = self.CASE_MAP.get(annotation.case, "?")
         self.field_renderer.format_field("Case", case_value, parent_layout)
