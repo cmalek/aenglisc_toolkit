@@ -1,16 +1,19 @@
 """Notes panel UI component."""
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont, QMouseEvent
 from PySide6.QtWidgets import (
     QLabel,
+    QLayout,
     QSizePolicy,
     QSpacerItem,
     QVBoxLayout,
     QWidget,
 )
+
+from oeapp.utils import clear_layout
 
 if TYPE_CHECKING:
     from oeapp.models.note import Note
@@ -113,11 +116,7 @@ class NotesPanel(QWidget):
             return
 
         # Clear layout
-        while layout.count():
-            child = layout.takeAt(0)
-            widget = child.widget()
-            if widget:
-                widget.deleteLater()
+        clear_layout(cast("QLayout", layout))
 
         if not self.sentence:
             # Show empty state

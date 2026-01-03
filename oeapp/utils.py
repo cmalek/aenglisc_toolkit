@@ -6,9 +6,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import quote
 
-from PySide6.QtCore import QUrl, Qt
+from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QDesktopServices, QIcon, QPainter, QPixmap
 from PySide6.QtSvg import QSvgRenderer
+from PySide6.QtWidgets import QLayout
 
 
 def get_resource_path(relative_path: str) -> Path:
@@ -142,3 +143,27 @@ def open_bosworth_toller(root_value: str) -> None:
 
     # Open in default browser
     QDesktopServices.openUrl(url)
+
+
+def clear_layout(layout: QLayout) -> None:
+    """
+    Clear a layout of all widgets.  This is a recursive function that clears all
+    widgets and child layouts that can contain widgets.
+
+    Args:
+        layout: Layout to clear
+
+    """
+    while layout.count():
+        item = layout.takeAt(0)
+
+        widget = item.widget()
+        if widget is not None:
+            widget.setParent(None)
+            widget.deleteLater()
+            continue
+
+        child_layout = item.layout()
+        if child_layout is not None:
+            clear_layout(child_layout)
+            child_layout.deleteLater()

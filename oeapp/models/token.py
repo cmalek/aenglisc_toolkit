@@ -1,6 +1,7 @@
 """Token model."""
 
 import builtins
+import difflib
 import re
 from datetime import datetime
 from typing import TYPE_CHECKING, ClassVar
@@ -471,20 +472,13 @@ class Token(SaveDeleteMixin, Base):
         We will also re-order the tokens to match the order of the tokens in the
         sentence.
 
-        There's no need to deal with individual tokens, as they are explicitly
-        bound to the sentence, thus instead of :meth:`update` taking a token id
-        or surface, it takes the sentence text and sentence id.
-
         The goal is to update the text of the sentence without losing any
         annotations on the tokens that need to remain.
 
-        The algorithm uses a two-phase matching approach:
-        1. Phase 1: Match tokens at same position with same surface (exact matches)
-        2. Phase 2: Match remaining tokens by surface only (handles reordering,
-           edits, duplicates)
-
-        Each existing token can only be matched once, ensuring duplicate tokens
-        (e.g., "swā swā") are handled correctly.
+        The algorithm uses difflib.SequenceMatcher to identify which tokens
+        have remained, been inserted, or been deleted. This preserves
+        annotations on tokens that stay in the sentence even if they shift
+        position.
 
         Args:
             sentence_text: Text of the sentence to tokenize
@@ -498,76 +492,77 @@ class Token(SaveDeleteMixin, Base):
         # Get existing tokens ordered by order_index
         existing_tokens = cls.list(sentence_id)
 
-        # Phase 1: Match tokens at same position
-        # (handles exact matches and position-based surface updates)
+        # Move all existing tokens to temporary negative positions
+        # to avoid unique constraint violations during updates
+        for i, token in enumerate(existing_tokens):
+            token.order_index = -(i + 1)
+            session.add(token)
+        session.flush()
+
+        # Match tokens using SequenceMatcher
+        old_surfaces = [t.surface for t in existing_tokens]
+        matcher = difflib.SequenceMatcher(None, old_surfaces, token_strings)
+
         matched_positions: dict[int, Token] = {}
         matched_token_ids: set[int] = set()
 
-        # Build a mapping of position -> existing token for quick lookup
-        position_to_token = {token.order_index: token for token in existing_tokens}
+        for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+            if tag == "equal":
+                # Tokens at old_surfaces[i1:i2] match token_strings[j1:j2]
+                for k in range(i2 - i1):
+                    old_token = existing_tokens[i1 + k]
+                    new_index = j1 + k
+                    old_token.order_index = new_index
+                    session.add(old_token)
+                    matched_positions[new_index] = old_token
+                    matched_token_ids.add(old_token.id)
+            elif tag == "replace":
+                # For replacements, if the number of old tokens matches the
+                # number of new tokens (N-to-N), we treat them as 1-for-1
+                # surface updates to preserve annotations (typo fixes).
+                if (i2 - i1) == (j2 - j1):
+                    for k in range(i2 - i1):
+                        old_token = existing_tokens[i1 + k]
+                        new_index = j1 + k
+                        new_surface = token_strings[new_index]
+                        old_token.surface = new_surface
+                        old_token.order_index = new_index
+                        session.add(old_token)
+                        matched_positions[new_index] = old_token
+                        matched_token_ids.add(old_token.id)
+                else:
+                    # Treat as delete (will be handled by deleting unmatched)
+                    # and insert (below)
+                    for k in range(j2 - j1):
+                        new_index = j1 + k
+                        new_surface = token_strings[new_index]
+                        new_token = cls(
+                            sentence_id=sentence_id,
+                            order_index=new_index,
+                            surface=new_surface,
+                        )
+                        session.add(new_token)
+                        session.flush()  # Get ID
 
-        for new_index, new_surface in enumerate(token_strings):
-            if new_index in position_to_token:
-                existing_token = position_to_token[new_index]
-                if existing_token.id is not None:
-                    # Token exists at this position - match it (even if surface differs)
-                    matched_positions[new_index] = existing_token
-                    matched_token_ids.add(existing_token.id)
-                    # Update surface if it changed (preserves annotation and notes)
-                    if existing_token.surface != new_surface:
-                        existing_token.surface = new_surface
-                        session.add(existing_token)
+                        # Create empty annotation
+                        if not Annotation.exists(new_token.id):
+                            annotation = Annotation(token_id=new_token.id)
+                            session.add(annotation)
 
-        # Phase 2: Match remaining unmatched tokens by surface only
-        # Get list of unmatched existing tokens
-        unmatched_existing = [
-            token
-            for token in existing_tokens
-            if token.id is not None and token.id not in matched_token_ids
-        ]
-
-        # Move all unmatched existing tokens to temporary negative positions
-        # to avoid unique constraint violations during updates
-        temp_offset = -(len(existing_tokens) + len(token_strings) + 1)
-        for token in unmatched_existing:
-            token.order_index = temp_offset
-            session.add(token)
-            temp_offset += 1
-        session.flush()
-
-        # Now match remaining positions by surface
-        for new_index, new_surface in enumerate(token_strings):
-            if new_index not in matched_positions:
-                # Try to find an unmatched existing token with matching surface
-                matched = False
-                for existing_token in unmatched_existing:
-                    if (
-                        existing_token.surface == new_surface
-                        and existing_token.id is not None
-                    ):
-                        # Match found - use this existing token
-                        matched_positions[new_index] = existing_token
-                        matched_token_ids.add(existing_token.id)
-                        unmatched_existing.remove(existing_token)
-                        # Update surface (in case it changed) and order_index
-                        # Safe to update now since we moved all tokens to temp positions
-                        existing_token.surface = new_surface
-                        existing_token.order_index = new_index
-                        session.add(existing_token)
-                        matched = True
-                        break
-
-                if not matched:
-                    # No match found - create a new token
+                        matched_positions[new_index] = new_token
+            elif tag == "insert":
+                for k in range(j2 - j1):
+                    new_index = j1 + k
+                    new_surface = token_strings[new_index]
                     new_token = cls(
                         sentence_id=sentence_id,
                         order_index=new_index,
                         surface=new_surface,
                     )
                     session.add(new_token)
-                    session.flush()  # Get the ID
+                    session.flush()
 
-                    # Create empty annotation for new token
+                    # Create empty annotation
                     if not Annotation.exists(new_token.id):
                         annotation = Annotation(token_id=new_token.id)
                         session.add(annotation)
@@ -576,40 +571,12 @@ class Token(SaveDeleteMixin, Base):
 
         session.flush()
 
-        # Update order_index for tokens that were matched in Phase 1 but may need
-        # their order_index updated (shouldn't happen, but ensure consistency)
-        for new_index, token in matched_positions.items():
-            if token.order_index != new_index:
-                token.order_index = new_index
-                session.add(token)
-
-        session.flush()
-
-        # Delete tokens that weren't matched (they no longer exist in the sentence)
-        # Cascade delete will handle annotations and notes
+        # Delete tokens that weren't matched
         for token in existing_tokens:
-            if token.id and token.id not in matched_token_ids:
+            if token.id not in matched_token_ids:
                 session.delete(token)
 
         session.flush()
-
-        # Final verification: ensure all positions are filled and sequential
-        if len(matched_positions) != len(token_strings):
-            msg = (
-                f"Position count mismatch: expected {len(token_strings)} "
-                f"positions, found {len(matched_positions)} in matched_positions"
-            )
-            raise ValueError(msg)
-
-        # Ensure all tokens are numbered sequentially (0, 1, 2, ...)
-        for new_index in range(len(token_strings)):
-            if new_index not in matched_positions:
-                msg = f"Missing token at position {new_index}"
-                raise ValueError(msg)
-            token = matched_positions[new_index]
-            if token.order_index != new_index:
-                token.order_index = new_index
-                session.add(token)
 
         # Update notes for token changes
         cls._update_notes_for_token_changes(

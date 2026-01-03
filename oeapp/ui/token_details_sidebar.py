@@ -7,6 +7,7 @@ from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
+    QLayout,
     QPushButton,
     QScrollArea,
     QVBoxLayout,
@@ -15,7 +16,7 @@ from PySide6.QtWidgets import (
 
 from oeapp.exc import NoAnnotationAvailable
 from oeapp.ui.mixins import AnnotationLookupsMixin
-from oeapp.utils import open_bosworth_toller, render_svg
+from oeapp.utils import clear_layout, open_bosworth_toller, render_svg
 
 if TYPE_CHECKING:
     from oeapp.models.annotation import Annotation
@@ -454,19 +455,7 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
         """
         if not layout:
             layout = self.content_layout
-        while layout.count():
-            item = layout.takeAt(0)
-
-            widget = item.widget()
-            if widget is not None:
-                widget.setParent(None)
-                widget.deleteLater()
-                continue
-
-            child_layout = item.layout()
-            if child_layout is not None:
-                self.clear_sidebar(cast("QVBoxLayout | QHBoxLayout", child_layout))
-                child_layout.deleteLater()
+        clear_layout(cast("QLayout", layout))
 
     def part_of_speech(self, annotation: Annotation) -> None:
         """
