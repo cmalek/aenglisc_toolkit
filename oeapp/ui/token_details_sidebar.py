@@ -672,6 +672,6 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
         except NoAnnotationAvailable:
             return
         self.root(annotation)
-        self.modern_english_meaning(annotation)
         self.confidence(annotation)
+        self.modern_english_meaning(annotation)
         self.content_layout.addStretch()
