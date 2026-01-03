@@ -4,12 +4,15 @@ import re
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 from urllib.parse import quote
 
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QDesktopServices, QIcon, QPainter, QPixmap
 from PySide6.QtSvg import QSvgRenderer
-from PySide6.QtWidgets import QLayout
+
+if TYPE_CHECKING:
+    from PySide6.QtWidgets import QLayout
 
 
 def get_resource_path(relative_path: str) -> Path:
