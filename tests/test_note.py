@@ -1,6 +1,6 @@
 """Unit tests for Note model."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 import pytest
 
@@ -230,10 +230,10 @@ class TestNote:
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
 
-        before = datetime.now()
+        before = datetime.now(UTC).replace(tzinfo=None)
         note = Note(sentence_id=sentence.id, note_text_md="Test")
         note.save()
-        after = datetime.now()
+        after = datetime.now(UTC).replace(tzinfo=None)
 
         assert before <= note.created_at <= after
 

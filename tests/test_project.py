@@ -1,6 +1,6 @@
 """Unit tests for Project model."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy.exc import IntegrityError
@@ -232,10 +232,10 @@ class TestProject:
 
     def test_created_at_set_on_creation(self, db_session):
         """Test created_at is set on creation."""
-        before = datetime.now()
+        before = datetime.now(UTC).replace(tzinfo=None)
         project = Project(name="Test")
         project.save()
-        after = datetime.now()
+        after = datetime.now(UTC).replace(tzinfo=None)
 
         assert before <= project.created_at <= after
 

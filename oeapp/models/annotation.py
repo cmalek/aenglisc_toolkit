@@ -1,6 +1,6 @@
 """Annotation model."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
@@ -152,7 +152,10 @@ class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
     root: Mapped[str | None] = mapped_column(String, nullable=True)
     #: The date and time the annotation was last updated.
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.now, onupdate=datetime.now, nullable=False
+        DateTime,
+        default=lambda: datetime.now(UTC).replace(tzinfo=None),
+        onupdate=lambda: datetime.now(UTC).replace(tzinfo=None),
+        nullable=False,
     )
 
     # Relationships

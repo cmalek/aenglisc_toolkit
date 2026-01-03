@@ -2,10 +2,10 @@
 
 import builtins
 import re
-from datetime import datetime
+from datetime import UTC, datetime
 
-from sqlalchemy import DateTime, Integer, String, func, select
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import DateTime, Integer, String, event, func, select
+from sqlalchemy.orm import Mapped, Session, mapped_column, relationship
 
 from oeapp.db import Base
 from oeapp.exc import AlreadyExists
@@ -35,11 +35,14 @@ class Project(SaveDeleteMixin, Base):
     notes: Mapped[str | None] = mapped_column(String, nullable=True)
     #: The date and time the project was created.
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.now, nullable=False
+        DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None), nullable=False
     )
     #: The date and time the project was last updated.
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.now, onupdate=datetime.now, nullable=False
+        DateTime,
+        default=lambda: datetime.now(UTC).replace(tzinfo=None),
+        onupdate=lambda: datetime.now(UTC).replace(tzinfo=None),
+        nullable=False,
     )
 
     # Relationships
@@ -513,3 +516,58 @@ class Project(SaveDeleteMixin, Base):
             )
             or 0
         )
+
+
+@event.listens_for(Session, "before_flush")
+def touch_project_on_change(session, flush_context, instances):
+    """
+    Update Project.updated_at whenever a related entity is changed.
+    """
+    projects_to_touch = set()
+
+    # Check new, dirty (modified), and deleted objects
+    for obj in session.new | session.dirty | session.deleted:
+        if isinstance(obj, Project):
+            continue
+
+        classname = obj.__class__.__name__
+        if classname not in ("Sentence", "Token", "Annotation", "Note"):
+            continue
+
+        project = None
+        try:
+            if classname == "Sentence":
+                project = obj.project
+                if not project and obj.project_id:
+                    project = session.get(Project, obj.project_id)
+            elif classname == "Token" or classname == "Note":
+                sentence = obj.sentence
+                if not sentence and obj.sentence_id:
+                    from .sentence import Sentence  # noqa: PLC0415
+
+                    sentence = session.get(Sentence, obj.sentence_id)
+                if sentence:
+                    project = sentence.project
+            elif classname == "Annotation":
+                token = obj.token
+                if not token and obj.token_id:
+                    from .token import Token  # noqa: PLC0415
+
+                    token = session.get(Token, obj.token_id)
+                if token:
+                    sentence = token.sentence
+                    if not sentence and token.sentence_id:
+                        from .sentence import Sentence  # noqa: PLC0415
+
+                        sentence = session.get(Sentence, token.sentence_id)
+                    if sentence:
+                        project = sentence.project
+        except Exception:  # noqa: BLE001
+            # If relationship is not accessible, skip
+            continue
+
+        if project and project not in session.deleted:
+            projects_to_touch.add(project)
+
+    for project in projects_to_touch:
+        project.updated_at = datetime.now(UTC).replace(tzinfo=None)

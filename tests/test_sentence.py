@@ -1,6 +1,6 @@
 """Unit tests for Sentence model."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 import pytest
 
@@ -302,11 +302,11 @@ class TestSentence:
         """Test created_at is set on creation."""
         project = create_test_project(db_session)
 
-        before = datetime.now()
+        before = datetime.now(UTC).replace(tzinfo=None)
         sentence = Sentence.create(
             project_id=project.id, display_order=1, text_oe="Se cyning"
         )
-        after = datetime.now()
+        after = datetime.now(UTC).replace(tzinfo=None)
 
         assert before <= sentence.created_at <= after
 

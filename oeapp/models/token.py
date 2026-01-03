@@ -3,7 +3,7 @@
 import builtins
 import difflib
 import re
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, ClassVar
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String, UniqueConstraint, select
@@ -47,11 +47,14 @@ class Token(SaveDeleteMixin, Base):
     lemma: Mapped[str | None] = mapped_column(String, nullable=True)
     #: The date and time the token was created.
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.now, nullable=False
+        DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None), nullable=False
     )
     #: The date and time the token was last updated.
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.now, onupdate=datetime.now, nullable=False
+        DateTime,
+        default=lambda: datetime.now(UTC).replace(tzinfo=None),
+        onupdate=lambda: datetime.now(UTC).replace(tzinfo=None),
+        nullable=False,
     )
 
     # Relationships

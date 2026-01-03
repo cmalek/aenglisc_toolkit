@@ -1,6 +1,6 @@
 """Comprehensive unit tests for Token model."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 import pytest
 
@@ -253,10 +253,10 @@ class TestToken:
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
 
-        before = datetime.now()
+        before = datetime.now(UTC).replace(tzinfo=None)
         token = Token(sentence_id=sentence.id, order_index=10, surface="test")
         token.save()
-        after = datetime.now()
+        after = datetime.now(UTC).replace(tzinfo=None)
 
         assert before <= token.created_at <= after
 

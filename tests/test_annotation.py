@@ -1,6 +1,6 @@
 """Unit tests for Annotation model."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy.exc import IntegrityError
@@ -301,10 +301,10 @@ class TestAnnotation:
         # Get existing annotation and update it
         annotation = Annotation.get(token.id)
         assert annotation is not None
-        before = datetime.now()
+        before = datetime.now(UTC).replace(tzinfo=None)
         annotation.pos = "N"
         annotation.save()
-        after = datetime.now()
+        after = datetime.now(UTC).replace(tzinfo=None)
 
         assert before <= annotation.updated_at <= after
 

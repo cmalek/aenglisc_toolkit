@@ -1,6 +1,6 @@
 """Note model."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, String
@@ -49,11 +49,14 @@ class Note(SaveDeleteMixin, Base):
     )  # token, span, sentence
     #: The date and time the note was created.
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.now, nullable=False
+        DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None), nullable=False
     )
     #: The date and time the note was last updated.
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.now, onupdate=datetime.now, nullable=False
+        DateTime,
+        default=lambda: datetime.now(UTC).replace(tzinfo=None),
+        onupdate=lambda: datetime.now(UTC).replace(tzinfo=None),
+        nullable=False,
     )
 
     # Relationships
