@@ -104,6 +104,94 @@ class TestSentenceCard:
 
         assert card.sentence.is_paragraph_start is True
 
+    def test_token_navigation_next_prev(self, db_session, qapp, qtbot):
+        """Test token navigation using arrow keys."""
+        from PySide6.QtCore import Qt
+        from PySide6.QtGui import QKeyEvent
+
+        project = create_test_project(db_session, name="Test", text="Se cyning fēoll")
+        sentence = project.sentences[0]
+        # Mock main_window since keyPressEvent checks for it
+        mock_main_window = MagicMock()
+        card = SentenceCard(sentence, main_window=mock_main_window, parent=None)
+        # Manually render to populate _token_positions
+        card._render_oe_text_with_superscripts()
+        card.show()
+        qtbot.addWidget(card)
+
+        # 1. Select first token (Se)
+        card.selected_token_index = 0
+        card.token_table.select_token(0)
+
+        # 2. Press Right Arrow -> should move to "cyning" (index 1)
+        event = QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_Right, Qt.NoModifier)
+        card.keyPressEvent(event)
+
+        assert card.selected_token_index == 1
+        assert card.token_table.table.currentRow() == 1
+
+        # 3. Press Right Arrow -> should move to "fēoll" (index 2)
+        event2 = QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_Right, Qt.NoModifier)
+        card.keyPressEvent(event2)
+        assert card.selected_token_index == 2
+        assert card.token_table.table.currentRow() == 2
+
+        # 4. Press Right Arrow at end -> should stay at "fēoll" (index 2)
+        event3 = QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_Right, Qt.NoModifier)
+        card.keyPressEvent(event3)
+        assert card.selected_token_index == 2
+        assert card.token_table.table.currentRow() == 2
+
+        # 5. Press Left Arrow -> should move back to "cyning" (index 1)
+        event_left = QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_Left, Qt.NoModifier)
+        card.keyPressEvent(event_left)
+        assert card.selected_token_index == 1
+        assert card.token_table.table.currentRow() == 1
+
+        # 6. Press Left Arrow -> should move back to "Se" (index 0)
+        event_left2 = QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_Left, Qt.NoModifier)
+        card.keyPressEvent(event_left2)
+        assert card.selected_token_index == 0
+        assert card.token_table.table.currentRow() == 0
+
+        # 7. Press Left Arrow at start -> should stay at "Se" (index 0)
+        event_left3 = QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_Left, Qt.NoModifier)
+        card.keyPressEvent(event_left3)
+        assert card.selected_token_index == 0
+        assert card.token_table.table.currentRow() == 0
+
+    def test_token_table_selection_syncs_to_card(self, db_session, qapp):
+        """Test that selecting a token in the table updates the card state."""
+        project = create_test_project(db_session, name="Test", text="Se cyning")
+        sentence = project.sentences[0]
+        card = SentenceCard(sentence, parent=None)
+        # Manually render to populate _token_positions
+        card._render_oe_text_with_superscripts()
+
+        # Select second token in table
+        token = sentence.tokens[1]
+        card.token_table.token_selected.emit(token)
+
+        assert card.selected_token_index == token.order_index
+        assert card._current_highlight_start is not None
+
+    def test_clickable_text_edit_ignores_arrows(self, qapp):
+        """Test that ClickableTextEdit ignores arrow keys so they bubble up."""
+        from PySide6.QtCore import Qt
+        from PySide6.QtGui import QKeyEvent
+
+        widget = ClickableTextEdit(parent=None)
+
+        # Test Right Arrow - should be ignored (bubbled up)
+        event_right = QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_Right, Qt.NoModifier)
+        widget.keyPressEvent(event_right)
+        assert event_right.isAccepted() is False
+
+        # Test Left Arrow - should be ignored (bubbled up)
+        event_left = QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_Left, Qt.NoModifier)
+        widget.keyPressEvent(event_left)
+        assert event_left.isAccepted() is False
+
 
 class TestClickableTextEdit:
     """Test cases for ClickableTextEdit."""
@@ -153,4 +241,3 @@ class TestClickableTextEdit:
         widget.double_clicked.emit(point)
 
         assert double_clicked_pos == point
-

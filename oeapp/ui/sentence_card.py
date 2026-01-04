@@ -10,7 +10,6 @@ from PySide6.QtGui import (
     QKeyEvent,
     QKeySequence,
     QMouseEvent,
-    QShortcut,
     Qt,
     QTextCharFormat,
     QTextCursor,
@@ -57,7 +56,16 @@ if TYPE_CHECKING:
 
 
 class ClickableTextEdit(QTextEdit):
-    """QTextEdit that emits a signal when clicked."""
+    """
+    QTextEdit that emits a signal when clicked.
+
+    This currently handles:
+
+    - Mouse clicks
+    - Double mouse clicks
+    - Key presses for annotation copy/paste
+
+    """
 
     clicked = Signal(QPoint, object)  # position, modifiers
     double_clicked = Signal(QPoint)
@@ -93,6 +101,12 @@ class ClickableTextEdit(QTextEdit):
         if event.matches(QKeySequence.StandardKey.Paste):
             self.paste_annotation_requested.emit()
             event.accept()
+            return
+
+        # For arrow keys, ignore them so they bubble up to SentenceCard
+        # when a token is selected (SentenceCard will handle navigation)
+        if event.key() in (Qt.Key.Key_Left, Qt.Key.Key_Right):
+            event.ignore()
             return
 
         # For all other keys, use default behavior
@@ -175,10 +189,10 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
         self.annotations: dict[int, Annotation | None] = {
             cast("int", token.id): token.annotation for token in self.tokens if token.id
         }
-        # Track current highlight position to clear it later
+        # Track current token select highlight position to clear it later
         self._current_highlight_start: int | None = None
         self._current_highlight_length: int | None = None
-        # Track current highlight mode (None, 'pos', 'case', 'number')
+        # Track current token highlight mode (None, 'pos', 'case', 'number')
         self._current_highlight_mode: str | None = None
         # Track selected cases for highlighting (default: all cases)
         self._selected_cases: set[str] = {"n", "a", "g", "d", "i"}
@@ -207,7 +221,6 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
         self._oe_edit_mode: bool = False
         self._original_oe_text: str | None = None
         self._setup_ui()
-        self._setup_shortcuts()
 
     @property
     def has_focus(self) -> bool:
@@ -223,38 +236,51 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
             ]
         )
 
-    def _setup_shortcuts(self):
-        """
-        Set up keyboard shortcuts.
-
-        The following shortcuts are set up:
-        - 'A' key to annotate selected token
-        - Arrow keys for token navigation
-        - 'Ctrl+Enter' to split sentence
-        - 'Ctrl+M' to merge sentence
-        - 'Ctrl+Delete' to delete sentence
-        """
-        # 'A' key to annotate selected token
-        annotate_shortcut = QShortcut(QKeySequence("A"), self)
-        annotate_shortcut.activated.connect(self._open_annotation_modal)
-
-        # Arrow keys for token navigation
-        next_token_shortcut = QShortcut(QKeySequence("Right"), self)
-        next_token_shortcut.activated.connect(self._next_token)
-        prev_token_shortcut = QShortcut(QKeySequence("Left"), self)
-        prev_token_shortcut.activated.connect(self._prev_token)
-
     def _next_token(self) -> None:
-        """Navigate to next token."""
-        current_row = self.token_table.current_row
-        if current_row < len(self.tokens) - 1:
-            self.token_table.select_token(current_row + 1)
+        """
+        Navigate to next token in the sentence and in the token table.
 
-    def _prev_token(self):
-        """Navigate to previous token."""
-        current_row = self.token_table.current_row
-        if current_row > 1 and self.tokens:
-            self.token_table.select_token(current_row - 1)
+        - If no token is selected, do nothing.
+        - If the last token is selected, do nothing.
+        """
+        if not self.tokens or self.selected_token_index is None:
+            return
+
+        current_list_index = self.order_to_list_index.get(self.selected_token_index)
+        if current_list_index is not None and current_list_index < len(self.tokens) - 1:
+            next_list_index = current_list_index + 1
+        else:
+            # Already at last token or invalid index
+            return
+
+        token = self.tokens[next_list_index]
+        self.selected_token_index = token.order_index
+        self.token_table.select_token(next_list_index)
+        self._highlight_token_in_text(token)
+        self.token_selected_for_details.emit(token, self.sentence, self)
+
+    def _prev_token(self) -> None:
+        """
+        Navigate to previous token in the sentence and in the token table.
+
+        - If no token is selected, do nothing.
+        - If the first token is selected, do nothing.
+        """
+        if not self.tokens or self.selected_token_index is None:
+            return
+
+        current_list_index = self.order_to_list_index.get(self.selected_token_index)
+        if current_list_index is not None and current_list_index > 0:
+            prev_list_index = current_list_index - 1
+        else:
+            # Already at first token or invalid index
+            return
+
+        token = self.tokens[prev_list_index]
+        self.selected_token_index = token.order_index
+        self.token_table.select_token(prev_list_index)
+        self._highlight_token_in_text(token)
+        self.token_selected_for_details.emit(token, self.sentence, self)
 
     def keyPressEvent(self, event: QKeyEvent) -> None:  # noqa: N802
         """
@@ -275,6 +301,16 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
                 return
             if event.matches(QKeySequence.StandardKey.Paste):
                 self.main_window.action_service.paste_annotation()
+                event.accept()
+                return
+            # If right arrow key is pressed, navigate to next token
+            if event.key() == Qt.Key.Key_Right:
+                self._next_token()
+                event.accept()
+                return
+            # If left arrow key is pressed, navigate to previous token
+            if event.key() == Qt.Key.Key_Left:
+                self._prev_token()
                 event.accept()
                 return
 
@@ -405,7 +441,7 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
 
         # Token annotation grid (hidden by default)
         self.token_table.annotation_requested.connect(self._open_annotation_modal)
-        self.token_table.token_selected.connect(self._highlight_token_in_text)
+        self.token_table.token_selected.connect(self._on_token_table_token_selected)
         self.token_table.setVisible(False)
         layout.addWidget(self.token_table)
         self.set_tokens(self.tokens)
@@ -446,22 +482,27 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
 
         layout.addStretch()
 
-    def set_tokens(self, tokens: list[Token]):
+    def set_tokens(self, _tokens: list[Token] | None = None):
         """
         Set tokens for this sentence card.  This will also load the annotations
         for the tokens.
 
         Args:
-            tokens: List of tokens
+            _tokens: List of tokens (optional, ignored in favor of self.sentence.sorted_tokens)
 
         """
-        self.tokens = tokens
-        self.tokens_by_index = {t.order_index: t for t in tokens}
-        self.order_to_list_index = {t.order_index: i for i, t in enumerate(tokens)}
+        # Ensure tokens are sorted by their position in the text
+        # We always use the sentence's sorted_tokens as the source of truth for order
+        # as requested in the plan.
+        sorted_tokens, _ = self.sentence.sorted_tokens
+        self.tokens = sorted_tokens
+
+        self.tokens_by_index = {t.order_index: t for t in self.tokens}
+        self.order_to_list_index = {t.order_index: i for i, t in enumerate(self.tokens)}
         self.annotations = {
             cast("int", token.id): token.annotation for token in self.tokens if token.id
         }
-        self.token_table.set_tokens(tokens)
+        self.token_table.set_tokens(self.tokens)
 
         # Re-apply highlighting if a mode is active
         if self._current_highlight_mode == "pos":
@@ -589,6 +630,23 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
         elif self._current_highlight_mode == "number":
             self._apply_number_highlighting()
 
+    def _on_token_table_token_selected(self, token: Token) -> None:
+        """
+        Handle token selection from the token table.
+
+        Args:
+            token: Selected token
+
+        """
+        # Cancel any pending deselection timer
+        if self._deselect_timer.isActive():
+            self._deselect_timer.stop()
+        self._pending_deselect_token_index = None
+
+        self.selected_token_index = token.order_index
+        self._highlight_token_in_text(token)
+        self.token_selected_for_details.emit(token, self.sentence, self)
+
     def _on_oe_text_clicked(
         self, position: QPoint, modifiers: Qt.KeyboardModifier
     ) -> None:
@@ -644,6 +702,10 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
                     if token:
                         self._highlight_token_in_text(token)
                         self.token_selected_for_details.emit(token, self.sentence, self)
+                        # Sync with token table
+                        list_index = self.order_to_list_index.get(order_index)
+                        if list_index is not None:
+                            self.token_table.select_token(list_index)
                     # Enable Add Note button when token is selected
                     self.add_note_button.setEnabled(True)
             else:
@@ -664,6 +726,10 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
                     if token:
                         self._highlight_token_in_text(token)
                         self.token_selected_for_details.emit(token, self.sentence, self)
+                        # Sync with token table
+                        list_index = self.order_to_list_index.get(order_index)
+                        if list_index is not None:
+                            self.token_table.select_token(list_index)
 
     def _on_oe_text_double_clicked(self, position: QPoint) -> None:
         """
@@ -736,7 +802,9 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
         if position < doc.characterCount() - 1:
             test_cursor = QTextCursor(doc)
             test_cursor.setPosition(position)
-            test_cursor.movePosition(QTextCursor.MoveOperation.Right, QTextCursor.MoveMode.KeepAnchor)
+            test_cursor.movePosition(
+                QTextCursor.MoveOperation.Right, QTextCursor.MoveMode.KeepAnchor
+            )
             fmt = test_cursor.charFormat()
             val = fmt.property(self.TOKEN_INDEX_PROPERTY)
             if val is not None:
@@ -1241,7 +1309,7 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
 
         """
         # Clear any existing highlight first
-        self._clear_highlight()
+        self._clear_all_highlights()
 
         if token.id not in self._token_positions:
             return
@@ -1285,7 +1353,7 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
 
         """
         # Clear any existing highlight first
-        self._clear_highlight()
+        self._clear_all_highlights()
 
         if not self.tokens:
             return
@@ -1559,7 +1627,7 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
                 # Ensure superscripts don't carry the token index property
                 # and are slightly smaller
                 font = super_format.font()
-                font.setPointSize(int(font.pointSize() * 0.7))
+                font.setPointSize(int(font.pointSize()))
                 super_format.setFont(font)
 
                 cursor.insertText(",".join(map(str, note_numbers)), super_format)
