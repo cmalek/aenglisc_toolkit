@@ -314,6 +314,15 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
                 event.accept()
                 return
 
+            # If Enter/Return is pressed and not in edit mode, open annotation modal
+            if (
+                event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter)
+                and not self._oe_edit_mode
+            ):
+                self._open_annotation_modal()
+                event.accept()
+                return
+
         # For all other keys, use default behavior
         super().keyPressEvent(event)
 

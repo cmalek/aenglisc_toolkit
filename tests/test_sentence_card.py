@@ -160,6 +160,95 @@ class TestSentenceCard:
         assert card.selected_token_index == 0
         assert card.token_table.table.currentRow() == 0
 
+    def test_enter_key_opens_annotation_modal(self, db_session, qapp, qtbot, monkeypatch):
+        """Test that pressing Enter key opens the annotation modal when a token is selected."""
+        from PySide6.QtCore import Qt
+        from PySide6.QtGui import QKeyEvent
+
+        project = create_test_project(db_session, name="Test", text="Se cyning")
+        sentence = project.sentences[0]
+        mock_main_window = MagicMock()
+        card = SentenceCard(sentence, main_window=mock_main_window, parent=None)
+
+        # Mock _open_annotation_modal to see if it's called
+        mock_open_modal = MagicMock()
+        monkeypatch.setattr(card, "_open_annotation_modal", mock_open_modal)
+
+        # Select a token
+        card.selected_token_index = 0
+
+        # Press Enter
+        event = QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_Enter, Qt.NoModifier)
+        card.keyPressEvent(event)
+
+        assert mock_open_modal.called
+        assert event.isAccepted()
+
+        # Press Return (standard Enter)
+        mock_open_modal.reset_mock()
+        event2 = QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_Return, Qt.NoModifier)
+        card.keyPressEvent(event2)
+
+        assert mock_open_modal.called
+        assert event2.isAccepted()
+
+    def test_enter_key_in_edit_mode_not_intercepted(
+        self, db_session, qapp, qtbot, monkeypatch
+    ):
+        """Test that Enter key is NOT intercepted by SentenceCard when in edit mode."""
+        from PySide6.QtCore import Qt
+        from PySide6.QtGui import QKeyEvent
+
+        project = create_test_project(db_session, name="Test", text="Se cyning")
+        sentence = project.sentences[0]
+        mock_main_window = MagicMock()
+        card = SentenceCard(sentence, main_window=mock_main_window, parent=None)
+
+        # Enter edit mode
+        card._on_edit_oe_clicked()
+        assert card._oe_edit_mode is True
+
+        # Mock _open_annotation_modal
+        mock_open_modal = MagicMock()
+        monkeypatch.setattr(card, "_open_annotation_modal", mock_open_modal)
+
+        # Select a token (even though in edit mode, it might have an index)
+        card.selected_token_index = 0
+
+        # Press Enter
+        event = QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_Enter, Qt.NoModifier)
+        card.keyPressEvent(event)
+
+        # Should NOT call open_modal and should NOT accept the event (bubbles to super)
+        assert not mock_open_modal.called
+        assert not event.isAccepted()
+
+    def test_enter_key_without_token_selected_does_nothing(
+        self, db_session, qapp, qtbot, monkeypatch
+    ):
+        """Test that Enter key does nothing if no token is selected."""
+        from PySide6.QtCore import Qt
+        from PySide6.QtGui import QKeyEvent
+
+        project = create_test_project(db_session, name="Test", text="Se cyning")
+        sentence = project.sentences[0]
+        mock_main_window = MagicMock()
+        card = SentenceCard(sentence, main_window=mock_main_window, parent=None)
+
+        # Ensure no token selected
+        card.selected_token_index = None
+
+        # Mock _open_annotation_modal
+        mock_open_modal = MagicMock()
+        monkeypatch.setattr(card, "_open_annotation_modal", mock_open_modal)
+
+        # Press Enter
+        event = QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_Enter, Qt.NoModifier)
+        card.keyPressEvent(event)
+
+        assert not mock_open_modal.called
+        assert not event.isAccepted()
+
     def test_token_table_selection_syncs_to_card(self, db_session, qapp):
         """Test that selecting a token in the table updates the card state."""
         project = create_test_project(db_session, name="Test", text="Se cyning")
