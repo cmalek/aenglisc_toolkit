@@ -612,7 +612,7 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
         # Find which token contains this cursor position
         # We need to map cursor position to token by finding which token's
         # surface text spans that position
-        order_index = self._find_token_at_position(text, cursor_pos)
+        order_index = self._find_token_at_position(cursor_pos)
         if order_index is not None:
             # Cancel any pending deselection (in case this is part of a double-click)
             if self._deselect_timer.isActive():
@@ -683,7 +683,7 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
             return
 
         # Find which token contains this cursor position
-        order_index = self._find_token_at_position(text, cursor_pos)
+        order_index = self._find_token_at_position(cursor_pos)
         if order_index is not None:
             # Cancel any pending deselection timer (from single-click)
             if self._deselect_timer.isActive():
@@ -710,7 +710,7 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
                 modal.annotation_applied.connect(self._on_annotation_applied)
                 modal.exec()
 
-    def _find_token_at_position(self, text: str, position: int) -> int | None:
+    def _find_token_at_position(self, position: int) -> int | None:
         """
         Find the token index that contains the given character position.
 
@@ -718,11 +718,11 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
         Checks both the character after and before the cursor to handle edge clicks.
 
         Args:
-            text: The full sentence text (ignored, kept for compatibility)
             position: Character position in the document
 
         Returns:
             Token index if found, None otherwise
+
         """
         if not self.tokens:
             return None
@@ -1079,7 +1079,7 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
             if pos in self._selected_pos:
                 color = self.POS_COLORS.get(pos, self.POS_COLORS[None])
                 if color != self.POS_COLORS[None]:  # Only highlight if not default
-                    selection = self._create_token_selection(token, text, color)
+                    selection = self._create_token_selection(token, color)
                     if selection:
                         extra_selections.append(selection)
 
@@ -1118,7 +1118,7 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
                 color = self.CASE_COLORS.get(case_value, self.CASE_COLORS[None])
                 # Only highlight if not default
                 if color != self.CASE_COLORS[None]:
-                    selection = self._create_token_selection(token, text, color)
+                    selection = self._create_token_selection(token, color)
                     if selection:
                         extra_selections.append(selection)
 
@@ -1153,14 +1153,14 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
             color = self.NUMBER_COLORS.get(number_value, self.NUMBER_COLORS[None])
             # Only highlight if not default
             if color != self.NUMBER_COLORS[None]:
-                selection = self._create_token_selection(token, text, color)
+                selection = self._create_token_selection(token, color)
                 if selection:
                     extra_selections.append(selection)
 
         self.oe_text_edit.setExtraSelections(extra_selections)
 
     def _create_token_selection(
-        self, token: Token, text: str, color: QColor
+        self, token: Token, color: QColor
     ) -> QTextEdit.ExtraSelection | None:
         """
         Create an extra selection for highlighting a token's surface text.
@@ -1489,7 +1489,7 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
         if start_order is not None and end_order is not None:
             self._highlight_token_range(start_order, end_order)
 
-    def _render_oe_text_with_superscripts(self) -> None:  # noqa: PLR0912
+    def _render_oe_text_with_superscripts(self) -> None:
         """
         Render OE text with note superscripts.
 
@@ -1508,45 +1508,11 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
         # Clear token positions map
         self._token_positions.clear()
 
-        # Get sorted notes
-        notes_list = list(self.sentence.notes) if self.sentence.notes else []
-        notes = self._sort_notes_by_position(notes_list)
-
-        # Build mapping of token ID to note numbers
-        token_to_notes: dict[int, list[int]] = {}
-        for note_idx, note in enumerate(notes, start=1):
-            if note.end_token:
-                if note.end_token not in token_to_notes:
-                    token_to_notes[note.end_token] = []
-                token_to_notes[note.end_token].append(note_idx)
+        # Get token ID to note ID map
+        token_to_notes = self.sentence.token_to_note_map
 
         # Build token positions map sequentially in one pass
-        text = self.sentence.text_oe
-        if not self.tokens:
-            self.oe_text_edit.setPlainText(text)
-            return
-
-        token_id_to_start: dict[int, int] = {}
-        current_pos = 0
-        sorted_tokens = sorted(self.tokens, key=lambda t: t.order_index)
-
-        for token in sorted_tokens:
-            if not token.surface:
-                continue
-
-            # Find next occurrence of token's surface sequentially
-            pos = text.find(token.surface, current_pos)
-            if pos != -1:
-                token_id_to_start[cast("int", token.id)] = pos
-                current_pos = pos + len(token.surface)
-            # No fallback - if it's not found sequentially, it's not where we expect it.
-            # This prevents misidentifying tokens like "of" inside other words.
-
-        # Re-sort tokens by their actual position in text to build document
-        render_tokens = sorted(
-            [t for t in self.tokens if t.id in token_id_to_start],
-            key=lambda t: token_id_to_start[cast("int", t.id)],
-        )
+        tokens, token_id_to_start = self.sentence.sorted_tokens
 
         # Prepare to build the document
         self.oe_text_edit.clear()
@@ -1555,8 +1521,9 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
         # Use a clean format for non-token text
         default_format = QTextCharFormat()
 
+        text = self.sentence.text_oe
         last_pos = 0
-        for token in render_tokens:
+        for token in tokens:
             token_id = cast("int", token.id)
             token_start = token_id_to_start[token_id]
             token_end = token_start + len(token.surface)
@@ -1607,42 +1574,9 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
 
         # Restore highlight if a token was selected
         if self.selected_token_index is not None:
-            token = self.tokens_by_index.get(self.selected_token_index)
+            token = cast("Token", self.tokens_by_index.get(self.selected_token_index))
             if token:
                 self._highlight_token_in_text(token)
-
-
-    def _sort_notes_by_position(self, notes: list[Note]) -> list[Note]:
-        """
-        Sort notes by their position in the sentence (by start token order_index).
-
-        Args:
-            notes: List of notes to sort
-
-        Returns:
-            Sorted list of notes
-
-        """
-        if not self.tokens:
-            return notes
-
-        # Build token ID to order_index mapping
-        token_id_to_order: dict[int, int] = {}
-        for token in self.tokens:
-            if token.id:
-                token_id_to_order[token.id] = token.order_index
-
-        def get_note_position(note: Note) -> int:
-            """Get position of note in sentence based on start token."""
-            if note.start_token and note.start_token in token_id_to_order:
-                return token_id_to_order[note.start_token]
-            # Fallback to end_token if start_token not found
-            if note.end_token and note.end_token in token_id_to_order:
-                return token_id_to_order[note.end_token]
-            # Fallback to very high number if neither found
-            return 999999
-
-        return sorted(notes, key=get_note_position)
 
     def _escape_html(self, text: str) -> str:
         """

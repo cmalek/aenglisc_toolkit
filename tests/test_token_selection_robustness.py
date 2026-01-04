@@ -56,7 +56,7 @@ class TestTokenSelectionRobustness:
         # Middle of 'of'
         of_mid = (of_start + of_end) // 2
 
-        token_idx = card._find_token_at_position("", of_mid)
+        token_idx = card._find_token_at_position(of_mid)
         assert token_idx == 32
 
         # Test selection of 'ūre'
@@ -64,7 +64,7 @@ class TestTokenSelectionRobustness:
         assert card_ure_token.id in card._token_positions
         ure_start, ure_end = card._token_positions[card_ure_token.id]
         ure_mid = (ure_start + ure_end) // 2
-        token_idx = card._find_token_at_position("", ure_mid)
+        token_idx = card._find_token_at_position(ure_mid)
         assert token_idx == 28
 
     def test_global_deselection(self, db_session, qapp, qtbot):

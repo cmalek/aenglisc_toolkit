@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import builtins
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from sqlalchemy import (
     Boolean,
@@ -34,12 +34,18 @@ class Sentence(SaveDeleteMixin, Base):
     Represents a sentence.
 
     A sentences has these characteristics:
+
+    - A paragraph number
+    - A sentence number within the paragraph
     - A project ID
     - A display order
     - An Old English text
-    - A Modern English translation
+    - A Modern English translation (optional)
     - A list of tokens
     - A list of notes
+    - Whether this sentence starts a paragraph
+    - The date and time the sentence was created
+    - The date and time the sentence was last updated
 
     A sentence is related to a project by the project ID.
     A sentence is related to a list of tokens by the token ID.
@@ -509,3 +515,95 @@ class Sentence(SaveDeleteMixin, Base):
         # Refresh to get updated tokens
         session.refresh(self)
         return self
+
+    def _sort_notes_by_position(
+        self, notes: builtins.list[Note]
+    ) -> builtins.list[Note]:
+        """
+        Sort notes by their position in the sentence (by start token order_index).
+
+        Args:
+            notes: List of notes to sort
+
+        Returns:
+            Sorted list of notes
+
+        """
+        if not self.tokens:
+            return notes
+
+        # Build token ID to order_index mapping
+        token_id_to_order: dict[int, int] = {}
+        for token in self.tokens:
+            if token.id:
+                token_id_to_order[token.id] = token.order_index
+
+        def get_note_position(note: Note) -> int:
+            """Get position of note in sentence based on start token."""
+            if note.start_token and note.start_token in token_id_to_order:
+                return token_id_to_order[note.start_token]
+            # Fallback to end_token if start_token not found
+            if note.end_token and note.end_token in token_id_to_order:
+                return token_id_to_order[note.end_token]
+            # Fallback to very high number if neither found
+            return 999999
+
+        return sorted(notes, key=get_note_position)
+
+    @property
+    def sorted_notes(self) -> builtins.list[Note]:
+        """
+        Get the notes for the sentence, sorted by start token order_index.
+
+        Returns:
+            List of notes
+
+        """
+        return self._sort_notes_by_position(list(self.notes) if self.notes else [])
+
+    @property
+    def sorted_tokens(self) -> tuple[builtins.list[Token], dict[int, int]]:
+        """
+        Return the tokens for the sentence, sorted by their actual position in
+        the text.
+
+        Returns:
+            Sorted list of tokens
+
+        """
+        sorted_tokens = sorted(self.tokens, key=lambda t: t.order_index)
+        current_pos = 0
+        token_id_to_start: dict[int, int] = {}
+        for token in sorted_tokens:
+            # Find next occurrence of token's surface sequentially
+            pos = self.text_oe.find(token.surface, current_pos)
+            if pos != -1:
+                token_id_to_start[cast("int", token.id)] = pos
+                current_pos = pos + len(token.surface)
+            # No fallback - if it's not found sequentially, it's not where we
+            # expect it.  This prevents misidentifying tokens like "of" inside
+            # other words.
+
+        # Re-sort tokens by their actual position in text to build document
+        return sorted(
+            [t for t in self.tokens if t.id in token_id_to_start],
+            key=lambda t: token_id_to_start[cast("int", t.id)],
+        ), token_id_to_start
+
+    @property
+    def token_to_note_map(self) -> dict[int, builtins.list[int]]:
+        """
+        Return a dict of token IDs to note IDs.
+
+        Returns:
+            dict of token IDs to note IDs
+
+        """
+        # Build mapping of token ID to note numbers
+        token_to_notes: dict[int, list[int]] = {}
+        for note_idx, note in enumerate(self.sorted_notes, start=1):
+            if note.end_token:
+                if note.end_token not in token_to_notes:
+                    token_to_notes[note.end_token] = []
+                token_to_notes[note.end_token].append(note_idx)
+        return token_to_notes

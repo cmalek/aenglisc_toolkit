@@ -24,13 +24,13 @@ def test_token_selection_edge_cases(db_session, qapp):
     # Test click on START of word2 (pos 6)
     # _find_token_at_position should return 1 (word2)
     # In previous version it returned None or 0.
-    res = card._find_token_at_position(text, 6)
+    res = card._find_token_at_position(6)
     assert res == 1
 
     # Test click on END of word1 (pos 5)
     # This is exactly between '1' and ' '.
     # _find_token_at_position should return 0 (word1)
-    res = card._find_token_at_position(text, 5)
+    res = card._find_token_at_position(5)
     assert res == 0
 
     # Test click on space (pos 5.5? no, cursors are integers)

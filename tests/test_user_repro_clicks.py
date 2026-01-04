@@ -18,21 +18,21 @@ def test_user_problematic_sentence_clicks(db_session, qapp):
     start, end = card._token_positions[of_token.id]
 
     # Test click at START of "of"
-    res = card._find_token_at_position(text, start)
+    res = card._find_token_at_position(start)
     assert res == 32, f"Expected 32 at start of 'of' (pos {start}), got {res}"
 
     # Test click in MIDDLE of "of"
-    res = card._find_token_at_position(text, start + 1)
+    res = card._find_token_at_position(start + 1)
     assert res == 32, f"Expected 32 in middle of 'of' (pos {start+1}), got {res}"
 
     # Test click at END of "of"
-    res = card._find_token_at_position(text, end)
+    res = card._find_token_at_position(end)
     assert res == 32, f"Expected 32 at end of 'of' (pos {end}), got {res}"
 
     # "hīo" is at order_index 31
     hio_token = [t for t in card.tokens if t.order_index == 31][0]
     h_start, h_end = card._token_positions[hio_token.id]
 
-    res = card._find_token_at_position(text, h_start)
+    res = card._find_token_at_position(h_start)
     assert res == 31
 
