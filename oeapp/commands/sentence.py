@@ -239,11 +239,19 @@ class MergeSentenceCommand(SessionMixin, Command):
             session.add(sentence)
 
         session.commit()
+
+        # Recalculate project structure after merge
+        Sentence.recalculate_project_structure(next_project_id)
+
         return True
 
     def undo(self) -> bool:
         """
         Undo merge operation.
+
+        CRITICAL: Uses two-phase approach to handle unique constraint on
+        (project_id, display_order) and (project_id, paragraph_number,
+        sentence_number_in_paragraph).
 
         Returns:
             True if successful, False otherwise
@@ -260,9 +268,12 @@ class MergeSentenceCommand(SessionMixin, Command):
         Sentence.restore_display_orders(self.display_order_changes)
 
         # Now recreate next sentence (will get a new ID, which is fine)
+        # Use temporary paragraph/sentence numbers to avoid immediate conflicts
         next_sentence = Sentence(
             project_id=self.next_sentence_data["project_id"],
             display_order=self.next_sentence_data["display_order"],
+            paragraph_number=-1,
+            sentence_number_in_paragraph=-(self.next_sentence_data["display_order"] + 1000000),
             text_oe=self.next_sentence_data["text_oe"],
             text_modern=self.next_sentence_data["text_modern"],
         )
@@ -301,6 +312,9 @@ class MergeSentenceCommand(SessionMixin, Command):
             if idiom:
                 idiom.sentence_id = next_sentence.id
                 idiom.save()
+
+        # Recalculate project structure after undo
+        Sentence.recalculate_project_structure(self.next_sentence_data["project_id"])
 
         return True
 
@@ -341,13 +355,16 @@ class AddSentenceCommand(SessionMixin, Command):
     new_sentence_id: int | None = None
     #: Display order changes (sentence_id, old_order, new_order).
     display_order_changes: list[tuple[int, int, int]] = field(default_factory=list)
+    #: Whether the reference sentence was a paragraph start before being moved.
+    reference_was_paragraph_start: bool | None = None
 
     def execute(self) -> bool:
         """
         Execute add sentence operation.
 
         CRITICAL: Uses two-phase approach to handle unique constraint on
-        (project_id, display_order).
+        (project_id, display_order) and (project_id, paragraph_number,
+        sentence_number_in_paragraph).
 
         Returns:
             True if successful, False otherwise
@@ -388,20 +405,39 @@ class AddSentenceCommand(SessionMixin, Command):
                 affected_sentences, key=lambda s: s.display_order, reverse=True
             )
 
-        # Two-phase approach to avoid constraint violations
+        # Phase 1: Update display_orders safely
         if affected_sentences:
             self.display_order_changes = Sentence.renumber_sentences(
                 affected_sentences,
                 order_function=lambda s: s.display_order + 1,
             )
 
-        # Create new sentence with empty text_oe
+        # Handle is_paragraph_start for "before" position
+        new_is_paragraph_start = False
+        if self.position == "before":
+            self.reference_was_paragraph_start = reference_sentence.is_paragraph_start
+            if self.reference_was_paragraph_start:
+                new_is_paragraph_start = True
+                reference_sentence.is_paragraph_start = False
+                session.add(reference_sentence)
+        else:
+            self.reference_was_paragraph_start = reference_sentence.is_paragraph_start
+
+        # Create new sentence with temporary negative paragraph/sentence numbers
+        # to avoid UNIQUE constraint violations before full recalculation.
         new_sentence = Sentence.create(
             project_id=self.project_id,
             display_order=target_order,
             text_oe="",
+            is_paragraph_start=new_is_paragraph_start,
+            paragraph_number=-1,
+            # Use very large negative number to avoid conflicts with other temp sentences
+            sentence_number_in_paragraph=-(target_order + 1000000),
         )
         self.new_sentence_id = new_sentence.id
+
+        # Phase 2: Recalculate all paragraph and sentence numbers in the project
+        Sentence.recalculate_project_structure(self.project_id)
 
         return True
 
@@ -410,7 +446,8 @@ class AddSentenceCommand(SessionMixin, Command):
         Undo add sentence operation.
 
         CRITICAL: Uses two-phase approach to handle unique constraint on
-        (project_id, display_order).
+        (project_id, display_order) and (project_id, paragraph_number,
+        sentence_number_in_paragraph).
 
         Returns:
             True if successful, False otherwise
@@ -424,8 +461,19 @@ class AddSentenceCommand(SessionMixin, Command):
         if new_sentence:
             new_sentence.delete()
 
+        # Restore reference sentence paragraph start status
+        if self.reference_was_paragraph_start is not None:
+            reference_sentence = Sentence.get(self.reference_sentence_id)
+            if reference_sentence:
+                reference_sentence.is_paragraph_start = self.reference_was_paragraph_start
+                session = self._get_session()
+                session.add(reference_sentence)
+
         # Restore display_order using two-phase approach
         Sentence.restore_display_orders(self.display_order_changes)
+
+        # Recalculate project structure after restoration
+        Sentence.recalculate_project_structure(self.project_id)
         return True
 
     def get_description(self) -> str:
@@ -544,6 +592,9 @@ class DeleteSentenceCommand(SessionMixin, Command):
                 order_function=lambda s: s.display_order - 1,
             )
 
+        # Recalculate project structure after deletion
+        Sentence.recalculate_project_structure(project_id)
+
         return True
 
     def undo(self) -> bool:
@@ -551,7 +602,8 @@ class DeleteSentenceCommand(SessionMixin, Command):
         Undo delete operation.
 
         CRITICAL: Uses two-phase approach to handle unique constraint on
-        (project_id, display_order).
+        (project_id, display_order) and (project_id, paragraph_number,
+        sentence_number_in_paragraph).
 
         Returns:
             True if successful, False otherwise
@@ -567,9 +619,12 @@ class DeleteSentenceCommand(SessionMixin, Command):
         )  # Ensure display_order changes are applied
 
         # Recreate sentence (will get a new ID, which is fine)
+        # Use temporary paragraph/sentence numbers to avoid immediate conflicts
         restored_sentence = Sentence(
             project_id=self.sentence_data["project_id"],
             display_order=self.sentence_data["display_order"],
+            paragraph_number=-1,
+            sentence_number_in_paragraph=-(self.sentence_data["display_order"] + 1000000),
             text_oe=self.sentence_data["text_oe"],
             text_modern=self.sentence_data["text_modern"],
         )
@@ -637,6 +692,9 @@ class DeleteSentenceCommand(SessionMixin, Command):
                 restored_idiom.save()
                 if idiom_data.get("annotation"):
                     Annotation.from_json(None, idiom_data["annotation"], idiom_id=restored_idiom.id)
+
+        # Recalculate project structure after restoration
+        Sentence.recalculate_project_structure(self.sentence_data["project_id"])
 
         return True
 

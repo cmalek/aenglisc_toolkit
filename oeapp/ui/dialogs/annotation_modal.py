@@ -114,6 +114,11 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
             annotation: Existing annotation (if any)
 
         """
+        # Put an assert here to help with debugging when we call this
+        # method without setting :attr:`token` first.
+        assert self.token is not None, (  # noqa: S101
+            "_init_token_annotation called without self.token being set"
+        )
         if annotation:
             self.annotation = annotation
         token = cast("Token", self.token)
@@ -131,6 +136,11 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
             annotation: Existing annotation (if any)
 
         """
+        # Put an assert here to help with debugging when we call this
+        # method without setting :attr:`idiom` first.
+        assert self.idiom is not None, (  # noqa: S101
+            "_init_idiom_annotation called without self.idiom being set"
+        )
         if annotation:
             self.annotation = annotation
         idiom = cast("Idiom", self.idiom)
@@ -148,6 +158,8 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
 
         """
         title_text = self.token.surface if self.token else "Idiom"
+        # TODO: consider setting title_text to the idiom text surfaces; a consideration
+        # could be that the idiom text surfaces are too long for the title.
         self.setWindowTitle(f"Annotate: {title_text}")
         self.setModal(True)
         self.resize(self.DIALOG_WIDTH, self.DIALOG_HEIGHT)

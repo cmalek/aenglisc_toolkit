@@ -416,6 +416,55 @@ class Sentence(SaveDeleteMixin, Base):
         session.commit()
         session.flush()
 
+    @classmethod
+    def recalculate_project_structure(cls, project_id: int) -> None:
+        """
+        Recalculate paragraph_number and sentence_number_in_paragraph for all
+        sentences in a project.
+
+        This method safely updates these numbers using a two-phase approach to
+        avoid unique constraint violations on (project_id, paragraph_number,
+        sentence_number_in_paragraph).
+
+        Args:
+            project_id: Project ID
+
+        """
+        session = cls._get_session()
+        sentences = cls.list(project_id)
+        if not sentences:
+            return
+
+        # Phase 1: Move all to temporary negative positions
+        temp_offset = -1
+        for sentence in sentences:
+            sentence.paragraph_number = -1
+            sentence.sentence_number_in_paragraph = temp_offset
+            temp_offset -= 1
+            session.add(sentence)
+        session.flush()
+
+        # Phase 2: Assign correct numbers based on display_order
+        current_paragraph = 1
+        current_sentence_in_paragraph = 0
+
+        for idx, sentence in enumerate(sentences):
+            if sentence.is_paragraph_start:
+                if current_sentence_in_paragraph > 0:
+                    # New paragraph (not the first sentence)
+                    current_paragraph += 1
+                current_sentence_in_paragraph = 1
+            else:
+                # Continuing current paragraph
+                current_sentence_in_paragraph += 1
+
+            sentence.paragraph_number = current_paragraph
+            sentence.sentence_number_in_paragraph = current_sentence_in_paragraph
+            session.add(sentence)
+
+        session.commit()
+        session.flush()
+
     def to_json(self) -> dict:
         """
         Serialize sentence to JSON-compatible dictionary (without PKs).

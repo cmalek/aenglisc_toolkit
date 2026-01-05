@@ -64,7 +64,10 @@ class ToggleParagraphStartCommand(SessionMixin, Command):
         session.flush()
 
         # Recalculate paragraph and sentence numbers for all sentences
-        self._recalculate_paragraph_numbers(all_sentences)
+        Sentence.recalculate_project_structure(sentence.project_id)
+
+        # Re-fetch all sentences to store after state
+        all_sentences = Sentence.list(sentence.project_id)
 
         # Store after paragraph and sentence numbers
         self.after_numbers = [
@@ -79,34 +82,6 @@ class ToggleParagraphStartCommand(SessionMixin, Command):
 
         session.commit()
         return True
-
-    def _recalculate_paragraph_numbers(self, sentences: list[Sentence]) -> None:
-        """
-        Recalculate paragraph and sentence numbers for all sentences.
-
-        Args:
-            sentences: List of all sentences in project, ordered by display_order
-
-        """
-        if not sentences:
-            return
-
-        paragraph_number = 1
-        sentence_number_in_paragraph = 0
-
-        for sentence in sentences:
-            if sentence.is_paragraph_start:
-                if sentence_number_in_paragraph > 0:
-                    # Starting a new paragraph (but not the first sentence)
-                    paragraph_number += 1
-                sentence_number_in_paragraph = 1
-            else:
-                sentence_number_in_paragraph += 1
-
-            sentence.paragraph_number = paragraph_number
-            sentence.sentence_number_in_paragraph = sentence_number_in_paragraph
-            session = self._get_session()
-            session.add(sentence)
 
     def undo(self) -> bool:
         """
@@ -124,17 +99,10 @@ class ToggleParagraphStartCommand(SessionMixin, Command):
         # Restore before state
         sentence.is_paragraph_start = self.before_is_paragraph_start
         session.add(sentence)
+        session.flush()
 
-        # Restore paragraph and sentence numbers
-        for before_data in self.before_numbers:
-            s = Sentence.get(before_data["id"])
-            if s:
-                s.paragraph_number = before_data["paragraph_number"]
-                s.sentence_number_in_paragraph = before_data[
-                    "sentence_number_in_paragraph"
-                ]
-                s.is_paragraph_start = before_data["is_paragraph_start"]
-                session.add(s)
+        # Recalculate project structure after restoration
+        Sentence.recalculate_project_structure(sentence.project_id)
 
         session.commit()
         return True
