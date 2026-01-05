@@ -17,8 +17,8 @@ __all__ = [
     "CommandManager",
     "DeleteNoteCommand",
     "DeleteSentenceCommand",
+    "UpdateNoteCommand",
     "EditSentenceCommand",
     "MergeSentenceCommand",
     "ToggleParagraphStartCommand",
-    "UpdateNoteCommand",
 ]

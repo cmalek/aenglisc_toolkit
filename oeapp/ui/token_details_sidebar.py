@@ -20,6 +20,7 @@ from oeapp.utils import clear_layout, open_bosworth_toller, render_svg
 
 if TYPE_CHECKING:
     from oeapp.models.annotation import Annotation
+    from oeapp.models.idiom import Idiom
     from oeapp.models.sentence import Sentence
     from oeapp.models.token import Token
 
@@ -408,6 +409,7 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
         """Initialize the token details sidebar."""
         super().__init__(parent)
         self._current_token: Token | None = None
+        self._current_idiom: "Idiom | None" = None
         self._current_sentence: Sentence | None = None
         self.field_renderer = FieldRenderer
         self._setup_ui()
@@ -437,6 +439,7 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
         """Show empty state with centered 'Word details' text."""
         self.clear_sidebar()
         self._current_token = None
+        self._current_idiom = None
         self._current_sentence = None
 
         empty_label = QLabel("Word details")
@@ -654,6 +657,7 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
 
         """
         self._current_token = token
+        self._current_idiom = None
         self._current_sentence = sentence
         self.clear_sidebar()
 
@@ -674,4 +678,77 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
         self.root(annotation)
         self.confidence(annotation)
         self.modern_english_meaning(annotation)
+        self.content_layout.addStretch()
+
+    def render_idiom(self, idiom: "Idiom", sentence: Sentence) -> None:
+        """
+        Update the sidebar with idiom details.
+
+        Args:
+            idiom: Idiom to display
+            sentence: Sentence containing the idiom
+
+        """
+        self._current_token = None
+        self._current_idiom = idiom
+        self._current_sentence = sentence
+        self.clear_sidebar()
+
+        annotation = cast("Annotation", idiom.annotation)
+
+        # Line label, e.g. [1] ¶:1 S:1
+        self.line_label(sentence)
+        # Horizontal rule
+        self.rule()
+
+        # Idiom surface forms (all tokens joined)
+        tokens, _ = sentence.sorted_tokens
+        idiom_tokens = [
+            t
+            for t in tokens
+            if idiom.start_token.order_index
+            <= t.order_index
+            <= idiom.end_token.order_index
+        ]
+        surface = " ".join(t.surface for t in idiom_tokens)
+
+        # Similar to surface_form but for idiom
+        pos_str = ""
+        gender_str = ""
+        context_str = ""
+        if annotation is not None:
+            pos_str = annotation.format_pos(annotation)
+            gender_str = annotation.format_gender(annotation)
+            context_str = annotation.format_context(annotation)
+
+        text = ""
+        if pos_str:
+            text += f"<sup style='{self.SUP_STYLE}'>{pos_str}</sup>"
+        if gender_str:
+            text += f"<sub style='{self.SUB_STYLE}'>{gender_str}</sub>"
+        text += f"{surface}"
+        if context_str:
+            text += f"<sub style='{self.SUB_STYLE}'>{context_str}</sub>"
+
+        label = QLabel(text)
+        label.setFont(self.TOKEN_FONT)
+        label.setWordWrap(True)
+        self.content_layout.addWidget(label)
+
+        self.rule()
+        self.content_layout.addSpacing(10)
+
+        if annotation:
+            try:
+                self.part_of_speech(annotation)
+            except NoAnnotationAvailable:
+                return
+            self.root(annotation)
+            self.confidence(annotation)
+            self.modern_english_meaning(annotation)
+        else:
+            no_ann_label = QLabel("No annotation available for this idiom.")
+            no_ann_label.setStyleSheet("color: #999; font-style: italic;")
+            self.content_layout.addWidget(no_ann_label)
+
         self.content_layout.addStretch()

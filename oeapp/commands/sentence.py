@@ -29,6 +29,8 @@ class EditSentenceCommand(SessionMixin, Command):
     before: str
     #: The after state of the sentence.
     after: str
+    #: Messages from the update (e.g. deleted idioms)
+    messages: list[str] = field(default_factory=list)
 
     def execute(self) -> bool:
         """
@@ -47,7 +49,7 @@ class EditSentenceCommand(SessionMixin, Command):
             return False
 
         if self.field == "text_oe":
-            sentence.update(self.after)
+            self.messages = sentence.update(self.after)
         elif self.field == "text_modern":
             sentence.text_modern = self.after
             sentence.save()
@@ -114,6 +116,8 @@ class MergeSentenceCommand(SessionMixin, Command):
     next_sentence_tokens: list[dict[str, Any]] = field(default_factory=list)
     #: Before state: notes from next sentence
     next_sentence_notes: list[dict[str, Any]] = field(default_factory=list)
+    #: Before state: idioms from next sentence
+    next_sentence_idioms: list[dict[str, Any]] = field(default_factory=list)
     #: Before state: display order changes (sentence_id, old_order, new_order)
     display_order_changes: list[tuple[int, int, int]] = field(default_factory=list)
 
@@ -168,6 +172,17 @@ class MergeSentenceCommand(SessionMixin, Command):
             for note in next_notes
         ]
 
+        # Store idioms from next sentence
+        self.next_sentence_idioms = [
+            {
+                "id": idiom.id,
+                "sentence_id": idiom.sentence_id,
+                "start_token_id": idiom.start_token_id,
+                "end_token_id": idiom.end_token_id,
+            }
+            for idiom in next_sentence.idioms
+        ]
+
         # Get current sentence token count
         current_token_count = len(current_sentence.tokens)
 
@@ -185,6 +200,11 @@ class MergeSentenceCommand(SessionMixin, Command):
         for note in next_notes:
             note.sentence_id = current_sentence.id
             session.add(note)
+
+        # Move all idioms from next sentence to current sentence
+        for idiom in next_sentence.idioms:
+            idiom.sentence_id = current_sentence.id
+            session.add(idiom)
 
         # Merge texts
         merged_text_oe = current_sentence.text_oe + " " + next_sentence.text_oe
@@ -273,6 +293,14 @@ class MergeSentenceCommand(SessionMixin, Command):
             if note:
                 note.sentence_id = next_sentence.id  # Use the new sentence ID
                 note.save()
+
+        # Restore idioms to next sentence
+        from oeapp.models.idiom import Idiom
+        for idiom_data in self.next_sentence_idioms:
+            idiom = Idiom.get(idiom_data["id"])
+            if idiom:
+                idiom.sentence_id = next_sentence.id
+                idiom.save()
 
         return True
 
@@ -426,6 +454,8 @@ class DeleteSentenceCommand(SessionMixin, Command):
     sentence_notes: list[dict[str, Any]] = field(default_factory=list)
     #: Before state: display order changes (sentence_id, old_order, new_order)
     display_order_changes: list[tuple[int, int, int]] = field(default_factory=list)
+    #: Before state: idioms from sentence
+    sentence_idioms: list[dict[str, Any]] = field(default_factory=list)
 
     def execute(self) -> bool:
         """
@@ -487,6 +517,15 @@ class DeleteSentenceCommand(SessionMixin, Command):
                 }
             )
 
+        # Store idioms from sentence
+        self.sentence_idioms = []
+        for idiom in sentence.idioms:
+            self.sentence_idioms.append({
+                "start_token_order_index": idiom.start_token.order_index,
+                "end_token_order_index": idiom.end_token.order_index,
+                "annotation": idiom.annotation.to_json() if idiom.annotation else None,
+            })
+
         # Store sentence's display_order before deletion
         deleted_display_order = sentence.display_order
         project_id = sentence.project_id
@@ -518,6 +557,7 @@ class DeleteSentenceCommand(SessionMixin, Command):
             True if successful, False otherwise
 
         """
+        from oeapp.models.idiom import Idiom
         session = self._get_session()
         # CRITICAL: Restore display_order for subsequent sentences FIRST
         # This must happen before recreating the sentence to avoid
@@ -580,6 +620,23 @@ class DeleteSentenceCommand(SessionMixin, Command):
                 note_type=note_data["note_type"],
             )
             restored_note.save()
+
+        # Restore idioms
+        for idiom_data in self.sentence_idioms:
+            start_order = idiom_data.get("start_token_order_index")
+            end_order = idiom_data.get("end_token_order_index")
+            start_token_id = order_index_to_token_id.get(start_order)
+            end_token_id = order_index_to_token_id.get(end_order)
+
+            if start_token_id and end_token_id:
+                restored_idiom = Idiom(
+                    sentence_id=restored_sentence.id,
+                    start_token_id=start_token_id,
+                    end_token_id=end_token_id,
+                )
+                restored_idiom.save()
+                if idiom_data.get("annotation"):
+                    Annotation.from_json(None, idiom_data["annotation"], idiom_id=restored_idiom.id)
 
         return True
 

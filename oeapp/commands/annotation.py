@@ -1,6 +1,6 @@
 """Annotation related commands."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from oeapp.models.annotation import Annotation
@@ -11,28 +11,19 @@ from .abstract import Command
 
 @dataclass
 class AnnotateTokenCommand(SessionMixin, Command):
-    """Command for annotating a token."""
+    """Command for annotating a token or idiom."""
 
     #: The token ID.
-    token_id: int
+    token_id: int | None = None
     #: The before state of the annotation.
-    before: dict[str, Any]
+    before: dict[str, Any] = field(default_factory=dict)
     #: The after state of the annotation.
-    after: dict[str, Any]
+    after: dict[str, Any] = field(default_factory=dict)
+    #: The idiom ID.
+    idiom_id: int | None = None
 
     def _update_annotation(self, annotation: Annotation, state: dict[str, Any]) -> None:
-        """
-        Update an annotation with a new state.
-
-        This method updates an annotation with a new state.  The state is a
-        dictionary of key-value pairs.  The keys are the fields of the annotation
-        and the values are the new values for the fields.
-
-        Args:
-            annotation: Annotation to update
-            state: New state of the annotation
-
-        """
+        """Update an annotation with a new state."""
         annotation.pos = state.get("pos")
         annotation.gender = state.get("gender")
         annotation.number = state.get("number")
@@ -57,44 +48,34 @@ class AnnotateTokenCommand(SessionMixin, Command):
         annotation.root = state.get("root")
         annotation.save()
 
+    def _get_annotation(self) -> Annotation | None:
+        """Get the current annotation."""
+        if self.token_id:
+            return Annotation.get_by_token(self.token_id)
+        if self.idiom_id:
+            return Annotation.get_by_idiom(self.idiom_id)
+        return None
+
     def execute(self) -> bool:
-        """
-        Execute annotation update.
-
-        Returns:
-            True if successful
-
-        """
+        """Execute annotation update."""
         session = self._get_session()
-        annotation = Annotation.get(self.token_id)
+        annotation = self._get_annotation()
         if annotation is None:
-            # Create annotation if it doesn't exist
-            annotation = Annotation(token_id=self.token_id)
+            annotation = Annotation(token_id=self.token_id, idiom_id=self.idiom_id)
             session.add(annotation)
             session.flush()
         self._update_annotation(annotation, self.after)
         return True
 
     def undo(self) -> bool:
-        """
-        Undo annotation update.
-
-        Returns:
-            True if successful
-
-        """
-        annotation = Annotation.get(self.token_id)
+        """Undo annotation update."""
+        annotation = self._get_annotation()
         if annotation is None:
             return False
         self._update_annotation(annotation, self.before)
         return True
 
     def get_description(self) -> str:
-        """
-        Get command description.
-
-        Returns:
-            Description string
-
-        """
-        return f"Annotate token {self.token_id}"
+        """Get command description."""
+        target = f"token {self.token_id}" if self.token_id else f"idiom {self.idiom_id}"
+        return f"Annotate {target}"

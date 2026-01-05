@@ -56,6 +56,7 @@ from oeapp.utils import get_logo_pixmap
 
 if TYPE_CHECKING:
     from oeapp.models.annotation import Annotation
+    from oeapp.models.idiom import Idiom
     from oeapp.models.sentence import Sentence
     from oeapp.models.token import Token
 
@@ -1008,6 +1009,7 @@ class ProjectUI:
             card.sentence_added.connect(self._on_sentence_added)
             card.sentence_deleted.connect(self._on_sentence_deleted)
             card.token_selected_for_details.connect(self._on_token_selected_for_details)
+            card.idiom_selected_for_details.connect(self._on_idiom_selected_for_details)
             card.annotation_applied.connect(self._on_annotation_applied)
             self.sentence_cards.append(card)
             self.content_layout.addWidget(card)
@@ -1272,6 +1274,29 @@ class ProjectUI:
             # Store reference to currently selected sentence card
             self.application_state[SELECTED_SENTENCE_CARD] = sentence_card
 
+    def _on_idiom_selected_for_details(
+        self, idiom: "Idiom", sentence: Sentence, sentence_card: SentenceCard
+    ) -> None:
+        """
+        Handle idiom selection for details sidebar.
+
+        Args:
+            idiom: Selected idiom
+            sentence: Sentence containing the idiom
+            sentence_card: Sentence card containing the idiom
+
+        """
+        # Clear selection on all other sentence cards
+        for other_card in self.sentence_cards:
+            if other_card != sentence_card:
+                other_card._clear_token_selection()
+
+        # Update sidebar with idiom details
+        self.token_details_sidebar.render_idiom(idiom, sentence)
+
+        # Store reference to currently selected sentence card
+        self.application_state[SELECTED_SENTENCE_CARD] = sentence_card
+
     def _on_annotation_applied(self, annotation: Annotation) -> None:
         """
         Handle annotation applied signal.
@@ -1290,10 +1315,7 @@ class ProjectUI:
         if card is not None and card.selected_token_index is not None:
             order_index = card.selected_token_index
             token = card.tokens_by_index.get(order_index)
-            if (
-                token
-                and token.id == annotation.token_id
-            ):
+            if token and token.id == annotation.token_id:
                 # Refresh sidebar with updated annotation
                 # Refresh token from database to ensure annotation relationship
                 # is up-to-date

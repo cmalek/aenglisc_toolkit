@@ -26,6 +26,7 @@ from oeapp.utils import from_utc_iso, to_utc_iso
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from oeapp.models.idiom import Idiom
     from oeapp.models.project import Project
 
 
@@ -108,6 +109,9 @@ class Sentence(SaveDeleteMixin, Base):
     )
     notes: Mapped[builtins.list[Note]] = relationship(
         "Note", back_populates="sentence", cascade="all, delete-orphan"
+    )
+    idioms: Mapped[builtins.list[Idiom]] = relationship(
+        "Idiom", back_populates="sentence", cascade="all, delete-orphan"
     )
 
     @classmethod
@@ -493,7 +497,7 @@ class Sentence(SaveDeleteMixin, Base):
 
         return sentence
 
-    def update(self, text_oe: str, commit: bool = True) -> Sentence:  # noqa: FBT001, FBT002
+    def update(self, text_oe: str, commit: bool = True) -> builtins.list[str]:  # noqa: FBT001, FBT002
         """
         Update the sentence.
 
@@ -504,17 +508,17 @@ class Sentence(SaveDeleteMixin, Base):
             commit: Whether to commit the changes to the database
 
         Returns:
-            Updated sentence
+            List of messages about changes (e.g. deleted idioms)
 
         """
         session = self._get_session()
         self.text_oe = text_oe
-        Token.update_from_sentence(text_oe, self.id)
+        messages = Token.update_from_sentence(text_oe, self.id)
         if commit:
             session.commit()
         # Refresh to get updated tokens
         session.refresh(self)
-        return self
+        return messages
 
     def _sort_notes_by_position(
         self, notes: builtins.list[Note]
@@ -539,7 +543,16 @@ class Sentence(SaveDeleteMixin, Base):
                 token_id_to_order[token.id] = token.order_index
 
         def get_note_position(note: Note) -> int:
-            """Get position of note in sentence based on start token."""
+            """
+            Get position of note in sentence based on start token.
+
+            Args:
+                note: Note to get position of
+
+            Returns:
+                Position of note
+
+            """
             if note.start_token and note.start_token in token_id_to_order:
                 return token_id_to_order[note.start_token]
             # Fallback to end_token if start_token not found

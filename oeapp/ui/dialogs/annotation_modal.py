@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (
 )
 from sqlalchemy.exc import SQLAlchemyError
 
-from oeapp.models.annotation import Annotation
+from oeapp.models import Annotation, Idiom
 from oeapp.models.annotation_preset import AnnotationPreset
 from oeapp.services.annotation_preset_service import AnnotationPresetService
 from oeapp.ui.dialogs.annotation_preset_management import (
@@ -51,7 +51,8 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
 
     def __init__(
         self,
-        token: Token,
+        token: Token | None = None,
+        idiom: Idiom | None = None,
         annotation: Annotation | None = None,
         parent: QWidget | None = None,
     ) -> None:
@@ -59,7 +60,8 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         Initialize annotation modal.
 
         Args:
-            token: Token to annotate
+            token: Token to annotate (exclusive with idiom)
+            idiom: Idiom to annotate (exclusive with token)
 
         Keyword Args:
             annotation: Existing annotation (if any)
@@ -68,39 +70,92 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         """
         super().__init__(parent)
         self.token = token
-        # Get or create annotation
-        if annotation:
-            self.annotation = annotation
-        elif token.annotation:
-            self.annotation = token.annotation
+        self.idiom = idiom
+
+        if self.token:
+            self._init_token_annotation(annotation)
+        elif self.idiom:
+            self._init_idiom_annotation(annotation)
         else:
-            # Annotation will be created when saved if it doesn't exist
-            self.annotation = Annotation(token_id=cast("int", token.id))
+            msg = "Neither token nor idiom was provided"
+            raise ValueError(msg)
+
         self.fields_widget: QWidget | None = None
         self.preset_service = AnnotationPresetService()
         self._setup_ui()
         self._setup_keyboard_shortcuts()
         self._load_existing_annotation()
 
+    def _setup_keyboard_shortcuts(self):
+        """Set up keyboard shortcuts."""
+        # POS shortcuts
+        for key in self.PART_OF_SPEECH_MAP:
+            shortcut = QShortcut(QKeySequence(key), self)
+            shortcut.activated.connect(lambda k=key: self._select_pos_by_key(k))
+
+        # Enter to apply
+        apply_shortcut = QShortcut(QKeySequence(Qt.Key.Key_Return), self)
+        apply_shortcut.activated.connect(self._apply_annotation)
+
+        # Cmd/Ctrl+S to apply
+        save_shortcut = QShortcut(QKeySequence("Ctrl+S"), self)
+        save_shortcut.activated.connect(self._apply_annotation)
+
+        # Esc to cancel
+        cancel_shortcut = QShortcut(QKeySequence(Qt.Key.Key_Escape), self)
+        cancel_shortcut.activated.connect(self.reject)
+
+    def _init_token_annotation(self, annotation: Annotation | None) -> None:
+        """
+        Initialize annotation for a single token.  If we've been called,
+        :attr:`token` is already set.
+
+        Args:
+            annotation: Existing annotation (if any)
+
+        """
+        if annotation:
+            self.annotation = annotation
+        token = cast("Token", self.token)
+        if token.annotation:
+            self.annotation = token.annotation
+        else:
+            self.annotation = Annotation(token_id=cast("int", token.id))
+
+    def _init_idiom_annotation(self, annotation: Annotation | None) -> None:
+        """
+        Initialize annotation for an idiom.  If we've been called,
+        :attr:`idiom` is already set.
+
+        Args:
+            annotation: Existing annotation (if any)
+
+        """
+        if annotation:
+            self.annotation = annotation
+        idiom = cast("Idiom", self.idiom)
+        if idiom.annotation:
+            self.annotation = idiom.annotation
+        else:
+            self.annotation = Annotation(idiom_id=cast("int", idiom.id))
+
+        # Link back for creation if needed
+        self.annotation.idiom = idiom
+
     def _setup_ui(self):  # noqa: PLR0915
         """
         Set up the UI layout.
 
         """
-        self.setWindowTitle(f"Annotate: {self.token.surface}")
+        title_text = self.token.surface if self.token else "Idiom"
+        self.setWindowTitle(f"Annotate: {title_text}")
         self.setModal(True)
         self.resize(self.DIALOG_WIDTH, self.DIALOG_HEIGHT)
 
         layout = QVBoxLayout(self)
 
         # Header: Current token word and POS status
-        header_label = QLabel(f"Token: <b>{self.token.surface}</b>")
-        header_label.setFont(self.font())
-        layout.addWidget(header_label)
-
-        self.status_label = QLabel("POS: Not set")
-        self.status_label.setStyleSheet("color: #666; font-style: italic;")
-        layout.addWidget(self.status_label)
+        self._setup_header(layout)
 
         layout.addSpacing(10)
 
@@ -178,7 +233,7 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         root_layout = QHBoxLayout()
         root_layout.addWidget(QLabel("Root:"))
         self.root_edit = QLineEdit()
-        self.root_edit.setPlaceholderText("e.g., sumor")
+        self.root_edit.setPlaceholderText("e.g., bēon, hēof")
         root_layout.addWidget(self.root_edit)
         metadata_layout.addLayout(root_layout)
 
@@ -213,58 +268,74 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
 
         # Keyboard shortcuts will be set up in _setup_keyboard_shortcuts()
 
-    def _setup_keyboard_shortcuts(self) -> None:
+    def _setup_header(self, layout: QVBoxLayout) -> None:
         """
-        Set up keyboard shortcuts for the modal.
+        Set up the header area with token/idiom info.
+
+        Args:
+            layout: Layout to add the header to
+
         """
-        # Escape to cancel
-        QShortcut(QKeySequence("Escape"), self).activated.connect(self.reject)
-        # Enter/Return to apply
-        QShortcut(QKeySequence("Return"), self).activated.connect(
-            self._apply_annotation
-        )
-        # Enter to apply
-        QShortcut(QKeySequence("Enter"), self).activated.connect(self._apply_annotation)
+        if self.token:
+            header_label = QLabel(f"Token: <b>{self.token.surface}</b>")
+            header_label.setFont(self.font())
+            layout.addWidget(header_label)
+        elif self.idiom:
+            self._setup_idiom_header(layout)
 
-        # POS selection shortcuts: N/V/A/R/D/B/C/E/I
-        QShortcut(QKeySequence("N"), self).activated.connect(
-            lambda: self._select_pos_by_key("N")
-        )
-        # V to select POS (Verb)
-        QShortcut(QKeySequence("V"), self).activated.connect(
-            lambda: self._select_pos_by_key("V")
-        )
-        # A to select POS (Adjective)
-        QShortcut(QKeySequence("A"), self).activated.connect(
-            lambda: self._select_pos_by_key("A")
-        )
-        # R to select POS (Pronoun)
-        QShortcut(QKeySequence("R"), self).activated.connect(
-            lambda: self._select_pos_by_key("R")
-        )
-        # D to select POS (Determiner/Article)
-        QShortcut(QKeySequence("D"), self).activated.connect(
-            lambda: self._select_pos_by_key("D")
-        )
-        # B to select POS (Adverb)
-        QShortcut(QKeySequence("B"), self).activated.connect(
-            lambda: self._select_pos_by_key("B")
-        )
-        # C to select POS (Conjunction)
-        QShortcut(QKeySequence("C"), self).activated.connect(
-            lambda: self._select_pos_by_key("C")
-        )
-        # E to select POS (Preposition)
-        QShortcut(QKeySequence("E"), self).activated.connect(
-            lambda: self._select_pos_by_key("E")
-        )
-        # I to select POS (Interjection)
-        QShortcut(QKeySequence("I"), self).activated.connect(
-            lambda: self._select_pos_by_key("I")
-        )
+        self.status_label = QLabel("POS: Not set")
+        self.status_label.setStyleSheet("color: #666; font-style: italic;")
+        layout.addWidget(self.status_label)
 
-        # Tab navigation
-        # Tab handling is automatic in Qt, but we can add Shift+Tab if needed
+    def _setup_idiom_header(self, layout: QVBoxLayout) -> None:
+        """
+        Set up the idiom header with clickable tokens.
+
+        Args:
+            layout: Layout to add the header to
+
+        """
+        idiom = cast("Idiom", self.idiom)
+        header_label = QLabel("Idiom: ")
+        header_label.setFont(self.font())
+
+        tokens_layout = QHBoxLayout()
+        tokens_layout.addWidget(header_label)
+
+        # Get all tokens in idiom
+        start_order = idiom.start_token.order_index
+        end_order = idiom.end_token.order_index
+
+        # We need access to all tokens in the sentence
+        # Assuming parent is SentenceCard
+        parent = self.parent()
+        if hasattr(parent, "tokens"):
+            for token in parent.tokens:
+                if start_order <= token.order_index <= end_order:
+                    btn = QPushButton(token.surface)
+                    btn.setFlat(True)
+                    btn.setStyleSheet("color: blue; text-decoration: underline;")
+                    btn.clicked.connect(
+                        lambda _, t=token: self._on_token_link_clicked(t)
+                    )
+                    tokens_layout.addWidget(btn)
+
+        tokens_layout.addStretch()
+        layout.addLayout(tokens_layout)
+
+    def _on_token_link_clicked(self, token: Token) -> None:
+        """
+        Handle clicking a token link in an idiom modal.
+
+        Args:
+            token: Token to open the annotation modal for
+
+        """
+        # Close current modal and open a new one for the token
+        self.accept()
+        parent = self.parent()
+        if hasattr(parent, "_open_token_modal"):
+            parent._open_token_modal(token)
 
     def _select_pos_by_key(self, pos_key: str):
         """

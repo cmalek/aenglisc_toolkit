@@ -198,14 +198,12 @@ class TestSentence:
         sentence = Sentence.create(
             project_id=project.id, display_order=1, text_oe="Original"
         )
-        original_token_count = len(sentence.tokens)
-
         updated = sentence.update("Updated text")
 
-        assert updated is not None
-        assert updated.text_oe == "Updated text"
+        db_session.refresh(sentence)
+        assert sentence.text_oe == "Updated text"
         # Tokens should be updated
-        assert len(updated.tokens) > 0
+        assert len(sentence.tokens) > 0
 
     def test_to_json_serializes_sentence(self, db_session):
         """Test to_json() serializes sentence data."""

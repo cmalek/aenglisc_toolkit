@@ -1,8 +1,11 @@
 """Unit tests for SentenceCard."""
 
 import pytest
+from PySide6.QtCore import QPoint, Qt
+from PySide6.QtGui import QKeyEvent
 from unittest.mock import MagicMock
 
+from oeapp.models.idiom import Idiom
 from oeapp.ui.sentence_card import SentenceCard, ClickableTextEdit
 from tests.conftest import create_test_project, create_test_sentence
 
@@ -248,6 +251,226 @@ class TestSentenceCard:
 
         assert not mock_open_modal.called
         assert not event.isAccepted()
+
+    def _create_card_with_idiom(self, db_session, qtbot):
+        project = create_test_project(
+            db_session, name="Test", text="Se cyning fēoll on eorþan"
+        )
+        sentence = project.sentences[0]
+        card = SentenceCard(sentence, parent=None)
+        qtbot.addWidget(card)
+        card._render_oe_text_with_superscripts()
+        card.show()
+
+        card.session.refresh(sentence)
+        card.set_tokens(sentence.tokens)
+        card._render_oe_text_with_superscripts()
+
+        tokens = list(card.tokens)
+        idiom = Idiom(
+            sentence_id=sentence.id,
+            start_token_id=tokens[0].id,
+            end_token_id=tokens[1].id,
+        )
+        idiom.sentence = sentence
+        idiom.start_token = tokens[0]
+        idiom.end_token = tokens[1]
+        sentence.idioms.append(idiom)
+        idiom.save()
+        db_session.commit()
+        card.session.refresh(sentence)
+        card.set_tokens(sentence.tokens)
+        card.idioms = sentence.idioms
+        card._render_oe_text_with_superscripts()
+        tokens = list(card.tokens)
+        idiom = card.idioms[0]
+        return card, tokens, idiom
+
+    def test_double_click_selected_idiom_opens_idiom_modal(
+        self, db_session, qtbot, monkeypatch
+    ):
+        card, tokens, idiom = self._create_card_with_idiom(db_session, qtbot)
+        card._handle_idiom_selection_click(tokens[0].order_index)
+        card._handle_idiom_selection_click(tokens[1].order_index)
+        selection = card._selected_token_range
+
+        idiom_calls = []
+        token_calls = []
+        monkeypatch.setattr(card, "_open_idiom_modal", lambda i: idiom_calls.append(i))
+        monkeypatch.setattr(card, "_open_token_modal", lambda t: token_calls.append(t))
+        monkeypatch.setattr(card, "_find_token_at_position", lambda _: tokens[0].order_index)
+
+        card._on_oe_text_double_clicked(QPoint(0, 0))
+
+        assert idiom_calls and idiom_calls[0].id == idiom.id
+        assert token_calls == []
+        assert card._selected_token_range == selection
+
+    def test_double_click_token_in_idiom_opens_idiom_modal(
+        self, db_session, qtbot, monkeypatch
+    ):
+        card, tokens, idiom = self._create_card_with_idiom(db_session, qtbot)
+        card._selected_token_range = None
+        card.selected_token_index = None
+
+        idiom_calls = []
+        token_calls = []
+        monkeypatch.setattr(card, "_open_idiom_modal", lambda i: idiom_calls.append(i))
+        monkeypatch.setattr(card, "_open_token_modal", lambda t: token_calls.append(t))
+        monkeypatch.setattr(card, "_find_token_at_position", lambda _: tokens[0].order_index)
+
+        card._on_oe_text_double_clicked(QPoint(0, 0))
+
+        assert idiom_calls and idiom_calls[0].id == idiom.id
+        assert token_calls == []
+        assert card._selected_token_range == (
+            idiom.start_token.order_index,
+            idiom.end_token.order_index,
+        )
+
+    def test_double_click_token_outside_idiom_opens_token_modal(
+        self, db_session, qtbot, monkeypatch
+    ):
+        card, tokens, idiom = self._create_card_with_idiom(db_session, qtbot)
+        outside_order = tokens[-1].order_index
+
+        idiom_calls = []
+        token_calls = []
+        monkeypatch.setattr(card, "_open_idiom_modal", lambda i: idiom_calls.append(i))
+        monkeypatch.setattr(card, "_open_token_modal", lambda t: token_calls.append(t))
+        monkeypatch.setattr(card, "_find_token_at_position", lambda _: outside_order)
+
+        card._on_oe_text_double_clicked(QPoint(0, 0))
+
+        assert idiom_calls == []
+        assert token_calls and token_calls[0].id == tokens[-1].id
+        assert card._selected_token_range is None
+
+    def test_enter_key_triggers_idiom_modal_when_selected(self, db_session, qtbot, monkeypatch):
+        card, tokens, idiom = self._create_card_with_idiom(db_session, qtbot)
+        card._handle_idiom_selection_click(tokens[0].order_index)
+        card._handle_idiom_selection_click(tokens[1].order_index)
+
+        idiom_calls = []
+        token_calls = []
+        monkeypatch.setattr(card, "_open_idiom_modal", lambda i: idiom_calls.append(i))
+        monkeypatch.setattr(card, "_open_token_modal", lambda t: token_calls.append(t))
+
+        card._open_annotation_modal()
+
+        assert idiom_calls and idiom_calls[0].id == idiom.id
+        assert token_calls == []
+
+    def test_double_click_unsaved_idiom_selection_opens_idiom_modal(
+        self, db_session, qtbot, monkeypatch
+    ):
+        """
+        Test that double-clicking a token within an active (unsaved) idiom selection
+        correctly opens the idiom annotation modal instead of clearing the selection.
+        """
+        project = create_test_project(
+            db_session, name="TestDouble", text="for ðan þǣr is wōp"
+        )
+        sentence = project.sentences[0]
+        card = SentenceCard(sentence, parent=None)
+        qtbot.addWidget(card)
+        card._render_oe_text_with_superscripts()
+        card.show()
+
+        tokens = list(card.tokens)
+        for_idx = tokens[0].order_index
+        ðan_idx = tokens[1].order_index
+
+        # 1. Cmd-Click "for"
+        monkeypatch.setattr(card, "_find_token_at_position", lambda _: for_idx)
+        card._on_oe_text_clicked(QPoint(0, 0), Qt.KeyboardModifier.ControlModifier)
+
+        # 2. Cmd-Click "ðan"
+        monkeypatch.setattr(card, "_find_token_at_position", lambda _: ðan_idx)
+        card._on_oe_text_clicked(QPoint(0, 0), Qt.KeyboardModifier.ControlModifier)
+
+        assert card._selected_token_range == (for_idx, ðan_idx)
+
+        # 3. Double-click "for" (no modifiers)
+        # First click of double-click
+        monkeypatch.setattr(card, "_find_token_at_position", lambda _: for_idx)
+        card._on_oe_text_clicked(QPoint(0, 0), Qt.KeyboardModifier.NoModifier)
+
+        # Second click / Double-click event
+        idiom_calls = []
+        token_calls = []
+        monkeypatch.setattr(card, "_open_new_idiom_modal", lambda s, e: idiom_calls.append((s, e)))
+        monkeypatch.setattr(card, "_open_token_modal", lambda t: token_calls.append(t))
+        card._on_oe_text_double_clicked(QPoint(0, 0))
+
+        assert len(idiom_calls) == 1
+        assert idiom_calls[0] == (for_idx, ðan_idx)
+
+    def test_enter_key_on_non_idiom_token_opens_token_modal(
+        self, db_session, qtbot, monkeypatch
+    ):
+        project = create_test_project(db_session, name="TokenOnly", text="Se cyning fēoll")
+        sentence = project.sentences[0]
+        card = SentenceCard(sentence, parent=None)
+        qtbot.addWidget(card)
+        card._render_oe_text_with_superscripts()
+        tokens = list(card.tokens)
+        token = tokens[0]
+
+        card._selected_token_range = None
+        card.selected_token_index = token.order_index
+        card.idioms = []
+
+        idiom_calls = []
+        token_calls = []
+        monkeypatch.setattr(card, "_open_idiom_modal", lambda i: idiom_calls.append(i))
+        monkeypatch.setattr(card, "_open_token_modal", lambda t: token_calls.append(t))
+
+        card._open_annotation_modal()
+
+        assert idiom_calls == []
+        assert token_calls
+
+    def test_add_note_button_enabled_only_for_shift_click(self, db_session, qtbot):
+        """Test that Add Note button is only enabled for Shift-Click sequences."""
+        card, tokens, idiom = self._create_card_with_idiom(db_session, qtbot)
+
+        # Initially disabled
+        assert not card.add_note_button.isEnabled()
+
+        # Setup mock for _find_token_at_position
+        current_order = 0
+        card._find_token_at_position = lambda _: current_order
+
+        # 1. Normal click on a token - should be disabled
+        current_order = tokens[2].order_index
+        card._on_oe_text_clicked(QPoint(0, 0), Qt.KeyboardModifier.NoModifier)
+        assert not card.add_note_button.isEnabled()
+
+        # 2. Cmd-Click (idiom selection) - should be disabled
+        card._on_oe_text_clicked(QPoint(0, 0), Qt.KeyboardModifier.MetaModifier)
+        assert not card.add_note_button.isEnabled()
+
+        # 3. Normal click on a saved idiom - should be disabled
+        current_order = tokens[0].order_index
+        card._on_oe_text_clicked(QPoint(0, 0), Qt.KeyboardModifier.NoModifier)
+        assert card._selected_token_range is not None # Idiom selected
+        assert not card.add_note_button.isEnabled()
+
+        # 4. Shift-Click sequence - should be enabled
+        # Click first token
+        current_order = tokens[2].order_index
+        card._on_oe_text_clicked(QPoint(0, 0), Qt.KeyboardModifier.NoModifier)
+        # Shift-click second token
+        current_order = tokens[3].order_index
+        card._on_oe_text_clicked(QPoint(0, 0), Qt.KeyboardModifier.ShiftModifier)
+        assert card._selected_token_range == (tokens[2].order_index, tokens[3].order_index)
+        assert card.add_note_button.isEnabled()
+
+        # 5. Clicking away - should be disabled again
+        current_order = tokens[0].order_index
+        card._on_oe_text_clicked(QPoint(0, 0), Qt.KeyboardModifier.NoModifier)
+        assert not card.add_note_button.isEnabled()
 
     def test_token_table_selection_syncs_to_card(self, db_session, qapp):
         """Test that selecting a token in the table updates the card state."""

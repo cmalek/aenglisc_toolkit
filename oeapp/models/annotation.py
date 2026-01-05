@@ -20,11 +20,12 @@ from oeapp.utils import from_utc_iso, to_utc_iso
 from .mixins import SaveDeleteMixin
 
 if TYPE_CHECKING:
+    from oeapp.models.idiom import Idiom
     from oeapp.models.token import Token
 
 
 class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
-    """Represents grammatical/morphological annotations for a token."""
+    """Represents grammatical/morphological annotations for a token or idiom."""
 
     __tablename__ = "annotations"
     __table_args__ = (
@@ -84,9 +85,15 @@ class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
         ),
     )
 
-    #: The token ID (primary key and foreign key).
-    token_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("tokens.id", ondelete="CASCADE"), primary_key=True
+    #: The annotation ID (primary key).
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    #: The token ID (foreign key).
+    token_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("tokens.id", ondelete="CASCADE"), nullable=True
+    )
+    #: The idiom ID (foreign key).
+    idiom_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("idioms.id", ondelete="CASCADE"), nullable=True
     )
     #: The Part of Speech.
     pos: Mapped[str | None] = mapped_column(
@@ -159,32 +166,42 @@ class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
     )
 
     # Relationships
-    token: Mapped[Token] = relationship("Token", back_populates="annotation")
+    token: Mapped["Token"] = relationship("Token", back_populates="annotation")
+    idiom: Mapped["Idiom"] = relationship("Idiom", back_populates="annotation")
 
     @classmethod
-    def exists(cls, token_id: int) -> bool:
-        """
-        Check if an annotation exists for a token.
-        """
+    def exists(cls, token_id: int | None = None, idiom_id: int | None = None) -> bool:
+        """Check if an annotation exists for a token or idiom."""
         session = cls._get_session()
-        return session.scalar(select(cls).where(cls.token_id == token_id)) is not None
+        stmt = select(cls)
+        if token_id is not None:
+            stmt = stmt.where(cls.token_id == token_id)
+        elif idiom_id is not None:
+            stmt = stmt.where(cls.idiom_id == idiom_id)
+        else:
+            return False
+        return session.scalar(stmt) is not None
 
     @classmethod
-    def get(cls, annotation_id: int) -> Annotation | None:
-        """
-        Get an annotation by ID.
-        """
+    def get(cls, annotation_id: int) -> "Annotation | None":
+        """Get an annotation by ID."""
         session = cls._get_session()
         return session.get(cls, annotation_id)
 
+    @classmethod
+    def get_by_token(cls, token_id: int) -> "Annotation | None":
+        """Get an annotation by token ID."""
+        session = cls._get_session()
+        return session.scalar(select(cls).where(cls.token_id == token_id))
+
+    @classmethod
+    def get_by_idiom(cls, idiom_id: int) -> "Annotation | None":
+        """Get an annotation by idiom ID."""
+        session = cls._get_session()
+        return session.scalar(select(cls).where(cls.idiom_id == idiom_id))
+
     def to_json(self) -> dict:
-        """
-        Serialize annotation to JSON-compatible dictionary.
-
-        Returns:
-            Dictionary containing annotation data
-
-        """
+        """Serialize annotation to JSON-compatible dictionary."""
         return {
             "pos": self.pos,
             "gender": self.gender,
@@ -215,53 +232,48 @@ class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
     @classmethod
     def from_json(
         cls,
-        token_id: int,
+        token_id: int | None,
         ann_data: dict,
+        idiom_id: int | None = None,
         commit: bool = True,  # noqa: FBT001, FBT002
-    ) -> Annotation:
-        """
-        Create an annotation from JSON import data.
-
-        Args:
-            session: SQLAlchemy session
-            token_id: Token ID to attach annotation to
-            ann_data: Annotation data dictionary from JSON
-
-        Keyword Args:
-            commit: Whether to commit the changes
-
-        Returns:
-            Created Annotation entity
-
-        """
+    ) -> "Annotation":
+        """Create an annotation from JSON import data."""
         annotation = cls(
             token_id=token_id,
-            pos=ann_data.get("pos"),
-            gender=ann_data.get("gender"),
-            number=ann_data.get("number"),
-            case=ann_data.get("case"),
-            declension=ann_data.get("declension"),
-            article_type=ann_data.get("article_type"),
-            pronoun_type=ann_data.get("pronoun_type"),
-            pronoun_number=ann_data.get("pronoun_number"),
-            verb_class=ann_data.get("verb_class"),
-            verb_tense=ann_data.get("verb_tense"),
-            verb_person=ann_data.get("verb_person"),
-            verb_mood=ann_data.get("verb_mood"),
-            verb_aspect=ann_data.get("verb_aspect"),
-            verb_form=ann_data.get("verb_form"),
-            prep_case=ann_data.get("prep_case"),
-            adjective_inflection=ann_data.get("adjective_inflection"),
-            adjective_degree=ann_data.get("adjective_degree"),
-            conjunction_type=ann_data.get("conjunction_type"),
-            adverb_degree=ann_data.get("adverb_degree"),
-            confidence=ann_data.get("confidence"),
-            last_inferred_json=ann_data.get("last_inferred_json"),
-            modern_english_meaning=ann_data.get("modern_english_meaning"),
-            root=ann_data.get("root"),
+            idiom_id=idiom_id,
+            **cls._extract_base_fields_from_json(ann_data),
         )
         updated_at = from_utc_iso(ann_data.get("updated_at"))
         if updated_at:
             annotation.updated_at = updated_at
         annotation.save(commit=commit)
         return annotation
+
+    @classmethod
+    def _extract_base_fields_from_json(cls, ann_data: dict) -> dict:
+        """Extract base annotation fields from JSON data."""
+        return {
+            "pos": ann_data.get("pos"),
+            "gender": ann_data.get("gender"),
+            "number": ann_data.get("number"),
+            "case": ann_data.get("case"),
+            "declension": ann_data.get("declension"),
+            "article_type": ann_data.get("article_type"),
+            "pronoun_type": ann_data.get("pronoun_type"),
+            "pronoun_number": ann_data.get("pronoun_number"),
+            "verb_class": ann_data.get("verb_class"),
+            "verb_tense": ann_data.get("verb_tense"),
+            "verb_person": ann_data.get("verb_person"),
+            "verb_mood": ann_data.get("verb_mood"),
+            "verb_aspect": ann_data.get("verb_aspect"),
+            "verb_form": ann_data.get("verb_form"),
+            "prep_case": ann_data.get("prep_case"),
+            "adjective_inflection": ann_data.get("adjective_inflection"),
+            "adjective_degree": ann_data.get("adjective_degree"),
+            "conjunction_type": ann_data.get("conjunction_type"),
+            "adverb_degree": ann_data.get("adverb_degree"),
+            "confidence": ann_data.get("confidence"),
+            "last_inferred_json": ann_data.get("last_inferred_json"),
+            "modern_english_meaning": ann_data.get("modern_english_meaning"),
+            "root": ann_data.get("root"),
+        }

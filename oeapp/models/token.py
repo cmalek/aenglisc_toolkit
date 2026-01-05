@@ -4,7 +4,7 @@ import builtins
 import difflib
 import re
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, ClassVar, cast
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String, UniqueConstraint, select
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -16,6 +16,7 @@ from oeapp.utils import from_utc_iso, to_utc_iso
 
 if TYPE_CHECKING:
     from oeapp.models.sentence import Sentence
+    from oeapp.models.idiom import Idiom
 
 
 class Token(SaveDeleteMixin, Base):
@@ -58,7 +59,7 @@ class Token(SaveDeleteMixin, Base):
     )
 
     # Relationships
-    sentence: Mapped[Sentence] = relationship("Sentence", back_populates="tokens")
+    sentence: Mapped["Sentence"] = relationship("Sentence", back_populates="tokens")
     annotation: Mapped[Annotation | None] = relationship(
         "Annotation",
         back_populates="token",
@@ -94,7 +95,7 @@ class Token(SaveDeleteMixin, Base):
         sentence_id: int,
         token_data: dict,
         commit: bool = True,  # noqa: FBT001, FBT002
-    ) -> Token:
+    ) -> "Token":
         """
         Create a token and annotation from JSON import data.
 
@@ -136,7 +137,7 @@ class Token(SaveDeleteMixin, Base):
         return token
 
     @classmethod
-    def get(cls, token_id: int) -> Token | None:
+    def get(cls, token_id: int) -> "Token | None":
         """
         Get a token by ID.
 
@@ -151,7 +152,7 @@ class Token(SaveDeleteMixin, Base):
         return session.get(cls, token_id)
 
     @classmethod
-    def list(cls, sentence_id: int) -> builtins.list[Token]:
+    def list(cls, sentence_id: int) -> builtins.list["Token"]:
         """
         Get all tokens by sentence ID, ordered by order index.
 
@@ -177,13 +178,9 @@ class Token(SaveDeleteMixin, Base):
         sentence_id: int,
         sentence_text: str,
         commit: bool = True,  # noqa: FBT001, FBT002
-    ) -> builtins.list[Token]:
+    ) -> builtins.list["Token"]:
         """
         Create new tokens for a sentence.
-
-        There's no need to deal with individual tokens, as they are explicitly
-        bound to the sentence, thus instead of :meth:`import` taking a token id
-        or surface, it takes the sentence text and sentence id.
 
         Args:
             sentence_id: Sentence ID
@@ -209,7 +206,7 @@ class Token(SaveDeleteMixin, Base):
             session.add(token)
             session.flush()  # Get the ID
 
-            if not Annotation.exists(token.id):
+            if not Annotation.exists(token_id=token.id):
                 annotation = Annotation(token_id=token.id)
                 annotation.save(commit=False)
 
@@ -220,23 +217,144 @@ class Token(SaveDeleteMixin, Base):
         return tokens
 
     @classmethod
+    def update_from_sentence(  # noqa: PLR0912, PLR0915
+        cls, sentence_text: str, sentence_id: int
+    ) -> list[str]:
+        """
+        Update tokens in the sentence and re-order them.
+        """
+        session = cls._get_session()
+        token_strings = cls.tokenize(sentence_text)
+        existing_tokens = cls.list(sentence_id)
+
+        # Capture original order indices before moving to temp positions
+        original_orders = {t.id: t.order_index for t in existing_tokens}
+
+        # Move to temporary negative positions
+        cls._move_to_temp_positions(existing_tokens, session)
+
+        # Match tokens
+        old_surfaces = [t.surface for t in existing_tokens]
+        matcher = difflib.SequenceMatcher(None, old_surfaces, token_strings)
+
+        matched_positions: dict[int, "Token"] = {}
+        matched_token_ids: set[int] = set()
+
+        for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+            cls._process_opcode(
+                tag, i1, i2, j1, j2,
+                existing_tokens, token_strings,
+                sentence_id, session,
+                matched_positions, matched_token_ids
+            )
+
+        session.flush()
+        cls._delete_unmatched_tokens(existing_tokens, matched_token_ids, session)
+
+        # Update notes AND idioms
+        cls._update_notes_for_token_changes(
+            sentence_id, existing_tokens, matched_positions, matched_token_ids
+        )
+        messages = cls._update_idioms_for_token_changes(
+            sentence_id, existing_tokens, matched_positions, matched_token_ids, original_orders
+        )
+
+        session.commit()
+        return messages
+
+    @classmethod
+    def _move_to_temp_positions(cls, tokens: builtins.list["Token"], session) -> None:
+        """Move tokens to temporary negative positions."""
+        for i, token in enumerate(tokens):
+            token.order_index = -(i + 1)
+            session.add(token)
+        session.flush()
+
+    @classmethod
+    def _process_opcode(
+        cls, tag, i1, i2, j1, j2,
+        existing_tokens, token_strings,
+        sentence_id, session,
+        matched_positions, matched_token_ids
+    ) -> None:
+        """Process a single difflib opcode."""
+        if tag == "equal":
+            for k in range(i2 - i1):
+                token = existing_tokens[i1 + k]
+                new_idx = j1 + k
+                token.order_index = new_idx
+                session.add(token)
+                matched_positions[new_idx] = token
+                matched_token_ids.add(token.id)
+        elif tag == "replace":
+            cls._handle_replace_opcode(
+                i1, i2, j1, j2,
+                existing_tokens, token_strings,
+                sentence_id, session,
+                matched_positions, matched_token_ids
+            )
+        elif tag == "insert":
+            for k in range(j2 - j1):
+                cls._create_new_token(
+                    j1 + k, token_strings[j1 + k],
+                    sentence_id, session, matched_positions
+                )
+
+    @classmethod
+    def _handle_replace_opcode(
+        cls, i1, i2, j1, j2,
+        existing_tokens, token_strings,
+        sentence_id, session,
+        matched_positions, matched_token_ids
+    ) -> None:
+        """Handle 'replace' opcode."""
+        if (i2 - i1) == (j2 - j1):
+            # Typo fix preservation
+            for k in range(i2 - i1):
+                token = existing_tokens[i1 + k]
+                new_idx = j1 + k
+                token.surface = token_strings[new_idx]
+                token.order_index = new_idx
+                session.add(token)
+                matched_positions[new_idx] = token
+                matched_token_ids.add(token.id)
+        else:
+            # Treat as delete + insert
+            for k in range(j2 - j1):
+                cls._create_new_token(
+                    j1 + k, token_strings[j1 + k],
+                    sentence_id, session, matched_positions
+                )
+
+    @classmethod
+    def _create_new_token(cls, index, surface, sentence_id, session, matched_positions) -> "Token":
+        """Create a new token and its empty annotation."""
+        token = cls(sentence_id=sentence_id, order_index=index, surface=surface)
+        session.add(token)
+        session.flush()
+        if not Annotation.exists(token_id=token.id):
+            annotation = Annotation(token_id=token.id)
+            session.add(annotation)
+        matched_positions[index] = token
+        return token
+
+    @classmethod
+    def _delete_unmatched_tokens(cls, tokens, matched_ids, session) -> None:
+        """Delete tokens that were not matched."""
+        for token in tokens:
+            if token.id not in matched_ids:
+                session.delete(token)
+        session.flush()
+
+    @classmethod
     def _update_notes_for_token_changes(  # noqa: PLR0912, PLR0915
         cls,
         sentence_id: int,
-        old_tokens: builtins.list[Token],
-        new_token_positions: dict[int, Token],
+        old_tokens: builtins.list["Token"],
+        new_token_positions: dict[int, "Token"],
         matched_token_ids: set[int],
     ) -> None:
-        """
-        Update notes when tokens change.
-
-        Args:
-            sentence_id: Sentence ID
-            old_tokens: List of old tokens
-            new_token_positions: Dict mapping new position to token
-            matched_token_ids: Set of token IDs that were matched (kept)
-
-        """
+        """Update notes when tokens change."""
         from oeapp.models.sentence import Sentence  # noqa: PLC0415
 
         sentence = Sentence.get(sentence_id)
@@ -245,26 +363,15 @@ class Token(SaveDeleteMixin, Base):
             return
 
         # Build mapping of old token ID to new token
-        old_token_id_to_new: dict[int, Token] = {}
+        old_token_id_to_new: dict[int, "Token"] = {}
         for token in new_token_positions.values():
             if token.id:
                 old_token_id_to_new[token.id] = token
-
-        # Build mapping of old order_index to new token
-        old_order_to_new_token: dict[int, Token] = {}
-        for old_token in old_tokens:
-            if old_token.id and old_token.id in matched_token_ids:
-                # This token was kept, find its new position
-                for new_token in new_token_positions.values():
-                    if new_token.id == old_token.id:
-                        old_order_to_new_token[old_token.order_index] = new_token
-                        break
 
         # Process each note
         notes_to_delete = []
         for note in sentence.notes:
             if not note.start_token or not note.end_token:
-                # Invalid note, mark for deletion
                 notes_to_delete.append(note)
                 continue
 
@@ -273,77 +380,110 @@ class Token(SaveDeleteMixin, Base):
             end_exists = note.end_token in matched_token_ids
 
             if not start_exists or not end_exists:
-                # One or both tokens were deleted
-                # Try to find replacement tokens based on position
-                # Get old token order indices
-                old_start_token = None
-                old_end_token = None
-                for old_token in old_tokens:
-                    if old_token.id == note.start_token:
-                        old_start_token = old_token
-                    if old_token.id == note.end_token:
-                        old_end_token = old_token
+                # One or both tokens were deleted - try to find replacement tokens
+                new_start_token, new_end_token = cls._find_replacement_tokens_for_note(
+                    note, old_tokens, new_token_positions
+                )
 
-                if old_start_token and old_end_token:
-                    # Try to find new tokens at same or nearby positions
-                    old_start_order = old_start_token.order_index
-                    old_end_order = old_end_token.order_index
-
-                    # Find closest new tokens
-                    new_start_token = None
-                    new_end_token = None
-                    min_start_dist = float("inf")
-                    min_end_dist = float("inf")
-
-                    for new_pos, new_token in new_token_positions.items():
-                        if new_token.id:
-                            # Check distance to old start position
-                            dist = abs(new_pos - old_start_order)
-                            if dist < min_start_dist:
-                                min_start_dist = dist
-                                new_start_token = new_token
-
-                            # Check distance to old end position
-                            dist = abs(new_pos - old_end_order)
-                            if dist < min_end_dist:
-                                min_end_dist = dist
-                                new_end_token = new_token
-
-                    if (
-                        new_start_token
-                        and new_end_token
-                        and new_start_token.id
-                        and new_end_token.id
-                    ):
-                        # Update note with new token IDs
-                        note.start_token = new_start_token.id
-                        note.end_token = new_end_token.id
-                        session.add(note)
-                    else:
-                        # Cannot find replacement tokens, mark for deletion
-                        notes_to_delete.append(note)
+                if new_start_token and new_end_token and new_start_token.id and new_end_token.id:
+                    note.start_token = new_start_token.id
+                    note.end_token = new_end_token.id
+                    session.add(note)
                 else:
-                    # Cannot find old tokens, mark for deletion
                     notes_to_delete.append(note)
             else:
-                # Both tokens exist, but check if range is still valid
-                # Get new tokens
+                # Both exist, check if range is still valid
                 new_start_token = old_token_id_to_new.get(note.start_token)
                 new_end_token = old_token_id_to_new.get(note.end_token)
 
                 if new_start_token and new_end_token:
-                    # Ensure start comes before end
                     if new_start_token.order_index > new_end_token.order_index:
-                        # Swap them
-                        note.start_token = new_end_token.id
-                        note.end_token = new_start_token.id
+                        note.start_token, note.end_token = new_end_token.id, new_start_token.id
                         session.add(note)
 
-        # Delete notes that became invalid
         for note in notes_to_delete:
             session.delete(note)
+        session.flush()
+
+    @classmethod
+    def _find_replacement_tokens_for_note(cls, note, old_tokens, new_token_positions) -> tuple["Token | None", "Token | None"]:
+        """Find replacement tokens for a note whose tokens were deleted."""
+        old_start_token = next((t for t in old_tokens if t.id == note.start_token), None)
+        old_end_token = next((t for t in old_tokens if t.id == note.end_token), None)
+
+        if not old_start_token or not old_end_token:
+            return None, None
+
+        old_start_order = old_start_token.order_index
+        old_end_order = old_end_token.order_index
+
+        new_start_token = None
+        new_end_token = None
+        min_start_dist = float("inf")
+        min_end_dist = float("inf")
+
+        for new_pos, new_token in new_token_positions.items():
+            if new_token.id:
+                dist_start = abs(new_pos - old_start_order)
+                if dist_start < min_start_dist:
+                    min_start_dist = dist_start
+                    new_start_token = new_token
+
+                dist_end = abs(new_pos - old_end_order)
+                if dist_end < min_end_dist:
+                    min_end_dist = dist_end
+                    new_end_token = new_token
+
+        return new_start_token, new_end_token
+
+    @classmethod
+    def _update_idioms_for_token_changes(
+        cls,
+        sentence_id: int,
+        old_tokens: builtins.list["Token"],
+        new_token_positions: dict[int, "Token"],
+        matched_token_ids: set[int],
+        original_orders: dict[int, int],
+    ) -> list[str]:
+        """Update idioms when tokens change."""
+        from oeapp.models.sentence import Sentence
+        sentence = Sentence.get(sentence_id)
+        session = cls._get_session()
+        messages = []
+        if not sentence or not sentence.idioms:
+            return messages
+
+        for idiom in list(sentence.idioms):
+            # Check if all tokens in the ORIGINAL range still exist
+            start_order = original_orders.get(idiom.start_token_id)
+            end_order = original_orders.get(idiom.end_token_id)
+
+            if start_order is None or end_order is None:
+                # Should not happen if data is consistent
+                session.delete(idiom)
+                messages.append("Idiom annotation deleted because its boundary tokens were lost.")
+                continue
+
+            # Find old tokens in this original range
+            old_ids_in_range = {
+                t.id for t in old_tokens
+                if start_order <= original_orders.get(t.id, -1) <= end_order
+            }
+
+            # If any of the tokens that were in this idiom are missing from matches...
+            if not old_ids_in_range.issubset(matched_token_ids):
+                # A token was deleted from the idiom
+                session.delete(idiom)
+                messages.append("Idiom annotation deleted because one of its tokens was removed.")
+                continue
+
+            # Update boundary tokens if they were replaced by typo fixes
+            # (token_id remains same, so no action needed for IDs)
+            # But we should check if they still exist in new_token_positions
+            # (which they should if matched_token_ids includes them)
 
         session.flush()
+        return messages
 
     @classmethod
     def tokenize(cls, sentence_text: str) -> builtins.list[str]:  # noqa: PLR0912, PLR0915
@@ -463,127 +603,3 @@ class Token(SaveDeleteMixin, Base):
             tokens.pop()
 
         return tokens
-
-    @classmethod
-    def update_from_sentence(  # noqa: PLR0912, PLR0915
-        cls, sentence_text: str, sentence_id: int
-    ) -> None:
-        """
-        Update all the tokens in the sentence, removing any tokens that are no
-        longer in the sentence, and adding any new tokens.
-
-        We will also re-order the tokens to match the order of the tokens in the
-        sentence.
-
-        The goal is to update the text of the sentence without losing any
-        annotations on the tokens that need to remain.
-
-        The algorithm uses difflib.SequenceMatcher to identify which tokens
-        have remained, been inserted, or been deleted. This preserves
-        annotations on tokens that stay in the sentence even if they shift
-        position.
-
-        Args:
-            sentence_text: Text of the sentence to tokenize
-            sentence_id: Sentence ID
-
-        """
-        session = cls._get_session()
-        # Tokenize the new sentence text
-        token_strings = cls.tokenize(sentence_text)
-
-        # Get existing tokens ordered by order_index
-        existing_tokens = cls.list(sentence_id)
-
-        # Move all existing tokens to temporary negative positions
-        # to avoid unique constraint violations during updates
-        for i, token in enumerate(existing_tokens):
-            token.order_index = -(i + 1)
-            session.add(token)
-        session.flush()
-
-        # Match tokens using SequenceMatcher
-        old_surfaces = [t.surface for t in existing_tokens]
-        matcher = difflib.SequenceMatcher(None, old_surfaces, token_strings)
-
-        matched_positions: dict[int, Token] = {}
-        matched_token_ids: set[int] = set()
-
-        for tag, i1, i2, j1, j2 in matcher.get_opcodes():
-            if tag == "equal":
-                # Tokens at old_surfaces[i1:i2] match token_strings[j1:j2]
-                for k in range(i2 - i1):
-                    old_token = existing_tokens[i1 + k]
-                    new_index = j1 + k
-                    old_token.order_index = new_index
-                    session.add(old_token)
-                    matched_positions[new_index] = old_token
-                    matched_token_ids.add(old_token.id)
-            elif tag == "replace":
-                # For replacements, if the number of old tokens matches the
-                # number of new tokens (N-to-N), we treat them as 1-for-1
-                # surface updates to preserve annotations (typo fixes).
-                if (i2 - i1) == (j2 - j1):
-                    for k in range(i2 - i1):
-                        old_token = existing_tokens[i1 + k]
-                        new_index = j1 + k
-                        new_surface = token_strings[new_index]
-                        old_token.surface = new_surface
-                        old_token.order_index = new_index
-                        session.add(old_token)
-                        matched_positions[new_index] = old_token
-                        matched_token_ids.add(old_token.id)
-                else:
-                    # Treat as delete (will be handled by deleting unmatched)
-                    # and insert (below)
-                    for k in range(j2 - j1):
-                        new_index = j1 + k
-                        new_surface = token_strings[new_index]
-                        new_token = cls(
-                            sentence_id=sentence_id,
-                            order_index=new_index,
-                            surface=new_surface,
-                        )
-                        session.add(new_token)
-                        session.flush()  # Get ID
-
-                        # Create empty annotation
-                        if not Annotation.exists(new_token.id):
-                            annotation = Annotation(token_id=new_token.id)
-                            session.add(annotation)
-
-                        matched_positions[new_index] = new_token
-            elif tag == "insert":
-                for k in range(j2 - j1):
-                    new_index = j1 + k
-                    new_surface = token_strings[new_index]
-                    new_token = cls(
-                        sentence_id=sentence_id,
-                        order_index=new_index,
-                        surface=new_surface,
-                    )
-                    session.add(new_token)
-                    session.flush()
-
-                    # Create empty annotation
-                    if not Annotation.exists(new_token.id):
-                        annotation = Annotation(token_id=new_token.id)
-                        session.add(annotation)
-
-                    matched_positions[new_index] = new_token
-
-        session.flush()
-
-        # Delete tokens that weren't matched
-        for token in existing_tokens:
-            if token.id not in matched_token_ids:
-                session.delete(token)
-
-        session.flush()
-
-        # Update notes for token changes
-        cls._update_notes_for_token_changes(
-            sentence_id, existing_tokens, matched_positions, matched_token_ids
-        )
-
-        session.commit()

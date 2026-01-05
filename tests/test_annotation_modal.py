@@ -2,10 +2,11 @@
 
 import pytest
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QApplication, QMessageBox
+from PySide6.QtWidgets import QApplication, QMessageBox, QPushButton, QWidget
 
 from oeapp.models.annotation import Annotation
 from oeapp.models.annotation_preset import AnnotationPreset
+from oeapp.models.idiom import Idiom
 from oeapp.ui.dialogs.annotation_modal import AnnotationModal
 from tests.conftest import create_test_project, create_test_sentence
 
@@ -180,6 +181,40 @@ class TestAnnotationModal:
         assert modal.confidence_slider.value() == 100
         assert modal.modern_english_edit.text() == ""
         assert modal.fields_layout.rowCount() == 0
+
+    def test_init_with_idiom_annotation(self, qtbot, token, db_session):
+        """Test initialization when idiom is annotated."""
+        sentence = token.sentence
+        tokens = list(sentence.tokens)
+        idiom = Idiom(
+            sentence_id=sentence.id,
+            start_token_id=tokens[0].id,
+            end_token_id=tokens[-1].id,
+        )
+        idiom.save()
+        annotation = Annotation(idiom_id=idiom.id, pos="N")
+        annotation.save()
+        db_session.commit()
+
+        class DummySentenceCard(QWidget):
+            def __init__(self, tokens):
+                super().__init__()
+                self.tokens = tokens
+
+        dummy_parent = DummySentenceCard(tokens)
+        modal = AnnotationModal(idiom=idiom, annotation=annotation, parent=dummy_parent)
+        modal.show()
+        assert modal.idiom == idiom
+        assert modal.annotation.idiom_id == idiom.id
+        # Ensure idiom header exposes each token as a clickable button
+        buttons = [
+            btn
+            for btn in modal.findChildren(QPushButton)
+            if btn.text() in {tokens[0].surface, tokens[-1].surface}
+        ]
+        assert buttons
+        qtbot.wait(200)
+        modal.close()
 
     def test_shortcuts_select_pos(self, qtbot, token):
         """Test keyboard shortcuts for POS selection."""

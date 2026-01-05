@@ -94,7 +94,6 @@ def db_session():
 def sample_project(db_session):
     """Create a sample project with default text."""
     return Project.create(
-        session=db_session,
         text="Se cyning",
         name=f"Sample Project {id(db_session)}",
     )
@@ -102,9 +101,10 @@ def sample_project(db_session):
 
 @pytest.fixture
 def sample_sentence(db_session, sample_project):
-    """Create a sample sentence with tokens."""
+    """Get the first sentence of the sample project."""
+    if sample_project.sentences:
+        return sample_project.sentences[0]
     return Sentence.create(
-        session=db_session,
         project_id=sample_project.id,
         display_order=1,
         text_oe="Se cyning",
