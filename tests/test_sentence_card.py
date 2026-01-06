@@ -488,11 +488,12 @@ class TestSentenceCard:
         assert card._current_highlight_start is not None
 
     def test_clickable_text_edit_ignores_arrows(self, qapp):
-        """Test that ClickableTextEdit ignores arrow keys so they bubble up."""
+        """Test that ClickableTextEdit ignores arrow keys so they bubble up when read-only."""
         from PySide6.QtCore import Qt
         from PySide6.QtGui import QKeyEvent
 
         widget = ClickableTextEdit(parent=None)
+        widget.setReadOnly(True)
 
         # Test Right Arrow - should be ignored (bubbled up)
         event_right = QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_Right, Qt.NoModifier)
@@ -503,6 +504,104 @@ class TestSentenceCard:
         event_left = QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_Left, Qt.NoModifier)
         widget.keyPressEvent(event_left)
         assert event_left.isAccepted() is False
+
+        # Test not read-only (edit mode)
+        widget.setReadOnly(False)
+        event_right_edit = QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_Right, Qt.NoModifier)
+        widget.keyPressEvent(event_right_edit)
+        # When not read-only, it should be accepted by QTextEdit
+        assert event_right_edit.isAccepted() is True
+
+    def test_arrow_keys_in_edit_mode_move_cursor(self, db_session, qapp, qtbot):
+        """Test that arrow keys move the cursor instead of tokens in edit mode."""
+        project = create_test_project(db_session, name="TestEdit", text="Se cyning fēoll")
+        sentence = project.sentences[0]
+        card = SentenceCard(sentence, parent=None)
+        qtbot.addWidget(card)
+        card.show()
+
+        # Enter edit mode
+        card._on_edit_oe_clicked()
+        assert card._oe_edit_mode is True
+        assert card.oe_text_edit.isReadOnly() is False
+
+        # Set cursor position to end (length of "Se cyning fēoll" is 15)
+        text = "Se cyning fēoll"
+        card.oe_text_edit.setPlainText(text)
+        cursor = card.oe_text_edit.textCursor()
+        cursor.setPosition(len(text))
+        card.oe_text_edit.setTextCursor(cursor)
+        assert card.oe_text_edit.textCursor().position() == 15
+
+        # Press Left Arrow - should move cursor left (to 14)
+        event_left = QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_Left, Qt.NoModifier)
+        card.oe_text_edit.keyPressEvent(event_left)
+        assert card.oe_text_edit.textCursor().position() == 14
+        # Token selection should not have changed from None
+        assert card.selected_token_index is None
+
+        # Press Right Arrow - should move cursor right (back to 15)
+        event_right = QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_Right, Qt.NoModifier)
+        card.oe_text_edit.keyPressEvent(event_right)
+        assert card.oe_text_edit.textCursor().position() == 15
+        assert card.selected_token_index is None
+
+    def test_click_in_edit_mode_does_not_select_token(self, db_session, qapp, qtbot):
+        """Test that clicking the text in edit mode does not trigger token selection."""
+        project = create_test_project(db_session, name="TestEditClick", text="Se cyning")
+        sentence = project.sentences[0]
+        card = SentenceCard(sentence, parent=None)
+        qtbot.addWidget(card)
+        card.show()
+
+        # Enter edit mode
+        card._on_edit_oe_clicked()
+        assert card.selected_token_index is None
+
+        # Simulate click at start of text
+        # In edit mode, clicking should move the text cursor, not select a token
+        card._on_oe_text_clicked(QPoint(5, 5), Qt.KeyboardModifier.NoModifier)
+        assert card.selected_token_index is None
+        assert card._oe_edit_mode is True
+
+    def test_double_click_in_edit_mode_does_not_open_modal(self, db_session, qapp, qtbot, monkeypatch):
+        """Test that double-clicking in edit mode does not open the annotation modal."""
+        project = create_test_project(db_session, name="TestEditDoubleClick", text="Se cyning")
+        sentence = project.sentences[0]
+        card = SentenceCard(sentence, parent=None)
+        qtbot.addWidget(card)
+        card.show()
+
+        # Enter edit mode
+        card._on_edit_oe_clicked()
+
+        # Mock modal openers
+        mock_token_modal = MagicMock()
+        monkeypatch.setattr(card, "_open_token_modal", mock_token_modal)
+
+        # Simulate double click
+        card._on_oe_text_double_clicked(QPoint(5, 5))
+
+        assert not mock_token_modal.called
+        assert card._oe_edit_mode is True
+
+    def test_edit_mode_clears_existing_selection(self, db_session, qapp, qtbot):
+        """Test that entering edit mode clears any current token selection."""
+        project = create_test_project(db_session, name="TestClear", text="Se cyning")
+        sentence = project.sentences[0]
+        card = SentenceCard(sentence, parent=None)
+        card._render_oe_text_with_superscripts() # Populate positions
+
+        # Select first token
+        card.selected_token_index = 0
+        card._highlight_token_in_text(sentence.tokens[0])
+        assert card.selected_token_index == 0
+
+        # Enter edit mode
+        card._on_edit_oe_clicked()
+
+        assert card.selected_token_index is None
+        assert card._selected_token_range is None
 
 
 class TestClickableTextEdit:

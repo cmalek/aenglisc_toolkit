@@ -105,7 +105,8 @@ class ClickableTextEdit(QTextEdit):
 
         # For arrow keys, ignore them so they bubble up to SentenceCard
         # when a token is selected (SentenceCard will handle navigation)
-        if event.key() in (Qt.Key.Key_Left, Qt.Key.Key_Right):
+        # ONLY if we are in read-only mode (not editing OE)
+        if self.isReadOnly() and event.key() in (Qt.Key.Key_Left, Qt.Key.Key_Right):
             event.ignore()
             return
 
@@ -309,7 +310,12 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
 
         """
         # Check for copy/paste shortcuts only when a token is selected
-        if self.selected_token_index is not None and self.main_window:
+        # and NOT in edit mode
+        if (
+            self.selected_token_index is not None
+            and self.main_window
+            and not self._oe_edit_mode
+        ):
             if event.matches(QKeySequence.StandardKey.Copy):
                 self.main_window.action_service.copy_annotation()
                 event.accept()
@@ -867,6 +873,10 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
         self, position: QPoint, modifiers: Qt.KeyboardModifier
     ) -> None:
         """Handle click on Old English text to select corresponding token."""
+        # If in edit mode, don't handle clicks for selection
+        if self._oe_edit_mode:
+            return
+
         cursor = self.oe_text_edit.cursorForPosition(position)
         cursor_pos = cursor.position()
 
@@ -1008,6 +1018,10 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
             position: Mouse double-click position in widget coordinates
 
         """
+        # If in edit mode, don't handle double-clicks for annotation
+        if self._oe_edit_mode:
+            return
+
         # Get cursor at click position
         cursor = self.oe_text_edit.cursorForPosition(position)
         cursor_pos = cursor.position()
@@ -1102,6 +1116,9 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
         """Handle Edit OE button click - enter edit mode."""
         # Set edit mode
         self._oe_edit_mode = True
+        # Clear any active idiom or single token selection
+        self.selected_token_index = None
+        self._selected_token_range = None
         # Store original text (plain text without superscripts)
         self._original_oe_text = self.sentence.text_oe
         # Set plain text (remove superscripts)
