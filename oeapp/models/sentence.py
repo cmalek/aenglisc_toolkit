@@ -448,7 +448,7 @@ class Sentence(SaveDeleteMixin, Base):
         current_paragraph = 1
         current_sentence_in_paragraph = 0
 
-        for idx, sentence in enumerate(sentences):
+        for sentence in sentences:
             if sentence.is_paragraph_start:
                 if current_sentence_in_paragraph > 0:
                     # New paragraph (not the first sentence)

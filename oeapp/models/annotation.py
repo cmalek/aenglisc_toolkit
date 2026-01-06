@@ -166,8 +166,8 @@ class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
     )
 
     # Relationships
-    token: Mapped["Token"] = relationship("Token", back_populates="annotation")
-    idiom: Mapped["Idiom"] = relationship("Idiom", back_populates="annotation")
+    token: Mapped[Token] = relationship("Token", back_populates="annotation")
+    idiom: Mapped[Idiom] = relationship("Idiom", back_populates="annotation")
 
     @classmethod
     def exists(cls, token_id: int | None = None, idiom_id: int | None = None) -> bool:
@@ -183,19 +183,19 @@ class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
         return session.scalar(stmt) is not None
 
     @classmethod
-    def get(cls, annotation_id: int) -> "Annotation | None":
+    def get(cls, annotation_id: int) -> Annotation | None:
         """Get an annotation by ID."""
         session = cls._get_session()
         return session.get(cls, annotation_id)
 
     @classmethod
-    def get_by_token(cls, token_id: int) -> "Annotation | None":
+    def get_by_token(cls, token_id: int) -> Annotation | None:
         """Get an annotation by token ID."""
         session = cls._get_session()
         return session.scalar(select(cls).where(cls.token_id == token_id))
 
     @classmethod
-    def get_by_idiom(cls, idiom_id: int) -> "Annotation | None":
+    def get_by_idiom(cls, idiom_id: int) -> Annotation | None:
         """Get an annotation by idiom ID."""
         session = cls._get_session()
         return session.scalar(select(cls).where(cls.idiom_id == idiom_id))
@@ -236,7 +236,7 @@ class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
         ann_data: dict,
         idiom_id: int | None = None,
         commit: bool = True,  # noqa: FBT001, FBT002
-    ) -> "Annotation":
+    ) -> Annotation:
         """Create an annotation from JSON import data."""
         annotation = cls(
             token_id=token_id,

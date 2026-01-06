@@ -409,7 +409,7 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
         """Initialize the token details sidebar."""
         super().__init__(parent)
         self._current_token: Token | None = None
-        self._current_idiom: "Idiom | None" = None
+        self._current_idiom: Idiom | None = None
         self._current_sentence: Sentence | None = None
         self.field_renderer = FieldRenderer
         self._setup_ui()
@@ -680,7 +680,7 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
         self.modern_english_meaning(annotation)
         self.content_layout.addStretch()
 
-    def render_idiom(self, idiom: "Idiom", sentence: Sentence) -> None:
+    def render_idiom(self, idiom: Idiom, sentence: Sentence) -> None:
         """
         Update the sidebar with idiom details.
 
