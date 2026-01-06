@@ -654,8 +654,10 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
                 field_values["declension"] = text if text else None
         elif pos == "V":
             if hasattr(self, "verb_class_combo"):
-                text = self.verb_class_combo.currentText().strip()
-                field_values["verb_class"] = text if text else None
+                idx = self.verb_class_combo.currentIndex()
+                field_values["verb_class"] = (
+                    self.VERB_CLASS_REVERSE_MAP.get(idx) if idx > 0 else None
+                )
             if hasattr(self, "verb_tense_combo"):
                 idx = self.verb_tense_combo.currentIndex()
                 field_values["verb_tense"] = (
@@ -847,10 +849,10 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
             if "case" in last_vals:
                 self.case_combo.setCurrentIndex(last_vals["case"])
             if "declension" in last_vals:
-                self.declension_combo.setCurrentText(last_vals["declension"])
+                self.declension_combo.setCurrentIndex(last_vals["declension"])
         elif pos == "V" and hasattr(self, "verb_class_combo"):
             if "verb_class" in last_vals:
-                self.verb_class_combo.setCurrentText(last_vals["verb_class"])
+                self.verb_class_combo.setCurrentIndex(last_vals["verb_class"])
             if "verb_tense" in last_vals:
                 self.verb_tense_combo.setCurrentIndex(last_vals["verb_tense"])
             if "verb_mood" in last_vals:
@@ -918,9 +920,9 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
             self._last_values[pos]["gender"] = self.gender_combo.currentIndex()
             self._last_values[pos]["number"] = self.number_combo.currentIndex()
             self._last_values[pos]["case"] = self.case_combo.currentIndex()
-            self._last_values[pos]["declension"] = self.declension_combo.currentText()
+            self._last_values[pos]["declension"] = self.declension_combo.currentIndex()
         elif pos == "V":
-            self._last_values[pos]["verb_class"] = self.verb_class_combo.currentText()
+            self._last_values[pos]["verb_class"] = self.verb_class_combo.currentIndex()
             self._last_values[pos]["verb_tense"] = self.verb_tense_combo.currentIndex()
             self._last_values[pos]["verb_mood"] = self.verb_mood_combo.currentIndex()
             self._last_values[pos]["verb_person"] = (
