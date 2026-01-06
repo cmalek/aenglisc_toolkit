@@ -1275,7 +1275,7 @@ class ProjectUI:
             self.application_state[SELECTED_SENTENCE_CARD] = sentence_card
 
     def _on_idiom_selected_for_details(
-        self, idiom: "Idiom", sentence: Sentence, sentence_card: SentenceCard
+        self, idiom: Idiom, sentence: Sentence, sentence_card: SentenceCard
     ) -> None:
         """
         Handle idiom selection for details sidebar.

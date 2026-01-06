@@ -406,12 +406,16 @@ class TokenOccurrenceMixin:
             if pos == -1:
                 # If this is the token we are looking for, try finding it from the start
                 # as a last resort.
-                if t.id == token.id or (t.order_index == token.order_index and t.surface == token.surface):
+                if t.id == token.id or (
+                    t.order_index == token.order_index and t.surface == token.surface
+                ):
                     res = text.find(t.surface)
                     return res if res != -1 else None
                 continue
 
-            if t.id == token.id or (t.order_index == token.order_index and t.surface == token.surface):
+            if t.id == token.id or (
+                t.order_index == token.order_index and t.surface == token.surface
+            ):
                 return pos
 
             # Move current_pos past this token for the next iteration

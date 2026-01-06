@@ -272,7 +272,6 @@ class Token(SaveDeleteMixin, Base):
         messages = cls._update_idioms_for_token_changes(
             sentence_id,
             existing_tokens,
-            matched_positions,
             matched_token_ids,
             original_orders,
         )
@@ -500,7 +499,6 @@ class Token(SaveDeleteMixin, Base):
         cls,
         sentence_id: int,
         old_tokens: builtins.list[Token],
-        new_token_positions: dict[int, Token],
         matched_token_ids: set[int],
         original_orders: dict[int, int],
     ) -> builtins.list[str]:
@@ -510,7 +508,6 @@ class Token(SaveDeleteMixin, Base):
         Args:
             sentence_id: Sentence ID
             old_tokens: List of old tokens
-            new_token_positions: Dictionary of new token positions
             matched_token_ids: Set of matched token IDs
             original_orders: Dictionary of original orders
 

@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING, Final
 
+import sqlalchemy
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
@@ -9,7 +10,6 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from oeapp.exc import AlreadyExists
 from oeapp.models.project import Project
 from oeapp.state import ApplicationState
 
@@ -28,6 +28,7 @@ class EditProjectDialog:
     Args:
         main_window: Main window instance
         project: Project instance to edit
+
     """
 
     #: Dialog width
@@ -35,7 +36,7 @@ class EditProjectDialog:
     #: Dialog height
     DIALOG_HEIGHT: Final[int] = 500
 
-    def __init__(self, main_window: "MainWindow", project: Project) -> None:
+    def __init__(self, main_window: MainWindow, project: Project) -> None:
         """
         Initialize edit project dialog.
         """
@@ -96,7 +97,19 @@ class EditProjectDialog:
         self.layout.addWidget(self.button_box)
 
     def save_project(self) -> None:
-        """Save project changes."""
+        """
+        Save project changes.
+
+        This means:
+
+        - Check if the title is empty
+        - Check if the title already exists
+        - Update the project with the new title, source, translator, and notes
+        - Set the window title to the new project name
+        - Show a success message
+        - Catch any exceptions and show an error message
+
+        """
         title = self.title_edit.text().strip()
         if not title:
             self.state.show_error("Please enter a project title.")
@@ -111,21 +124,20 @@ class EditProjectDialog:
             self.state.show_error(f'Project with title "{title}" already exists.')
             return
 
+        self.project.name = title
+        self.project.source = source
+        self.project.translator = translator
+        self.project.notes = notes
         try:
-            self.project.name = title
-            self.project.source = source
-            self.project.translator = translator
-            self.project.notes = notes
             self.project.save()
-
+        except sqlalchemy.exc.SQLAlchemyError as e:
+            self.state.show_error(f"Failed to update project: {e!s}")
+        else:
             self.main_window.setWindowTitle(f"Ænglisc Toolkit - {self.project.name}")
             self.state.show_message("Project updated")
             self.dialog.accept()
-        except Exception as e:
-            self.state.show_error(f"Failed to update project: {e!s}")
 
     def execute(self) -> None:
         """Execute dialog."""
         self.build()
         self.dialog.exec()
-

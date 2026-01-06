@@ -350,6 +350,7 @@ class TokenTable(QWidget):
             annotation: Updated annotation
 
         """
+        assert annotation.token_id is not None, "Token ID is required"  # noqa: S101
         # Update the annotation in the annotations dictionary.
         self.annotations[annotation.token_id] = annotation
         # Find token row
