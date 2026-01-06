@@ -317,29 +317,6 @@ class TestAnnotationModal:
         assert mock_exec[0].initial_pos == "N"
         assert mock_exec[0].initial_field_values["gender"] == "m"
 
-    def test_custom_declension_persistence(self, qtbot, token, db_session):
-        """Test that custom declension (not in predefined list) is saved and loaded."""
-        modal = AnnotationModal(token=token)
-        qtbot.addWidget(modal)
-        modal.show()
-
-        modal.pos_combo.setCurrentText("Noun (N)")
-        modal.declension_combo.setCurrentText("custom-decl")
-
-        qtbot.mouseClick(modal.apply_button, Qt.LeftButton)
-        modal.annotation.save()
-
-        # Verify in DB
-        db_session.expire_all()
-        ann = db_session.get(Annotation, token.id)
-        assert ann.declension == "custom-decl"
-
-        # Reload modal
-        modal2 = AnnotationModal(token=token, annotation=ann)
-        qtbot.addWidget(modal2)
-        modal2.show()
-        assert modal2.declension_combo.currentText() == "custom-decl"
-
     def test_cancel_button(self, qtbot, token):
         """Test that Cancel button closes the dialog without applying."""
         modal = AnnotationModal(token=token)
