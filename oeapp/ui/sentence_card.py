@@ -175,7 +175,9 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
     #: Color maps for highlighting numbers
     NUMBER_COLORS: ClassVar[dict[str | None, QColor]] = {
         "s": QColor(173, 216, 230),  # Light blue for Singular
-        "p": QColor(255, 127, 127),  # Light coral for Plural
+        "d": QColor(144, 238, 144),  # Light green for Dual
+        "pl": QColor(255, 127, 127),  # Light coral for Plural
+        "p": QColor(255, 127, 127),  # Light coral for Plural (Verbs)
         None: QColor(255, 255, 255),  # White (no highlight) for unannotated
     }
 
@@ -951,9 +953,8 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
                 self._pending_deselect_token_index = order_index
                 self._deselect_timer.start(300)
                 return
-            else:
-                # Clicked outside range, clear it
-                self._selected_token_range = None
+            # Clicked outside range, clear it
+            self._selected_token_range = None
 
         # 2. Check if clicking a SAVED idiom token
         idiom = self._find_idiom_at_order_index(order_index)
@@ -1515,7 +1516,12 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
             if pos not in ["D", "N", "R", "A", "V"]:
                 continue
 
-            number_value = annotation.number
+            if pos == "R":
+                # Pronouns use pronoun_number, because pronouns can be s, d or pl
+                # while everything else is just s or p.
+                number_value = annotation.pronoun_number
+            else:
+                number_value = annotation.number
             color = self.NUMBER_COLORS.get(number_value, self.NUMBER_COLORS[None])
             # Only highlight if not default
             if color != self.NUMBER_COLORS[None]:
@@ -1615,7 +1621,7 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
         # Use a yellow background color with transparency
         char_format.setBackground(QColor(200, 200, 0, 150))
         # Mark as selection highlight
-        char_format.setProperty(self.SELECTION_HIGHLIGHT_PROPERTY, True)
+        char_format.setProperty(self.SELECTION_HIGHLIGHT_PROPERTY, True)  # noqa: FBT003
 
         # Use extraSelections for temporary highlighting
         selection_highlight = QTextEdit.ExtraSelection()
@@ -1677,7 +1683,7 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
             char_format = QTextCharFormat()
             char_format.setBackground(color)
             # Mark as selection highlight
-            char_format.setProperty(self.SELECTION_HIGHLIGHT_PROPERTY, True)
+            char_format.setProperty(self.SELECTION_HIGHLIGHT_PROPERTY, True)  # noqa: FBT003
 
             selection_highlight = QTextEdit.ExtraSelection()
             selection_highlight.cursor = cursor  # type: ignore[attr-defined]
@@ -1874,6 +1880,10 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
         """
         Render OE text with note superscripts and idiom italics.
 
+        This is the method we use to render the OE text with note superscripts
+        and idiom italics, for reading.  We use a different method to render it
+        for editing.
+
         Only renders superscripts when NOT in edit mode.
         """
         if self._oe_edit_mode or not self.sentence:
@@ -1925,7 +1935,13 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
                 self._highlight_token_in_text(token)
 
     def _get_idiom_token_ids(self) -> set[int]:
-        """Get set of token IDs that are part of an idiom."""
+        """
+        Get set of token IDs that are part of an idiom.
+
+        Returns:
+            Set of token IDs that are part of an idiom
+
+        """
         idiom_token_ids = set()
         for idiom in self.idioms:
             # We need to find all tokens between start and end
@@ -1942,7 +1958,7 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
                     idiom_token_ids.add(cast("int", token.id))
         return idiom_token_ids
 
-    def _render_single_token(
+    def _render_single_token(  # noqa: PLR0913
         self,
         cursor: QTextCursor,
         token: Token,
@@ -1951,7 +1967,18 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
         idiom_token_ids: set[int],
         token_to_notes: dict[int, list[int]],
     ) -> None:
-        """Render a single token with its formatting and superscripts."""
+        """
+        Render a single token with its formatting and superscripts.
+
+        Args:
+            cursor: QTextCursor to render the token in
+            token: Token to render
+            token_start: Start position of the token in the text
+            token_end: End position of the token in the text
+            idiom_token_ids: Set of token IDs that are part of an idiom
+            token_to_notes: Dictionary of token IDs to list of note IDs
+
+        """
         token_id = cast("int", token.id)
         text = self.sentence.text_oe
 
@@ -1973,7 +2000,14 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
     def _render_superscripts(
         self, cursor: QTextCursor, note_numbers: list[int]
     ) -> None:
-        """Render note superscripts."""
+        """
+        Render note superscripts.
+
+        Args:
+            cursor: QTextCursor to render the superscripts in
+            note_numbers: List of note numbers to render
+
+        """
         super_format = QTextCharFormat()
         super_format.setVerticalAlignment(
             QTextCharFormat.VerticalAlignment.AlignSuperScript
@@ -2084,7 +2118,7 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
 
     def _on_add_sentence_before_clicked(self) -> None:
         """
-        Handle Add Sentence Before button click.
+        Handle "Add Sentence: Before" button click.
 
         Creates a new empty sentence before the current sentence.
         """
@@ -2109,7 +2143,7 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
 
     def _on_add_sentence_after_clicked(self) -> None:
         """
-        Handle Add Sentence After button click.
+        Handle "Add Sentence: After" button click.
 
         Creates a new empty sentence after the current sentence.
         """
@@ -2305,6 +2339,14 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
     def _perform_deselection(self) -> None:
         """
         Perform deselection if still pending. Called by timer after delay.
+
+        This means:
+
+        - Deselect the token if the selected token index still matches
+        - Clear the selected token range if it exists and the click was inside it
+        - Clear the highlight
+        - Disable the add note button
+        - Emit signal to clear sidebar (main window will handle it)
         """
         if self._pending_deselect_token_index is not None:
             order_index = self._pending_deselect_token_index
@@ -2338,6 +2380,15 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
     def _clear_token_selection(self) -> None:
         """
         Clear token selection and highlight.
+
+        This means:
+
+        - Cancel any pending deselection timer
+        - Clear the selected token index
+        - Clear the selected token range
+        - Clear the highlight
+        - Disable the add note button
+        - Emit signal to clear sidebar (main window will handle it)
         """
         # Cancel any pending deselection timer
         if self._deselect_timer.isActive():
