@@ -1160,6 +1160,8 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
         self.cancel_edit_button.setVisible(False)
         # Show Edit OE button
         self.edit_oe_button.setVisible(True)
+        # Show Add Note button
+        self.add_note_button.setVisible(True)
         # Reconnect textChanged signal
         self.oe_text_edit.textChanged.connect(self._on_oe_text_changed)
 
