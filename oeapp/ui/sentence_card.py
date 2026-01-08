@@ -377,9 +377,10 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
         self.sentence_number_label.setFont(QFont("Helvetica", 14, QFont.Weight.Bold))
         return self.sentence_number_label
 
-    def build_top_row_action_buttons(self) -> QHBoxLayout:
+    def build_sentence_actions(self) -> QHBoxLayout:
         """
-        Add the top row action buttons to the layout and return the layout.
+        Add the sentence actions (menus and buttons) to the layout and return
+        the layout.
 
         - Add Sentence Button with menu for adding a sentence before or after
         - Toggle Paragraph Start button with menu for toggling the paragraph start
@@ -387,7 +388,7 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
         - Delete button
 
         Returns:
-            Layout with the top row action buttons
+            Layout with the sentence actions (menus and buttons)
 
         """
         layout = QHBoxLayout()
@@ -430,6 +431,7 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
             - Part of Speech
             - Case
             - Number
+            - Idioms
 
         Returns:
             Layout with the OE text label line
@@ -559,7 +561,8 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
 
     def build_notes_panel(self) -> tuple[QLabel, NotesPanel]:
         """
-        Build the notes panel widget.
+        Build the notes panel widget.  This is the panel below the translation edit
+        that shows the notes for the sentence.
 
         Returns:
             Notes panel widget
@@ -578,26 +581,27 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
         Build the sentence card widget.
 
         - Paragraph header: [Display Order] ¶:Paragraph Number S:Sentence Number
-        - Top row action buttons:
+        - Sentence actions (menus and buttons):
 
             - Add Sentence Button with menu for adding a sentence before or after
             - Toggle Paragraph Start button with menu for toggling the paragraph start
             - Merge with next button
             - Delete button
 
-        - Old English text label, and its buttons and highlighting dropdown
+        - The label for the Old English text edit, and related buttons and
+          highlighting options:
 
             - Old English: label
-            - Add Note button
-            - Edit OE button
-            - Save OE button
-            - Cancel Edit button
-            - Dropdown for highlighting options: Part of Speech, Case, Number
+            - Add Note button: button to add a note to the sentence
+            - Edit OE button: button to edit the Old English text
+            - Save OE button: button to save the Old English text
+            - Cancel Edit button: button to cancel the edit of the Old English text
+            - Dropdown for highlighting options: Part of Speech, Case, Number, Idioms
 
-        - Add Old English text edit itself
-        - Add Token annotation grid (hidden by default)
-        - Add Modern English translation edit with toggle button for token table
-        - Add Notes section
+        - Old English text edit itself
+        - Token annotation grid (hidden by default)
+        - Modern English translation edit with toggle button for token table
+        - Notes panel
 
         Returns:
             Sentence card widget
@@ -609,7 +613,7 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
         # Add paragraph header: [Display Order] ¶:Paragraph Number S:Sentence Number
         layout.addWidget(self.build_paragraph_header())
         # Action buttons
-        layout.addLayout(self.build_top_row_action_buttons())
+        layout.addLayout(self.build_sentence_actions())
         # Old English text line (editable) its buttons and highlighting dropdown
         layout.addLayout(self.build_oe_text_label_line())
         # Old English text edit
@@ -664,22 +668,53 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
             self._apply_number_highlighting()
 
     def _open_annotation_modal(self) -> None:
-        """Open annotation modal for selected token or idiom."""
-        # 1. Check for selected idiom range
+        """
+        Open annotation modal for selected token or idiom.
+
+        This is a bit complicated because we need to handle both single token
+        and idiom selections. And we need to handle both existing idioms and new
+        idioms.
+
+        Processing order:
+
+        1. If the selection is a token range:
+
+            a. If a token range is selected, and that range matches an existing idiom,
+               we need to open the idiom annotation modal with the existing
+               idiom annotation.
+            b. If a token range is selected, and that range does not match an
+               existing idiom, we need to open the idiom modal and create the new
+               idiom and annotation on apply.
+
+        2. If the selection is a single token:
+
+            a. If a single token is selected that is not part of an idiom, we
+               need to open the token annotation modal.  All individual tokens
+               always have an annotation, so we can just open the token
+               annotation modal and save the annotation on apply.
+            b. If a single token is selected that is part of an idiom, we need to
+               open the idiom annotation modal.  This can happen if the user is
+               using arrow keys to navigate through the text.
+
+        4. Open normal token modal: if no idiom or token is selected, we need to
+           is selected that is part of an idiom, we need to open the idiom modal.  This
+           can happen if the user is using arrow keys to navigate through the text.
+
+        """
+        # 1. If the selection is a token range:
         if self._selected_token_range:
             start_order, end_order = self._selected_token_range
             idiom = self._find_matching_idiom(start_order, end_order)
             if idiom:
+                # Open the idiom annotation modal with the existing idiom annotation
                 self._open_idiom_modal(idiom)
                 return
 
-            # If it's a new selection, we might want to create an idiom
-            # For now, let's just open the modal for the range and create idiom on apply
-            # Actually, the prompt says "show all the tokens selected as the main token"
+            # Open the idiom modal and create the new idiom and annotation on apply
             self._open_new_idiom_modal(start_order, end_order)
             return
 
-        # 2. Check for single token selection
+        # 2. If the selection is a single token:
         token: Token | None = self.token_table.get_selected_token()
         if not token and self.selected_token_index is not None:
             token = self.tokens_by_index.get(self.selected_token_index)
@@ -702,7 +737,17 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
         self._open_token_modal(token)
 
     def _find_matching_idiom(self, start_order: int, end_order: int) -> Idiom | None:
-        """Find an idiom that exactly matches the given range."""
+        """
+        Find an idiom that exactly matches the given range of tokens.
+
+        Args:
+            start_order: Start token order index
+            end_order: End token order index
+
+        Returns:
+            Idiom that exactly matches the given range of tokens
+
+        """
         for idiom in self.idioms:
             if (
                 idiom.start_token.order_index == start_order
@@ -712,7 +757,13 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
         return None
 
     def _open_idiom_modal(self, idiom: Idiom) -> None:
-        """Open annotation modal for an existing idiom."""
+        """
+        Open annotation modal for an existing idiom.
+
+        Args:
+            idiom: Idiom to open the annotation modal for
+
+        """
         annotation = idiom.annotation
         if annotation is None:
             annotation = Annotation(idiom_id=idiom.id)
@@ -723,7 +774,14 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
         modal.exec()
 
     def _open_new_idiom_modal(self, start_order: int, end_order: int) -> None:
-        """Open annotation modal for a new idiom."""
+        """
+        Open annotation modal for a new idiom.
+
+        Args:
+            start_order: Start token order index
+            end_order: End token order index
+
+        """
         # Create a temporary idiom object (not saved yet)
         start_token = self.tokens_by_index[start_order]
         end_token = self.tokens_by_index[end_order]
@@ -742,7 +800,13 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
         modal.exec()
 
     def _open_token_modal(self, token: Token) -> None:
-        """Open annotation modal for a single token."""
+        """
+        Open annotation modal for a single token.
+
+        Args:
+            token: Token to open the annotation modal for
+
+        """
         annotation = token.annotation
         if annotation is None and token.id:
             annotation = Annotation.get_by_token(token.id)
@@ -752,7 +816,13 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
         modal.exec()
 
     def _on_idiom_annotation_applied(self, annotation: Annotation) -> None:
-        """Handle annotation applied for a new idiom (needs creation)."""
+        """
+        Handle annotation applied for a new idiom (needs creation).
+
+        Args:
+            annotation: Annotation applied for the new idiom
+
+        """
         # Create the idiom first
         idiom = annotation.idiom  # This was passed to the modal
         idiom.save()
@@ -767,7 +837,13 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
         self._render_oe_text_with_superscripts()
 
     def _on_annotation_applied(self, annotation: Annotation) -> None:
-        """Handle annotation applied signal."""
+        """
+        Handle annotation applied signal.
+
+        Args:
+            annotation: Annotation applied
+
+        """
         before_state = self._get_annotation_state(annotation)
         after_state = self._extract_annotation_state(annotation)
 
@@ -779,7 +855,16 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
         self._finalize_annotation_update(annotation)
 
     def _get_annotation_state(self, annotation: Annotation) -> dict:
-        """Get the current state of an annotation before updates."""
+        """
+        Get the current state of an annotation before updates.
+
+        Args:
+            annotation: Annotation to get the state of
+
+        Returns:
+            State of the annotation
+
+        """
         token_id = annotation.token_id
         idiom_id = annotation.idiom_id
 
@@ -792,7 +877,17 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
         return self._extract_annotation_state(existing) if existing else {}
 
     def _extract_annotation_state(self, annotation: Annotation) -> dict:
-        """Extract morphological state from an annotation object."""
+        """
+        Extract morphological state from an annotation object.
+
+        Args:
+            annotation: Annotation to extract the state from
+
+        Returns:
+            State of the annotation
+
+        """
+        # TODO: can't we just use annotation.to_json() here?
         return {
             "pos": annotation.pos,
             "gender": annotation.gender,
@@ -820,7 +915,17 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
     def _execute_annotate_command(
         self, annotation: Annotation, before: dict, after: dict
     ) -> None:
-        """Execute the annotate command via command manager."""
+        """
+        Execute the annotate command via command manager.  This will handle the
+        actual save or update of the annotation and also handle the undo/redo
+        operations.
+
+        Args:
+            annotation: Annotation to execute the command for
+            before: Before state of the annotation
+            after: After state of the annotation
+
+        """
         command = AnnotateTokenCommand(
             token_id=annotation.token_id,
             idiom_id=annotation.idiom_id,
@@ -832,7 +937,13 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
             pass
 
     def _finalize_annotation_update(self, annotation: Annotation) -> None:
-        """Update local caches and UI after annotation is applied."""
+        """
+        Update local caches and UI after annotation is applied.
+
+        Args:
+            annotation: Annotation that was applied
+
+        """
         if annotation.token_id:
             self.annotations[annotation.token_id] = annotation
             self.token_table.update_annotation(annotation)
@@ -872,11 +983,19 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
     def _on_oe_text_clicked(
         self, position: QPoint, modifiers: Qt.KeyboardModifier
     ) -> None:
-        """Handle click on Old English text to select corresponding token."""
+        """
+        Handle click on Old English text to select corresponding token.
+
+        Args:
+            position: Position of the click in the Old English text edit
+            modifiers: Modifiers pressed (Ctrl, Shift, etc.)
+
+        """
         # If in edit mode, don't handle clicks for selection
         if self._oe_edit_mode:
             return
 
+        # Get the cursor position from the click position
         cursor = self.oe_text_edit.cursorForPosition(position)
         cursor_pos = cursor.position()
 
@@ -907,10 +1026,17 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
             self._handle_single_selection_click(order_index)
 
     def _handle_idiom_selection_click(self, order_index: int) -> None:
-        """Handle Cmd/Ctrl+Click for idiom selection."""
+        """
+        Handle Cmd/Ctrl+Click for idiom selection.  This will start a new idiom
+        selection or extend the existing idiom selection.
+
+        Args:
+            order_index: Order index of the token that was clicked
+
+        """
         # Un-highlight and deselect any currently selected or highlighted tokens
         # if we are starting a new idiom selection or if it's already selected
-
+        # Check if we are starting a new idiom selection
         if self._selected_token_range is None:
             # Start new idiom selection
             self.selected_token_index = order_index
@@ -935,7 +1061,15 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
         self.add_note_button.setEnabled(False)
 
     def _handle_range_selection_click(self, order_index: int) -> None:
-        """Handle Shift+Click for range selection."""
+        """
+        Handle Shift+Click for range selection for Note creation and management.
+        This will start a new range selection or extend the existing range
+        selection.
+
+        Args:
+            order_index: Order index of the token that was clicked
+
+        """
         # Clear any active idiom selection/highlight
         self._selected_token_range = None
         self._clear_highlight()
@@ -952,7 +1086,28 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
         self.add_note_button.setEnabled(True)
 
     def _handle_single_selection_click(self, order_index: int) -> None:
-        """Handle normal click for single token selection."""
+        """
+        Handle normal click for single token selection.  This will select a
+        single token.
+
+        Processing order:
+
+        1. If click is within existing range selection, don't clear it yet.
+           This allows double-click to work on the selection.
+        2. Check if clicking a SAVED idiom token.  If so, select the whole idiom.
+        3. Standard single token selection
+
+           a. If the clicked token is already selected, start deselection timer
+              so double-click can cancel it.
+           b. If the clicked token is not selected, select it and highlight it
+              in the text.
+           c. Emit the token selected signal.
+           d. Enable the add note button.
+
+        Args:
+            order_index: Order index of the token that was clicked
+
+        """
         # 1. If click is within existing range selection, don't clear it yet.
         # This allows double-click to work on the selection.
         if self._selected_token_range:
@@ -1000,7 +1155,16 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
             self.add_note_button.setEnabled(False)
 
     def _find_idiom_at_order_index(self, order_index: int) -> Idiom | None:
-        """Find if an idiom covers the given token order index."""
+        """
+        Find if an idiom covers the given token order index.
+
+        Args:
+            order_index: Order index of the token to check
+
+        Returns:
+            Idiom that covers the given token order index
+
+        """
         for idiom in self.idioms:
             if (
                 idiom.start_token.order_index
@@ -1015,7 +1179,8 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
         Handle double-click on Old English text to open annotation dialog.
 
         Args:
-            position: Mouse double-click position in widget coordinates
+            position: Mouse double-click position in the Old English text edit
+                widget coordinates
 
         """
         # If in edit mode, don't handle double-clicks for annotation
@@ -1095,7 +1260,14 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
         return None
 
     def _on_oe_text_changed(self) -> None:
-        """Handle Old English text change."""
+        """
+        Handle Old English text change.
+
+        This will clear the temporary selection highlight and re-apply the
+        highlighting mode if active.  This is called when the user saves or
+        cancels the edit of the Old English text in the text edit widget.
+
+        """
         # Don't process changes if not in edit mode (shouldn't happen if signal
         # is disconnected)
         if not self._oe_edit_mode:
@@ -1113,7 +1285,29 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
             self._apply_number_highlighting()
 
     def _on_edit_oe_clicked(self) -> None:
-        """Handle Edit OE button click - enter edit mode."""
+        """
+        Handle Edit OE button click - enter edit mode.
+
+        This will enter edit mode and clear the temporary selection highlight
+        and re-apply the highlighting mode if active.
+
+        What this does:
+
+        1. Set edit mode
+        2. Clear any active idiom or single token selection
+        3. Save original text (plain text without superscripts) so we can restore it
+           if the user cancels the edit.
+        4. Set the text edit to the original text (remove superscripts)
+        5. Clear all highlighting
+        6. Clear token selection highlight
+        7. Reset highlighting dropdown to None (index 0)
+        8. Hide any open filter dialogs
+        9. Hide Edit OE button and Add Note button
+        10. Show Save OE and Cancel Edit buttons
+        11. Enable editing
+        12. Disconnect textChanged signal to prevent auto-tokenization while editing
+
+        """
         # Set edit mode
         self._oe_edit_mode = True
         # Clear any active idiom or single token selection
@@ -1150,7 +1344,22 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
             self.oe_text_edit.textChanged.disconnect(self._on_oe_text_changed)
 
     def _on_save_oe_clicked(self) -> None:
-        """Handle Save OE button click - save changes and exit edit mode."""
+        """
+        Handle Save OE button click - save changes and exit edit mode.
+
+        This will save the changes to the Old English text and exit edit mode.
+        What this does:
+
+        1. Exit edit mode
+        2. Make read-only again
+        3. Hide Save OE and Cancel Edit buttons
+        4. Show Edit OE button
+        5. Show Add Note button
+        6. Reconnect textChanged signal
+        7. Get new text from the text edit and save it to the sentence
+        8. Re-render the text with Note superscripts and idiom italics
+        9. Clear original text saved in this instance
+        """
         # Exit edit mode
         self._oe_edit_mode = False
         # Make read-only again
@@ -1209,10 +1418,27 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
         self._original_oe_text = None
 
     def _on_cancel_edit_clicked(self) -> None:
-        """Handle Cancel Edit button click - discard changes and exit edit mode."""
+        """
+        Handle "Cancel Edit" button click - discard changes and exit edit mode.
+
+        What this does:
+
+        1. Exit edit mode
+        2. Restore original text (plain text without superscripts) to the text edit
+        3. Make the text edit read-only again so the user can't edit it
+        4. Hide Save OE and Cancel Edit buttons
+        5. Show Edit OE button and Add Note button
+        6. Reconnect textChanged signal so that the text edit will be auto-tokenized
+           once the user is done editing.
+        7. Re-render the text with Note superscripts and idiom italics
+        8. Clear original text
+
+        """
         # Exit edit mode
         self._oe_edit_mode = False
         # Restore original text
+        # TODO: seems like we're doing this twice.  Here and in
+        # _render_oe_text_with_superscripts().
         if self._original_oe_text is not None:
             self.oe_text_edit.setPlainText(self._original_oe_text)
         # Make read-only again
@@ -1250,7 +1476,21 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
         return True
 
     def _on_translation_changed(self) -> None:
-        """Handle translation text change."""
+        """
+        Handle translation text change.
+
+        This will save the changes to the Modern English text and exit edit mode.
+        What this does:
+
+        1. Get new text from the translation text edit
+        2. Get old text from the :class:`~oeapp.models.sentence.Sentence` model
+        3. If new text is different from old text, create an
+           :class:`~oeapp.commands.sentence.EditSentenceCommand`
+        4. Execute the command so that undo/redo operations are available for the
+           new text.  If the command is successful, the sentence model will be
+           updated with the new text.  If the command is not successful, the new
+           text will not be saved.
+        """
         if not self.command_manager or not self.sentence.id:
             return
 
