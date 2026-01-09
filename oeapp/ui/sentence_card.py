@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING, ClassVar, cast
 
 from PySide6.QtCore import QPoint, QTimer, Signal
 from PySide6.QtGui import (
-    QColor,
     QFont,
     QKeyEvent,
     QKeySequence,
@@ -547,6 +546,19 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
         self.token_table.set_tokens(self.tokens)
         cast("WholeSentenceHighligher", self.sentence_highlighter).highlight()
 
+    def reset_selected_token(self) -> None:
+        """
+        - Clear the selected token index
+        - Show the empty state in the sidebar
+        - Clear the highlight
+        - Disable the add note button
+        """
+        if self.main_window is not None:
+            self.main_window.token_details_sidebar.show_empty()
+        self.selected_token_index = None
+        self.span_highlighter.unhighlight()
+        self.add_note_button.setEnabled(False)
+
     def _open_annotation_modal(self) -> None:
         """
         Open annotation modal for selected token or idiom.
@@ -920,7 +932,7 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
             new_start = min(start_order, order_index)
             new_end = max(end_order, order_index)
             self._selected_token_range = (new_start, new_end)
-            self.selected_token_index = None  # Clear single selection
+            self.reset_selected_token()
 
         self.span_highlighter.highlight(
             self._selected_token_range[0],
@@ -947,8 +959,8 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
             start_order = min(self.selected_token_index, order_index)
             end_order = max(self.selected_token_index, order_index)
             self._selected_token_range = (start_order, end_order)
+            self.reset_selected_token()
             self.span_highlighter.highlight(start_order, end_order)
-            self.selected_token_index = None
         else:
             self._handle_single_selection_click(order_index)
 
@@ -993,6 +1005,7 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
         # 2. Check if clicking a SAVED idiom token
         idiom = self._find_idiom_at_order_index(order_index)
         if idiom:
+            self.reset_selected_token()
             # Select the whole idiom
             self._selected_token_range = (
                 idiom.start_token.order_index,
@@ -1003,9 +1016,7 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
                 self._selected_token_range[1],
                 color_name="idiom",
             )
-            self.selected_token_index = None
             self.idiom_selected_for_details.emit(idiom, self.sentence, self)
-            self.add_note_button.setEnabled(False)
             return
 
         # 3. Standard single token selection
@@ -1175,7 +1186,7 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
         # Set edit mode
         self._oe_edit_mode = True
         # Clear any active idiom or single token selection
-        self.selected_token_index = None
+        self.reset_selected_token()
         self._selected_token_range = None
         # Store original text (plain text without superscripts)
         self._original_oe_text = self.sentence.text_oe
@@ -1183,12 +1194,6 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
         self.oe_text_edit.setPlainText(self._original_oe_text)
         # Clear all highlighting
         self.sentence_highlighter.unhighlight()
-        # Reset span highlighter (we just cleared its existing highlight)
-        self.span_highlighter.unhighlight()
-        # Reset highlighting dropdown to None (index 0)
-        self.highlighting_combo.blockSignals(True)  # noqa: FBT003
-        self.highlighting_combo.setCurrentIndex(0)
-        self.highlighting_combo.blockSignals(False)  # noqa: FBT003
         # Hide any open filter dialogs
         self.sentence_highlighter.hide_filter_dialog()
         # Hide Edit OE button and Add Note button
@@ -1362,42 +1367,6 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
             if self.command_manager.execute(command):
                 self.sentence.text_modern = new_text
 
-    def _create_token_selection(
-        self, token: Token, color: QColor
-    ) -> QTextEdit.ExtraSelection | None:
-        """
-        Create an extra selection for highlighting a token's surface text.
-
-        Args:
-            token: Token to highlight
-            text: The full sentence text (ignored)
-            color: Color to use for highlighting
-
-        Returns:
-            ExtraSelection object or None if token not found
-
-        """
-        if token.id not in self._token_positions:
-            return None
-
-        token_start, token_end = self._token_positions[token.id]
-
-        # Create cursor and highlight the text
-        cursor = QTextCursor(self.oe_text_edit.document())
-        cursor.setPosition(token_start)
-        cursor.setPosition(token_end, QTextCursor.MoveMode.KeepAnchor)
-
-        # Apply highlight format
-        char_format = QTextCharFormat()
-        char_format.setBackground(color)
-
-        # Create extra selection
-        extra_selection = QTextEdit.ExtraSelection()
-        extra_selection.cursor = cursor  # type: ignore[attr-defined]
-        extra_selection.format = char_format  # type: ignore[attr-defined]
-
-        return extra_selection
-
     def _save_annotation(self, annotation: Annotation) -> None:
         """
         Save annotation to database.
@@ -1516,11 +1485,8 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
 
         """
         # Clear any active idiom or single token selection
-        self.selected_token_index = None
+        self.reset_selected_token()
         self._selected_token_range = None
-        self.span_highlighter.unhighlight()
-        self.add_note_button.setEnabled(False)
-
         self._highlight_note_tokens(note)
 
     def _on_note_double_clicked(self, note: Note) -> None:
@@ -2050,10 +2016,8 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
             # Only deselect if the token index still matches or click was in range
             # Case 1: Single token selection matches
             if self.selected_token_index == order_index:
-                self.selected_token_index = None
                 self._selected_token_range = None
-                self.span_highlighter.unhighlight()
-                self.add_note_button.setEnabled(False)
+                self.reset_selected_token()
                 # Emit signal to clear sidebar
                 token = self.tokens_by_index.get(order_index)
                 if token:
@@ -2064,9 +2028,7 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
                 start, end = self._selected_token_range
                 if start <= order_index <= end:
                     self._selected_token_range = None
-                    self.selected_token_index = None
-                    self.span_highlighter.unhighlight()
-                    self.add_note_button.setEnabled(False)
+                    self.reset_selected_token()
                     # Emit signal to clear sidebar
                     token = self.tokens_by_index.get(order_index)
                     if token:
@@ -2083,22 +2045,12 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
         - Cancel any pending deselection timer
         - Clear the selected token index
         - Clear the selected token range
-        - Clear the highlight
-        - Disable the add note button
-        - Emit signal to clear sidebar (main window will handle it)
         """
         # Cancel any pending deselection timer
         if self._deselect_timer.isActive():
             self._deselect_timer.stop()
         self._pending_deselect_token_index = None
-        self.selected_token_index = None
-        self.span_highlighter.unhighlight()
-        self.add_note_button.setEnabled(False)
-        # Emit signal with None to clear sidebar (main window will handle it)
-        # We'll emit with the sentence but no token to indicate clearing
-        # Actually, let's emit a special signal or the main window can check
-        # selected_token_index For now, the main window will check if
-        # selected_token_index is None
+        self.reset_selected_token()
 
     def _toggle_token_table(self) -> None:
         """Toggle token table visibility."""
