@@ -100,9 +100,7 @@ class HighligherCommandBase(AnnotationLookupsMixin):
             self.dialog.selection_changed.connect(self._on_filter_changed)
             self.dialog.dialog_closed.connect(self._on_filter_dialog_closed)
             self.dialog.dialog_closed.connect(self.highligher._on_filter_dialog_closed)
-            self.dialog.exec()
-        else:
-            self.dialog.show()
+        self.dialog.show()
 
     def hide_filter_dialog(self) -> None:
         """
