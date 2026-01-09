@@ -241,6 +241,13 @@ class MainWindow(QMainWindow):
         self.main_column.update()
         self.update()
 
+    def clear_selected_tokens(self) -> None:
+        """
+        Clear the selected tokens from all sentence cards.
+        """
+        for card in self.sentence_cards:
+            card.reset_selected_token()
+
     def _handle_migrations(self) -> None:
         """
         Handle database migrations with automatic backup and restore on failure.
