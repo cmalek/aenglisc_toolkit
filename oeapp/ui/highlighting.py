@@ -370,17 +370,14 @@ class SentenceHighligher:
     Highlighter for a sentence.
     """
 
-    #: Command classes for highlighting tokens
-    COMMANDS: ClassVar[dict[str, type[HighligherCommandBase]]] = {
-        "": NoneHighligherCommand,
-        "part_of_speech": POSHighligherCommand,
-        "case": CaseHighligherCommand,
-        "number": NumberHighligherCommand,
-        "idiom": IdiomHighligherCommand,
+    #: Mapping of highlighting combo box index to highlighter command class
+    HIGHLIGHTERS: ClassVar[dict[int, type[HighligherCommandBase]]] = {
+        0: NoneHighligherCommand,
+        1: POSHighligherCommand,
+        2: CaseHighligherCommand,
+        3: NumberHighligherCommand,
+        4: IdiomHighligherCommand,
     }
-    INDEX_TO_COMMAND_MAPPING: ClassVar[dict[int, type[HighligherCommandBase]]] = dict(
-        enumerate(COMMANDS.values())
-    )
 
     def __init__(self, card: SentenceCard):
         #: The sentence card
@@ -400,28 +397,27 @@ class SentenceHighligher:
         #: Initial filter selections for command filter dialogs
         self.item_selections: dict[int, set[str]] = {
             idx: cmd.FILTER_DIALOG_CLASS.full_filter_selection()
-            for idx, cmd in self.INDEX_TO_COMMAND_MAPPING.items()
+            for idx, cmd in self.HIGHLIGHTERS.items()
             if cmd.FILTER_DIALOG_CLASS is not None
         }
 
     def hide_filter_dialog(self) -> None:
         """
-        Hide the filter dialog for the active command.
+        Hide the filter dialog for the active command, if any.
         """
         if self.active_command:
             self.active_command.hide_filter_dialog()
 
     def show_filter_dialog(self) -> None:
         """
-        Show the filter dialog for the active command.
+        Show the filter dialog for the active command, if any.
         """
         if self.active_command:
             self.active_command.show_filter_dialog()
 
     def build_combo_box(self) -> QComboBox:
         """
-        Build the highlighting combo box for the
-        :class:`~oeapp.ui.sentence_card.SentenceCard`.
+        Build the highlighting combo box for :attr:`card`.
 
         Returns:
             Highlighting combo box
@@ -429,7 +425,7 @@ class SentenceHighligher:
         """
         self.highlighting_combo = QComboBox()
         self.highlighting_combo.addItems(
-            [cmd.DESCRIPTIVE_NAME for cmd in self.COMMANDS.values()]
+            [cmd.DESCRIPTIVE_NAME for cmd in self.HIGHLIGHTERS.values()]
         )
         self.highlighting_combo.currentIndexChanged.connect(
             self._on_highlighting_changed
@@ -438,13 +434,13 @@ class SentenceHighligher:
 
     def get_oe_text(self) -> str:
         """
-        Get the Old English text from the sentence card.
+        Get the Old English text from our sentence card.
         """
         return self.card.oe_text_edit.toPlainText()
 
     def clear_highlights(self) -> None:
         """
-        Clear all highlights.
+        Clear all highlights in our associated sentence card's OE text edit.
         """
         assert self.highlighting_combo, (  # noqa: S101
             "You must build the highlighting combo box before calling clear_highlights"
@@ -480,6 +476,18 @@ class SentenceHighligher:
         """
         Handle highlighting dropdown selection change.
 
+        What this does:
+
+        - Set the highlighting combo box to the selected index
+        - Save the index as :attr:`active_index`
+        - If there is an active command, hide the filter dialog (if any), and
+          save the filter selection for the active command so we can restore it
+          when the command is active again.
+        - Set the active command to the one for the selected combo box index
+        - Highlight the tokens in the sentence based on the new active command
+          when the command is active again.
+        - Show the filter dialog for the new active command, if any.
+
         Args:
             index: Selected index from the highlighting combo box
 
@@ -503,14 +511,23 @@ class SentenceHighligher:
         # Set the active command and show the filter dialog (if any)
         self.active_index = index
         self.active_command = cast(
-            "HighligherCommandBase", self.INDEX_TO_COMMAND_MAPPING[index](self)
+            "HighligherCommandBase", self.HIGHLIGHTERS[index](self)
         )
         self.active_command.highlight()
         self.active_command.show_filter_dialog()
 
     def _on_filter_dialog_closed(self) -> None:
         """
-        Handle dialog close event.
+        Handle dialog close event by resetting the highlighting combo box to the
+        first item, which is "No highlighting".
+
+        Note:
+            We don't need to reset the active command because it will be reset
+            to None when the highlighting combo box is set to the first item.
+
+            And we don't need to unhighlight the tokens because it will be done
+            by the active command's own _on_filter_dialog_closed method.
+
         """
         assert self.highlighting_combo, (  # noqa: S101
             "You must call build_combo_box before calling _on_filter_dialog_closed"

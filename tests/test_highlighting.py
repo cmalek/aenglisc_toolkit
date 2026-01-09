@@ -49,7 +49,7 @@ class TestHighlighting:
         """Test that build_combo_box creates a valid QComboBox."""
         combo = highlighter.build_combo_box()
         assert isinstance(combo, QComboBox)
-        assert combo.count() == len(highlighter.COMMANDS)
+        assert combo.count() == len(highlighter.HIGHLIGHTERS)
         assert combo.itemText(0) == "None"
         assert combo.itemText(1) == "Part of Speech"
 
@@ -227,17 +227,17 @@ class TestHighlighting:
         # 1. Switch to POS highlighting
         combo = highlighter.build_combo_box()
         combo.setCurrentIndex(1) # POS
-        
+
         # Initially 2 highlights
         assert len(card.oe_text_edit.extraSelections()) >= 2
-        
+
         # 2. Deselect Nouns (N) in the dialog
         pos_dialog = highlighter.active_command.dialog
         noun_checkbox = pos_dialog.checkboxes["N"]
-        
+
         # Clicking checkbox should trigger highlight update
         noun_checkbox.setChecked(False)
-        
+
         # Now only 1 highlight (D) should remain
         # Note: Depending on how markers/other highlights are handled, it might be exactly 1 or more
         # But it should definitely be less than before.
@@ -266,16 +266,16 @@ class TestHighlighting:
         # Switch to Number highlighting
         combo = highlighter.build_combo_box()
         combo.setCurrentIndex(3) # Number
-        
+
         # Check if the plural verb is highlighted
         # If there's a bug, it won't be highlighted because 'p' is not in the dialog's 's', 'd', 'pl'
         selections = card.oe_text_edit.extraSelections()
-        
+
         # We also need to account for D and N which are also highlighted for number
         # tokens[0] (D) and tokens[1] (N) might not have annotations yet in this test
         # Let's ensure they don't or do.
-        
+
         # The previous tests might have left annotations? No, new fixture per test.
-        
+
         # Currently only tokens[2] has a number annotation.
         assert len(selections) > 0, "Plural verb 'p' should be highlighted"
