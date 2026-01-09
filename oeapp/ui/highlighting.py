@@ -12,20 +12,130 @@ from oeapp.ui.dialogs import (
 from .mixins import AnnotationLookupsMixin
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
-
     from oeapp.models.annotation import Annotation
     from oeapp.models.idiom import Idiom
     from oeapp.models.token import Token
     from oeapp.ui.dialogs import SentenceFilterDialog
+    from oeapp.ui.main_window import MainWindow
     from oeapp.ui.sentence_card import SentenceCard
 
 
-class HighligherCommandBase(AnnotationLookupsMixin):
+class SelectTokensMixin:
+    """
+    Mixin for selecting tokens in the Old English text edit.
+    """
+
+    def __init__(self, card: SentenceCard):
+        """
+        Initialize the mixin.
+        """
+        #: The sentence card
+        self.card = card
+        #: The tokens in the sentence
+        self.tokens: list[Token] = card.tokens
+        #: The Old English text edit
+        self.oe_text_edit: QTextEdit = card.oe_text_edit
+        #: The token positions in the sentence
+        self.token_positions: dict[int, tuple[int, int]] = card._token_positions
+        #: The tokens by index
+        self.tokens_by_index: dict[int, Token] = card.tokens_by_index
+
+    def get_token_positions(
+        self, start_order: int, end_order: int
+    ) -> list[tuple[int, int]]:
+        """
+        Get the token positions in the sentence for the range of tokens.
+
+        A position in this case is a tuple of the start and end positions of the
+        token in the sentence.
+
+        Returns:
+            List of token positions in the sentence
+
+        """
+        # Build list of token positions
+        token_positions: list[tuple[int, int]] = []  # (start_pos, end_pos)
+        for order_idx in range(start_order, end_order + 1):
+            token = self.tokens_by_index.get(order_idx)
+            if token and token.id in self.token_positions:
+                token_positions.append(self.token_positions[token.id])
+        return token_positions
+
+    def select_tokens(
+        self, token: Token, color: QColor
+    ) -> QTextEdit.ExtraSelection | None:
+        """
+        Create an extra selection for highlighting a token's surface text.
+
+        Args:
+            token: Token to highlight
+            color: Color to use for highlighting
+
+        Returns:
+            ExtraSelection object or None if token not found
+
+        """
+        if token.id not in self.token_positions:
+            return None
+        token_start, token_end = self.token_positions[token.id]
+        return self.highlight_positions(token_start, token_end, color)
+
+    def highlight_positions(
+        self,
+        start_pos: int,
+        end_pos: int,
+        color: QColor,
+        highlight_property: int | None = None,
+    ) -> QTextEdit.ExtraSelection:
+        """
+        Create an extra selection for highlighting a range of positions.
+
+        Args:
+            start_pos: Starting position
+            end_pos: Ending position
+            color: Color to use for highlighting
+
+        Keyword Args:
+            highlight_property: Property ID to use for highlighting. Defaults to not
+              applying a property ID.
+
+        Returns:
+            Extra selection for highlighting the range of positions
+
+        """
+        assert start_pos >= 0, "Start position must be greater than 0"  # noqa: S101
+        assert end_pos >= start_pos, "End position must be greater than start position"  # noqa: S101
+        # Create cursor and highlight the text
+        cursor = QTextCursor(self.oe_text_edit.document())
+        cursor.setPosition(start_pos)
+        cursor.setPosition(end_pos, QTextCursor.MoveMode.KeepAnchor)
+
+        # Apply highlight format
+        char_format = QTextCharFormat()
+        char_format.setBackground(color)
+
+        # Mark as selection highlight if a property is provided
+        if highlight_property:
+            # Mark as selection highlight
+            char_format.setProperty(highlight_property, True)  # noqa: FBT003
+
+        # Create extra selection
+        extra_selection = QTextEdit.ExtraSelection()
+        extra_selection.cursor = cursor  # type: ignore[attr-defined]
+        extra_selection.format = char_format  # type: ignore[attr-defined]
+
+        return extra_selection
+
+
+class HighligherCommandBase(AnnotationLookupsMixin, SelectTokensMixin):
     """
     Base class for highlighting tokens in the Old English text edit.  This is
     used as the base class for the various highlighting modes: POS, Case,
     Number, and Idioms.
+
+    Subclasses of this base class are used by
+    :class:`~oeapp.ui.highlighting.WholeSentenceHighligher` to highlight tokens
+    based on annotation data in the sentence based on the active command.
 
     Args:
         card: :class:`~oeapp.ui.sentence_card.SentenceCard` instance
@@ -45,24 +155,13 @@ class HighligherCommandBase(AnnotationLookupsMixin):
     FILTER_DIALOG_CLASS: ClassVar[type[SentenceFilterDialog] | None] = None
 
     def __init__(self, highligher: WholeSentenceHighligher):
+        super().__init__(highligher.card)
         #: The highlighter
         self.highligher = highligher
-        #: The sentence card
-        self.card = highligher.card
-        #: The tokens in the sentence
-        self.tokens: list[Token] = highligher.tokens
         #: The idioms in the sentence
         self.idioms: list[Idiom] = highligher.idioms
         #: The annotations for the tokens
         self.annotations: dict[int, Annotation | None] = highligher.annotations
-        #: The Old English text edit
-        self.oe_text_edit: QTextEdit = highligher.card.oe_text_edit
-        #: The token selection helper
-        self.select_tokens: Callable[
-            [Token, QColor], QTextEdit.ExtraSelection | None
-        ] = highligher.card._create_token_selection
-        #: The tokens by index
-        self.tokens_by_index: dict[int, Token] = highligher.card.tokens_by_index
         #: The dialog instance for filtering tokens
         self.dialog: SentenceFilterDialog | None = None
 
@@ -190,9 +289,9 @@ class HighligherCommandBase(AnnotationLookupsMixin):
         self.unhighlight()
 
 
-class NoneHighligherCommand(HighligherCommandBase):
+class NoneHighlighterCommand(HighligherCommandBase):
     """
-    Highlighter command for none highlighting.
+    Highlighter for no highlighting.  This is the default highlighting mode.
     """
 
     DESCRIPTIVE_NAME: ClassVar[str] = "None"
@@ -204,7 +303,7 @@ class NoneHighligherCommand(HighligherCommandBase):
         self.unhighlight()
 
 
-class POSHighligherCommand(HighligherCommandBase):
+class POSHighlighterCommand(HighligherCommandBase):
     """
     Highlighter command for POS highlighting.
     """
@@ -233,9 +332,9 @@ class POSHighligherCommand(HighligherCommandBase):
         return annotation.pos
 
 
-class CaseHighligherCommand(HighligherCommandBase):
+class CaseHighlighterCommand(HighligherCommandBase):
     """
-    Highlighter command for case highlighting.
+    Highlighter for highlighting cases in the Old English text edit.
     """
 
     DESCRIPTIVE_NAME: ClassVar[str] = "Case"
@@ -276,9 +375,10 @@ class CaseHighligherCommand(HighligherCommandBase):
         return annotation.prep_case if pos == "E" else annotation.case
 
 
-class NumberHighligherCommand(HighligherCommandBase):
+class NumberHighlighterCommand(HighligherCommandBase):
     """
-    Highlighter command for number highlighting.
+    Highlighter for number highlighting in the Old English text edit:
+    singular, dual, and plural.
     """
 
     DESCRIPTIVE_NAME: ClassVar[str] = "Number"
@@ -318,11 +418,12 @@ class NumberHighligherCommand(HighligherCommandBase):
         return annotation.number
 
 
-class IdiomHighligherCommand(HighligherCommandBase):
+class IdiomHighlighterCommand(HighligherCommandBase):
     """
-    Highlighter command for idiom highlighting.
+    Highlighter for idiom highlighting in the Old English text edit.
 
-    An idiom is a multi-token group that is treated as a single unit.
+    An idiom is a multi-token group that is treated as a single unit.  We highlight
+    the tokens in the idiom span with a different color: light magenta.
     """
 
     DESCRIPTIVE_NAME: ClassVar[str] = "Idiom"
@@ -370,11 +471,11 @@ class WholeSentenceHighligher:
 
     #: Mapping of highlighting combo box index to highlighter command class
     HIGHLIGHTERS: ClassVar[dict[int, type[HighligherCommandBase]]] = {
-        0: NoneHighligherCommand,
-        1: POSHighligherCommand,
-        2: CaseHighligherCommand,
-        3: NumberHighligherCommand,
-        4: IdiomHighligherCommand,
+        0: NoneHighlighterCommand,
+        1: POSHighlighterCommand,
+        2: CaseHighlighterCommand,
+        3: NumberHighlighterCommand,
+        4: IdiomHighlighterCommand,
     }
 
     def __init__(self, card: SentenceCard):
@@ -468,7 +569,9 @@ class WholeSentenceHighligher:
             return
         self.active_command.highlight()
 
+    # -------------------------------------------------------------------------
     # Event handlers
+    # -------------------------------------------------------------------------
 
     def _on_highlighting_changed(self, index: int) -> None:
         """
@@ -535,15 +638,16 @@ class WholeSentenceHighligher:
         self.highlighting_combo.blockSignals(False)  # noqa: FBT003
 
 
-class SingleInstanceHighligher:
+class SingleInstanceHighligher(SelectTokensMixin):
     """
     Highlighter for a a kind of highlight that can only appear once in the
     sentence.
 
+    Used by :class:`~oeapp.ui.sentence_card.SentenceCard` to highlight a single
+    token, idiom span or note span.
+
     Args:
         card: :class:`~oeapp.ui.sentence_card.SentenceCard` instance
-        start_token: Start token
-        end_token: End token (optional)
 
     """
 
@@ -556,21 +660,11 @@ class SingleInstanceHighligher:
     HIGHLIGHT_PROPERTY: ClassVar[int] = 1001
 
     def __init__(self, card: SentenceCard):
-        #: The sentence card
-        self.card = card
-        #: The tokens in the sentence
-        self.tokens: list[Token] = card.tokens
-        #: The Old English text edit
-        self.oe_text_edit: QTextEdit = card.oe_text_edit
-        #: The tokens by index
-        self.tokens_by_index: dict[int, Token] = card.tokens_by_index
-        #: The token positions in the sentence
-        self.token_positions: dict[int, tuple[int, int]] = card._token_positions
+        super().__init__(card)
+        #: The main window
+        self.main_window: MainWindow = cast("MainWindow", card.main_window)
         #: Existing extra selections
-        self.existing_selections: list[QTextEdit.ExtraSelection] = (
-            self.oe_text_edit.extraSelections()
-        )
-
+        self.existing_selections: list[QTextEdit.ExtraSelection] = []
         #: The current highlight start position
         self._current_highlight_start: int | None = None
         #: The current highlight length
@@ -613,27 +707,6 @@ class SingleInstanceHighligher:
         """
         self._current_highlight_start = None
         self._current_highlight_length = None
-
-    def get_token_positions(
-        self, start_order: int, end_order: int
-    ) -> list[tuple[int, int]]:
-        """
-        Get the token positions in the sentence for the range of tokens.
-
-        A position in this case is a tuple of the start and end positions of the
-        token in the sentence.
-
-        Returns:
-            List of token positions in the sentence
-
-        """
-        # Build list of token positions
-        token_positions: list[tuple[int, int]] = []  # (start_pos, end_pos)
-        for order_idx in range(start_order, end_order + 1):
-            token = self.tokens_by_index.get(order_idx)
-            if token and token.id in self.token_positions:
-                token_positions.append(self.token_positions[token.id])
-        return token_positions
 
     def highlight(
         self,
@@ -679,20 +752,10 @@ class SingleInstanceHighligher:
         # Create highlights for all tokens in range
         range_highlights = []
         for token_start, token_end in token_positions:
-            cursor = QTextCursor(self.oe_text_edit.document())
-            cursor.setPosition(token_start)
-            cursor.setPosition(token_end, QTextCursor.MoveMode.KeepAnchor)
-
-            # Apply highlight format for selection
-            char_format = QTextCharFormat()
-            char_format.setBackground(color)
-            # Mark as selection highlight
-            char_format.setProperty(self.HIGHLIGHT_PROPERTY, True)  # noqa: FBT003
-
-            selection_highlight = QTextEdit.ExtraSelection()
-            selection_highlight.cursor = cursor  # type: ignore[attr-defined]
-            selection_highlight.format = char_format  # type: ignore[attr-defined]
-            range_highlights.append(selection_highlight)
+            selection = self.highlight_positions(
+                token_start, token_end, color, self.HIGHLIGHT_PROPERTY
+            )
+            range_highlights.append(selection)
 
         # Combine existing selections with range highlights
         all_selections = [*self.existing_selections, *range_highlights]

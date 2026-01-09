@@ -1,10 +1,7 @@
 """Tests for idiom management."""
 
 import pytest
-from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QPushButton
-from oeapp.models.sentence import Sentence
-from oeapp.models.token import Token
 from oeapp.models.idiom import Idiom
 from oeapp.models.annotation import Annotation
 from oeapp.ui.sentence_card import SentenceCard

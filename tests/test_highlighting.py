@@ -1,22 +1,19 @@
 import pytest
 from PySide6.QtGui import QColor, QTextCursor
 from PySide6.QtWidgets import QComboBox, QTextEdit
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from oeapp.models.annotation import Annotation
-from oeapp.models.token import Token
 from oeapp.ui.highlighting import (
-    WholeSentenceHighligher,
     POSHighligherCommand,
     CaseHighligherCommand,
     NumberHighligherCommand,
     IdiomHighligherCommand,
     NoneHighligherCommand,
-    SingleInstanceHighligher,
 )
 from oeapp.ui.sentence_card import SentenceCard
 from oeapp.ui.dialogs.sentence_filters import SentenceFilterDialog
-from tests.conftest import create_test_project, create_test_token, create_test_sentence
+from tests.conftest import create_test_project
 
 
 class TestHighlighting:
@@ -26,10 +23,10 @@ class TestHighlighting:
         monkeypatch.setattr(SentenceFilterDialog, "exec", lambda self: self.show())
 
     @pytest.fixture
-    def card(self, db_session, qapp, qtbot):
+    def card(self, db_session, qapp, qtbot, mock_main_window):
         project = create_test_project(db_session, name="Test Highlighting", text="Se cyning fēoll.")
         sentence = project.sentences[0]
-        card = SentenceCard(sentence, parent=None)
+        card = SentenceCard(sentence, main_window=mock_main_window, parent=None)
         qtbot.addWidget(card)
         return card
 
@@ -319,7 +316,7 @@ class TestSingleInstanceHighlighter:
         assert span_highlighter.is_highlighted
         assert span_highlighter._current_highlight_start == 0
         assert span_highlighter._current_highlight_length == 2
-        
+
         selections = card.oe_text_edit.extraSelections()
         found = any(s.format.property(span_highlighter.HIGHLIGHT_PROPERTY) for s in selections)
         assert found
@@ -331,7 +328,7 @@ class TestSingleInstanceHighlighter:
         # Range covers "Se cyning" (0 to 9)
         assert span_highlighter._current_highlight_start == 0
         assert span_highlighter._current_highlight_length == 9
-        
+
         selections = card.oe_text_edit.extraSelections()
         highlights = [s for s in selections if s.format.property(span_highlighter.HIGHLIGHT_PROPERTY)]
         assert len(highlights) == 2 # One for each token in range
@@ -340,10 +337,10 @@ class TestSingleInstanceHighlighter:
         """Test clearing highlights."""
         span_highlighter.highlight(0)
         assert span_highlighter.is_highlighted
-        
+
         span_highlighter.unhighlight()
         assert not span_highlighter.is_highlighted
-        
+
         selections = card.oe_text_edit.extraSelections()
         highlights = [s for s in selections if s.format.property(span_highlighter.HIGHLIGHT_PROPERTY)]
         assert len(highlights) == 0
@@ -354,21 +351,21 @@ class TestSingleInstanceHighlighter:
         cursor = QTextCursor(card.oe_text_edit.document())
         cursor.setPosition(0)
         cursor.setPosition(2, QTextCursor.MoveMode.KeepAnchor)
-        
+
         other_selection = QTextEdit.ExtraSelection()
         other_selection.cursor = cursor
         other_selection.format.setBackground(QColor("red"))
         # Crucially, it doesn't have our HIGHLIGHT_PROPERTY
-        
+
         card.oe_text_edit.setExtraSelections([other_selection])
         # Update highlighter's view of existing selections
         span_highlighter.existing_selections = card.oe_text_edit.extraSelections()
-        
+
         span_highlighter.highlight(1) # Highlight "cyning"
         assert len(card.oe_text_edit.extraSelections()) == 2
-        
+
         span_highlighter.unhighlight()
-        
+
         remaining = card.oe_text_edit.extraSelections()
         assert len(remaining) == 1
         assert remaining[0].format.background().color().name() == QColor("red").name()
@@ -399,10 +396,10 @@ class TestSingleInstanceHighlighter:
         """Test that new highlights replace old ones from the same highlighter."""
         span_highlighter.highlight(0)
         assert span_highlighter._current_highlight_start == 0
-        
+
         span_highlighter.highlight(1)
         assert span_highlighter._current_highlight_start == 3 # "cyning" starts at 3
-        
+
         selections = card.oe_text_edit.extraSelections()
         highlights = [s for s in selections if s.format.property(span_highlighter.HIGHLIGHT_PROPERTY)]
         assert len(highlights) == 1
