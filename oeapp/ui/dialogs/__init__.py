@@ -4,7 +4,6 @@ from .annotation_modal import AnnotationModal
 from .annotation_preset_management import AnnotationPresetManagementDialog
 from .append_text import AppendTextDialog
 from .backups_view import BackupsViewDialog
-from .case_filter import CaseFilterDialog
 from .delete_project import DeleteProjectDialog
 from .edit_project import EditProjectDialog
 from .help_dialog import HelpDialog
@@ -13,8 +12,13 @@ from .migration_failure import MigrationFailureDialog
 from .new_project import NewProjectDialog
 from .note_dialog import NoteDialog
 from .open_project import OpenProjectDialog
-from .pos_filter import POSFilterDialog
 from .restore import RestoreDialog
+from .sentence_filters import (
+    CaseFilterDialog,
+    NumberFilterDialog,
+    PartOfSpeechFilterDialog,
+    SentenceFilterDialog,
+)
 from .settings import SettingsDialog
 
 __all__ = [
@@ -30,8 +34,10 @@ __all__ = [
     "MigrationFailureDialog",
     "NewProjectDialog",
     "NoteDialog",
+    "NumberFilterDialog",
     "OpenProjectDialog",
-    "POSFilterDialog",
+    "PartOfSpeechFilterDialog",
     "RestoreDialog",
+    "SentenceFilterDialog",
     "SettingsDialog",
 ]

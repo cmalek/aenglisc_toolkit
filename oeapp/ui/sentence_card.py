@@ -9,13 +9,11 @@ from PySide6.QtGui import (
     QFont,
     QKeyEvent,
     QKeySequence,
-    QMouseEvent,
     Qt,
     QTextCharFormat,
     QTextCursor,
 )
 from PySide6.QtWidgets import (
-    QComboBox,
     QHBoxLayout,
     QLabel,
     QMenu,
@@ -41,12 +39,13 @@ from oeapp.models.mixins import SessionMixin
 from oeapp.models.sentence import Sentence
 from oeapp.ui.dialogs import (
     AnnotationModal,
-    CaseFilterDialog,
     NoteDialog,
-    POSFilterDialog,
 )
+from oeapp.ui.highlighting import SentenceHighligher
+from oeapp.ui.mixins import AnnotationLookupsMixin
 from oeapp.ui.notes_panel import NotesPanel
 from oeapp.ui.token_table import TokenTable
+from oeapp.ui.widgets import OldEnglishTextEdit
 from oeapp.utils import get_logo_pixmap
 
 if TYPE_CHECKING:
@@ -55,66 +54,7 @@ if TYPE_CHECKING:
     from oeapp.ui.main_window import MainWindow
 
 
-class ClickableTextEdit(QTextEdit):
-    """
-    QTextEdit that emits a signal when clicked.
-
-    This currently handles:
-
-    - Mouse clicks
-    - Double mouse clicks
-    - Key presses for annotation copy/paste
-
-    """
-
-    clicked = Signal(QPoint, object)  # position, modifiers
-    double_clicked = Signal(QPoint)
-    # Signals for annotation copy/paste
-    copy_annotation_requested = Signal()
-    paste_annotation_requested = Signal()
-
-    def mousePressEvent(self, event: QMouseEvent) -> None:  # noqa: N802
-        """Handle mouse press event and emit clicked signal."""
-        super().mousePressEvent(event)
-        self.clicked.emit(event.position().toPoint(), event.modifiers())
-
-    def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:  # noqa: N802
-        """Handle mouse double-click event and emit double_clicked signal."""
-        super().mouseDoubleClickEvent(event)
-        self.double_clicked.emit(event.position().toPoint())
-
-    def keyPressEvent(self, event: QKeyEvent) -> None:  # noqa: N802
-        """
-        Handle key press events for annotation copy/paste.
-
-        Intercepts Cmd/Ctrl+C and Cmd/Ctrl+V to emit signals for annotation
-        copy/paste when a token is selected.
-
-        Args:
-            event: Key event
-
-        """
-        if event.matches(QKeySequence.StandardKey.Copy):
-            self.copy_annotation_requested.emit()
-            event.accept()
-            return
-        if event.matches(QKeySequence.StandardKey.Paste):
-            self.paste_annotation_requested.emit()
-            event.accept()
-            return
-
-        # For arrow keys, ignore them so they bubble up to SentenceCard
-        # when a token is selected (SentenceCard will handle navigation)
-        # ONLY if we are in read-only mode (not editing OE)
-        if self.isReadOnly() and event.key() in (Qt.Key.Key_Left, Qt.Key.Key_Right):
-            event.ignore()
-            return
-
-        # For all other keys, use default behavior
-        super().keyPressEvent(event)
-
-
-class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
+class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, QWidget):
     """
     Widget representing a sentence card with annotations.
 
@@ -149,43 +89,8 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
     # Property ID for selection highlight in ExtraSelection
     SELECTION_HIGHLIGHT_PROPERTY: ClassVar[int] = 1001
 
-    #: Color maps for highlighting POS tags
-    POS_COLORS: ClassVar[dict[str | None, QColor]] = {
-        "N": QColor(173, 216, 230),  # Light blue for Noun
-        "V": QColor(255, 182, 193),  # Light pink for Verb
-        "A": QColor(144, 238, 144),  # Light green for Adjective
-        "R": QColor(255, 165, 0),  # Orange for Pronoun
-        "D": QColor(221, 160, 221),  # Plum for Determiner/Article
-        "B": QColor(175, 238, 238),  # Pale turquoise for Adverb
-        "C": QColor(255, 20, 147),  # Deep pink for Conjunction
-        "E": QColor(255, 255, 0),  # Yellow for Preposition
-        "I": QColor(255, 192, 203),  # Pink for Interjection
-        None: QColor(255, 255, 255),  # White (no highlight) for unannotated
-    }
-
-    #: Color maps for highlighting cases
-    CASE_COLORS: ClassVar[dict[str | None, QColor]] = {
-        "n": QColor(173, 216, 230),  # Light blue for Nominative
-        "a": QColor(144, 238, 144),  # Light green for Accusative
-        "g": QColor(255, 255, 153),  # Light yellow for Genitive
-        "d": QColor(255, 200, 150),  # Light orange for Dative
-        "i": QColor(255, 182, 193),  # Light pink for Instrumental
-        None: QColor(255, 255, 255),  # White (no highlight) for unannotated
-    }
-
-    #: Color maps for highlighting numbers
-    NUMBER_COLORS: ClassVar[dict[str | None, QColor]] = {
-        "s": QColor(173, 216, 230),  # Light blue for Singular
-        "d": QColor(144, 238, 144),  # Light green for Dual
-        "pl": QColor(255, 127, 127),  # Light coral for Plural
-        "p": QColor(255, 127, 127),  # Light coral for Plural (Verbs)
-        None: QColor(255, 255, 255),  # White (no highlight) for unannotated
-    }
-
     #: Color for idiom selection (pale magenta)
     IDIOM_SELECTION_COLOR: ClassVar[QColor] = QColor(255, 200, 255, 150)
-    #: Color for idiom highlighting mode (pale magenta)
-    IDIOM_HIGHLIGHT_COLOR: ClassVar[QColor] = QColor(255, 200, 255)
 
     def __init__(
         self,
@@ -208,16 +113,7 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
         # Track current token select highlight position to clear it later
         self._current_highlight_start: int | None = None
         self._current_highlight_length: int | None = None
-        # Track current token highlight mode (None, 'pos', 'case', 'number')
-        self._current_highlight_mode: str | None = None
-        # Track selected cases for highlighting (default: all cases)
-        self._selected_cases: set[str] = {"n", "a", "g", "d", "i"}
-        # Track selected POS tags for highlighting (default: all POS tags)
-        self._selected_pos: set[str] = {"N", "V", "A", "R", "D", "B", "C", "E", "I"}
-        # Case filter dialog reference
-        self._case_filter_dialog: CaseFilterDialog | None = None
-        # POS filter dialog reference
-        self._pos_filter_dialog: POSFilterDialog | None = None
+        self.highligher: SentenceHighligher | None = SentenceHighligher(self)
         # Track selected token index for details sidebar
         self.selected_token_index: int | None = None
         # Mapping of token order_index to Token object
@@ -468,18 +364,13 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
 
         highlighting_label = QLabel("Highlighting:")
         layout.addWidget(highlighting_label)
-        self.highlighting_combo = QComboBox()
-        self.highlighting_combo.addItems(
-            ["None", "Part of Speech", "Case", "Number", "Idioms"]
-        )
-        self.highlighting_combo.currentIndexChanged.connect(
-            self._on_highlighting_changed
-        )
+        highlighter = cast("SentenceHighligher", self.highligher)
+        self.highlighting_combo = highlighter.build_combo_box()
         layout.addWidget(self.highlighting_combo)
 
         return layout
 
-    def build_oe_text_edit(self) -> ClickableTextEdit:
+    def build_oe_text_edit(self) -> OldEnglishTextEdit:
         """
         Build the OE text edit widget.
 
@@ -487,7 +378,7 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
             OE text edit widget
 
         """
-        oe_text_edit = ClickableTextEdit()
+        oe_text_edit = OldEnglishTextEdit()
         oe_text_edit.setPlainText(self.sentence.text_oe)
         oe_text_edit.setFont(QFont("Anvers", 18))
         oe_text_edit.setPlaceholderText("Enter Old English text...")
@@ -658,14 +549,7 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
             cast("int", token.id): token.annotation for token in self.tokens if token.id
         }
         self.token_table.set_tokens(self.tokens)
-
-        # Re-apply highlighting if a mode is active
-        if self._current_highlight_mode == "pos":
-            self._apply_pos_highlighting()
-        elif self._current_highlight_mode == "case":
-            self._apply_case_highlighting()
-        elif self._current_highlight_mode == "number":
-            self._apply_number_highlighting()
+        cast("SentenceHighligher", self.highligher).highlight()
 
     def _open_annotation_modal(self) -> None:
         """
@@ -949,18 +833,7 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
             self.token_table.update_annotation(annotation)
 
         self.annotation_applied.emit(annotation)
-        self._refresh_highlights_after_annotation()
-
-    def _refresh_highlights_after_annotation(self) -> None:
-        """Re-apply the current highlighting mode."""
-        mode_map = {
-            "pos": self._apply_pos_highlighting,
-            "case": self._apply_case_highlighting,
-            "number": self._apply_number_highlighting,
-            "idioms": self._apply_idiom_highlighting,
-        }
-        if self._current_highlight_mode in mode_map:
-            mode_map[self._current_highlight_mode]()
+        cast("SentenceHighligher", self.highligher).highlight()
 
     def _on_token_table_token_selected(self, token: Token) -> None:
         """
@@ -1277,12 +1150,7 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
         self._clear_highlight()
         # Re-apply highlighting mode if active (though highlights will be
         # cleared when entering edit mode)
-        if self._current_highlight_mode == "pos":
-            self._apply_pos_highlighting()
-        elif self._current_highlight_mode == "case":
-            self._apply_case_highlighting()
-        elif self._current_highlight_mode == "number":
-            self._apply_number_highlighting()
+        cast("SentenceHighligher", self.highligher).highlight()
 
     def _on_edit_oe_clicked(self) -> None:
         """
@@ -1327,10 +1195,7 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
         self.highlighting_combo.blockSignals(False)  # noqa: FBT003
         self._current_highlight_mode = None
         # Hide any open filter dialogs
-        if self._pos_filter_dialog is not None:
-            self._pos_filter_dialog.hide()
-        if self._case_filter_dialog is not None:
-            self._case_filter_dialog.hide()
+        cast("SentenceHighligher", self.highligher).hide_filter_dialog()
         # Hide Edit OE button and Add Note button
         self.edit_oe_button.setVisible(False)
         self.add_note_button.setVisible(False)
@@ -1404,13 +1269,9 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
                 self.set_tokens(self.sentence.tokens)
                 # Update notes display
                 self._update_notes_display()
-                # Re-apply highlighting if a mode is active
-                if self._current_highlight_mode == "pos":
-                    self._apply_pos_highlighting()
-                elif self._current_highlight_mode == "case":
-                    self._apply_case_highlighting()
-                elif self._current_highlight_mode == "number":
-                    self._apply_number_highlighting()
+                highlight = cast("SentenceHighligher", self.highligher)
+                highlight.show_filter_dialog()
+                highlight.highlight()
 
         # Re-render with superscripts
         self._render_oe_text_with_superscripts()
@@ -1506,289 +1367,6 @@ class SentenceCard(TokenOccurrenceMixin, SessionMixin, QWidget):
             )
             if self.command_manager.execute(command):
                 self.sentence.text_modern = new_text
-
-    def _on_highlighting_changed(self, index: int) -> None:
-        """
-        Handle highlighting dropdown selection change.
-
-        Args:
-            index: Selected index (0=None, 1=Part of Speech, 2=Case, 3=Number)
-
-        """
-        # Block signals to prevent recursive calls when updating dropdown
-        # programmatically
-        self.highlighting_combo.blockSignals(True)  # noqa: FBT003
-
-        if index == 0:  # None
-            self._current_highlight_mode = None
-            self._clear_all_highlights()
-            # Hide dialogs if they exist
-            if self._pos_filter_dialog is not None:
-                self._pos_filter_dialog.hide()
-            if self._case_filter_dialog is not None:
-                self._case_filter_dialog.hide()
-        elif index == 1:  # Part of Speech
-            self._current_highlight_mode = "pos"
-            # Create or show the POS filter dialog
-            if self._pos_filter_dialog is None:
-                self._pos_filter_dialog = POSFilterDialog(self)
-                self._pos_filter_dialog.pos_changed.connect(self._on_pos_changed)
-                self._pos_filter_dialog.dialog_closed.connect(
-                    self._on_pos_dialog_closed
-                )
-                # Set initial selected POS tags
-                self._pos_filter_dialog.set_selected_pos(self._selected_pos)
-            self._pos_filter_dialog.show()
-            self._apply_pos_highlighting()
-        elif index == 2:  # Case  # noqa: PLR2004
-            self._current_highlight_mode = "case"
-            # Create or show the case filter dialog
-            if self._case_filter_dialog is None:
-                self._case_filter_dialog = CaseFilterDialog(self)
-                self._case_filter_dialog.cases_changed.connect(self._on_cases_changed)
-                self._case_filter_dialog.dialog_closed.connect(self._on_dialog_closed)
-                # Set initial selected cases
-                self._case_filter_dialog.set_selected_cases(self._selected_cases)
-            self._case_filter_dialog.show()
-            self._apply_case_highlighting()
-        elif index == 3:  # Number  # noqa: PLR2004
-            self._current_highlight_mode = "number"
-            self._apply_number_highlighting()
-        elif index == 4:  # Idioms # noqa: PLR2004
-            self._current_highlight_mode = "idioms"
-            self._apply_idiom_highlighting()
-
-        self.highlighting_combo.blockSignals(False)  # noqa: FBT003
-
-    def _apply_idiom_highlighting(self) -> None:
-        """Apply colors based on idioms."""
-        self._clear_all_highlights()
-        if not self.oe_text_edit.toPlainText() or not self.tokens or not self.idioms:
-            return
-
-        extra_selections = []
-        for idiom in self.idioms:
-            # Highlight every token in the idiom
-            start_order = idiom.start_token.order_index
-            end_order = idiom.end_token.order_index
-            for order_idx in range(start_order, end_order + 1):
-                token = self.tokens_by_index.get(order_idx)
-                if token:
-                    selection = self._create_token_selection(
-                        token, self.IDIOM_HIGHLIGHT_COLOR
-                    )
-                    if selection:
-                        extra_selections.append(selection)
-
-        self.oe_text_edit.setExtraSelections(extra_selections)
-
-    def _on_pos_toggle(self, checked: bool) -> None:  # noqa: FBT001
-        """
-        Handle POS highlighting toggle.
-
-        Args:
-            checked: True if the toggle is checked, False otherwise
-
-        """
-        if checked:
-            # Update dropdown to Part of Speech
-            self.highlighting_combo.blockSignals(True)  # noqa: FBT003
-            self.highlighting_combo.setCurrentIndex(1)
-            self.highlighting_combo.blockSignals(False)  # noqa: FBT003
-            self._on_highlighting_changed(1)
-        else:
-            # Update dropdown to None
-            self.highlighting_combo.blockSignals(True)  # noqa: FBT003
-            self.highlighting_combo.setCurrentIndex(0)
-            self.highlighting_combo.blockSignals(False)  # noqa: FBT003
-            self._on_highlighting_changed(0)
-
-    def _on_case_toggle(self, checked: bool) -> None:  # noqa: FBT001
-        """Handle case highlighting toggle."""
-        if checked:
-            # Update dropdown to Case
-            self.highlighting_combo.blockSignals(True)  # noqa: FBT003
-            self.highlighting_combo.setCurrentIndex(2)
-            self.highlighting_combo.blockSignals(False)  # noqa: FBT003
-            self._on_highlighting_changed(2)
-        else:
-            # Update dropdown to None
-            self.highlighting_combo.blockSignals(True)  # noqa: FBT003
-            self.highlighting_combo.setCurrentIndex(0)
-            self.highlighting_combo.blockSignals(False)  # noqa: FBT003
-            self._on_highlighting_changed(0)
-
-    def _on_cases_changed(self, selected_cases: set[str]) -> None:
-        """
-        Handle case selection changes from the dialog.
-
-        Args:
-            selected_cases: Set of selected case codes
-
-        """
-        self._selected_cases = selected_cases
-        # Re-apply highlighting if case highlighting is active
-        if self._current_highlight_mode == "case":
-            self._apply_case_highlighting()
-
-    def _on_dialog_closed(self) -> None:
-        """Handle dialog close event by resetting the dropdown to None."""
-        # Reset dropdown to None and clear highlights
-        # Block signals temporarily to avoid triggering change signal
-        self.highlighting_combo.blockSignals(True)  # noqa: FBT003
-        self.highlighting_combo.setCurrentIndex(0)
-        self.highlighting_combo.blockSignals(False)  # noqa: FBT003
-        # Clear highlights and reset mode (dialog is already closing, so don't hide it)
-        self._current_highlight_mode = None
-        self._clear_all_highlights()
-
-    def _on_pos_changed(self, selected_pos: set[str]) -> None:
-        """
-        Handle POS selection changes from the dialog.
-
-        Args:
-            selected_pos: Set of selected POS codes
-
-        """
-        self._selected_pos = selected_pos
-        # Re-apply highlighting if POS highlighting is active
-        if self._current_highlight_mode == "pos":
-            self._apply_pos_highlighting()
-
-    def _on_pos_dialog_closed(self) -> None:
-        """Handle POS dialog close event by resetting the dropdown to None."""
-        # Reset dropdown to None and clear highlights
-        # Block signals temporarily to avoid triggering change signal
-        self.highlighting_combo.blockSignals(True)  # noqa: FBT003
-        self.highlighting_combo.setCurrentIndex(0)
-        self.highlighting_combo.blockSignals(False)  # noqa: FBT003
-        # Clear highlights and reset mode (dialog is already closing, so don't hide it)
-        self._current_highlight_mode = None
-        self._clear_all_highlights()
-
-    def _on_number_toggle(self, checked: bool) -> None:  # noqa: FBT001
-        """Handle number highlighting toggle."""
-        if checked:
-            # Update dropdown to Number
-            self.highlighting_combo.blockSignals(True)  # noqa: FBT003
-            self.highlighting_combo.setCurrentIndex(3)
-            self.highlighting_combo.blockSignals(False)  # noqa: FBT003
-            self._on_highlighting_changed(3)
-        else:
-            # Update dropdown to None
-            self.highlighting_combo.blockSignals(True)  # noqa: FBT003
-            self.highlighting_combo.setCurrentIndex(0)
-            self.highlighting_combo.blockSignals(False)  # noqa: FBT003
-            self._on_highlighting_changed(0)
-
-    def _apply_pos_highlighting(self) -> None:
-        """
-        Apply colors based on parts of speech.
-
-        Only highlights POS tags that are in the :attr:`_selected_pos` set.
-        """
-        self._clear_all_highlights()
-        text = self.oe_text_edit.toPlainText()
-        if not text or not self.tokens:
-            return
-
-        extra_selections = []
-        for token in self.tokens:
-            if not token.id:
-                continue
-            annotation = self.annotations.get(cast("int", token.id))
-            if not annotation:
-                continue
-
-            pos = annotation.pos
-            # Only highlight if POS is in selected POS tags
-            if pos in self._selected_pos:
-                color = self.POS_COLORS.get(pos, self.POS_COLORS[None])
-                if color != self.POS_COLORS[None]:  # Only highlight if not default
-                    selection = self._create_token_selection(token, color)
-                    if selection:
-                        extra_selections.append(selection)
-
-        self.oe_text_edit.setExtraSelections(extra_selections)
-
-    def _apply_case_highlighting(self) -> None:
-        """
-        Apply colors based on case values.
-
-        Highlights articles, nouns, pronouns, adjectives, and prepositions.
-        Only highlights cases that are in the :attr:`_selected_cases` set.
-        """
-        self._clear_all_highlights()
-        text = self.oe_text_edit.toPlainText()
-        if not text or not self.tokens:
-            return
-
-        extra_selections = []
-        for token in self.tokens:
-            if not token.id:
-                continue
-            annotation = self.annotations.get(cast("int", token.id))
-            if not annotation:
-                continue
-
-            pos = annotation.pos
-            # Only highlight articles (D), nouns (N), pronouns (R),
-            # adjectives (A), and prepositions (E)
-            if pos not in ["D", "N", "R", "A", "E"]:
-                continue
-
-            # For prepositions, use prep_case; for others, use case
-            case_value = annotation.prep_case if pos == "E" else annotation.case
-            # Only highlight if case is in selected cases and not default
-            if case_value in self._selected_cases:
-                color = self.CASE_COLORS.get(case_value, self.CASE_COLORS[None])
-                # Only highlight if not default
-                if color != self.CASE_COLORS[None]:
-                    selection = self._create_token_selection(token, color)
-                    if selection:
-                        extra_selections.append(selection)
-
-        self.oe_text_edit.setExtraSelections(extra_selections)
-
-    def _apply_number_highlighting(self) -> None:
-        """
-        Apply colors based on number values.
-
-        Highlights articles, nouns, pronouns, and adjectives.
-        """
-        self._clear_all_highlights()
-        text = self.oe_text_edit.toPlainText()
-        if not text or not self.tokens:
-            return
-
-        extra_selections = []
-        for token in self.tokens:
-            if not token.id:
-                continue
-            annotation = self.annotations.get(cast("int", token.id))
-            if not annotation:
-                continue
-
-            pos = annotation.pos
-            # Only highlight articles (D), nouns (N), pronouns (R),
-            # and adjectives (A)
-            if pos not in ["D", "N", "R", "A", "V"]:
-                continue
-
-            if pos == "R":
-                # Pronouns use pronoun_number, because pronouns can be s, d or pl
-                # while everything else is just s or p.
-                number_value = annotation.pronoun_number
-            else:
-                number_value = annotation.number
-            color = self.NUMBER_COLORS.get(number_value, self.NUMBER_COLORS[None])
-            # Only highlight if not default
-            if color != self.NUMBER_COLORS[None]:
-                selection = self._create_token_selection(token, color)
-                if selection:
-                    extra_selections.append(selection)
-
-        self.oe_text_edit.setExtraSelections(extra_selections)
 
     def _create_token_selection(
         self, token: Token, color: QColor

@@ -984,7 +984,7 @@ class ProjectUI:
 
         # Clear existing content
         for i in reversed(range(self.content_layout.count())):
-            self.content_layout.itemAt(i).widget().setParent(None)  # type: ignore[union-attr]
+            self.content_layout.itemAt(i).widget().deleteLater()  # type: ignore[union-attr]
 
         self.sentence_cards = []
         for sentence in project.sentences:
@@ -1003,6 +1003,8 @@ class ProjectUI:
                 main_window=self.main_window,
             )
             card.set_tokens(sentence.tokens)
+            self.sentence_cards.append(card)
+            self.content_layout.addWidget(card)
             card.translation_edit.textChanged.connect(self._on_translation_changed)
             card.oe_text_edit.textChanged.connect(self._on_sentence_text_changed)
             card.sentence_merged.connect(self._on_sentence_merged)
@@ -1011,8 +1013,6 @@ class ProjectUI:
             card.token_selected_for_details.connect(self._on_token_selected_for_details)
             card.idiom_selected_for_details.connect(self._on_idiom_selected_for_details)
             card.annotation_applied.connect(self._on_annotation_applied)
-            self.sentence_cards.append(card)
-            self.content_layout.addWidget(card)
 
     def reload(self) -> None:
         """

@@ -3,10 +3,12 @@
 import pytest
 from PySide6.QtCore import QPoint, Qt
 from PySide6.QtGui import QKeyEvent
+from PySide6.QtWidgets import QComboBox
 from unittest.mock import MagicMock
 
+from oeapp.models import Annotation
 from oeapp.models.idiom import Idiom
-from oeapp.ui.sentence_card import SentenceCard, ClickableTextEdit
+from oeapp.ui.sentence_card import SentenceCard, OldEnglishTextEdit
 from tests.conftest import create_test_project, create_test_sentence
 
 
@@ -492,7 +494,7 @@ class TestSentenceCard:
         from PySide6.QtCore import Qt
         from PySide6.QtGui import QKeyEvent
 
-        widget = ClickableTextEdit(parent=None)
+        widget = OldEnglishTextEdit(parent=None)
         widget.setReadOnly(True)
 
         # Test Right Arrow - should be ignored (bubbled up)
@@ -603,13 +605,65 @@ class TestSentenceCard:
         assert card.selected_token_index is None
         assert card._selected_token_range is None
 
+    def test_sentence_card_has_highlighter(self, db_session, qapp):
+        """Test that SentenceCard has a SentenceHighligher."""
+        project = create_test_project(db_session, name="Test", text="Se cyning")
+        sentence = project.sentences[0]
+        card = SentenceCard(sentence, parent=None)
+        assert card.highligher is not None
+        assert card.highligher.card == card
+
+    def test_sentence_card_highlighter_combo_box_in_layout(self, db_session, qapp):
+        """Test that the highlighting combo box is present in the layout."""
+        project = create_test_project(db_session, name="Test", text="Se cyning")
+        sentence = project.sentences[0]
+        card = SentenceCard(sentence, parent=None)
+
+        # Check if highlighting_combo is set
+        assert card.highlighting_combo is not None
+        assert isinstance(card.highlighting_combo, QComboBox)
+
+        # Verify it has the expected items
+        expected_items = ["None", "Part of Speech", "Case", "Number", "Idiom"]
+        items = [card.highlighting_combo.itemText(i) for i in range(card.highlighting_combo.count())]
+        assert items == expected_items
+
+    def test_sentence_card_highlighting_changes_apply(self, db_session, qapp, qtbot, monkeypatch):
+        """Test that changing highlighting mode triggers highlights in the UI."""
+        from oeapp.ui.dialogs.sentence_filters import SentenceFilterDialog
+        # Patch exec() to avoid blocking
+        monkeypatch.setattr(SentenceFilterDialog, "exec", lambda self: self.show())
+
+        project = create_test_project(db_session, name="Test", text="Se cyning")
+        sentence = project.sentences[0]
+        # Add annotation to first token
+        token = sentence.tokens[0]
+        token.annotation = Annotation(token_id=token.id, pos="D")
+        db_session.commit()
+
+        card = SentenceCard(sentence, parent=None)
+        card.show()
+        qtbot.addWidget(card)
+        # Manually render to populate positions
+        card._render_oe_text_with_superscripts()
+
+        # Initially no extra selections
+        assert len(card.oe_text_edit.extraSelections()) == 0
+
+        # Switch to POS highlighting (index 1)
+        with qtbot.waitSignal(card.highlighting_combo.currentIndexChanged):
+            card.highlighting_combo.setCurrentIndex(1)
+
+        # Should now have extra selections for the annotated token
+        assert len(card.oe_text_edit.extraSelections()) > 0
+
 
 class TestClickableTextEdit:
     """Test cases for ClickableTextEdit."""
 
     def test_clickable_text_edit_initializes(self, qapp):
         """Test ClickableTextEdit initializes correctly."""
-        widget = ClickableTextEdit(parent=None)
+        widget = OldEnglishTextEdit(parent=None)
 
         assert widget is not None
 
@@ -617,7 +671,7 @@ class TestClickableTextEdit:
         """Test ClickableTextEdit emits clicked signal."""
         from PySide6.QtCore import QPoint
 
-        widget = ClickableTextEdit(parent=None)
+        widget = OldEnglishTextEdit(parent=None)
 
         # Connect signal
         clicked_pos = None
@@ -638,7 +692,7 @@ class TestClickableTextEdit:
         """Test ClickableTextEdit emits double_clicked signal."""
         from PySide6.QtCore import QPoint
 
-        widget = ClickableTextEdit(parent=None)
+        widget = OldEnglishTextEdit(parent=None)
 
         # Connect signal
         double_clicked_pos = None

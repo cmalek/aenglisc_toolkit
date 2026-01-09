@@ -2,13 +2,15 @@
 
 from typing import Final
 
+from PySide6.QtGui import QColor
+
 
 class AnnotationLookupsMixin:
     """Mixin class providing lookup maps for annotation fields."""
 
     #: A lookup map for part of speech codes to their long form.
-    PART_OF_SPEECH_MAP: Final[dict[str, str | None]] = {
-        "": None,
+    PART_OF_SPEECH_MAP: Final[dict[str | None, str]] = {
+        None: "",
         "N": "Noun (N)",
         "V": "Verb (V)",
         "A": "Adjective (A)",
@@ -22,7 +24,20 @@ class AnnotationLookupsMixin:
     #: A Reverse lookup map for part of speech long form to code.  The key
     # is the long form, and the value is the code.
     PART_OF_SPEECH_REVERSE_MAP: Final[dict[str, str]] = {
-        v: k for k, v in PART_OF_SPEECH_MAP.items() if v is not None
+        v: k for k, v in PART_OF_SPEECH_MAP.items() if k is not None
+    }
+    #: Color maps for highlighting POS tags
+    POS_COLORS: Final[dict[str | None, QColor]] = {
+        "N": QColor(173, 216, 230),  # Light blue for Noun
+        "V": QColor(255, 182, 193),  # Light pink for Verb
+        "A": QColor(144, 238, 144),  # Light green for Adjective
+        "R": QColor(255, 165, 0),  # Orange for Pronoun
+        "D": QColor(221, 160, 221),  # Plum for Determiner/Article
+        "B": QColor(175, 238, 238),  # Pale turquoise for Adverb
+        "C": QColor(255, 20, 147),  # Deep pink for Conjunction
+        "E": QColor(255, 255, 0),  # Yellow for Preposition
+        "I": QColor(255, 192, 203),  # Pink for Interjection
+        None: QColor(255, 255, 255),  # White (no highlight) for unannotated
     }
 
     #: A lookup map for article type codes to their long form.
@@ -66,6 +81,15 @@ class AnnotationLookupsMixin:
     NUMBER_REVERSE_MAP: Final[dict[int, str]] = {
         i: k for i, k in enumerate(NUMBER_MAP.keys()) if k is not None
     }
+    #: Color maps for highlighting numbers (both from NUMBER_MAP and
+    #: PRONOUN_NUMBER_MAP)
+    NUMBER_COLORS: Final[dict[str | None, QColor]] = {
+        "s": QColor(173, 216, 230),  # Light blue for Singular
+        "d": QColor(144, 238, 144),  # Light green for Dual
+        "pl": QColor(255, 127, 127),  # Light coral for Plural
+        "p": QColor(255, 127, 127),  # Light coral for Plural (Verbs)
+        None: QColor(255, 255, 255),  # White (no highlight) for unannotated
+    }
 
     #: A lookup map for case codes to their long form.
     CASE_MAP: Final[dict[str | None, str]] = {
@@ -81,6 +105,15 @@ class AnnotationLookupsMixin:
     #: is the code.
     CASE_REVERSE_MAP: Final[dict[int, str]] = {
         i: k for i, k in enumerate(CASE_MAP.keys()) if k is not None
+    }
+    #: Color maps for highlighting cases
+    CASE_COLORS: Final[dict[str | None, QColor]] = {
+        "n": QColor(173, 216, 230),  # Light blue for Nominative
+        "a": QColor(144, 238, 144),  # Light green for Accusative
+        "g": QColor(255, 255, 153),  # Light yellow for Genitive
+        "d": QColor(255, 200, 150),  # Light orange for Dative
+        "i": QColor(255, 182, 193),  # Light pink for Instrumental
+        None: QColor(255, 255, 255),  # White (no highlight) for unannotated
     }
 
     #: A lookup map for declension codes to their long form.
@@ -293,3 +326,6 @@ class AnnotationLookupsMixin:
     CONJUNCTION_TYPE_REVERSE_MAP: Final[dict[int, str]] = {
         i: k for i, k in enumerate(CONJUNCTION_TYPE_MAP.keys()) if k is not None
     }
+
+    #: Color for idiom highlighting mode (pale magenta)
+    IDIOM_HIGHLIGHT_COLOR: Final[QColor] = QColor(255, 200, 255)
