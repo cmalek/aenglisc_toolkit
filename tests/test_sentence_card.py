@@ -487,7 +487,7 @@ class TestSentenceCard:
         card.token_table.token_selected.emit(token)
 
         assert card.selected_token_index == token.order_index
-        assert card._current_highlight_start is not None
+        assert card.span_highlighter.is_highlighted
 
     def test_clickable_text_edit_ignores_arrows(self, qapp):
         """Test that ClickableTextEdit ignores arrow keys so they bubble up when read-only."""
@@ -596,22 +596,22 @@ class TestSentenceCard:
 
         # Select first token
         card.selected_token_index = 0
-        card._highlight_token_in_text(sentence.tokens[0])
+        card.span_highlighter.highlight(sentence.tokens[0].order_index)
         assert card.selected_token_index == 0
 
         # Enter edit mode
         card._on_edit_oe_clicked()
 
         assert card.selected_token_index is None
-        assert card._selected_token_range is None
+        assert card.span_highlighter.is_highlighted is False
 
     def test_sentence_card_has_highlighter(self, db_session, qapp):
         """Test that SentenceCard has a SentenceHighligher."""
         project = create_test_project(db_session, name="Test", text="Se cyning")
         sentence = project.sentences[0]
         card = SentenceCard(sentence, parent=None)
-        assert card.highligher is not None
-        assert card.highligher.card == card
+        assert card.sentence_highlighter is not None
+        assert card.sentence_highlighter.card == card
 
     def test_sentence_card_highlighter_combo_box_in_layout(self, db_session, qapp):
         """Test that the highlighting combo box is present in the layout."""

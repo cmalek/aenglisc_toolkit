@@ -41,7 +41,7 @@ from oeapp.ui.dialogs import (
     AnnotationModal,
     NoteDialog,
 )
-from oeapp.ui.highlighting import SentenceHighligher
+from oeapp.ui.highlighting import SingleInstanceHighligher, WholeSentenceHighligher
 from oeapp.ui.mixins import AnnotationLookupsMixin
 from oeapp.ui.notes_panel import NotesPanel
 from oeapp.ui.token_table import TokenTable
@@ -86,11 +86,6 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
 
     # Property ID for token index in QTextCharFormat
     TOKEN_INDEX_PROPERTY: ClassVar[int] = 1000
-    # Property ID for selection highlight in ExtraSelection
-    SELECTION_HIGHLIGHT_PROPERTY: ClassVar[int] = 1001
-
-    #: Color for idiom selection (pale magenta)
-    IDIOM_SELECTION_COLOR: ClassVar[QColor] = QColor(255, 200, 255, 150)
 
     def __init__(
         self,
@@ -110,10 +105,6 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
         self.annotations: dict[int, Annotation | None] = {
             cast("int", token.id): token.annotation for token in self.tokens if token.id
         }
-        # Track current token select highlight position to clear it later
-        self._current_highlight_start: int | None = None
-        self._current_highlight_length: int | None = None
-        self.highligher: SentenceHighligher | None = SentenceHighligher(self)
         # Track selected token index for details sidebar
         self.selected_token_index: int | None = None
         # Mapping of token order_index to Token object
@@ -132,7 +123,12 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
         # Track OE edit mode state
         self._oe_edit_mode: bool = False
         self._original_oe_text: str | None = None
+        self.sentence_highlighter: WholeSentenceHighligher = WholeSentenceHighligher(
+            self
+        )
         self.build()
+        # This has to happen after build() because it needs to access the OE text edit
+        self.span_highlighter: SingleInstanceHighligher = SingleInstanceHighligher(self)
 
     @property
     def has_focus(self) -> bool:
@@ -168,7 +164,7 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
         token = self.tokens[next_list_index]
         self.selected_token_index = token.order_index
         self.token_table.select_token(next_list_index)
-        self._highlight_token_in_text(token)
+        self.span_highlighter.highlight(token.order_index)
         self.token_selected_for_details.emit(token, self.sentence, self)
 
     def _prev_token(self) -> None:
@@ -191,7 +187,7 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
         token = self.tokens[prev_list_index]
         self.selected_token_index = token.order_index
         self.token_table.select_token(prev_list_index)
-        self._highlight_token_in_text(token)
+        self.span_highlighter.highlight(token.order_index)
         self.token_selected_for_details.emit(token, self.sentence, self)
 
     def keyPressEvent(self, event: QKeyEvent) -> None:  # noqa: N802
@@ -364,7 +360,7 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
 
         highlighting_label = QLabel("Highlighting:")
         layout.addWidget(highlighting_label)
-        highlighter = cast("SentenceHighligher", self.highligher)
+        highlighter = cast("WholeSentenceHighligher", self.sentence_highlighter)
         self.highlighting_combo = highlighter.build_combo_box()
         layout.addWidget(self.highlighting_combo)
 
@@ -549,7 +545,7 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
             cast("int", token.id): token.annotation for token in self.tokens if token.id
         }
         self.token_table.set_tokens(self.tokens)
-        cast("SentenceHighligher", self.highligher).highlight()
+        cast("WholeSentenceHighligher", self.sentence_highlighter).highlight()
 
     def _open_annotation_modal(self) -> None:
         """
@@ -833,7 +829,7 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
             self.token_table.update_annotation(annotation)
 
         self.annotation_applied.emit(annotation)
-        cast("SentenceHighligher", self.highligher).highlight()
+        self.sentence_highlighter.highlight()
 
     def _on_token_table_token_selected(self, token: Token) -> None:
         """
@@ -850,7 +846,7 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
 
         self.selected_token_index = token.order_index
         self._selected_token_range = None
-        self._highlight_token_in_text(token)
+        self.span_highlighter.highlight(token.order_index)
         self.token_selected_for_details.emit(token, self.sentence, self)
 
     def _on_oe_text_clicked(
@@ -926,10 +922,10 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
             self._selected_token_range = (new_start, new_end)
             self.selected_token_index = None  # Clear single selection
 
-        self._highlight_token_range(
+        self.span_highlighter.highlight(
             self._selected_token_range[0],
             self._selected_token_range[1],
-            color=self.IDIOM_SELECTION_COLOR,
+            color_name="idiom",
         )
         self.add_note_button.setEnabled(False)
 
@@ -945,13 +941,13 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
         """
         # Clear any active idiom selection/highlight
         self._selected_token_range = None
-        self._clear_highlight()
+        self.span_highlighter.unhighlight()
 
         if self.selected_token_index is not None:
             start_order = min(self.selected_token_index, order_index)
             end_order = max(self.selected_token_index, order_index)
             self._selected_token_range = (start_order, end_order)
-            self._highlight_token_range(start_order, end_order)
+            self.span_highlighter.highlight(start_order, end_order)
             self.selected_token_index = None
         else:
             self._handle_single_selection_click(order_index)
@@ -1002,10 +998,10 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
                 idiom.start_token.order_index,
                 idiom.end_token.order_index,
             )
-            self._highlight_token_range(
+            self.span_highlighter.highlight(
                 self._selected_token_range[0],
                 self._selected_token_range[1],
-                color=self.IDIOM_SELECTION_COLOR,
+                color_name="idiom",
             )
             self.selected_token_index = None
             self.idiom_selected_for_details.emit(idiom, self.sentence, self)
@@ -1020,7 +1016,7 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
             self.selected_token_index = order_index
             token = self.tokens_by_index.get(order_index)
             if token:
-                self._highlight_token_in_text(token)
+                self.span_highlighter.highlight(token.order_index)
                 self.token_selected_for_details.emit(token, self.sentence, self)
                 list_index = self.order_to_list_index.get(order_index)
                 if list_index is not None:
@@ -1147,10 +1143,10 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
             return
 
         # Clear temporary selection highlight when text is edited
-        self._clear_highlight()
+        self.span_highlighter.unhighlight()
         # Re-apply highlighting mode if active (though highlights will be
         # cleared when entering edit mode)
-        cast("SentenceHighligher", self.highligher).highlight()
+        self.sentence_highlighter.highlight()
 
     def _on_edit_oe_clicked(self) -> None:
         """
@@ -1186,16 +1182,15 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
         # Set plain text (remove superscripts)
         self.oe_text_edit.setPlainText(self._original_oe_text)
         # Clear all highlighting
-        self._clear_all_highlights()
-        # Clear token selection highlight
-        self._clear_highlight()
+        self.sentence_highlighter.unhighlight()
+        # Reset span highlighter (we just cleared its existing highlight)
+        self.span_highlighter.unhighlight()
         # Reset highlighting dropdown to None (index 0)
         self.highlighting_combo.blockSignals(True)  # noqa: FBT003
         self.highlighting_combo.setCurrentIndex(0)
         self.highlighting_combo.blockSignals(False)  # noqa: FBT003
-        self._current_highlight_mode = None
         # Hide any open filter dialogs
-        cast("SentenceHighligher", self.highligher).hide_filter_dialog()
+        self.sentence_highlighter.hide_filter_dialog()
         # Hide Edit OE button and Add Note button
         self.edit_oe_button.setVisible(False)
         self.add_note_button.setVisible(False)
@@ -1269,9 +1264,8 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
                 self.set_tokens(self.sentence.tokens)
                 # Update notes display
                 self._update_notes_display()
-                highlight = cast("SentenceHighligher", self.highligher)
-                highlight.show_filter_dialog()
-                highlight.highlight()
+                self.sentence_highlighter.highlight()
+                self.sentence_highlighter.show_filter_dialog()
 
         # Re-render with superscripts
         self._render_oe_text_with_superscripts()
@@ -1404,140 +1398,6 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
 
         return extra_selection
 
-    def _clear_all_highlights(self) -> None:
-        """Clear all highlighting from the text."""
-        self.oe_text_edit.setExtraSelections([])
-
-    def _clear_highlight(self) -> None:
-        """
-        Clear the temporary selection highlight (yellow/pink) while preserving
-        highlighting mode highlights if active.
-        """
-        # Get existing selections and filter out the selection highlight
-        # We identify it by checking for our special property in the format
-        existing_selections = self.oe_text_edit.extraSelections()
-        filtered_selections = []
-
-        for selection in existing_selections:
-            if selection.format.property(self.SELECTION_HIGHLIGHT_PROPERTY):  # type: ignore[attr-defined]
-                # This is a selection highlight, skip it
-                continue
-            # Keep other highlights (e.g. POS mode)
-            filtered_selections.append(selection)
-
-        self.oe_text_edit.setExtraSelections(filtered_selections)
-        self._current_highlight_start = None
-        self._current_highlight_length = None
-
-    def _highlight_token_in_text(self, token: Token) -> None:
-        """
-        Highlight the corresponding token in the oe_text_edit.
-
-        Args:
-            token: Token to highlight
-
-        """
-        # Clear any existing selection highlight first
-        self._clear_highlight()
-
-        if token.id not in self._token_positions:
-            return
-
-        highlight_pos, highlight_end = self._token_positions[token.id]
-
-        # Get existing extra selections (for highlighting mode)
-        existing_selections = self.oe_text_edit.extraSelections()
-
-        # Create cursor and highlight the text using extraSelections
-        cursor = QTextCursor(self.oe_text_edit.document())
-        cursor.setPosition(highlight_pos)
-        cursor.setPosition(highlight_end, QTextCursor.MoveMode.KeepAnchor)
-
-        # Apply highlight format for selection (yellow, semi-transparent)
-        char_format = QTextCharFormat()
-        # Use a yellow background color with transparency
-        char_format.setBackground(QColor(200, 200, 0, 150))
-        # Mark as selection highlight
-        char_format.setProperty(self.SELECTION_HIGHLIGHT_PROPERTY, True)  # noqa: FBT003
-
-        # Use extraSelections for temporary highlighting
-        selection_highlight = QTextEdit.ExtraSelection()
-        selection_highlight.cursor = cursor  # type: ignore[attr-defined]
-        selection_highlight.format = char_format  # type: ignore[attr-defined]
-
-        # Combine existing selections (from highlighting mode)
-        # with the selection highlight
-        all_selections = [*existing_selections, selection_highlight]
-        self.oe_text_edit.setExtraSelections(all_selections)
-
-        # Store position for reference
-        self._current_highlight_start = highlight_pos
-        self._current_highlight_length = highlight_end - highlight_pos
-
-    def _highlight_token_range(
-        self, start_order: int, end_order: int, color: QColor | None = None
-    ) -> None:
-        """
-        Highlight a range of tokens in the oe_text_edit.
-
-        Args:
-            start_order: Starting token order_index (inclusive)
-            end_order: Ending token order_index (inclusive)
-            color: Optional background color for highlight. Defaults to yellow.
-
-        """
-        # Clear any existing selection highlight first
-        self._clear_highlight()
-
-        if not self.tokens:
-            return
-
-        if color is None:
-            # Default yellow with semi-transparency
-            color = QColor(200, 200, 0, 150)
-
-        # Get existing extra selections (for highlighting mode)
-        existing_selections = self.oe_text_edit.extraSelections()
-
-        # Build list of token positions
-        token_positions: list[tuple[int, int]] = []  # (start_pos, end_pos)
-        for order_idx in range(start_order, end_order + 1):
-            token = self.tokens_by_index.get(order_idx)
-            if token and token.id in self._token_positions:
-                token_positions.append(self._token_positions[token.id])
-
-        if not token_positions:
-            return
-
-        # Create highlights for all tokens in range
-        range_highlights = []
-        for token_start, token_end in token_positions:
-            cursor = QTextCursor(self.oe_text_edit.document())
-            cursor.setPosition(token_start)
-            cursor.setPosition(token_end, QTextCursor.MoveMode.KeepAnchor)
-
-            # Apply highlight format for selection
-            char_format = QTextCharFormat()
-            char_format.setBackground(color)
-            # Mark as selection highlight
-            char_format.setProperty(self.SELECTION_HIGHLIGHT_PROPERTY, True)  # noqa: FBT003
-
-            selection_highlight = QTextEdit.ExtraSelection()
-            selection_highlight.cursor = cursor  # type: ignore[attr-defined]
-            selection_highlight.format = char_format  # type: ignore[attr-defined]
-            range_highlights.append(selection_highlight)
-
-        # Combine existing selections with range highlights
-        all_selections = [*existing_selections, *range_highlights]
-        self.oe_text_edit.setExtraSelections(all_selections)
-
-        # Store range for clearing later
-        if token_positions:
-            first_start = token_positions[0][0]
-            last_end = token_positions[-1][1]
-            self._current_highlight_start = first_start
-            self._current_highlight_length = last_end - first_start
-
     def _save_annotation(self, annotation: Annotation) -> None:
         """
         Save annotation to database.
@@ -1658,7 +1518,7 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
         # Clear any active idiom or single token selection
         self.selected_token_index = None
         self._selected_token_range = None
-        self._clear_highlight()
+        self.span_highlighter.unhighlight()
         self.add_note_button.setEnabled(False)
 
         self._highlight_note_tokens(note)
@@ -1711,7 +1571,7 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
                 end_order = token.order_index
 
         if start_order is not None and end_order is not None:
-            self._highlight_token_range(start_order, end_order)
+            self.span_highlighter.highlight(start_order, end_order)
 
     def _render_oe_text_with_superscripts(self) -> None:
         """
@@ -1769,7 +1629,7 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
         if self.selected_token_index is not None:
             token = cast("Token", self.tokens_by_index.get(self.selected_token_index))
             if token:
-                self._highlight_token_in_text(token)
+                self.span_highlighter.highlight(token.order_index)
 
     def _get_idiom_token_ids(self) -> set[int]:
         """
@@ -2192,7 +2052,7 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
             if self.selected_token_index == order_index:
                 self.selected_token_index = None
                 self._selected_token_range = None
-                self._clear_highlight()
+                self.span_highlighter.unhighlight()
                 self.add_note_button.setEnabled(False)
                 # Emit signal to clear sidebar
                 token = self.tokens_by_index.get(order_index)
@@ -2205,7 +2065,7 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
                 if start <= order_index <= end:
                     self._selected_token_range = None
                     self.selected_token_index = None
-                    self._clear_highlight()
+                    self.span_highlighter.unhighlight()
                     self.add_note_button.setEnabled(False)
                     # Emit signal to clear sidebar
                     token = self.tokens_by_index.get(order_index)
@@ -2232,8 +2092,7 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
             self._deselect_timer.stop()
         self._pending_deselect_token_index = None
         self.selected_token_index = None
-        self._selected_token_range = None
-        self._clear_highlight()
+        self.span_highlighter.unhighlight()
         self.add_note_button.setEnabled(False)
         # Emit signal with None to clear sidebar (main window will handle it)
         # We'll emit with the sentence but no token to indicate clearing

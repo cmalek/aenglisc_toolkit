@@ -1,17 +1,18 @@
 import pytest
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QColor, QTextCursor
 from PySide6.QtWidgets import QComboBox, QTextEdit
 from unittest.mock import MagicMock, patch
 
 from oeapp.models.annotation import Annotation
 from oeapp.models.token import Token
 from oeapp.ui.highlighting import (
-    SentenceHighligher,
+    WholeSentenceHighligher,
     POSHighligherCommand,
     CaseHighligherCommand,
     NumberHighligherCommand,
     IdiomHighligherCommand,
     NoneHighligherCommand,
+    SingleInstanceHighligher,
 )
 from oeapp.ui.sentence_card import SentenceCard
 from oeapp.ui.dialogs.sentence_filters import SentenceFilterDialog
@@ -34,7 +35,7 @@ class TestHighlighting:
 
     @pytest.fixture
     def highlighter(self, card):
-        return card.highligher
+        return card.sentence_highlighter
 
     def test_highlighter_initialization(self, highlighter, card):
         """Test that SentenceHighligher initializes correctly."""
@@ -194,8 +195,8 @@ class TestHighlighting:
         highlighter.build_combo_box()
 
         # Mock card._clear_all_highlights
-        with patch.object(card, '_clear_all_highlights') as mock_clear:
-            highlighter.clear_highlights()
+        with patch.object(card.oe_text_edit, 'setExtraSelections') as mock_clear:
+            highlighter.unhighlight()
             assert mock_clear.called
 
     def test_show_hide_filter_dialog(self, highlighter, qtbot):
@@ -279,3 +280,129 @@ class TestHighlighting:
 
         # Currently only tokens[2] has a number annotation.
         assert len(selections) > 0, "Plural verb 'p' should be highlighted"
+
+class TestSingleInstanceHighlighter:
+    @pytest.fixture
+    def card(self, db_session, qapp, qtbot):
+        project = create_test_project(db_session, name="Test Single Highlighting", text="Se cyning fēoll.")
+        sentence = project.sentences[0]
+        card = SentenceCard(sentence, parent=None)
+        qtbot.addWidget(card)
+        return card
+
+    @pytest.fixture
+    def span_highlighter(self, card):
+        return card.span_highlighter
+
+    def test_initialization(self, span_highlighter, card):
+        """Test that SingleInstanceHighligher initializes correctly."""
+        assert span_highlighter.card == card
+        assert span_highlighter.oe_text_edit == card.oe_text_edit
+        assert len(span_highlighter.tokens) == 3
+        assert not span_highlighter.is_highlighted
+
+    def test_get_token_positions(self, span_highlighter):
+        """Test retrieving character positions for token ranges."""
+        # Se (0-2), cyning (3-9), fēoll (10-15)
+        positions = span_highlighter.get_token_positions(0, 0)
+        assert len(positions) == 1
+        assert positions[0] == (0, 2)
+
+        positions = span_highlighter.get_token_positions(0, 1)
+        assert len(positions) == 2
+        assert positions[0] == (0, 2)
+        assert positions[1] == (3, 9)
+
+    def test_highlight_single_token(self, span_highlighter, card):
+        """Test highlighting a single token."""
+        span_highlighter.highlight(0)
+        assert span_highlighter.is_highlighted
+        assert span_highlighter._current_highlight_start == 0
+        assert span_highlighter._current_highlight_length == 2
+        
+        selections = card.oe_text_edit.extraSelections()
+        found = any(s.format.property(span_highlighter.HIGHLIGHT_PROPERTY) for s in selections)
+        assert found
+
+    def test_highlight_range(self, span_highlighter, card):
+        """Test highlighting a range of tokens."""
+        span_highlighter.highlight(0, 1)
+        assert span_highlighter.is_highlighted
+        # Range covers "Se cyning" (0 to 9)
+        assert span_highlighter._current_highlight_start == 0
+        assert span_highlighter._current_highlight_length == 9
+        
+        selections = card.oe_text_edit.extraSelections()
+        highlights = [s for s in selections if s.format.property(span_highlighter.HIGHLIGHT_PROPERTY)]
+        assert len(highlights) == 2 # One for each token in range
+
+    def test_unhighlight(self, span_highlighter, card):
+        """Test clearing highlights."""
+        span_highlighter.highlight(0)
+        assert span_highlighter.is_highlighted
+        
+        span_highlighter.unhighlight()
+        assert not span_highlighter.is_highlighted
+        
+        selections = card.oe_text_edit.extraSelections()
+        highlights = [s for s in selections if s.format.property(span_highlighter.HIGHLIGHT_PROPERTY)]
+        assert len(highlights) == 0
+
+    def test_unhighlight_preserves_other_selections(self, span_highlighter, card):
+        """Test that unhighlighting only removes its own highlights."""
+        # Create a manual selection that isn't ours
+        cursor = QTextCursor(card.oe_text_edit.document())
+        cursor.setPosition(0)
+        cursor.setPosition(2, QTextCursor.MoveMode.KeepAnchor)
+        
+        other_selection = QTextEdit.ExtraSelection()
+        other_selection.cursor = cursor
+        other_selection.format.setBackground(QColor("red"))
+        # Crucially, it doesn't have our HIGHLIGHT_PROPERTY
+        
+        card.oe_text_edit.setExtraSelections([other_selection])
+        # Update highlighter's view of existing selections
+        span_highlighter.existing_selections = card.oe_text_edit.extraSelections()
+        
+        span_highlighter.highlight(1) # Highlight "cyning"
+        assert len(card.oe_text_edit.extraSelections()) == 2
+        
+        span_highlighter.unhighlight()
+        
+        remaining = card.oe_text_edit.extraSelections()
+        assert len(remaining) == 1
+        assert remaining[0].format.background().color().name() == QColor("red").name()
+
+    def test_highlight_different_colors(self, span_highlighter, card):
+        """Test highlighting with different defined colors."""
+        span_highlighter.highlight(0, color_name="idiom")
+        selections = card.oe_text_edit.extraSelections()
+        highlight = next(s for s in selections if s.format.property(span_highlighter.HIGHLIGHT_PROPERTY))
+        assert highlight.format.background().color() == span_highlighter.COLORS["idiom"]
+
+    def test_highlight_invalid_color(self, span_highlighter):
+        """Test that invalid color names raise AssertionError."""
+        with pytest.raises(AssertionError, match="Invalid color name"):
+            span_highlighter.highlight(0, color_name="nonexistent")
+
+    def test_highlight_invalid_range(self, span_highlighter):
+        """Test that invalid ranges raise AssertionError."""
+        with pytest.raises(AssertionError, match="Start order must be less or equal to end order"):
+            span_highlighter.highlight(1, 0)
+
+    def test_highlight_out_of_bounds(self, span_highlighter):
+        """Test highlighting out-of-bounds indices (should fail gracefully)."""
+        span_highlighter.highlight(10, 11)
+        assert not span_highlighter.is_highlighted
+
+    def test_highlight_clears_previous_own_highlight(self, span_highlighter, card):
+        """Test that new highlights replace old ones from the same highlighter."""
+        span_highlighter.highlight(0)
+        assert span_highlighter._current_highlight_start == 0
+        
+        span_highlighter.highlight(1)
+        assert span_highlighter._current_highlight_start == 3 # "cyning" starts at 3
+        
+        selections = card.oe_text_edit.extraSelections()
+        highlights = [s for s in selections if s.format.property(span_highlighter.HIGHLIGHT_PROPERTY)]
+        assert len(highlights) == 1

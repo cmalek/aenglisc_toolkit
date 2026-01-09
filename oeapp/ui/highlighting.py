@@ -1,9 +1,9 @@
 from typing import TYPE_CHECKING, ClassVar, cast
 
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QColor, QTextCharFormat, QTextCursor
 from PySide6.QtWidgets import QComboBox, QTextEdit
 
-from oeapp.ui.dialogs.sentence_filters import (
+from oeapp.ui.dialogs import (
     CaseFilterDialog,
     NumberFilterDialog,
     PartOfSpeechFilterDialog,
@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     from oeapp.models.annotation import Annotation
     from oeapp.models.idiom import Idiom
     from oeapp.models.token import Token
-    from oeapp.ui.dialogs.sentence_filters import SentenceFilterDialog
+    from oeapp.ui.dialogs import SentenceFilterDialog
     from oeapp.ui.sentence_card import SentenceCard
 
 
@@ -44,7 +44,7 @@ class HighligherCommandBase(AnnotationLookupsMixin):
     #: Dialog class for filtering tokens (if any)
     FILTER_DIALOG_CLASS: ClassVar[type[SentenceFilterDialog] | None] = None
 
-    def __init__(self, highligher: SentenceHighligher):
+    def __init__(self, highligher: WholeSentenceHighligher):
         #: The highlighter
         self.highligher = highligher
         #: The sentence card
@@ -169,7 +169,7 @@ class HighligherCommandBase(AnnotationLookupsMixin):
         """
         Unhighlight the tokens for the command.
         """
-        self.highligher.clear_highlights()
+        self.highligher.unhighlight()
 
     # Event handlers
 
@@ -363,9 +363,9 @@ class IdiomHighligherCommand(HighligherCommandBase):
         self.highligher.set_highlights(extra_selections)
 
 
-class SentenceHighligher:
+class WholeSentenceHighligher:
     """
-    Highlighter for a sentence.
+    Highlighter for a sentence for the highlighting combo box.
     """
 
     #: Mapping of highlighting combo box index to highlighter command class
@@ -436,7 +436,7 @@ class SentenceHighligher:
         """
         return self.card.oe_text_edit.toPlainText()
 
-    def clear_highlights(self) -> None:
+    def unhighlight(self) -> None:
         """
         Clear all highlights in our associated sentence card's OE text edit.
         """
@@ -445,7 +445,7 @@ class SentenceHighligher:
         )
         # Block signals temporarily to avoid triggering change signal
         self.highlighting_combo.blockSignals(True)  # noqa: FBT003
-        self.card._clear_all_highlights()
+        self.card.oe_text_edit.setExtraSelections([])
         self.highlighting_combo.blockSignals(False)  # noqa: FBT003
 
     def set_highlights(self, extra_selections: list[QTextEdit.ExtraSelection]) -> None:
@@ -533,3 +533,173 @@ class SentenceHighligher:
         self.highlighting_combo.blockSignals(True)  # noqa: FBT003
         self.highlighting_combo.setCurrentIndex(0)
         self.highlighting_combo.blockSignals(False)  # noqa: FBT003
+
+
+class SingleInstanceHighligher:
+    """
+    Highlighter for a a kind of highlight that can only appear once in the
+    sentence.
+
+    Args:
+        card: :class:`~oeapp.ui.sentence_card.SentenceCard` instance
+        start_token: Start token
+        end_token: End token (optional)
+
+    """
+
+    #: Color for highlighting tokens
+    COLORS: ClassVar[dict[str, QColor]] = {
+        "default": QColor(200, 200, 0, 150),  # Yellow with semi-transparency
+        "idiom": QColor(255, 200, 255, 150),  # Pale magenta
+    }
+    # Property ID for selection highlight in ExtraSelection
+    HIGHLIGHT_PROPERTY: ClassVar[int] = 1001
+
+    def __init__(self, card: SentenceCard):
+        #: The sentence card
+        self.card = card
+        #: The tokens in the sentence
+        self.tokens: list[Token] = card.tokens
+        #: The Old English text edit
+        self.oe_text_edit: QTextEdit = card.oe_text_edit
+        #: The tokens by index
+        self.tokens_by_index: dict[int, Token] = card.tokens_by_index
+        #: The token positions in the sentence
+        self.token_positions: dict[int, tuple[int, int]] = card._token_positions
+        #: Existing extra selections
+        self.existing_selections: list[QTextEdit.ExtraSelection] = (
+            self.oe_text_edit.extraSelections()
+        )
+
+        #: The current highlight start position
+        self._current_highlight_start: int | None = None
+        #: The current highlight length
+        self._current_highlight_length: int | None = None
+
+    @property
+    def is_highlighted(self) -> bool:
+        """
+        Check if the tokens in the sentence are highlighted.
+        """
+        return (
+            self._current_highlight_start is not None
+            and self._current_highlight_length is not None
+        )
+
+    def set_existing_selections(
+        self, selections: list[QTextEdit.ExtraSelection]
+    ) -> None:
+        """
+        Set the existing extra selections.
+        """
+        self.oe_text_edit.setExtraSelections(selections)
+        self.existing_selections = self.oe_text_edit.extraSelections()
+
+    def unhighlight(self) -> None:
+        """
+        Unhighlight the tokens in the sentence.
+        """
+        filtered_selections = [
+            selection
+            for selection in self.existing_selections
+            if not selection.format.property(self.HIGHLIGHT_PROPERTY)  # type: ignore[attr-defined]
+        ]
+        self.set_existing_selections(filtered_selections)
+        self.reset()
+
+    def reset(self) -> None:
+        """
+        Reset the current highlight to None.
+        """
+        self._current_highlight_start = None
+        self._current_highlight_length = None
+
+    def get_token_positions(
+        self, start_order: int, end_order: int
+    ) -> list[tuple[int, int]]:
+        """
+        Get the token positions in the sentence for the range of tokens.
+
+        A position in this case is a tuple of the start and end positions of the
+        token in the sentence.
+
+        Returns:
+            List of token positions in the sentence
+
+        """
+        # Build list of token positions
+        token_positions: list[tuple[int, int]] = []  # (start_pos, end_pos)
+        for order_idx in range(start_order, end_order + 1):
+            token = self.tokens_by_index.get(order_idx)
+            if token and token.id in self.token_positions:
+                token_positions.append(self.token_positions[token.id])
+        return token_positions
+
+    def highlight(
+        self,
+        start_order: int,
+        end_order: int | None = None,
+        color_name: str = "default",
+    ) -> None:
+        """
+        Highlight the token(s) in the sentence.
+
+        Args:
+            start_order: Starting token order_index (inclusive)
+
+        Keyword Args:
+            end_order: Ending token order_index (inclusive)
+            color_name: Color to use for highlighting. Defaults to "default".
+
+        """
+        assert color_name in self.COLORS, "Invalid color name"  # noqa: S101
+        color = self.COLORS[color_name]
+
+        if end_order is None:
+            end_order = start_order
+
+        assert start_order is not None, "Start order must be provided"  # noqa: S101
+        assert start_order <= end_order, (  # noqa: S101
+            "Start order must be less or equal to end order"
+        )
+        assert start_order >= 0, "Start order must be greater than 0"  # noqa: S101
+
+        # Clear our existing highlights
+        self.unhighlight()
+
+        if not self.tokens:
+            return
+
+        # Build list of token positions
+        token_positions = self.get_token_positions(start_order, end_order)
+
+        if not token_positions:
+            return
+
+        # Create highlights for all tokens in range
+        range_highlights = []
+        for token_start, token_end in token_positions:
+            cursor = QTextCursor(self.oe_text_edit.document())
+            cursor.setPosition(token_start)
+            cursor.setPosition(token_end, QTextCursor.MoveMode.KeepAnchor)
+
+            # Apply highlight format for selection
+            char_format = QTextCharFormat()
+            char_format.setBackground(color)
+            # Mark as selection highlight
+            char_format.setProperty(self.HIGHLIGHT_PROPERTY, True)  # noqa: FBT003
+
+            selection_highlight = QTextEdit.ExtraSelection()
+            selection_highlight.cursor = cursor  # type: ignore[attr-defined]
+            selection_highlight.format = char_format  # type: ignore[attr-defined]
+            range_highlights.append(selection_highlight)
+
+        # Combine existing selections with range highlights
+        all_selections = [*self.existing_selections, *range_highlights]
+        self.set_existing_selections(all_selections)
+
+        # Store range for clearing later
+        first_start = token_positions[0][0]
+        last_end = token_positions[-1][1]
+        self._current_highlight_start = first_start
+        self._current_highlight_length = last_end - first_start

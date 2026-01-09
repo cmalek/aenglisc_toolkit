@@ -109,23 +109,23 @@ class TestTokenSelectionRobustness:
         # Select token in card1
         token1 = card1.tokens[0]
         card1.selected_token_index = 0
-        card1._highlight_token_in_text(token1)
+        card1.span_highlighter.highlight(token1.order_index)
         card1.token_selected_for_details.emit(token1, card1.sentence, card1)
 
         assert card1.selected_token_index == 0
-        assert card1._current_highlight_start is not None
+        assert card1.span_highlighter.is_highlighted
 
         # Select token in card2
         token2 = card2.tokens[0]
         card2.selected_token_index = 0
-        card2._highlight_token_in_text(token2)
+        card2.span_highlighter.highlight(token2.order_index)
         card2.token_selected_for_details.emit(token2, card2.sentence, card2)
 
         # Card1 should be deselected
         assert card1.selected_token_index is None
-        assert card1._current_highlight_start is None
+        assert card1.span_highlighter.is_highlighted is False
 
         # Card2 should be selected
         assert card2.selected_token_index == 0
-        assert card2._current_highlight_start is not None
+        assert card2.span_highlighter.is_highlighted
 
