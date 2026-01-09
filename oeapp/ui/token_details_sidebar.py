@@ -412,9 +412,9 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
         self._current_idiom: Idiom | None = None
         self._current_sentence: Sentence | None = None
         self.field_renderer = FieldRenderer
-        self._setup_ui()
+        self.build()
 
-    def _setup_ui(self) -> None:
+    def build(self) -> None:
         """Set up the UI layout."""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(10, 10, 10, 10)
