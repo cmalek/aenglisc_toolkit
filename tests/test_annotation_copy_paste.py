@@ -346,7 +346,6 @@ class TestPasteAnnotation:
             "adjective_degree": None,
             "conjunction_type": None,
             "adverb_degree": None,
-            "uncertain": False,
             "modern_english_meaning": "new meaning",
             "root": None,
         }

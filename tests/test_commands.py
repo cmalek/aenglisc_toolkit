@@ -33,7 +33,9 @@ class TestCommandManager:
                 "number",
                 "case",
                 "declension",
+                "article_type",
                 "pronoun_type",
+                "pronoun_number",
                 "verb_class",
                 "verb_tense",
                 "verb_person",
@@ -41,7 +43,15 @@ class TestCommandManager:
                 "verb_aspect",
                 "verb_form",
                 "prep_case",
+                "adjective_inflection",
+                "adjective_degree",
+                "conjunction_type",
+                "adverb_degree",
+                "last_inferred_json",
+                "modern_english_meaning",
+                "root",
                 "confidence",
+                "updated_at",
             ]
         }
         after = before.copy()

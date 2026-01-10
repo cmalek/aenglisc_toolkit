@@ -202,32 +202,12 @@ class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
 
     def to_json(self) -> dict:
         """Serialize annotation to JSON-compatible dictionary."""
-        return {
-            "pos": self.pos,
-            "gender": self.gender,
-            "number": self.number,
-            "case": self.case,
-            "declension": self.declension,
-            "article_type": self.article_type,
-            "pronoun_type": self.pronoun_type,
-            "pronoun_number": self.pronoun_number,
-            "verb_class": self.verb_class,
-            "verb_tense": self.verb_tense,
-            "verb_person": self.verb_person,
-            "verb_mood": self.verb_mood,
-            "verb_aspect": self.verb_aspect,
-            "verb_form": self.verb_form,
-            "prep_case": self.prep_case,
-            "adjective_inflection": self.adjective_inflection,
-            "adjective_degree": self.adjective_degree,
-            "conjunction_type": self.conjunction_type,
-            "adverb_degree": self.adverb_degree,
-            "confidence": self.confidence,
-            "last_inferred_json": self.last_inferred_json,
-            "modern_english_meaning": self.modern_english_meaning,
-            "root": self.root,
-            "updated_at": to_utc_iso(self.updated_at),
+        data = {
+            column.name: getattr(self, column.name)
+            for column in self.__class__.__table__.columns
         }
+        data["updated_at"] = to_utc_iso(self.updated_at)
+        return data
 
     @classmethod
     def from_json(
@@ -237,17 +217,106 @@ class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
         idiom_id: int | None = None,
         commit: bool = True,  # noqa: FBT001, FBT002
     ) -> Annotation:
-        """Create an annotation from JSON import data."""
-        annotation = cls(
-            token_id=token_id,
-            idiom_id=idiom_id,
-            **cls._extract_base_fields_from_json(ann_data),
-        )
+        """
+        Create an annotation from JSON import data.
+
+        Args:
+            token_id: Token ID
+            ann_data: Annotation data
+            idiom_id: Idiom ID
+            commit: Whether to commit the annotation to the database
+
+        Returns:
+            Annotation
+
+        """
+        annotation = None
+        if token_id is not None and idiom_id is not None:
+            msg = "Either token_id or idiom_id must be provided, not both"
+            raise ValueError(msg)
+        if token_id is None and idiom_id is None:
+            msg = "Either token_id or idiom_id must be provided"
+            raise ValueError(msg)
+        if token_id is not None:
+            annotation = Annotation.get_by_token(token_id)
+        if annotation is None and idiom_id is not None:
+            annotation = Annotation.get_by_idiom(idiom_id)
+        if annotation is None:
+            annotation = cls(
+                token_id=token_id,
+                idiom_id=idiom_id,
+                **cls._extract_base_fields_from_json(ann_data),
+            )
+        else:
+            valid_fields = {column.name for column in cls.__table__.columns}
+            # Check for invalid fields in ann_data
+            for key in ann_data:
+                if key != "updated_at" and key not in valid_fields:
+                    msg = f"Invalid annotation field: {key}"
+                    raise ValueError(msg)
+
+            for key, value in cls._extract_base_fields_from_json(ann_data).items():
+                setattr(annotation, key, value)
         updated_at = from_utc_iso(ann_data.get("updated_at"))
         if updated_at:
             annotation.updated_at = updated_at
         annotation.save(commit=commit)
         return annotation
+
+    def from_annotation(
+        self,
+        annotation: Annotation,
+        commit: bool = True,  # noqa: FBT001, FBT002
+    ) -> Annotation:
+        """
+        Update or create an annotation from an existing annotation.
+
+        Args:
+            annotation: Existing annotation
+            commit: Whether to commit the annotation to the database
+
+        Returns:
+            Annotation
+
+        """
+        if annotation.token_id is not None and annotation.idiom_id is not None:
+            msg = "Either token_id or idiom_id must be provided, not both"
+            raise ValueError(msg)
+        if annotation.token_id is None and annotation.idiom_id is None:
+            msg = "Either token_id or idiom_id must be provided"
+            raise ValueError(msg)
+        if self.token_id is not None and self.token_id != annotation.token_id:
+            msg = "Token ID mismatch"
+            raise ValueError(msg)
+        if self.idiom_id is not None and self.idiom_id != annotation.idiom_id:
+            msg = "Idiom ID mismatch"
+            raise ValueError(msg)
+        self.pos = annotation.pos
+        self.gender = annotation.gender
+        self.number = annotation.number
+        self.case = annotation.case
+        self.declension = annotation.declension
+        self.article_type = annotation.article_type
+        self.pronoun_type = annotation.pronoun_type
+        self.pronoun_number = annotation.pronoun_number
+        self.verb_class = annotation.verb_class
+        self.verb_tense = annotation.verb_tense
+        self.verb_person = annotation.verb_person
+        self.verb_mood = annotation.verb_mood
+        self.verb_aspect = annotation.verb_aspect
+        self.verb_form = annotation.verb_form
+        self.prep_case = annotation.prep_case
+        self.adjective_inflection = annotation.adjective_inflection
+        self.adjective_degree = annotation.adjective_degree
+        self.conjunction_type = annotation.conjunction_type
+        self.adverb_degree = annotation.adverb_degree
+        self.confidence = annotation.confidence
+        self.last_inferred_json = annotation.last_inferred_json
+        self.modern_english_meaning = annotation.modern_english_meaning
+        self.root = annotation.root
+        if commit:
+            self.save()
+        return self
 
     @classmethod
     def _extract_base_fields_from_json(cls, ann_data: dict) -> dict:

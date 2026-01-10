@@ -339,8 +339,68 @@ class TestSentenceCard:
 
         # Verify it has the expected items
         expected_items = ["None", "Part of Speech", "Case", "Number", "Idiom"]
-        items = [card.highlighting_combo.itemText(i) for i in range(card.highlighting_combo.count())]
+        items = [
+            card.highlighting_combo.itemText(i)
+            for i in range(card.highlighting_combo.count())
+        ]
         assert items == expected_items
+
+    def test_save_annotation_updates_existing(self, db_session, qapp, mock_main_window):
+        """Test that _save_annotation correctly updates an existing annotation."""
+        project = create_test_project(db_session, name="Test", text="Se cyning")
+        sentence = project.sentences[0]
+        token = sentence.tokens[0]
+
+        # Ensure an existing annotation
+        existing = Annotation.get_by_token(token.id)
+        if not existing:
+            existing = Annotation(token_id=token.id, pos="V")
+            existing.save()
+        else:
+            existing.pos = "V"
+            existing.save()
+
+        card = SentenceCard(sentence, main_window=mock_main_window, parent=None)
+
+        # New annotation data
+        new_ann = Annotation(token_id=token.id, pos="N")
+
+        # Call private method _save_annotation
+        card._save_annotation(new_ann)
+
+        # Verify updated in DB
+        updated = Annotation.get_by_token(token.id)
+        assert updated.pos == "N"
+
+    def test_save_annotation_updates_existing_idiom(
+        self, db_session, qapp, mock_main_window
+    ):
+        """Test that _save_annotation correctly updates an existing idiom annotation."""
+        project = create_test_project(db_session, name="Test", text="Se cyning")
+        sentence = project.sentences[0]
+        token1 = sentence.tokens[0]
+        token2 = sentence.tokens[1]
+
+        idiom = Idiom(
+            sentence_id=sentence.id, start_token_id=token1.id, end_token_id=token2.id
+        )
+        idiom.save()
+
+        # Ensure an existing annotation
+        existing = Annotation(idiom_id=idiom.id, pos="V")
+        existing.save()
+
+        card = SentenceCard(sentence, main_window=mock_main_window, parent=None)
+
+        # New annotation data
+        new_ann = Annotation(idiom_id=idiom.id, pos="N")
+
+        # Call private method _save_annotation
+        card._save_annotation(new_ann)
+
+        # Verify updated in DB
+        updated = Annotation.get_by_idiom(idiom.id)
+        assert updated.pos == "N"
 
 
 class TestOldEnglishTextEditInternal:

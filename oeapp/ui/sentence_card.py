@@ -664,44 +664,10 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
             existing = Annotation.get_by_idiom(annotation.idiom_id)
 
         if existing:
-            self._update_existing_annotation(existing, annotation)
+            existing.from_annotation(annotation)
         else:
             # Insert new annotation
             annotation.save()
-
-    def _update_existing_annotation(
-        self, existing: Annotation, new_data: Annotation
-    ) -> None:
-        """
-        Update existing annotation with data from new_data.
-
-        Args:
-            existing: Existing annotation
-            new_data: New data to update the existing annotation with
-
-        """
-        existing.pos = new_data.pos
-        existing.gender = new_data.gender
-        existing.number = new_data.number
-        existing.case = new_data.case
-        existing.declension = new_data.declension
-        existing.pronoun_type = new_data.pronoun_type
-        existing.pronoun_number = new_data.pronoun_number
-        existing.verb_class = new_data.verb_class
-        existing.verb_tense = new_data.verb_tense
-        existing.verb_person = new_data.verb_person
-        existing.verb_mood = new_data.verb_mood
-        existing.verb_aspect = new_data.verb_aspect
-        existing.verb_form = new_data.verb_form
-        existing.prep_case = new_data.prep_case
-        existing.adverb_degree = new_data.adverb_degree
-        existing.adjective_inflection = new_data.adjective_inflection
-        existing.adjective_degree = new_data.adjective_degree
-        existing.conjunction_type = new_data.conjunction_type
-        existing.confidence = new_data.confidence
-        existing.modern_english_meaning = new_data.modern_english_meaning
-        existing.root = new_data.root
-        existing.save()
 
     def _get_annotation_state(self, annotation: Annotation) -> dict:
         """

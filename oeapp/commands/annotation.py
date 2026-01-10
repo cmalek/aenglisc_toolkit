@@ -22,34 +22,19 @@ class AnnotateTokenCommand(SessionMixin, Command):
     #: The idiom ID.
     idiom_id: int | None = None
 
-    def _update_annotation(self, annotation: Annotation, state: dict[str, Any]) -> None:
-        """Update an annotation with a new state."""
-        annotation.pos = state.get("pos")
-        annotation.gender = state.get("gender")
-        annotation.number = state.get("number")
-        annotation.case = state.get("case")
-        annotation.declension = state.get("declension")
-        annotation.article_type = state.get("article_type")
-        annotation.pronoun_type = state.get("pronoun_type")
-        annotation.pronoun_number = state.get("pronoun_number")
-        annotation.verb_class = state.get("verb_class")
-        annotation.verb_tense = state.get("verb_tense")
-        annotation.verb_person = state.get("verb_person")
-        annotation.verb_mood = state.get("verb_mood")
-        annotation.verb_aspect = state.get("verb_aspect")
-        annotation.verb_form = state.get("verb_form")
-        annotation.prep_case = state.get("prep_case")
-        annotation.adjective_inflection = state.get("adjective_inflection")
-        annotation.adjective_degree = state.get("adjective_degree")
-        annotation.conjunction_type = state.get("conjunction_type")
-        annotation.adverb_degree = state.get("adverb_degree")
-        annotation.confidence = state.get("confidence")
-        annotation.modern_english_meaning = state.get("modern_english_meaning")
-        annotation.root = state.get("root")
-        annotation.save()
+    @property
+    def annotation(self) -> Annotation | None:
+        """
+        Get the current annotation.
 
-    def _get_annotation(self) -> Annotation | None:
-        """Get the current annotation."""
+        IF :attr:`token_id` is not None, get the annotation by token ID.
+        IF :attr:`idiom_id` is not None, get the annotation by idiom ID.
+        If both are None, return None.
+
+        Returns:
+            Annotation or None if not found
+
+        """
         if self.token_id:
             return Annotation.get_by_token(self.token_id)
         if self.idiom_id:
@@ -57,22 +42,35 @@ class AnnotateTokenCommand(SessionMixin, Command):
         return None
 
     def execute(self) -> bool:
-        """Execute annotation update."""
+        """
+        Execute annotation update.
+
+        Update the annotation with the new data.
+
+        If the annotation does not exist, create a new one with the given token
+        or idiom ID, and update the annotation with the new data.
+
+        Returns:
+            True if the annotation was updated, False otherwise
+
+        """
         session = self._get_session()
-        annotation = self._get_annotation()
+        annotation = self.annotation
         if annotation is None:
             annotation = Annotation(token_id=self.token_id, idiom_id=self.idiom_id)
             session.add(annotation)
             session.flush()
-        self._update_annotation(annotation, self.after)
+        annotation.from_json(annotation.token_id, self.after, annotation.idiom_id)
         return True
 
     def undo(self) -> bool:
-        """Undo annotation update."""
-        annotation = self._get_annotation()
+        """
+        Undo annotation update.
+        """
+        annotation = self.annotation
         if annotation is None:
             return False
-        self._update_annotation(annotation, self.before)
+        annotation.from_json(annotation.token_id, self.before, annotation.idiom_id)
         return True
 
     def get_description(self) -> str:

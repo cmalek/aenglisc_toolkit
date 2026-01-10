@@ -530,30 +530,7 @@ class MainWindowActions:
 
         # Extract annotation fields
         annotation = token.annotation
-        self.application_state[COPIED_ANNOTATION] = {
-            "pos": annotation.pos,
-            "gender": annotation.gender,
-            "number": annotation.number,
-            "case": annotation.case,
-            "declension": annotation.declension,
-            "article_type": annotation.article_type,
-            "pronoun_type": annotation.pronoun_type,
-            "pronoun_number": annotation.pronoun_number,
-            "verb_class": annotation.verb_class,
-            "verb_tense": annotation.verb_tense,
-            "verb_person": annotation.verb_person,
-            "verb_mood": annotation.verb_mood,
-            "verb_aspect": annotation.verb_aspect,
-            "verb_form": annotation.verb_form,
-            "prep_case": annotation.prep_case,
-            "adjective_inflection": annotation.adjective_inflection,
-            "adjective_degree": annotation.adjective_degree,
-            "conjunction_type": annotation.conjunction_type,
-            "adverb_degree": annotation.adverb_degree,
-            "modern_english_meaning": annotation.modern_english_meaning,
-            "root": annotation.root,
-        }
-
+        self.application_state[COPIED_ANNOTATION] = annotation.to_json()
         self.messages.show_message("Annotation copied")
         return True
 
@@ -590,29 +567,7 @@ class MainWindowActions:
         before_state: dict[str, Any] = {}
         if token.annotation:
             annotation = token.annotation
-            before_state = {
-                "pos": annotation.pos,
-                "gender": annotation.gender,
-                "number": annotation.number,
-                "case": annotation.case,
-                "declension": annotation.declension,
-                "article_type": annotation.article_type,
-                "pronoun_type": annotation.pronoun_type,
-                "pronoun_number": annotation.pronoun_number,
-                "verb_class": annotation.verb_class,
-                "verb_tense": annotation.verb_tense,
-                "verb_person": annotation.verb_person,
-                "verb_mood": annotation.verb_mood,
-                "verb_aspect": annotation.verb_aspect,
-                "verb_form": annotation.verb_form,
-                "prep_case": annotation.prep_case,
-                "adjective_inflection": annotation.adjective_inflection,
-                "adjective_degree": annotation.adjective_degree,
-                "conjunction_type": annotation.conjunction_type,
-                "adverb_degree": annotation.adverb_degree,
-                "modern_english_meaning": annotation.modern_english_meaning,
-                "root": annotation.root,
-            }
+            before_state = annotation.to_json()
 
         # Create and execute the command
         if not self.command_manager:
