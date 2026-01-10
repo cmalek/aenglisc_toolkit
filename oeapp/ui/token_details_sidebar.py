@@ -752,3 +752,25 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
             self.content_layout.addWidget(no_ann_label)
 
         self.content_layout.addStretch()
+
+    # -------------------------------------------------------------------------
+    # Event handlers
+    # -------------------------------------------------------------------------
+
+    def _on_token_deselected(self) -> None:
+        """
+        Handle token deselection.
+        """
+        self.show_empty()
+
+    def _on_token_selected(self, token: Token) -> None:
+        """
+        Handle token selection.
+        """
+        self.render_token(token, token.sentence)
+
+    def _on_idiom_selected(self, idiom: Idiom) -> None:
+        """
+        Handle idiom selection.
+        """
+        self.render_idiom(idiom, idiom.sentence)

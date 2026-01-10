@@ -5,11 +5,11 @@ from unittest.mock import patch
 
 from oeapp.models.annotation import Annotation
 from oeapp.ui.highlighting import (
-    POSHighligherCommand,
-    CaseHighligherCommand,
-    NumberHighligherCommand,
-    IdiomHighligherCommand,
-    NoneHighligherCommand,
+    POSHighlighterCommand,
+    CaseHighlighterCommand,
+    NumberHighlighterCommand,
+    IdiomHighlighterCommand,
+    NoneHighlighterCommand,
 )
 from oeapp.ui.sentence_card import SentenceCard
 from oeapp.ui.dialogs.sentence_filters import SentenceFilterDialog
@@ -35,7 +35,7 @@ class TestHighlighting:
         return card.sentence_highlighter
 
     def test_highlighter_initialization(self, highlighter, card):
-        """Test that SentenceHighligher initializes correctly."""
+        """Test that SentenceHighlighter initializes correctly."""
         assert highlighter.card == card
         assert len(highlighter.tokens) == 3
         assert highlighter.active_command is None
@@ -59,7 +59,7 @@ class TestHighlighting:
         with qtbot.waitSignal(combo.currentIndexChanged):
             combo.setCurrentIndex(1)
 
-        assert isinstance(highlighter.active_command, POSHighligherCommand)
+        assert isinstance(highlighter.active_command, POSHighlighterCommand)
         pos_dialog = highlighter.active_command.dialog
         assert pos_dialog is not None
         assert pos_dialog.isVisible()
@@ -68,13 +68,13 @@ class TestHighlighting:
         with qtbot.waitSignal(combo.currentIndexChanged):
             combo.setCurrentIndex(0)
 
-        assert isinstance(highlighter.active_command, NoneHighligherCommand)
+        assert isinstance(highlighter.active_command, NoneHighlighterCommand)
         # Previous dialog should be hidden
         assert not pos_dialog.isVisible()
 
     def test_pos_highlighter_get_value(self, highlighter):
-        """Test POSHighligherCommand value extraction."""
-        command = POSHighligherCommand(highlighter)
+        """Test POSHighlighterCommand value extraction."""
+        command = POSHighlighterCommand(highlighter)
         annotation = Annotation(pos="N")
         assert command.get_value(annotation) == "N"
 
@@ -82,8 +82,8 @@ class TestHighlighting:
         assert command.get_value(annotation) == "V"
 
     def test_case_highlighter_get_value(self, highlighter):
-        """Test CaseHighligherCommand value extraction."""
-        command = CaseHighligherCommand(highlighter)
+        """Test CaseHighlighterCommand value extraction."""
+        command = CaseHighlighterCommand(highlighter)
 
         # Noun with nominative case
         annotation = Annotation(pos="N", case="n")
@@ -98,8 +98,8 @@ class TestHighlighting:
         assert command.get_value(annotation) is None
 
     def test_number_highlighter_get_value(self, highlighter):
-        """Test NumberHighligherCommand value extraction."""
-        command = NumberHighligherCommand(highlighter)
+        """Test NumberHighlighterCommand value extraction."""
+        command = NumberHighlighterCommand(highlighter)
 
         # Noun with singular
         annotation = Annotation(pos="N", number="s")
@@ -138,7 +138,7 @@ class TestHighlighting:
     def test_highlight_application(self, highlighter, card, db_session):
         """Test that highlight() actually applies extra selections to the text edit."""
         # Setup tokens with annotations
-        tokens = card.tokens
+        tokens = card.oe_text_edit.tokens
         # Token ids are assigned when saved
         db_session.add_all(tokens)
         db_session.commit()
@@ -163,7 +163,7 @@ class TestHighlighting:
         """Test idiom highlighting logic."""
         from oeapp.models.idiom import Idiom
 
-        tokens = card.tokens
+        tokens = card.oe_text_edit.tokens
         db_session.add_all(tokens)
         db_session.commit()
 
@@ -177,7 +177,7 @@ class TestHighlighting:
         card.idioms = [idiom]
         highlighter.idioms = [idiom]
 
-        command = IdiomHighligherCommand(highlighter)
+        command = IdiomHighlighterCommand(highlighter)
 
         # Mock set_highlights to see if it gets called with correct number of selections
         with patch.object(highlighter, 'set_highlights') as mock_set:
@@ -213,7 +213,7 @@ class TestHighlighting:
     def test_filter_dialog_interaction(self, highlighter, card, db_session, qtbot):
         """Test that toggling a checkbox in the filter dialog updates highlights."""
         # Setup tokens with annotations
-        tokens = card.tokens
+        tokens = card.oe_text_edit.tokens
         db_session.add_all(tokens)
         db_session.commit()
 
@@ -252,7 +252,7 @@ class TestHighlighting:
     def test_number_highlighting_plural_verb(self, highlighter, card, db_session):
         """Test that plural verbs are correctly highlighted (handling p/pl discrepancy)."""
         # Setup token with plural verb
-        tokens = card.tokens
+        tokens = card.oe_text_edit.tokens
         db_session.add_all(tokens)
         db_session.commit()
 
@@ -280,19 +280,19 @@ class TestHighlighting:
 
 class TestSingleInstanceHighlighter:
     @pytest.fixture
-    def card(self, db_session, qapp, qtbot):
+    def card(self, db_session, qapp, qtbot, mock_main_window):
         project = create_test_project(db_session, name="Test Single Highlighting", text="Se cyning fēoll.")
         sentence = project.sentences[0]
-        card = SentenceCard(sentence, parent=None)
+        card = SentenceCard(sentence, main_window=mock_main_window, parent=None)
         qtbot.addWidget(card)
         return card
 
     @pytest.fixture
     def span_highlighter(self, card):
-        return card.span_highlighter
+        return card.oe_text_edit.span_highlighter
 
     def test_initialization(self, span_highlighter, card):
-        """Test that SingleInstanceHighligher initializes correctly."""
+        """Test that SingleInstanceHighlighter initializes correctly."""
         assert span_highlighter.card == card
         assert span_highlighter.oe_text_edit == card.oe_text_edit
         assert len(span_highlighter.tokens) == 3

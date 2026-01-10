@@ -69,6 +69,10 @@ class AnnotationTableWidget(QTableWidget):
             widget = widget.parent()
         return None
 
+    # -------------------------------------------------------------------------
+    # Event handlers
+    # -------------------------------------------------------------------------
+
     def keyPressEvent(self, event: QKeyEvent) -> None:  # noqa: N802
         """
         Override keyPressEvent to intercept "Shift+A" key and emit
@@ -237,48 +241,6 @@ class TokenTable(QWidget):
             self.table.setUpdatesEnabled(True)
             self.table.viewport().update()  # optional, to force a repaint
 
-    def _on_item_double_clicked(self, item: QTableWidgetItem) -> None:
-        """
-        Handle double-click on table item.
-
-        - If the clicked item is not a token, do nothing.
-        - If the clicked item is a token, emit the token_selected signal.
-
-        Args:
-            item: Clicked table item
-
-        """
-        row = item.row()
-        # If the row is valid, emit the token_selected signal.
-        if 0 <= row < len(self.tokens):
-            token = self.tokens[row]
-            self.annotation_requested.emit(token)
-
-    def _on_selection_changed(self) -> None:
-        """
-        Handle selection change.
-
-        - If the selected row is not a token, do nothing.
-        - If the selected row is a token, get the token and emit the
-          token_selected signal.
-
-        """
-        # Get the current row of the table.
-        row = self.current_row
-        if 0 <= row < len(self.tokens):
-            token = self.tokens[row]
-            self.token_selected.emit(token)
-
-    def _on_annotation_key_pressed(self) -> None:
-        """
-        Handle "A" key press on the table widget.
-
-        Emits annotation_requested signal if a token is selected.
-        """
-        token = self.get_selected_token()
-        if token:
-            self.annotation_requested.emit(token)
-
     def set_tokens(self, tokens: list[Token]) -> None:
         """
         Set tokens and annotations to display.
@@ -436,6 +398,69 @@ class TokenTable(QWidget):
         """
         if self.tokens:
             self.set_tokens(self.tokens)
+
+    # -------------------------------------------------------------------------
+    # Event handlers
+    # -------------------------------------------------------------------------
+
+    def _on_item_double_clicked(self, item: QTableWidgetItem) -> None:
+        """
+        Handle double-click on table item.
+
+        - If the clicked item is not a token, do nothing.
+        - If the clicked item is a token, emit the token_selected signal.
+
+        Args:
+            item: Clicked table item
+
+        """
+        row = item.row()
+        # If the row is valid, emit the token_selected signal.
+        if 0 <= row < len(self.tokens):
+            token = self.tokens[row]
+            self.annotation_requested.emit(token)
+
+    def _on_token_selected(self, token: Token) -> None:
+        """
+        Select a token by order index, if the order index is valid.  If the
+        order index is not valid, do nothing.
+
+        Args:
+            token: Token to select
+
+        """
+        self.select_token(token.order_index)
+
+    def _on_token_deselected(self) -> None:
+        """
+        Handle token deselection.
+        """
+        self.table.clearSelection()
+
+    def _on_selection_changed(self) -> None:
+        """
+        Handle selection change.
+
+        - If the selected row is not a token, do nothing.
+        - If the selected row is a token, get the token and emit the
+          token_selected signal.
+
+        """
+        # Get the current row of the table.
+        row = self.current_row
+        if 0 <= row < len(self.tokens):
+            token = self.tokens[row]
+            self.token_selected.emit(token)
+
+    def _on_annotation_key_pressed(self) -> None:
+        """
+        Handle "A" key press on the table widget.
+
+        Emits annotation_requested signal if a token is selected.
+        """
+        token = self.get_selected_token()
+        if token:
+            self.annotation_requested.emit(token)
 
     def showEvent(self, event: QShowEvent) -> None:  # noqa: N802
         """

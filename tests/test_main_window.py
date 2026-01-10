@@ -111,33 +111,27 @@ class TestMainWindowActions:
         # Mock a selected sentence card and token
         mock_token = MagicMock()
         mock_token.annotation = MagicMock(
-            pos="noun",
-            gender="masculine",
-            number="singular",
-            case="nominative",
-            declension=None,
-            article_type=None,
-            pronoun_type=None,
-            pronoun_number=None,
-            verb_class=None,
-            verb_tense=None,
-            verb_person=None,
-            verb_mood=None,
-            verb_aspect=None,
-            verb_form=None,
-            prep_case=None,
-            adjective_inflection=None,
-            adjective_degree=None,
-            conjunction_type=None,
-            adverb_degree=None,
+            pos="N",
+            gender="m",
+            number="s",
+            case="n",
             modern_english_meaning="king",
             root="cyning"
         )
+        # Configure mock_token.annotation.to_json to return a dict
+        mock_token.annotation.to_json.return_value = {
+            "pos": "N",
+            "gender": "m",
+            "number": "s",
+            "case": "n",
+            "modern_english_meaning": "king",
+            "root": "cyning"
+        }
 
         mock_card = MagicMock()
-        mock_card.selected_token_index = 0
-        mock_card.tokens = [mock_token]
-        mock_card.tokens_by_index = {0: mock_token}
+        mock_card.oe_text_edit = MagicMock()
+        mock_card.oe_text_edit.current_token_index.return_value = 0
+        mock_card.oe_text_edit.get_token.return_value = mock_token
 
         state[SELECTED_SENTENCE_CARD] = mock_card
 
@@ -146,7 +140,7 @@ class TestMainWindowActions:
 
         assert result is True
         assert COPIED_ANNOTATION in state
-        assert state[COPIED_ANNOTATION]["pos"] == "noun"
+        assert state[COPIED_ANNOTATION]["pos"] == "N"
         assert state[COPIED_ANNOTATION]["modern_english_meaning"] == "king"
 
     @patch("oeapp.ui.main_window.AnnotateTokenCommand")
@@ -156,7 +150,7 @@ class TestMainWindowActions:
         state = main_window.application_state
 
         # Setup copied annotation in state
-        copied_data = {"pos": "verb", "root": "gangan"}
+        copied_data = {"pos": "V", "root": "gangan"}
         state[COPIED_ANNOTATION] = copied_data
 
         # Mock a selected token
@@ -165,9 +159,9 @@ class TestMainWindowActions:
         mock_token.annotation = None
 
         mock_card = MagicMock()
-        mock_card.selected_token_index = 0
-        mock_card.tokens = [mock_token]
-        mock_card.tokens_by_index = {0: mock_token}
+        mock_card.oe_text_edit = MagicMock()
+        mock_card.oe_text_edit.current_token_index.return_value = 0
+        mock_card.oe_text_edit.get_token.return_value = mock_token
         mock_card.sentence = MagicMock()
 
         state[SELECTED_SENTENCE_CARD] = mock_card
@@ -176,7 +170,9 @@ class TestMainWindowActions:
         state.session = MagicMock()
 
         # Trigger paste
-        result = actions.paste_annotation()
+        # We need to mock part_of_speech rendering to avoid KeyError in sidebar
+        with patch.object(main_window.token_details_sidebar, 'render_token'):
+            result = actions.paste_annotation()
 
         assert result is True
         mock_command.assert_called_once()

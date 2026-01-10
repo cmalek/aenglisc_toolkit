@@ -17,7 +17,7 @@ from oeapp.ui.mixins import AnnotationLookupsMixin
 if TYPE_CHECKING:
     from PySide6.QtGui import QColor
 
-    from oeapp.ui.highlighting import HighligherCommandBase
+    from oeapp.ui.highlighting import HighlighterCommandBase
 
 
 class SentenceFilterDialog(AnnotationLookupsMixin, QDialog):
@@ -64,7 +64,7 @@ class SentenceFilterDialog(AnnotationLookupsMixin, QDialog):
 
         """
         super().__init__(parent)
-        self.command: HighligherCommandBase | None = None
+        self.command: HighlighterCommandBase | None = None
         self.checkboxes: dict[str, QCheckBox] = {}
         self.filter_selection: set[str] = set()
         self.reset_filter_selection()

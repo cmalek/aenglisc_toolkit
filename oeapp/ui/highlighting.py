@@ -32,13 +32,15 @@ class SelectTokensMixin:
         #: The sentence card
         self.card = card
         #: The tokens in the sentence
-        self.tokens: list[Token] = card.tokens
+        self.tokens: list[Token] = card.oe_text_edit.tokens
         #: The Old English text edit
         self.oe_text_edit: QTextEdit = card.oe_text_edit
         #: The token positions in the sentence
-        self.token_positions: dict[int, tuple[int, int]] = card._token_positions
+        self.token_positions: dict[int, tuple[int, int]] = (
+            card.oe_text_edit.token_to_position
+        )
         #: The tokens by index
-        self.tokens_by_index: dict[int, Token] = card.tokens_by_index
+        self.tokens_by_index: dict[int, Token] = card.oe_text_edit.tokens_by_index
 
     def get_token_positions(
         self, start_order: int, end_order: int
@@ -127,14 +129,14 @@ class SelectTokensMixin:
         return extra_selection
 
 
-class HighligherCommandBase(AnnotationLookupsMixin, SelectTokensMixin):
+class HighlighterCommandBase(AnnotationLookupsMixin, SelectTokensMixin):
     """
     Base class for highlighting tokens in the Old English text edit.  This is
     used as the base class for the various highlighting modes: POS, Case,
     Number, and Idioms.
 
     Subclasses of this base class are used by
-    :class:`~oeapp.ui.highlighting.WholeSentenceHighligher` to highlight tokens
+    :class:`~oeapp.ui.highlighting.WholeSentenceHighlighter` to highlight tokens
     based on annotation data in the sentence based on the active command.
 
     Args:
@@ -154,14 +156,14 @@ class HighligherCommandBase(AnnotationLookupsMixin, SelectTokensMixin):
     #: Dialog class for filtering tokens (if any)
     FILTER_DIALOG_CLASS: ClassVar[type[SentenceFilterDialog] | None] = None
 
-    def __init__(self, highligher: WholeSentenceHighligher):
-        super().__init__(highligher.card)
+    def __init__(self, highlighter: WholeSentenceHighlighter):
+        super().__init__(cast("SentenceCard", highlighter.card))
         #: The highlighter
-        self.highligher = highligher
+        self.highlighter = highlighter
         #: The idioms in the sentence
-        self.idioms: list[Idiom] = highligher.idioms
+        self.idioms: list[Idiom] = highlighter.idioms
         #: The annotations for the tokens
-        self.annotations: dict[int, Annotation | None] = highligher.annotations
+        self.annotations: dict[int, Annotation | None] = highlighter.annotations
         #: The dialog instance for filtering tokens
         self.dialog: SentenceFilterDialog | None = None
 
@@ -192,13 +194,13 @@ class HighligherCommandBase(AnnotationLookupsMixin, SelectTokensMixin):
             self.dialog = self.FILTER_DIALOG_CLASS(parent=self.card)
             self.dialog.command = self
             # Restore selection if we have one saved
-            if self.highligher.active_index in self.highligher.item_selections:
+            if self.highlighter.active_index in self.highlighter.item_selections:
                 self.dialog.set_selected_items(
-                    self.highligher.item_selections[self.highligher.active_index]
+                    self.highlighter.item_selections[self.highlighter.active_index]
                 )
             self.dialog.selection_changed.connect(self._on_filter_changed)
             self.dialog.dialog_closed.connect(self._on_filter_dialog_closed)
-            self.dialog.dialog_closed.connect(self.highligher._on_filter_dialog_closed)
+            self.dialog.dialog_closed.connect(self.highlighter._on_filter_dialog_closed)
         self.dialog.show()
 
     def hide_filter_dialog(self) -> None:
@@ -218,7 +220,7 @@ class HighligherCommandBase(AnnotationLookupsMixin, SelectTokensMixin):
         else:
             colors = cast("dict[str | None, QColor]", self.COLORS)
         self.unhighlight()
-        text = self.highligher.get_oe_text()
+        text = self.highlighter.get_oe_text()
         if not text or not self.tokens:
             return
 
@@ -244,7 +246,7 @@ class HighligherCommandBase(AnnotationLookupsMixin, SelectTokensMixin):
                 if selection := self.select_tokens(token, color):
                     extra_selections.append(selection)
 
-        self.highligher.set_highlights(extra_selections)
+        self.highlighter.set_highlights(extra_selections)
 
     def get_value(self, annotation: Annotation) -> str | None:
         """
@@ -268,7 +270,7 @@ class HighligherCommandBase(AnnotationLookupsMixin, SelectTokensMixin):
         """
         Unhighlight the tokens for the command.
         """
-        self.highligher.unhighlight()
+        self.highlighter.unhighlight()
 
     # Event handlers
 
@@ -289,7 +291,7 @@ class HighligherCommandBase(AnnotationLookupsMixin, SelectTokensMixin):
         self.unhighlight()
 
 
-class NoneHighlighterCommand(HighligherCommandBase):
+class NoneHighlighterCommand(HighlighterCommandBase):
     """
     Highlighter for no highlighting.  This is the default highlighting mode.
     """
@@ -303,7 +305,7 @@ class NoneHighlighterCommand(HighligherCommandBase):
         self.unhighlight()
 
 
-class POSHighlighterCommand(HighligherCommandBase):
+class POSHighlighterCommand(HighlighterCommandBase):
     """
     Highlighter command for POS highlighting.
     """
@@ -332,7 +334,7 @@ class POSHighlighterCommand(HighligherCommandBase):
         return annotation.pos
 
 
-class CaseHighlighterCommand(HighligherCommandBase):
+class CaseHighlighterCommand(HighlighterCommandBase):
     """
     Highlighter for highlighting cases in the Old English text edit.
     """
@@ -375,7 +377,7 @@ class CaseHighlighterCommand(HighligherCommandBase):
         return annotation.prep_case if pos == "E" else annotation.case
 
 
-class NumberHighlighterCommand(HighligherCommandBase):
+class NumberHighlighterCommand(HighlighterCommandBase):
     """
     Highlighter for number highlighting in the Old English text edit:
     singular, dual, and plural.
@@ -418,7 +420,7 @@ class NumberHighlighterCommand(HighligherCommandBase):
         return annotation.number
 
 
-class IdiomHighlighterCommand(HighligherCommandBase):
+class IdiomHighlighterCommand(HighlighterCommandBase):
     """
     Highlighter for idiom highlighting in the Old English text edit.
 
@@ -438,14 +440,14 @@ class IdiomHighlighterCommand(HighligherCommandBase):
 
         Note:
             Because we're highlighting a and specifically looking at idioms, we
-            can't use :meth:`HighligherCommandBase.highlight` because it only
+            can't use :meth:`HighlighterCommandBase.highlight` because it only
             highlights individual tokens.  Thus we completely override the
             method.
 
         """
         color = cast("QColor", self.COLORS)
         self.unhighlight()
-        text = self.highligher.get_oe_text()
+        text = self.highlighter.get_oe_text()
         if not text or not self.tokens or not self.idioms:
             return
 
@@ -461,16 +463,16 @@ class IdiomHighlighterCommand(HighligherCommandBase):
                     if selection:
                         extra_selections.append(selection)
 
-        self.highligher.set_highlights(extra_selections)
+        self.highlighter.set_highlights(extra_selections)
 
 
-class WholeSentenceHighligher:
+class WholeSentenceHighlighter:
     """
     Highlighter for a sentence for the highlighting combo box.
     """
 
     #: Mapping of highlighting combo box index to highlighter command class
-    HIGHLIGHTERS: ClassVar[dict[int, type[HighligherCommandBase]]] = {
+    HIGHLIGHTERS: ClassVar[dict[int, type[HighlighterCommandBase]]] = {
         0: NoneHighlighterCommand,
         1: POSHighlighterCommand,
         2: CaseHighlighterCommand,
@@ -478,17 +480,17 @@ class WholeSentenceHighligher:
         4: IdiomHighlighterCommand,
     }
 
-    def __init__(self, card: SentenceCard):
+    def __init__(self) -> None:
         #: The sentence card
-        self.card = card
+        self.card: SentenceCard | None = None
         #: The tokens in the sentence
-        self.tokens: list[Token] = card.tokens
+        self.tokens: list[Token] = []
         #: The idioms in the sentence
-        self.idioms: list[Idiom] = card.idioms
+        self.idioms: list[Idiom] = []
         #: The annotations for the tokens
-        self.annotations: dict[int, Annotation | None] = card.annotations
+        self.annotations: dict[int, Annotation | None] = {}
         #: The active command
-        self.active_command: HighligherCommandBase | None = None
+        self.active_command: HighlighterCommandBase | None = None
         #: The index of the active command
         self.active_index: int = 0
         #: The highlighter combo box
@@ -499,6 +501,23 @@ class WholeSentenceHighligher:
             for idx, cmd in self.HIGHLIGHTERS.items()
             if cmd.FILTER_DIALOG_CLASS is not None
         }
+
+    @property
+    def sentence_card(self) -> SentenceCard | None:
+        """
+        Get the Old English text edit for the sentence card.
+        """
+        return self.card
+
+    @sentence_card.setter
+    def sentence_card(self, value: SentenceCard) -> None:
+        """
+        Set the sentence card for the sentence highlighter.
+        """
+        self.card = value
+        self.tokens = value.oe_text_edit.tokens
+        self.idioms = value.oe_text_edit.idioms
+        self.annotations = value.oe_text_edit.annotations
 
     def hide_filter_dialog(self) -> None:
         """
@@ -533,20 +552,34 @@ class WholeSentenceHighligher:
 
     def get_oe_text(self) -> str:
         """
-        Get the Old English text from our sentence card.
+        Get the live Old English text from our sentence card.
         """
-        return self.card.oe_text_edit.toPlainText()
+        assert self.card, "Sentence card is required"  # noqa: S101
+        return self.card.oe_text_edit.live_text
 
     def unhighlight(self) -> None:
         """
         Clear all highlights in our associated sentence card's OE text edit.
         """
+        assert self.card, "Sentence card is required"  # noqa: S101
         assert self.highlighting_combo, (  # noqa: S101
             "You must build the highlighting combo box before calling clear_highlights"
         )
         # Block signals temporarily to avoid triggering change signal
         self.highlighting_combo.blockSignals(True)  # noqa: FBT003
         self.card.oe_text_edit.setExtraSelections([])
+        self.highlighting_combo.blockSignals(False)  # noqa: FBT003
+
+    def clear_active_command(self) -> None:
+        """
+        Clear the active command.
+        """
+        assert self.highlighting_combo, (  # noqa: S101
+            "You must build the highlighting combo box before calling "
+            "clear_active_command"
+        )
+        self.highlighting_combo.blockSignals(True)  # noqa: FBT003
+        self.highlighting_combo.setCurrentIndex(0)
         self.highlighting_combo.blockSignals(False)  # noqa: FBT003
 
     def set_highlights(self, extra_selections: list[QTextEdit.ExtraSelection]) -> None:
@@ -557,6 +590,7 @@ class WholeSentenceHighligher:
             extra_selections: List of extra selections to set
 
         """
+        assert self.card, "Sentence card is required"  # noqa: S101
         self.card.oe_text_edit.setExtraSelections(extra_selections)
 
     def highlight(self) -> None:
@@ -612,10 +646,11 @@ class WholeSentenceHighligher:
         # Set the active command and show the filter dialog (if any)
         self.active_index = index
         self.active_command = cast(
-            "HighligherCommandBase", self.HIGHLIGHTERS[index](self)
+            "HighlighterCommandBase", self.HIGHLIGHTERS[index](self)
         )
-        self.active_command.highlight()
-        self.active_command.show_filter_dialog()
+        if self.active_command:
+            self.active_command.highlight()
+            self.active_command.show_filter_dialog()
 
     def _on_filter_dialog_closed(self) -> None:
         """
@@ -638,7 +673,7 @@ class WholeSentenceHighligher:
         self.highlighting_combo.blockSignals(False)  # noqa: FBT003
 
 
-class SingleInstanceHighligher(SelectTokensMixin):
+class SingleInstanceHighlighter(SelectTokensMixin):
     """
     Highlighter for a a kind of highlight that can only appear once in the
     sentence.
@@ -748,7 +783,6 @@ class SingleInstanceHighligher(SelectTokensMixin):
 
         # Build list of token positions
         token_positions = self.get_token_positions(start_order, end_order)
-
         if not token_positions:
             return
 

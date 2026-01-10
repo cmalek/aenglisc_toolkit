@@ -321,8 +321,8 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         # We need access to all tokens in the sentence
         # Assuming parent is SentenceCard
         parent = self.parent()
-        if hasattr(parent, "tokens"):
-            for token in parent.tokens:
+        if hasattr(parent, "oe_text_edit"):
+            for token in parent.oe_text_edit.tokens:
                 if start_order <= token.order_index <= end_order:
                     btn = QPushButton(token.surface)
                     btn.setFlat(True)

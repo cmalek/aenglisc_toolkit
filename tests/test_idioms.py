@@ -129,13 +129,13 @@ def test_idiom_selection_ui(qtbot, db_session, sentence, mock_main_window):
     qtbot.addWidget(card)
 
     # Simulate Cmd+Click on first token
-    card._handle_idiom_selection_click(0)
-    assert card._selected_token_range == (0, 0)
+    card.oe_text_edit.selector.idiom_selection(0)
+    assert card.oe_text_edit.current_range() == (0, 0)
 
     # Simulate Cmd+Click on third token
-    card._handle_idiom_selection_click(2)
-    assert card._selected_token_range == (0, 2)
-    assert card.selected_token_index is None
+    card.oe_text_edit.selector.idiom_selection(2)
+    assert card.oe_text_edit.current_range() == (0, 2)
+    assert card.oe_text_edit.current_token_index() == 0 # start of idiom
 
 @pytest.mark.qt_no_exception_capture
 def test_idiom_modal_navigation(qtbot, db_session, sentence, mock_main_window):

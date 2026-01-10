@@ -1,6 +1,7 @@
 """Unit tests for AnnotationModal using pytest-qt and real database."""
 
 import pytest
+from unittest.mock import MagicMock
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication, QMessageBox, QPushButton, QWidget
 
@@ -199,7 +200,8 @@ class TestAnnotationModal:
         class DummySentenceCard(QWidget):
             def __init__(self, tokens):
                 super().__init__()
-                self.tokens = tokens
+                self.oe_text_edit = MagicMock()
+                self.oe_text_edit.tokens = tokens
 
         dummy_parent = DummySentenceCard(tokens)
         modal = AnnotationModal(idiom=idiom, annotation=annotation, parent=dummy_parent)

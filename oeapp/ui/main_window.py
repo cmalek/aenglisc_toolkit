@@ -117,7 +117,7 @@ class MainWindow(QMainWindow):
         - Setup global shortcuts.
 
         """
-        self.main_window()
+        self.build_main_window()
         # Create the project UI.  This has to be done after the main window is
         # built because various widgets need to exist in the main window so that
         # the project UI can access them.
@@ -125,22 +125,22 @@ class MainWindow(QMainWindow):
         MainMenu(self).build()
         GlobalShortcuts(self).execute()
 
-    def main_window(self) -> None:
+    def build_main_window(self) -> None:
         """
         Set up the main window.
         """
         # Create the QApplicaiton
-        self.application()
+        self.create_application()
         # Create a two-column layout for the main window.
-        central_layout = self.main_container()
+        central_layout = self.build_main_container()
         # Create the main content area.  This is a scroll area that contains the
         # sentence cards.
-        self.main_column = self.main_content_area()
-        self.content_layout = self.main_content(self.main_column, central_layout)
-        self.token_details_sidebar = self.sidebar_area(central_layout)
+        self.main_column = self.build_main_content_area()
+        self.content_layout = self.build_main_content(self.main_column, central_layout)
+        self.token_details_sidebar = self.build_sidebar_area(central_layout)
         self.show_empty(self.content_layout)
 
-    def application(self) -> None:
+    def create_application(self) -> None:
         """
         Build the QApplication window.
         """
@@ -164,7 +164,7 @@ class MainWindow(QMainWindow):
         welcome_label.setStyleSheet("font-size: 14pt; color: #666; padding: 50px;")
         layout.addWidget(welcome_label)
 
-    def main_container(self) -> QHBoxLayout:
+    def build_main_container(self) -> QHBoxLayout:
         """
         Build the content area widget.  This is where the columns are located.
 
@@ -181,7 +181,7 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central_widget)
         return central_layout
 
-    def main_content_area(self) -> QScrollArea:
+    def build_main_content_area(self) -> QScrollArea:
         """
         Build the main content area scroll area.  This is where the sentence
         cards are located, and takes up the majority of the main window.
@@ -196,7 +196,9 @@ class MainWindow(QMainWindow):
         scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         return scroll_area
 
-    def main_content(self, container: QScrollArea, layout: QHBoxLayout) -> QVBoxLayout:
+    def build_main_content(
+        self, container: QScrollArea, layout: QHBoxLayout
+    ) -> QVBoxLayout:
         """
         Build the main content area layout.  This is where the sentence cards
         are located.
@@ -216,7 +218,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(container, stretch=1)
         return content_layout
 
-    def sidebar_area(self, layout: QHBoxLayout) -> TokenDetailsSidebar:
+    def build_sidebar_area(self, layout: QHBoxLayout) -> TokenDetailsSidebar:
         """
         Build the sidebar area widget.  This is where the token details sidebar is
         located.
@@ -234,7 +236,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(sidebar)
         return sidebar
 
-    def reload(self) -> None:
+    def reload_main_window(self) -> None:
         """
         Repaint the main window.
         """
@@ -508,13 +510,16 @@ class MainWindowActions:
         """
         # Check if a token is selected
         card = self.application_state.get(SELECTED_SENTENCE_CARD)
-        if card is None or card.selected_token_index is None:
+        if card is None:
+            return False
+        current_token_index = card.oe_text_edit.current_token_index()
+        if current_token_index is None:
             # No token selected, allow normal clipboard behavior
             return False
 
         # Get the selected token
-        order_index = card.selected_token_index
-        token = card.tokens_by_index.get(order_index)
+        order_index = current_token_index
+        token = card.oe_text_edit.get_token(order_index)
         if not token:
             return False
 
@@ -563,7 +568,10 @@ class MainWindowActions:
         """
         # Check if a token is selected
         card = self.application_state.get(SELECTED_SENTENCE_CARD)
-        if card is None or card.selected_token_index is None:
+        if card is None:
+            return False
+        current_token_index = card.oe_text_edit.selector.current_token_index()
+        if card is None or current_token_index is None:
             # No token selected, allow normal clipboard behavior
             return False
 
@@ -573,8 +581,8 @@ class MainWindowActions:
             return True  # Return True to indicate we handled the event
 
         # Get the selected token
-        order_index = card.selected_token_index
-        token = card.tokens_by_index.get(order_index)
+        order_index = current_token_index
+        token = card.oe_text_edit.get_token(order_index)
         if not token or not token.id:
             return False
 
@@ -622,13 +630,10 @@ class MainWindowActions:
             self.application_state.session.refresh(token)
 
             # Refresh the sentence card
-            card.set_tokens(card.sentence.tokens)
+            card.set_tokens()
 
             # Update sidebar if the pasted token is currently displayed
-            if card.selected_token_index == order_index:
-                self.main_window.token_details_sidebar.render_token(
-                    token, card.sentence
-                )
+            self.main_window.token_details_sidebar.render_token(token, card.sentence)
 
             self.messages.show_message("Annotation pasted")
         else:
@@ -1009,7 +1014,6 @@ class ProjectUI:
                 command_manager=self.application_state.command_manager,
                 main_window=self.main_window,
             )
-            card.set_tokens(sentence.tokens)
             self.sentence_cards.append(card)
             self.content_layout.addWidget(card)
             card.translation_edit.textChanged.connect(self._on_translation_changed)
@@ -1057,7 +1061,7 @@ class ProjectUI:
             card.command_manager = self.application_state.command_manager
 
         # Ensure UI is updated/repainted
-        self.main_window.reload()
+        self.main_window.reload_main_window()
 
     def refresh(self) -> None:
         """
@@ -1074,7 +1078,7 @@ class ProjectUI:
         # Reload annotations for all cards
         for card in self.sentence_cards:
             if card.sentence.id:
-                card.set_tokens(card.sentence.tokens)
+                card.set_tokens()
 
     def save(self) -> None:
         """
@@ -1145,7 +1149,7 @@ class ProjectUI:
             card.command_manager = self.command_manager
 
         # Ensure UI is updated/repainted
-        self.main_window.reload()
+        self.main_window.reload_main_window()
 
         self.show_message("Sentences merged", duration=2000)
 
@@ -1202,7 +1206,7 @@ class ProjectUI:
             new_card.enter_edit_mode()
 
         # Ensure UI is updated/repainted
-        self.main_window.reload()
+        self.main_window.reload_main_window()
 
         self.show_message("Sentence added", duration=2000)
 
@@ -1246,7 +1250,7 @@ class ProjectUI:
             card.command_manager = self.command_manager
 
         # Ensure UI is updated/repainted
-        self.main_window.reload()
+        self.main_window.reload_main_window()
 
         self.show_message("Sentence deleted", duration=2000)
 
@@ -1266,10 +1270,10 @@ class ProjectUI:
         # exists across the entire project view
         for other_card in self.sentence_cards:
             if other_card != sentence_card:
-                other_card._clear_token_selection()
+                other_card.clear_token_selection()
 
         # Check if token is being deselected (selected_token_index is None)
-        if sentence_card.selected_token_index is None:
+        if sentence_card.oe_text_edit.current_token_index() is None:
             # Clear sidebar
             self.token_details_sidebar.clear_sidebar()
             if SELECTED_SENTENCE_CARD in self.application_state:
@@ -1296,7 +1300,7 @@ class ProjectUI:
         # Clear selection on all other sentence cards
         for other_card in self.sentence_cards:
             if other_card != sentence_card:
-                other_card._clear_token_selection()
+                other_card.clear_token_selection()
 
         # Update sidebar with idiom details
         self.token_details_sidebar.render_idiom(idiom, sentence)
@@ -1319,9 +1323,9 @@ class ProjectUI:
         if CURRENT_PROJECT_ID not in self.application_state:
             return
         card = self.application_state.get(SELECTED_SENTENCE_CARD)
-        if card is not None and card.selected_token_index is not None:
-            order_index = card.selected_token_index
-            token = card.tokens_by_index.get(order_index)
+        if card is not None and card.oe_text_edit.current_token_index() is not None:
+            order_index = card.oe_text_edit.current_token_index()
+            token = card.oe_text_edit.tokens_by_index.get(order_index)
             if token and token.id == annotation.token_id:
                 # Refresh sidebar with updated annotation
                 # Refresh token from database to ensure annotation relationship

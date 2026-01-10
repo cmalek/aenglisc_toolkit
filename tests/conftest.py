@@ -188,6 +188,7 @@ class MockMainWindow(QWidget):
         self.menuBar.return_value = QMenuBar()
 
         self.token_details_sidebar = MagicMock()
+        self.sentence_cards = []
         self.clear_selected_tokens = MagicMock()
 
         self.messages = MagicMock()

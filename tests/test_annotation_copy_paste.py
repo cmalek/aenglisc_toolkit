@@ -26,7 +26,7 @@ class TestCopyAnnotation:
         assert result is False
         assert COPIED_ANNOTATION not in main_window.application_state
 
-    def test_copy_annotation_token_selected_but_no_annotation_data(self, db_session, qapp):
+    def test_copy_annotation_token_selected_but_no_annotation_data(self, db_session, qapp, mock_main_window):
         """Test copy_annotation shows error when token has empty annotation."""
         # Create project with token
         project = create_test_project(db_session, name="Test", text="Se cyning")
@@ -40,19 +40,13 @@ class TestCopyAnnotation:
             token.annotation.pos = None
             token.annotation.save()
 
-        # Create mock MainWindow with selected token
-        main_window = MagicMock()
-        main_window.application_state = ApplicationState()
-        main_window.application_state.set_main_window(main_window)
-
         # Create real SentenceCard to get proper token handling
-        card = SentenceCard(sentence)
-        card.selected_token_index = 0
-        card.tokens = sentence.tokens
+        card = SentenceCard(sentence, main_window=mock_main_window)
+        card.oe_text_edit.set_selected_token_index(0)
 
-        main_window.application_state[SELECTED_SENTENCE_CARD] = card
+        mock_main_window.application_state[SELECTED_SENTENCE_CARD] = card
 
-        action_service = MainWindowActions(main_window)
+        action_service = MainWindowActions(mock_main_window)
 
         result = action_service.copy_annotation()
 
@@ -62,7 +56,7 @@ class TestCopyAnnotation:
         # state is allowed.
         assert result is True
 
-    def test_copy_annotation_success(self, db_session, qapp):
+    def test_copy_annotation_success(self, db_session, qapp, mock_main_window):
         """Test copy_annotation successfully copies annotation data."""
         # Create project with token and annotation
         project = create_test_project(db_session, name="Test", text="Se cyning")
@@ -83,27 +77,21 @@ class TestCopyAnnotation:
         annotation.save()
         db_session.refresh(token)
 
-        # Create mock MainWindow with selected token
-        main_window = MagicMock()
-        main_window.application_state = ApplicationState()
-        main_window.application_state.set_main_window(main_window)
-
         # Create real SentenceCard
-        card = SentenceCard(sentence)
-        card.selected_token_index = 0
-        card.tokens = sentence.tokens
+        card = SentenceCard(sentence, main_window=mock_main_window)
+        card.oe_text_edit.set_selected_token_index(0)
 
-        main_window.application_state[SELECTED_SENTENCE_CARD] = card
+        mock_main_window.application_state[SELECTED_SENTENCE_CARD] = card
 
-        action_service = MainWindowActions(main_window)
+        action_service = MainWindowActions(mock_main_window)
 
         result = action_service.copy_annotation()
 
         assert result is True
-        main_window.messages.show_message.assert_called_with("Annotation copied")
+        mock_main_window.messages.show_message.assert_called_with("Annotation copied")
 
         # Verify copied annotation data
-        copied = main_window.application_state[COPIED_ANNOTATION]
+        copied = mock_main_window.application_state[COPIED_ANNOTATION]
         assert copied is not None
         assert copied["pos"] == "N"
         assert copied["gender"] == "m"
@@ -113,7 +101,7 @@ class TestCopyAnnotation:
         assert copied["modern_english_meaning"] == "king"
         assert copied["root"] == "cyning"
 
-    def test_copy_annotation_copies_all_fields(self, db_session, qapp):
+    def test_copy_annotation_copies_all_fields(self, db_session, qapp, mock_main_window):
         """Test copy_annotation copies all annotation fields including None values."""
         # Create project with token and annotation
         project = create_test_project(db_session, name=f"Test_{id(self)}_2", text="Se cyning")
@@ -148,24 +136,18 @@ class TestCopyAnnotation:
         db_session.refresh(token)
         db_session.refresh(sentence)
 
-        # Create mock MainWindow
-        main_window = MagicMock()
-        main_window.application_state = ApplicationState()
-        main_window.application_state.set_main_window(main_window)
-
         # Create real SentenceCard
-        card = SentenceCard(sentence)
-        card.selected_token_index = 0
-        card.tokens = sentence.tokens
+        card = SentenceCard(sentence, main_window=mock_main_window)
+        card.oe_text_edit.set_selected_token_index(0)
 
-        main_window.application_state[SELECTED_SENTENCE_CARD] = card
+        mock_main_window.application_state[SELECTED_SENTENCE_CARD] = card
 
-        action_service = MainWindowActions(main_window)
+        action_service = MainWindowActions(mock_main_window)
 
         result = action_service.copy_annotation()
 
         assert result is True
-        copied = main_window.application_state[COPIED_ANNOTATION]
+        copied = mock_main_window.application_state[COPIED_ANNOTATION]
 
         # Verify all fields are copied
         assert copied["pos"] == "V"
@@ -198,42 +180,32 @@ class TestPasteAnnotation:
 
         assert result is False
 
-    def test_paste_annotation_no_copied_annotation(self, db_session, qapp):
+    def test_paste_annotation_no_copied_annotation(self, db_session, qapp, mock_main_window):
         """Test paste_annotation shows error when no annotation copied."""
         project = create_test_project(db_session, name="Test", text="Se cyning")
 
         sentence = project.sentences[0]
 
-        main_window = MagicMock()
-        main_window.application_state = ApplicationState()
-        main_window.application_state.set_main_window(main_window)
+        card = SentenceCard(sentence, main_window=mock_main_window)
+        card.oe_text_edit.set_selected_token_index(0)
+        mock_main_window.application_state[SELECTED_SENTENCE_CARD] = card
 
-        card = SentenceCard(sentence)
-        card.selected_token_index = 0
-        card.tokens = sentence.tokens
-        main_window.application_state[SELECTED_SENTENCE_CARD] = card
-
-        action_service = MainWindowActions(main_window)
+        action_service = MainWindowActions(mock_main_window)
 
         result = action_service.paste_annotation()
 
         assert result is True  # Event was handled
-        main_window.messages.show_message.assert_called_with("No annotation to paste")
+        mock_main_window.messages.show_message.assert_called_with("No annotation to paste")
 
-    def test_paste_annotation_success(self, db_session, qapp):
+    def test_paste_annotation_success(self, db_session, qapp, mock_main_window):
         """Test paste_annotation successfully pastes annotation data."""
         project = create_test_project(db_session, name="Test", text="Se cyning")
 
         sentence = project.sentences[0]
         token = sentence.tokens[1]  # "cyning"
 
-        # Create command manager
-
-        # Create mock MainWindow
-        main_window = MagicMock()
-        main_window.application_state = ApplicationState()
-        main_window.application_state.set_main_window(main_window)
-        main_window.application_state[COPIED_ANNOTATION] = {
+        # Setup copied annotation in state
+        mock_main_window.application_state[COPIED_ANNOTATION] = {
             "pos": "N",
             "gender": "m",
             "number": "s",
@@ -256,16 +228,14 @@ class TestPasteAnnotation:
             "modern_english_meaning": "king",
             "root": "cyning",
         }
-        command_manager = main_window.application_state.command_manager
+        command_manager = mock_main_window.application_state.command_manager
 
         # Create real SentenceCard
-        card = SentenceCard(sentence)
-        card.selected_token_index = 1
-        card.tokens = sentence.tokens
-        card.sentence = sentence
-        main_window.application_state[SELECTED_SENTENCE_CARD] = card
+        card = SentenceCard(sentence, main_window=mock_main_window)
+        card.oe_text_edit.set_selected_token_index(1)
+        mock_main_window.application_state[SELECTED_SENTENCE_CARD] = card
 
-        action_service = MainWindowActions(main_window)
+        action_service = MainWindowActions(mock_main_window)
 
         # Paste annotation
         result = action_service.paste_annotation()
@@ -287,18 +257,14 @@ class TestPasteAnnotation:
         # Token still has annotation object but fields should be None
         assert token.annotation.pos is None
 
-    def test_paste_annotation_is_redoable(self, db_session, qapp):
+    def test_paste_annotation_is_redoable(self, db_session, qapp, mock_main_window):
         """Test paste_annotation can be redone after undo."""
         project = create_test_project(db_session, name="Test", text="Se cyning")
 
         sentence = project.sentences[0]
         token = sentence.tokens[1]
 
-
-        main_window = MagicMock()
-        main_window.application_state = ApplicationState()
-        main_window.application_state.set_main_window(main_window)
-        main_window.application_state[COPIED_ANNOTATION] = {
+        mock_main_window.application_state[COPIED_ANNOTATION] = {
             "pos": "N",
             "gender": "m",
             "number": "s",
@@ -321,15 +287,13 @@ class TestPasteAnnotation:
             "modern_english_meaning": None,
             "root": None,
         }
-        command_manager = main_window.application_state.command_manager
+        command_manager = mock_main_window.application_state.command_manager
 
-        card = SentenceCard(sentence)
-        card.selected_token_index = 1
-        card.tokens = sentence.tokens
-        card.sentence = sentence
-        main_window.application_state[SELECTED_SENTENCE_CARD] = card
+        card = SentenceCard(sentence, main_window=mock_main_window)
+        card.oe_text_edit.set_selected_token_index(1)
+        mock_main_window.application_state[SELECTED_SENTENCE_CARD] = card
 
-        action_service = MainWindowActions(main_window)
+        action_service = MainWindowActions(mock_main_window)
 
         # Paste, undo, then redo
         action_service.paste_annotation()
@@ -346,7 +310,7 @@ class TestPasteAnnotation:
         assert token.annotation.pos == "N"
         assert token.annotation.gender == "m"
 
-    def test_paste_annotation_overwrites_existing(self, db_session, qapp):
+    def test_paste_annotation_overwrites_existing(self, db_session, qapp, mock_main_window):
         """Test paste_annotation overwrites existing annotation."""
         project = create_test_project(db_session, name="Test", text="Se cyning")
 
@@ -362,11 +326,7 @@ class TestPasteAnnotation:
         existing.save()
         db_session.refresh(token)
 
-
-        main_window = MagicMock()
-        main_window.application_state = ApplicationState()
-        main_window.application_state.set_main_window(main_window)
-        main_window.application_state[COPIED_ANNOTATION] = {
+        mock_main_window.application_state[COPIED_ANNOTATION] = {
             "pos": "N",
             "gender": "m",
             "number": "s",
@@ -391,13 +351,11 @@ class TestPasteAnnotation:
             "root": None,
         }
 
-        card = SentenceCard(sentence)
-        card.selected_token_index = 1
-        card.tokens = sentence.tokens
-        card.sentence = sentence
-        main_window.application_state[SELECTED_SENTENCE_CARD] = card
+        card = SentenceCard(sentence, main_window=mock_main_window)
+        card.oe_text_edit.set_selected_token_index(1)
+        mock_main_window.application_state[SELECTED_SENTENCE_CARD] = card
 
-        action_service = MainWindowActions(main_window)
+        action_service = MainWindowActions(mock_main_window)
 
         result = action_service.paste_annotation()
         assert result is True
@@ -413,7 +371,7 @@ class TestPasteAnnotation:
 class TestCopyPasteIntegration:
     """Integration tests for copy/paste workflow."""
 
-    def test_copy_then_paste_to_different_token(self, db_session, qapp):
+    def test_copy_then_paste_to_different_token(self, db_session, qapp, mock_main_window):
         """Test copying annotation from one token and pasting to another."""
         project = create_test_project(db_session, name="Test", text="Se cyning rād")
 
@@ -432,29 +390,20 @@ class TestCopyPasteIntegration:
         annotation.save()
         db_session.refresh(source_token)
 
-
-        # Create mock MainWindow
-        main_window = MagicMock()
-        main_window.application_state = ApplicationState()
-        main_window.application_state.set_main_window(main_window)
-
-
-        action_service = MainWindowActions(main_window)
+        action_service = MainWindowActions(mock_main_window)
 
         # Select source token and copy
-        card = SentenceCard(sentence)
-        card.selected_token_index = 0
-        card.tokens = sentence.tokens
-        card.sentence = sentence
-        main_window.application_state[SELECTED_SENTENCE_CARD] = card
+        card = SentenceCard(sentence, main_window=mock_main_window)
+        card.oe_text_edit.set_selected_token_index(0)
+        mock_main_window.application_state[SELECTED_SENTENCE_CARD] = card
 
         copy_result = action_service.copy_annotation()
         assert copy_result is True
-        assert COPIED_ANNOTATION in main_window.application_state and main_window.application_state[COPIED_ANNOTATION] is not None
+        assert COPIED_ANNOTATION in mock_main_window.application_state and mock_main_window.application_state[COPIED_ANNOTATION] is not None
 
         # Select target token and paste
-        card.selected_token_index = 2
-        main_window.application_state[SELECTED_SENTENCE_CARD] = card
+        card.oe_text_edit.set_selected_token_index(2)
+        mock_main_window.application_state[SELECTED_SENTENCE_CARD] = card
 
         paste_result = action_service.paste_annotation()
         assert paste_result is True
@@ -466,7 +415,7 @@ class TestCopyPasteIntegration:
         assert target_token.annotation.gender == "m"
         assert target_token.annotation.article_type == "d"
 
-    def test_copy_from_one_sentence_paste_to_another(self, db_session, qapp):
+    def test_copy_from_one_sentence_paste_to_another(self, db_session, qapp, mock_main_window):
         """Test copying annotation across sentences."""
         # Create project with multiple sentences
         project = Project.create(
@@ -488,27 +437,19 @@ class TestCopyPasteIntegration:
         annotation.save()
         db_session.refresh(source_token)
 
-        main_window = MagicMock()
-        main_window.application_state = ApplicationState()
-        main_window.application_state.set_main_window(main_window)
-
-        action_service = MainWindowActions(main_window)
+        action_service = MainWindowActions(mock_main_window)
 
         # Copy from sentence 1
-        card1 = SentenceCard(sentence1)
-        card1.selected_token_index = 0
-        card1.tokens = sentence1.tokens
-        card1.sentence = sentence1
-        main_window.application_state[SELECTED_SENTENCE_CARD] = card1
+        card1 = SentenceCard(sentence1, main_window=mock_main_window)
+        card1.oe_text_edit.set_selected_token_index(0)
+        mock_main_window.application_state[SELECTED_SENTENCE_CARD] = card1
 
         action_service.copy_annotation()
 
         # Paste to sentence 2
-        card2 = SentenceCard(sentence2)
-        card2.selected_token_index = 0
-        card2.tokens = sentence2.tokens
-        card2.sentence = sentence2
-        main_window.application_state[SELECTED_SENTENCE_CARD] = card2
+        card2 = SentenceCard(sentence2, main_window=mock_main_window)
+        card2.oe_text_edit.set_selected_token_index(0)
+        mock_main_window.application_state[SELECTED_SENTENCE_CARD] = card2
 
         action_service.paste_annotation()
 
@@ -518,7 +459,7 @@ class TestCopyPasteIntegration:
         assert target_token.annotation.pos == "D"
         assert target_token.annotation.gender == "m"
 
-    def test_paste_to_same_token_is_undoable(self, db_session, qapp):
+    def test_paste_to_same_token_is_undoable(self, db_session, qapp, mock_main_window):
         """Test pasting to same token creates undoable command."""
         project = create_test_project(db_session, name="Test", text="Se cyning")
 
@@ -532,19 +473,13 @@ class TestCopyPasteIntegration:
         annotation.save()
         db_session.refresh(token)
 
+        command_manager = mock_main_window.application_state.command_manager
 
-        main_window = MagicMock()
-        main_window.application_state = ApplicationState()
-        main_window.application_state.set_main_window(main_window)
-        command_manager = main_window.application_state.command_manager
+        action_service = MainWindowActions(mock_main_window)
 
-        action_service = MainWindowActions(main_window)
-
-        card = SentenceCard(sentence)
-        card.selected_token_index = 0
-        card.tokens = sentence.tokens
-        card.sentence = sentence
-        main_window.application_state[SELECTED_SENTENCE_CARD] = card
+        card = SentenceCard(sentence, main_window=mock_main_window)
+        card.oe_text_edit.set_selected_token_index(0)
+        mock_main_window.application_state[SELECTED_SENTENCE_CARD] = card
 
         # Copy and paste to same token
         action_service.copy_annotation()
@@ -562,7 +497,7 @@ class TestCopyPasteIntegration:
 class TestCopyAnnotationWithNoAnnotation:
     """Test copy_annotation behavior when token has no annotation object."""
 
-    def test_copy_empty_annotation_shows_error(self, db_session, qapp):
+    def test_copy_empty_annotation_shows_error(self, db_session, qapp, mock_main_window):
         """Test copying token with only empty annotation shows error."""
         project = create_test_project(db_session, name="Test", text="Se")
 
@@ -573,21 +508,16 @@ class TestCopyAnnotationWithNoAnnotation:
         if token.annotation:
             assert token.annotation.pos is None  # Should be empty by default
 
-        main_window = MagicMock()
-        main_window.application_state = ApplicationState()
-        main_window.application_state.set_main_window(main_window)
+        card = SentenceCard(sentence, main_window=mock_main_window)
+        card.oe_text_edit.set_selected_token_index(0)
+        mock_main_window.application_state[SELECTED_SENTENCE_CARD] = card
 
-        card = SentenceCard(sentence)
-        card.selected_token_index = 0
-        card.tokens = sentence.tokens
-        main_window.application_state[SELECTED_SENTENCE_CARD] = card
-
-        action_service = MainWindowActions(main_window)
+        action_service = MainWindowActions(mock_main_window)
 
         # When token has annotation object but no meaningful data,
         # copy_annotation still succeeds because the annotation exists
         result = action_service.copy_annotation()
         assert result is True
         # The copied annotation will have all None/False values
-        assert COPIED_ANNOTATION in main_window.application_state and main_window.application_state[COPIED_ANNOTATION] is not None
-        assert main_window.application_state[COPIED_ANNOTATION]["pos"] is None
+        assert COPIED_ANNOTATION in mock_main_window.application_state and mock_main_window.application_state[COPIED_ANNOTATION] is not None
+        assert mock_main_window.application_state[COPIED_ANNOTATION]["pos"] is None
