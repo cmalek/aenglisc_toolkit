@@ -141,8 +141,6 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
         - Clear the selected token index
         - Clear the selected token range
         """
-        # Cancel any pending deselection timer
-        self.oe_text_edit.stop_deselect_timer()
         self.oe_text_edit.reset_selection()
 
     def set_tokens(self) -> None:
@@ -160,7 +158,7 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
 
     def reset_selected_token(self) -> None:
         """
-        Disable the add note button when we have deselect tokens.
+        Disable the add note button when we have deselected tokens.
         """
         self.add_note_button.setEnabled(False)
 

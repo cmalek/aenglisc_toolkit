@@ -772,10 +772,6 @@ class SingleInstanceHighlighter(SelectTokensMixin):
         )
         assert start_order >= 0, "Start order must be greater than 0"  # noqa: S101
 
-        # Clear the selected tokens in the main window
-        if self.main_window is not None:
-            # Some tests don't set the main window, so we need to check for None
-            self.main_window.clear_selected_tokens()
         self.unhighlight()
 
         if not self.tokens:
