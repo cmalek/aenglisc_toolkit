@@ -34,7 +34,7 @@ from oeapp.ui.dialogs import (
     AnnotationModal,
     NoteDialog,
 )
-from oeapp.ui.highlighting import SingleInstanceHighlighter, WholeSentenceHighlighter
+from oeapp.ui.highlighting import WholeSentenceHighlighter
 from oeapp.ui.mixins import AnnotationLookupsMixin
 from oeapp.ui.notes_panel import NotesPanel
 from oeapp.ui.oe_text_edit import OldEnglishTextEdit
@@ -42,7 +42,6 @@ from oeapp.ui.token_table import TokenTable
 from oeapp.utils import get_logo_pixmap
 
 if TYPE_CHECKING:
-    from oeapp.models.note import Note
     from oeapp.models.token import Token
     from oeapp.ui.main_window import MainWindow
 
@@ -93,6 +92,9 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
         self.sentence_highlighter: WholeSentenceHighlighter = WholeSentenceHighlighter()
         self.build()
         self.set_tokens()
+        # We need to do this here because it has to come after
+        # :meth:`set_tokens()` is called to set up all the lookups
+        # and mappings for the tokens on OldEnglishTextEdit.
         self.sentence_highlighter.sentence_card = self
 
     @property
@@ -158,7 +160,7 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
 
     def reset_selected_token(self) -> None:
         """
-        - Disable the add note button
+        Disable the add note button when we have deselect tokens.
         """
         self.add_note_button.setEnabled(False)
 
@@ -373,8 +375,6 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
         notes_label.setFont(QFont("Helvetica", 10))
 
         notes_panel = NotesPanel(sentence=self.sentence, parent=self)
-        notes_panel.note_clicked.connect(self._on_note_clicked)
-        notes_panel.note_double_clicked.connect(self._on_note_double_clicked)
         return notes_label, notes_panel
 
     def build(self) -> None:
@@ -433,7 +433,7 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
         layout.addWidget(notes_label)
         layout.addWidget(self.notes_panel)
         # Update notes display on initialization
-        self._update_notes_display()
+        self.notes_panel.update_notes()
 
         layout.addStretch()
 
@@ -767,48 +767,6 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
 
         self._finalize_annotation_update(annotation)
 
-    # ========================================================================
-    # Note related methods
-    # ========================================================================
-
-    def _update_notes_display(self) -> None:
-        """Update notes panel display."""
-        if hasattr(self, "notes_panel"):
-            # Ensure notes relationship is loaded
-            if self.sentence.id:
-                self.session.refresh(self.sentence, ["notes"])
-            self.notes_panel.update_notes(self.sentence)
-
-    def _highlight_note_tokens(self, note: Note) -> None:
-        """
-        Highlight tokens associated with a note.
-
-        Args:
-            note: Note to highlight tokens for
-
-        """
-        if (
-            not self.sentence
-            or not self.sentence.tokens
-            or not note.start_token
-            or not note.end_token
-        ):
-            return
-
-        # Find token order indices
-        start_order = None
-        end_order = None
-        for token in self.oe_text_edit.tokens:
-            if token.id == note.start_token:
-                start_order = token.order_index
-            if token.id == note.end_token:
-                end_order = token.order_index
-
-        if start_order is not None and end_order is not None:
-            cast(
-                "SingleInstanceHighlighter", self.oe_text_edit.span_highlighter
-            ).highlight(start_order, end_order)
-
     # -------------------------------------------------------------------------
     # Note related event handlers
     # -------------------------------------------------------------------------
@@ -821,24 +779,13 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
         if not self.sentence.id:
             return
 
-        current_range = self.oe_text_edit.current_range()
-        selected_token_index = self.oe_text_edit.current_token_index()
-        # Determine token range (order indices)
-        if current_range:
-            start_order, end_order = current_range
-        elif selected_token_index is not None:
-            start_order = selected_token_index
-            end_order = selected_token_index
-        else:
+        try:
+            selected_tokens = self.oe_text_edit.selected_tokens
+        except ValueError:
             return
-
-        # Get tokens
-        start_token = self.oe_text_edit.tokens_by_index.get(start_order)
-        end_token = self.oe_text_edit.tokens_by_index.get(end_order)
-
-        if not start_token or not end_token or not start_token.id or not end_token.id:
+        if selected_tokens is None:
             return
-
+        start_token, end_token = selected_tokens
         # Open dialog for creating new note
         dialog = NoteDialog(
             sentence=self.sentence,
@@ -846,61 +793,22 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
             end_token_id=end_token.id,
             parent=self,
         )
+        dialog.note_saved.connect(self.notes_panel._on_note_saved)
         dialog.note_saved.connect(self._on_note_saved)
         dialog.exec()
 
     def _on_note_saved(self, note_id: int) -> None:  # noqa: ARG002
         """
-        Handle note saved signal - refresh display.
+        Handle note saved signal - re-render OE text.
 
-        This refreshes the notes display and re-renders the OE text with
-        superscripts. Note numbers are computed dynamically based on creation
-        time order, so remaining notes will be automatically renumbered after
-        a deletion.
+        :class:`~oeapp.ui.notes_panel.NotesPanel` will re-render the notes display.
 
         Args:
             note_id: ID of saved/deleted note (may be deleted note ID)
 
         """
-        self.session.refresh(self.sentence)
-        # Refresh notes display (will renumber notes dynamically)
-        self._update_notes_display()
         # Re-render OE text with updated note numbers in superscripts
         self.oe_text_edit.render_readonly_text()
-
-    def _on_note_clicked(self, note: Note) -> None:
-        """
-        Handle note clicked - highlight associated tokens.
-
-        Args:
-            note: Note that was clicked
-
-        """
-        # Clear any active idiom or single token selection
-        self.reset_selected_token()
-        self._highlight_note_tokens(note)
-
-    def _on_note_double_clicked(self, note: Note) -> None:
-        """
-        Handle note double-clicked - open edit dialog.
-
-        Args:
-            note: Note that was double-clicked
-
-        """
-        if not note.start_token or not note.end_token:
-            return
-
-        # Open dialog for editing note
-        dialog = NoteDialog(
-            sentence=self.sentence,
-            start_token_id=note.start_token,
-            end_token_id=note.end_token,
-            note=note,
-            parent=self,
-        )
-        dialog.note_saved.connect(self._on_note_saved)
-        dialog.exec()
 
     # ========================================================================
     # Token table related methods
@@ -1107,7 +1015,7 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
                 self.session.refresh(self.sentence)
                 self.oe_text_edit.set_tokens()
                 # Update notes display
-                self._update_notes_display()
+                self.notes_panel.update_notes()
 
         # Make read-only again
         self.oe_text_edit.in_edit_mode = False

@@ -1,6 +1,6 @@
 """Notes panel UI component."""
 
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Final, cast
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont, QMouseEvent
@@ -13,11 +13,14 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from oeapp.state import ApplicationState
+from oeapp.ui.dialogs.note_dialog import NoteDialog
 from oeapp.utils import clear_layout
 
 if TYPE_CHECKING:
     from oeapp.models.note import Note
     from oeapp.models.sentence import Sentence
+    from oeapp.ui.sentence_card import SentenceCard
 
 
 class ClickableNoteLabel(QLabel):
@@ -30,8 +33,10 @@ class ClickableNoteLabel(QLabel):
 
     """
 
-    clicked = Signal(object)  # Emits Note
-    double_clicked = Signal(object)  # Emits Note
+    #: Signal emitted when the note is clicked (emits Note)
+    clicked = Signal(object)
+    #: Signal emitted when the note is double-clicked (emits Note)
+    double_clicked = Signal(object)
 
     def __init__(self, note: Note, parent: QWidget | None = None):
         super().__init__(parent)
@@ -40,7 +45,8 @@ class ClickableNoteLabel(QLabel):
 
     def mousePressEvent(self, event: QMouseEvent) -> None:  # noqa: N802
         """
-        Handle mouse press event.
+        Handle mouse left button press event by emitting the :attr:`clicked`
+        signal.
 
         Args:
             event: Mouse press event
@@ -52,7 +58,7 @@ class ClickableNoteLabel(QLabel):
 
     def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:  # noqa: N802
         """
-        Handle mouse double-click event.
+        Handle mouse double-click event by emitting the :attr:`double_clicked` signal.
 
         Args:
             event: Mouse double-click event
@@ -73,8 +79,25 @@ class NotesPanel(QWidget):
 
     """
 
-    note_clicked = Signal(object)  # Emits Note when clicked
-    note_double_clicked = Signal(object)  # Emits Note when double-clicked
+    # -------------------------------------------------------------------------
+    # Signals
+    # -------------------------------------------------------------------------
+
+    #: Signal emitted when a note is clicked.
+    note_clicked = Signal(object)
+    #: Signal emitted when a note is double-clicked.
+    note_double_clicked = Signal(object)
+
+    # -------------------------------------------------------------------------
+    # Constants
+    # -------------------------------------------------------------------------
+
+    #: Font size in points for note labels.
+    FONT_SIZE_IN_POINTS: Final[int] = 12
+    #: Font family for note labels.
+    FONT_FAMILY: Final[str] = "Helvetica"
+    #: Font style for note labels.
+    NOTE_STYLE: Final[str] = "color: #666; font-style: italic;"
 
     def __init__(
         self,
@@ -82,10 +105,13 @@ class NotesPanel(QWidget):
         parent: QWidget | None = None,
     ):
         super().__init__(parent)
-        self.sentence = sentence
-        self._setup_ui()
+        assert sentence is not None, "Sentence must be provided"  # noqa: S101
+        self.sentence = cast("Sentence", sentence)
+        self.card = cast("SentenceCard", parent)
+        self.state = ApplicationState()
+        self.build()
 
-    def _setup_ui(self) -> None:
+    def build(self) -> None:
         """Set up the UI layout."""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -94,62 +120,86 @@ class NotesPanel(QWidget):
         # Will be populated by update_notes()
         self.note_labels: list[ClickableNoteLabel] = []
 
-    def update_notes(self, sentence: Sentence | None = None) -> None:
+    def empty_state(self) -> QLabel:
+        """Show empty state for the notes panel."""
+        empty_label = QLabel("(No notes yet)")
+        empty_label.setStyleSheet(self.NOTE_STYLE)
+        empty_label.setFont(QFont("Helvetica", 10))
+        return empty_label
+
+    def note_line(self, note_index: int, note: Note) -> ClickableNoteLabel:
         """
-        Update notes display.
+        Show a single note.
 
         Args:
-            sentence: Sentence to display notes for (optional, uses
-                :attr:`sentence` if None)
+            note_index: Note index (1-based)
+            note: Note to display
+
+        Returns:
+            Note label
 
         """
-        if sentence is not None:
-            self.sentence = sentence
+        note_text = self.build_note(note_index, note)
+        note_label = ClickableNoteLabel(note, self)
+        note_label.setText(note_text)
+        note_label.setFont(QFont(self.FONT_FAMILY, self.FONT_SIZE_IN_POINTS))
+        note_label.setWordWrap(True)
+        note_label.clicked.connect(self.note_clicked.emit)
+        note_label.double_clicked.connect(self.note_double_clicked.emit)
+        note_label.clicked.connect(self._on_note_clicked)
+        note_label.double_clicked.connect(self._on_note_double_clicked)
+        return note_label
 
-        # Clear existing labels
+    def clear_notes(self) -> None:
+        """Clear all notes."""
         for label in self.note_labels:
             label.deleteLater()
         self.note_labels.clear()
 
+    def clear_layout(self) -> None:
+        """Clear the layout and notes."""
+        self.clear_notes()
         layout = self.layout()
         if layout is None:
             return
-
-        # Clear layout
         clear_layout(cast("QLayout", layout))
+
+    def update_notes(self, sentence: Sentence | None = None) -> None:
+        """
+        Update notes display.
+
+        Note:
+            You can't name this method "update" because it conflicts with the
+            built-in method `update` in QWidget.
+
+        Keyword Args:
+            sentence: Sentence to display notes for (optional, uses
+                :attr:`sentence` if ``None``)
+
+        """
+        if sentence is not None:
+            self.sentence = sentence
+        self.state.session.refresh(self.sentence, ["notes"])
+
+        layout = self.layout()
+        if layout is None:
+            return
+        self.clear_layout()
 
         if not self.sentence:
             # Show empty state
-            empty_label = QLabel("(No notes yet)")
-            empty_label.setStyleSheet("color: #666; font-style: italic;")
-            empty_label.setFont(QFont("Helvetica", 10))
-            layout.addWidget(empty_label)
+            layout.addWidget(self.empty_state())
             return
 
         notes_list = list(self.sentence.notes) if self.sentence.notes else []
         if not notes_list:
             # Show empty state
-            empty_label = QLabel("(No notes yet)")
-            empty_label.setStyleSheet("color: #666; font-style: italic;")
-            empty_label.setFont(QFont("Helvetica", 10))
-            layout.addWidget(empty_label)
+            layout.addWidget(self.empty_state())
             return
 
-        # Sort notes by token position in sentence (earlier tokens = lower numbers)
-        # Note: Numbers are computed dynamically, so if a note is deleted,
-        # remaining notes are automatically renumbered (e.g., if note 2 is
-        # deleted, note 3 becomes note 2)
-        notes = self._sort_notes_by_position(notes_list)
-
         # Display each note with dynamic numbering (1-based index)
-        for note_idx, note in enumerate(notes, start=1):
-            note_text = self._format_note(note_idx, note)
-            note_label = ClickableNoteLabel(note, self)
-            note_label.setText(note_text)
-            note_label.setFont(QFont("Helvetica", 12))
-            note_label.setWordWrap(True)
-            note_label.clicked.connect(self.note_clicked.emit)
-            note_label.double_clicked.connect(self.note_double_clicked.emit)
+        for note_idx, note in enumerate(self.sentence.sorted_notes, start=1):
+            note_label = self.note_line(note_idx, note)
             layout.addWidget(note_label)
             self.note_labels.append(note_label)
 
@@ -159,9 +209,15 @@ class NotesPanel(QWidget):
         )
         layout.addItem(spacer)
 
-    def _format_note(self, note_number: int, note: Note) -> str:
+    def build_note(self, note_number: int, note: Note) -> str:
         """
         Format note for display.
+
+        Format:
+
+            .. code-block:: text
+
+                <note number>. "<quoted tokens (italics)>" - <note text>
 
         Args:
             note_number: Note number (1-based)
@@ -172,80 +228,52 @@ class NotesPanel(QWidget):
 
         """
         # Get token text
-        token_text = self._get_token_text(note)
+        token_text = self.sentence.get_token_surfaces(note.start_token, note.end_token)
 
-        # Format: "1. "quoted tokens" in italics - note text"
         if token_text:
             return f'{note_number}. <i>"{token_text}"</i> - {note.note_text_md}'
         return f"{note_number}. {note.note_text_md}"
 
-    def _get_token_text(self, note: Note) -> str:
+    # ========================================================================
+    # Event handlers
+    # ========================================================================
+
+    def _on_note_clicked(self, note: Note) -> None:
         """
-        Get token text for a note.
+        Handle note clicked.
 
-        Args:
-            note: Note to get tokens for
-
-        Returns:
-            Token text string
-
+        - Reset the current active selection in the OE text edit
+        - Highlight the note
         """
-        if not self.sentence or not self.sentence.tokens:
-            return ""
+        self.card.reset_selected_token()
+        self.card.oe_text_edit.highlight_note(note)
 
-        # Find tokens by ID
-        start_token = None
-        end_token = None
-        for token in self.sentence.tokens:
-            if token.id == note.start_token:
-                start_token = token
-            if token.id == note.end_token:
-                end_token = token
-
-        if not start_token or not end_token:
-            return ""
-
-        # Get all tokens in range
-        tokens_in_range = []
-        in_range = False
-        for token in sorted(self.sentence.tokens, key=lambda t: t.order_index):
-            if token.id == start_token.id:
-                in_range = True
-            if in_range:
-                tokens_in_range.append(token.surface)
-            if token.id == end_token.id:
-                break
-
-        return " ".join(tokens_in_range)
-
-    def _sort_notes_by_position(self, notes: list[Note]) -> list[Note]:
+    def _on_note_double_clicked(self, note: Note) -> None:
         """
-        Sort notes by their position in the sentence (by start token order_index).
+        Handle note double-clicked.
 
-        Args:
-            notes: List of notes to sort
-
-        Returns:
-            Sorted list of notes
-
+        - Open the note edit dialog
         """
-        if not self.sentence or not self.sentence.tokens:
-            return notes
+        if not note.start_token or not note.end_token:
+            return
 
-        # Build token ID to order_index mapping
-        token_id_to_order: dict[int, int] = {}
-        for token in self.sentence.tokens:
-            if token.id:
-                token_id_to_order[token.id] = token.order_index
+        # Open dialog for editing note
+        dialog = NoteDialog(
+            sentence=self.sentence,
+            start_token_id=note.start_token,
+            end_token_id=note.end_token,
+            note=note,
+            parent=self.card,
+        )
+        dialog.note_saved.connect(self._on_note_saved)
+        dialog.note_saved.connect(self.card._on_note_saved)
+        dialog.exec()
 
-        def get_note_position(note: Note) -> int:
-            """Get position of note in sentence based on start token."""
-            if note.start_token and note.start_token in token_id_to_order:
-                return token_id_to_order[note.start_token]
-            # Fallback to end_token if start_token not found
-            if note.end_token and note.end_token in token_id_to_order:
-                return token_id_to_order[note.end_token]
-            # Fallback to very high number if neither found
-            return 999999
+    def _on_note_saved(self, note_id: int) -> None:  # noqa: ARG002
+        """
+        Handle note saved signal - refresh the notes display.
 
-        return sorted(notes, key=get_note_position)
+        :class:`~oeapp.ui.sentence_card.SentenceCard` will re-render the OE text.
+        """
+        self.state.session.refresh(self.card.sentence)
+        self.update_notes()

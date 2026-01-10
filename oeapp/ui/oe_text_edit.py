@@ -14,15 +14,16 @@ from oeapp.models import Idiom
 from oeapp.ui.highlighting import SingleInstanceHighlighter, WholeSentenceHighlighter
 
 if TYPE_CHECKING:
+    from oeapp.models.note import Note
     from oeapp.models.sentence import Sentence
     from oeapp.models.token import Token
     from oeapp.ui.main_window import MainWindow
     from oeapp.ui.sentence_card import SentenceCard
 
 
-class TokenSelector:
+class OldEnglishTextSelector:
     """
-    Selector for tokens in the Old English text edit.
+    Selector for tokens, ranges, and idioms in the Old English text edit.
 
     Args:
         text_edit: Old English text edit
@@ -80,6 +81,58 @@ class TokenSelector:
         Get the current selected token range.
         """
         return self.selected_token_range
+
+    def get_selected_tokens(self) -> tuple[Token, Token] | None:
+        """
+        Return the tokens that are the start and end tokens of the current
+        selected range or token.
+
+        - If a range is selected, return the start and end tokens of the range.
+        - If a token is selected, return the token and itself.
+        - If nothing is selected, return None.
+
+        Raises:
+            ValueError: If the start or end token is not in this sentence
+            ValueError: If the start or end token has no ID
+            ValueError: If the token is not in this sentence
+            ValueError: If the token has no ID
+
+        Returns:
+            Tuple of start and end tokens if a range is selected, or the token
+            and itself if a token is selected, or None if nothing is selected.
+
+        """
+        if self.selected_token_range is not None:
+            start_token = self.tokens_by_index.get(self.selected_token_range[0])
+            end_token = self.tokens_by_index.get(self.selected_token_range[1])
+            if start_token is None:
+                msg = (
+                    f"Start token {self.selected_token_range[0]} is not in this "
+                    "sentence"
+                )
+                raise ValueError(msg)
+            if not start_token.id:
+                msg = f"Start token {self.selected_token_range[0]} has no ID"
+                raise ValueError(msg)
+            if end_token is None:
+                msg = (
+                    f"End token {self.selected_token_range[1]} is not in this sentence"
+                )
+                raise ValueError(msg)
+            if not end_token.id:
+                msg = f"End token {self.selected_token_range[1]} has no ID"
+                raise ValueError(msg)
+            return (start_token, end_token)
+        if self.selected_token_index is not None:
+            token = self.tokens_by_index.get(self.selected_token_index)
+            if token is None:
+                msg = f"Token {self.selected_token_index} is not in this sentence"
+                raise ValueError(msg)
+            if not token.id:
+                msg = f"Token {self.selected_token_index} has no ID"
+                raise ValueError(msg)
+            return (token, token)
+        return None
 
     def current_token_index(self) -> int | None:
         """
@@ -419,7 +472,7 @@ class OldEnglishTextEdit(QTextEdit):
         #: The sentence highlighter for the QTextEdit
         self.sentence_highlighter: WholeSentenceHighlighter | None = None
         #: Token selector associated with this text edit
-        self.selector: TokenSelector | None = None
+        self.selector: OldEnglishTextSelector | None = None
 
     @property
     def sentence_card(self) -> SentenceCard | None:
@@ -448,7 +501,7 @@ class OldEnglishTextEdit(QTextEdit):
         self.sentence = value.sentence
         self.set_tokens()
         self.span_highlighter = SingleInstanceHighlighter(value)
-        self.selector = TokenSelector(self)
+        self.selector = OldEnglishTextSelector(self)
         self.clicked.connect(self.selector.select_tokens)
         QTimer.singleShot(0, self.render_readonly_text)
         self.connect_signals()
@@ -553,6 +606,71 @@ class OldEnglishTextEdit(QTextEdit):
         The actual text in the text edit.
         """
         return self.toPlainText()
+
+    @property
+    def selected_tokens(self) -> tuple[Token, Token] | None:
+        """
+        Get the selected tokens.
+
+        Raises:
+            ValueError: If the start or end token is not in this sentence
+            ValueError: If the start or end token has no ID
+            ValueError: If the token is not in this sentence
+            ValueError: If the token has no ID
+
+        Returns:
+            Tuple of start and end tokens if a range is selected, or the token
+            and itself if a token is selected, or None if nothing is selected.
+
+        """
+        if self.selector:
+            return self.selector.get_selected_tokens()
+        return None
+
+    def highlight_span_by_token_ids(
+        self, start_token_id: int, end_token_id: int
+    ) -> None:
+        """
+        Highlight a span of tokens by their IDs.
+
+        Raises:
+            ValueError: If the start or end token is not in this sentence
+            ValueError: If the start or end token has no ID
+
+        Args:
+            start_token_id: Start token ID
+            end_token_id: End token ID
+
+        """
+        start_token = self.tokens_by_index.get(start_token_id)
+        end_token = self.tokens_by_index.get(end_token_id)
+        if start_token is None:
+            msg = f"Start token {start_token_id} is not in this sentence"
+            raise ValueError(msg)
+        if end_token is None:
+            msg = f"End token {end_token_id} is not in this sentence"
+            raise ValueError(msg)
+        if self.span_highlighter:
+            self.span_highlighter.highlight(
+                start_token.order_index, end_token.order_index
+            )
+
+    def highlight_note(self, note: Note) -> None:
+        """
+        Highlight a note by its ID.
+
+        If the note has no start or end token, do nothing.
+
+        Raises:
+            ValueError: If the start or end token is not in this sentence
+            ValueError: If the start or end token has no ID
+
+        Args:
+            note: Note to highlight
+
+        """
+        if note.start_token and note.end_token:
+            self.highlight_span_by_token_ids(note.start_token, note.end_token)
 
     def stop_deselect_timer(self) -> None:
         """
@@ -951,7 +1069,7 @@ class OldEnglishTextEdit(QTextEdit):
         """
         if not self.sentence_card:
             return
-        selector = cast("TokenSelector", self.selector)
+        selector = cast("OldEnglishTextSelector", self.selector)
         selected_token_index = selector.current_token_index()
         if not self.tokens or selected_token_index is None:
             return
@@ -978,7 +1096,7 @@ class OldEnglishTextEdit(QTextEdit):
         """
         if not self.sentence_card:
             return
-        selector = cast("TokenSelector", self.selector)
+        selector = cast("OldEnglishTextSelector", self.selector)
         selected_token_index = selector.current_token_index()
         if not self.tokens or selected_token_index is None:
             return
@@ -1002,7 +1120,7 @@ class OldEnglishTextEdit(QTextEdit):
 
     def copy_annotation(self) -> None:
         """Handle copy annotation request from OE text edit."""
-        selector = cast("TokenSelector", self.selector)
+        selector = cast("OldEnglishTextSelector", self.selector)
         if (
             self.sentence_card
             and selector.current_token_index() is not None
@@ -1012,7 +1130,7 @@ class OldEnglishTextEdit(QTextEdit):
 
     def paste_annotation(self) -> None:
         """Handle paste annotation request from OE text edit."""
-        selector = cast("TokenSelector", self.selector)
+        selector = cast("OldEnglishTextSelector", self.selector)
         if (
             self.sentence_card
             and selector.current_token_index() is not None
@@ -1034,7 +1152,7 @@ class OldEnglishTextEdit(QTextEdit):
         # If in edit mode, don't handle double-clicks for annotation
         if self.in_edit_mode:
             return
-        token_selector = cast("TokenSelector", self.selector)
+        token_selector = cast("OldEnglishTextSelector", self.selector)
 
         # Get cursor at click position
         cursor = self.cursorForPosition(position)
@@ -1056,7 +1174,7 @@ class OldEnglishTextEdit(QTextEdit):
 
         if not (in_range or is_selected):
             # Select the token/idiom first (e.g. if double-clicking an unselected token)
-            cast("TokenSelector", self.selector).token_selection(order_index)
+            cast("OldEnglishTextSelector", self.selector).token_selection(order_index)
             # Cancel the timer started by token selection
             token_selector.stop_deselect_timer()
 

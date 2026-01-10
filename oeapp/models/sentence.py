@@ -669,3 +669,53 @@ class Sentence(SaveDeleteMixin, Base):
                     token_to_notes[note.end_token] = []
                 token_to_notes[note.end_token].append(note_idx)
         return token_to_notes
+
+    def get_token_surfaces(
+        self, start_token: int | None = None, end_token: int | None = None
+    ) -> str:
+        """
+        Get the text of a token range.
+
+        If end_token is not provided, the text of the start token is returned.
+
+        Warning:
+            One issue with this method is that it does not handle punctuation in
+            the sentence correctly; it just returns the surface form of the
+            tokens minus punctuation, nor does it deal with whitespace properly,
+            so poetry will be messed up.
+
+        Keyword Args:
+            start_token: Start token ID
+            end_token: End token ID
+
+        Returns:
+            Text of the token range
+
+        """
+        if not start_token or not end_token:
+            return ""
+        # Ensure start and end tokens are in the sentence
+        sentence_token_ids: builtins.dict[int, Token] = {
+            token.id: token for token in self.tokens
+        }
+        if start_token not in sentence_token_ids:
+            msg = f"Start token ID {start_token} not found in sentence"
+            raise ValueError(msg)
+        if end_token and end_token not in sentence_token_ids:
+            msg = f"End token ID {end_token} not found in sentence"
+            raise ValueError(msg)
+        if not end_token or start_token == end_token:
+            return sentence_token_ids[start_token].surface
+
+        # Get tokens in range between start and end tokens
+        tokens: builtins.list[Token] = []
+        in_range = False
+        for token in sorted(self.tokens, key=lambda t: t.order_index):
+            if token.id == start_token:
+                in_range = True
+            if in_range:
+                tokens.append(token)
+            if token.id == end_token:
+                break
+
+        return " ".join(token.surface for token in tokens)

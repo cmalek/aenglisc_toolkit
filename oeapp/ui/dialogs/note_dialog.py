@@ -63,9 +63,9 @@ class NoteDialog(QDialog):
         self.session = session
         self.state = ApplicationState()
         self.command_manager = self.state.command_manager
-        self._setup_ui()
+        self.build()
 
-    def _setup_ui(self) -> None:
+    def build(self) -> None:
         """Set up the UI layout."""
         if self.is_editing:
             self.setWindowTitle("Edit Note")
