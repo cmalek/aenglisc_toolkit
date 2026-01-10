@@ -40,12 +40,10 @@ docs = [
     # We use our own version of sphinx-terraform that fixes a bug in the
     # upstream version that has yet to be merged as of Jan 2024.
     "sphinx-terraform",                                 # https://gitlab.com/cmalek1/sphinx-terraform
-    "sphinxcontrib-django",                             # https://github.com/sphinx-doc/sphinxcontrib-django
     "sphinxcontrib-jsonglobaltoc==0.1.5",               # https://github.com/caltechads/sphinxcontrib-jsonglobaltoc
 ]
 test = [
     "coverage>=7.6.12", # https://github.com/nedbat/coveragepy
-    "django-coverage-plugin==3.1.0", # https://github.com/nedbat/django_coverage_plugin
     "pytest>=8.4.2",
     "pytest-coverage>=0.0",
     "pytest-qt>=4.5.0",
