@@ -459,6 +459,8 @@ class OldEnglishTextEdit(QTextEdit):
 
         #: Mapping of token order_index to Token object
         self.tokens_by_index: dict[int, Token] = {}
+        #: Mapping of token ID to Token object
+        self.tokens_by_id: dict[int, Token] = {}
         #: Mapping of token order_index to index in self.tokens list
         self.order_to_list_index: dict[int, int] = {}
         #: Token to position in the text editor
@@ -642,8 +644,8 @@ class OldEnglishTextEdit(QTextEdit):
             end_token_id: End token ID
 
         """
-        start_token = self.tokens_by_index.get(start_token_id)
-        end_token = self.tokens_by_index.get(end_token_id)
+        start_token = self.tokens_by_id.get(start_token_id)
+        end_token = self.tokens_by_id.get(end_token_id)
         if start_token is None:
             msg = f"Start token {start_token_id} is not in this sentence"
             raise ValueError(msg)
@@ -934,6 +936,7 @@ class OldEnglishTextEdit(QTextEdit):
         self.idioms = sentence.idioms
 
         self.tokens_by_index = {t.order_index: t for t in self.tokens}
+        self.tokens_by_id = {t.id: t for t in self.tokens}
         self.order_to_list_index = {t.order_index: i for i, t in enumerate(self.tokens)}
         self.annotations = {
             cast("int", token.id): token.annotation for token in self.tokens if token.id
