@@ -581,6 +581,7 @@ class WholeSentenceHighlighter:
         self.highlighting_combo.blockSignals(True)  # noqa: FBT003
         self.highlighting_combo.setCurrentIndex(0)
         self.highlighting_combo.blockSignals(False)  # noqa: FBT003
+        self.active_command = NoneHighlighterCommand(self)
 
     def set_highlights(self, extra_selections: list[QTextEdit.ExtraSelection]) -> None:
         """
@@ -668,9 +669,15 @@ class WholeSentenceHighlighter:
         assert self.highlighting_combo, (  # noqa: S101
             "You must call build_combo_box before calling _on_filter_dialog_closed"
         )
-        self.highlighting_combo.blockSignals(True)  # noqa: FBT003
-        self.highlighting_combo.setCurrentIndex(0)
-        self.highlighting_combo.blockSignals(False)  # noqa: FBT003
+        self.clear_active_command()
+
+    def _on_edit_oe_clicked(self) -> None:
+        """
+        Handle Edit OE button click.
+        """
+        self.unhighlight()
+        self.hide_filter_dialog()
+        self.clear_active_command()
 
 
 class SingleInstanceHighlighter(SelectTokensMixin):

@@ -91,6 +91,9 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
         self.token_table = TokenTable()
         self.sentence_highlighter: WholeSentenceHighlighter = WholeSentenceHighlighter()
         self.build()
+        self.edit_oe_button.clicked.connect(
+            self.sentence_highlighter._on_edit_oe_clicked
+        )
         self.set_tokens()
         # We need to do this here because it has to come after
         # :meth:`set_tokens()` is called to set up all the lookups
@@ -922,10 +925,6 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
         12. Disconnect textChanged signal to prevent auto-tokenization while editing
 
         """
-        # Clear all highlighting
-        self.sentence_highlighter.unhighlight()
-        self.sentence_highlighter.hide_filter_dialog()
-        self.sentence_highlighter.clear_active_command()
         # Hide Edit OE button and Add Note button
         self.edit_oe_button.setVisible(False)
         self.add_note_button.setVisible(False)
