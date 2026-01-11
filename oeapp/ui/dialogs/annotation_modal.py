@@ -1,6 +1,6 @@
 """Annotation modal dialog."""
 
-from typing import TYPE_CHECKING, ClassVar, Final, cast
+from typing import TYPE_CHECKING, ClassVar, Final, TypedDict, cast
 
 from PySide6.QtCore import QObject, Qt, QTimer, Signal
 from PySide6.QtWidgets import (
@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
     QLabel,
+    QLayout,
     QLineEdit,
     QMessageBox,
     QPushButton,
@@ -50,12 +51,14 @@ class PartOfSpeechFieldsBase(AnnotationLookupsMixin):
     #: The Part of Speech Name
     PART_OF_SPEECH: str
 
-    def __init__(self, layout: QFormLayout) -> None:
+    def __init__(self, layout: QFormLayout, parent_widget: QWidget) -> None:
         """
         Initialize the Part of Speech form.
         """
         #: The layout to add the fields to
         self.layout = layout
+        #: The parent widget for the fields
+        self.parent_widget = parent_widget
         #: The fields for the Part of Speech form
         self.fields: dict[str, QComboBox] = {}
         #: The lookup map for the fields
@@ -83,7 +86,7 @@ class PartOfSpeechFieldsBase(AnnotationLookupsMixin):
                 :attr:`~oeapp.ui.mixins.AnnotationLookupsMixin.ARTICLE_TYPE_MAP`.
 
         """
-        combo = QComboBox()
+        combo = QComboBox(self.parent_widget)
         combo.addItems(list(lookup_map.values()))
         self.lookup_map[attr] = lookup_map
         self.code_to_index_map[attr] = {k: i for i, k in enumerate(lookup_map.keys())}
@@ -95,6 +98,11 @@ class PartOfSpeechFieldsBase(AnnotationLookupsMixin):
     def clear(self) -> None:
         """
         Reset the Part of Speech form.
+
+        - Clears the fields dictionary
+        - Clears the lookup map
+        - Clears the code to index map
+        - Clears the index to code map
         """
         self.fields.clear()
         self.lookup_map.clear()
@@ -103,7 +111,7 @@ class PartOfSpeechFieldsBase(AnnotationLookupsMixin):
 
     def reset(self) -> None:
         """
-        Reset the fields to their default values.
+        Reset the fields to their default values, meaning index 0 (empty selection).
         """
         for field in self.fields.values():
             field.setCurrentIndex(0)
@@ -111,6 +119,10 @@ class PartOfSpeechFieldsBase(AnnotationLookupsMixin):
     def add_field(self, attr: str, label: str, field: QComboBox) -> None:
         """
         Add a field to the Part of Speech form.
+
+        Side effect:
+            The field will be added to the fields dictionary and to the
+            :class:`~PySide6.QtWidgets.QFormLayout` as a row.
 
         Args:
             attr: The attribute name for the field on :class:`~oeapp.models.Annotation`
@@ -128,17 +140,19 @@ class PartOfSpeechFieldsBase(AnnotationLookupsMixin):
         msg = "Subclasses must implement this method"
         raise NotImplementedError(msg)
 
-    def unbuild(self) -> None:
-        """
-        Clear the Part of Speech form.
-        """
-        while self.layout.rowCount() > 0:
-            self.layout.removeRow(0)
-        self.clear()
-
     def load_from_indices(self, indices: dict[str, int]) -> None:
         """
         Load the values from the indices into the Part of Speech form.
+
+        Side effect:
+            For each attribute in the indices, if the attribute is in the lookup
+            map, the field will be set to the value.  If the index is not in the
+            lookup map, that index is ignored.
+
+        Args:
+            indices: The indices to load the values from
+
+
         """
         for attr, index in indices.items():
             if attr in self.fields:
@@ -149,6 +163,21 @@ class PartOfSpeechFieldsBase(AnnotationLookupsMixin):
     def load_from_preset(self, preset: AnnotationPreset) -> None:
         """
         Load the values from the preset into the Part of Speech form.
+
+        Side effect:
+            For each attribute in the preset, if the attribute is in the lookup
+            map, the field will be set to the value.  If the value is
+            :data:`~oeapp.ui.dialogs.annotation_preset_management.CLEAR_SENTINEL`,
+            the field will be set to empty selection (index 0).
+            If the value is None, the field will be left unchanged.
+
+            If the preset has a value that is not in the lookup map,
+            the field will be set to empty selection (index 0).
+
+
+        Args:
+            preset: The preset to load the values from
+
         """
         for attr, value in preset.to_json().items():
             if attr in self.lookup_map:
@@ -169,6 +198,17 @@ class PartOfSpeechFieldsBase(AnnotationLookupsMixin):
     def load_from_annotation(self, annotation: Annotation) -> None:
         """
         Load the annotation into the Part of Speech form.
+
+        Side effect:
+            For each attribute in the annotation, if the attribute is in the lookup map,
+            the field will be set to the value.
+
+            If the annotation has a value that is not in the lookup map,
+            the field will be set to empty selection (index 0).
+
+        Args:
+            annotation: The annotation to load the values from
+
         """
         for attr, value in annotation.to_json().items():
             if attr in self.lookup_map:
@@ -180,13 +220,24 @@ class PartOfSpeechFieldsBase(AnnotationLookupsMixin):
 
     def extract_indices(self) -> dict[str, int]:
         """
-        Extract the indices from the Part of Speech form.
+        Extract the indices from the Part of Speech form into a dict
+        where the keys are the attribute names and the values are the indices.
+
+        Returns:
+            A dictionary of the indices from the Part of Speech form
+
         """
         return {attr: self.fields[attr].currentIndex() for attr in self.fields}
 
     def extract_values(self) -> dict[str, str | None]:
         """
-        Extract the values from the form and return them as a dictionary.
+        Extract the values from the form and return them as a dictionary where
+        the keys are the attribute names and the values are the values from the
+        combo box (the codes).  If the field is empty, the value will be None.
+
+        Returns:
+            A dictionary of the values from the Part of Speech form
+
         """
         return {
             attr: self.index_to_code_map[attr].get(self.fields[attr].currentIndex())
@@ -407,6 +458,8 @@ class PartOfSpeechFormManager:
     """
     Manager for the Part of Speech form."""
 
+    #: Mapping of Part of Speech codes to the corresponding
+    #: :class:`PartOfSpeechFieldsBase` subclass.
     PARTS_OF_SPEECH: ClassVar[dict[str | None, type[PartOfSpeechFieldsBase]]] = {
         "N": NounFields,
         "V": VerbFields,
@@ -420,17 +473,26 @@ class PartOfSpeechFormManager:
         None: NoneFields,
     }
 
-    def __init__(self, layout: QFormLayout) -> None:
+    def __init__(self, container_layout: QVBoxLayout, parent_widget: QWidget) -> None:
         """
         Initialize the Part of Speech form manager.
+
+        Args:
+            container_layout: The layout to add the Part of Speech widgets to
+            parent_widget: The widget that will be the parent of the container
+                widgets created for each Part of Speech.
+
         """
-        #: The layout to add the fields to
-        self.layout = layout
-        #: The previous Part of Speech fields, kept so we can clear them when we
-        #: change to a new Part of Speech
-        self.previous: PartOfSpeechFieldsBase | None = None
+        #: The layout to add the Part of Speech widgets to
+        self.container_layout = container_layout
+        #: The widget that will be the parent of the container widgets created
+        #: for each Part of Speech.
+        self.parent_widget = parent_widget
         #: The current Part of Speech fields
-        self.current: PartOfSpeechFieldsBase = NoneFields(self.layout)
+        self.current: PartOfSpeechFieldsBase | None = None
+
+        # Start with NoneFields
+        self.select(None)
 
     def select(self, pos: str | None) -> None:
         """
@@ -447,19 +509,45 @@ class PartOfSpeechFormManager:
         if pos not in self.PARTS_OF_SPEECH:
             msg = f"Invalid Part of Speech: {pos}"
             raise ValueError(msg)
-        self.previous = self.current
-        self.current = self.PARTS_OF_SPEECH[pos](self.layout)
-        self.build()
 
-    def build(self) -> None:
+        # 1. Clean up old items from the container layout
+        while self.container_layout.count():
+            item = self.container_layout.takeAt(0)
+            if item.widget():
+                widget = cast("QWidget", item.widget())
+                widget.hide()
+                widget.deleteLater()
+            elif item.layout():
+                # Recursively clear sub-layouts
+                self._clear_layout(item.layout())
+
+        # 2. Create new form layout and add it to container
+        new_layout = QFormLayout()
+        self.container_layout.addLayout(new_layout)
+
+        # 3. Create the fields instance with the NEW layout
+        self.current = self.PARTS_OF_SPEECH[pos](new_layout, self.parent_widget)
+        self.current.build()
+
+    def _clear_layout(self, layout: QLayout) -> None:
         """
-        Build the Part of Speech form.
+        Helper to clear a layout and its sub-layouts/widgets.
+
+        This is a recursive function that iterates recursively through the
+        layout and hides and deletes all widgets.
+
+        Args:
+            layout: The layout to clear
+
         """
-        if self.current:
-            if self.previous:
-                self.previous.unbuild()
-                self.previous.clear()
-            self.current.build()
+        while layout.count():
+            item = layout.takeAt(0)
+            if item.widget():
+                widget = cast("QWidget", item.widget())
+                widget.hide()
+                widget.deleteLater()
+            elif item.layout():
+                self._clear_layout(item.layout())
 
     def reset(self) -> None:
         """
@@ -471,6 +559,14 @@ class PartOfSpeechFormManager:
     def load_from_indices(self, indices: dict[str, int]) -> None:
         """
         Load the values from the indices into the Part of Speech form.
+
+        If there is no current Part of Speech fields, do nothing.
+
+        Args:
+            indices: A dictionary of the attribute names and the indices to load
+                the values from.  The keys are the attribute names and the values
+                are the indices to set the fields to.
+
         """
         if self.current:
             self.current.load_from_indices(indices)
@@ -494,7 +590,7 @@ class PartOfSpeechFormManager:
 
         """
         assert self.current is not None, (  # noqa: S101
-            "load_from_annotation called a selected Part of Speech"
+            "load_from_annotation called without a selected Part of Speech"
         )
         if self.current:
             self.current.load_from_annotation(annotation)
@@ -589,6 +685,7 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         from oeapp.ui.shortcuts import AnnotationModalShortcuts  # noqa: PLC0415
 
         super().__init__(parent)
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         self.token = token
         self.idiom = idiom
 
@@ -600,10 +697,11 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
             msg = "Neither token nor idiom was provided"
             raise ValueError(msg)
 
-        self.fields_widget: QWidget | None = None
         self.preset_service = AnnotationPresetService()
         self.build()
-        self.part_of_speech_manager = PartOfSpeechFormManager(self.fields_layout)
+        self.part_of_speech_manager = PartOfSpeechFormManager(
+            cast("QVBoxLayout", self.fields_group.layout()), self.fields_group
+        )
         AnnotationModalShortcuts(self).execute()
         self.load()
 
@@ -713,7 +811,7 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         elif self.idiom:
             self.build_idiom_header(layout)
 
-        self.status_label = QLabel("POS: Not set")
+        self.status_label = QLabel("POS: Not set", self)
         self.status_label.setStyleSheet("color: #666; font-style: italic;")
         layout.addWidget(self.status_label)
 
@@ -728,7 +826,7 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         assert self.token is not None, (  # noqa: S101
             "build_token_header called without self.token being set"
         )
-        header_label = QLabel(f"Token: <b>{self.token.surface}</b>")
+        header_label = QLabel(f"Token: <b>{self.token.surface}</b>", self)
         header_label.setFont(self.font())
         layout.addWidget(header_label)
 
@@ -741,7 +839,7 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
 
         """
         idiom = cast("Idiom", self.idiom)
-        header_label = QLabel("Idiom: ")
+        header_label = QLabel("Idiom: ", self)
         header_label.setFont(self.font())
 
         tokens_layout = QHBoxLayout()
@@ -757,7 +855,7 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         if hasattr(parent, "oe_text_edit"):
             for token in parent.oe_text_edit.tokens:
                 if start_order <= token.order_index <= end_order:
-                    btn = QPushButton(token.surface)
+                    btn = QPushButton(token.surface, self)
                     btn.setFlat(True)
                     btn.setStyleSheet("color: blue; text-decoration: underline;")
                     btn.clicked.connect(
@@ -776,7 +874,7 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
             container: Container layout to add the Part of Speech section to
 
         """
-        pos_group = QGroupBox("Part of Speech")
+        pos_group = QGroupBox("Part of Speech", self)
         pos_layout = QVBoxLayout()
         self.build_pos_combo(pos_layout)
         self.build_preset_selection(pos_layout)
@@ -796,7 +894,7 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
             container: Container layout to add the POS selection section to
 
         """
-        self.pos_combo = QComboBox()
+        self.pos_combo = QComboBox(self)
         self.pos_combo.addItem("")  # Empty option for "no selection"
         self.pos_combo.addItems(
             cast(
@@ -826,11 +924,11 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
 
         """
         layout = QHBoxLayout()
-        self.preset_combo = QComboBox()
+        self.preset_combo = QComboBox(self)
         self.preset_combo.setEnabled(False)
-        layout.addWidget(QLabel("Preset:"))
+        layout.addWidget(QLabel("Preset:", self))
         layout.addWidget(self.preset_combo)
-        self.apply_preset_button = QPushButton("Apply")
+        self.apply_preset_button = QPushButton("Apply", self)
         self.apply_preset_button.setEnabled(False)
         self.apply_preset_button.clicked.connect(self._on_preset_apply)
         layout.addWidget(self.apply_preset_button)
@@ -842,19 +940,14 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         changes based on the selected POS, and is updated by the :meth:`_on_pos_changed`
         method, which is called when :attr:`pos_combo` is changed.
 
-        This is where :attr:`fields_group`, :attr:`fields_layout`, and
-        :attr:`fields_widget` are set up.
+        This is where :attr:`fields_group` is set up.
 
         Args:
             container: Container layout to add the dynamic section to
 
         """
-        self.fields_group = QGroupBox("Annotation Fields")
-        self.fields_layout = QFormLayout()
-        self.fields_widget = QWidget()
-        self.fields_widget.setLayout(self.fields_layout)
+        self.fields_group = QGroupBox("Annotation Fields", self)
         self.fields_group.setLayout(QVBoxLayout())
-        cast("QVBoxLayout", self.fields_group.layout()).addWidget(self.fields_widget)
         container.addWidget(self.fields_group)
 
     def build_metadata_section(self, container: QVBoxLayout) -> None:
@@ -865,7 +958,7 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
             container: Container layout to add the metadata section to
 
         """
-        group = QGroupBox("Metadata")
+        group = QGroupBox("Metadata", self)
         layout = QVBoxLayout()
         self.build_confidence_slider(layout)
         self.build_todo_check(layout)
@@ -885,11 +978,11 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
 
         """
         layout = QHBoxLayout()
-        layout.addWidget(QLabel("Confidence:"))
-        self.confidence_slider = QSlider(Qt.Orientation.Horizontal)
+        layout.addWidget(QLabel("Confidence:", self))
+        self.confidence_slider = QSlider(Qt.Orientation.Horizontal, self)
         self.confidence_slider.setRange(0, 100)
         self.confidence_slider.setValue(100)
-        self.confidence_label = QLabel("100%")
+        self.confidence_label = QLabel("100%", self)
         self.confidence_slider.valueChanged.connect(
             lambda v: self.confidence_label.setText(f"{v}%")
         )
@@ -905,7 +998,7 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
             container: Container layout to add the TODO check box to
 
         """
-        self.todo_check = QCheckBox("TODO (needs review)")
+        self.todo_check = QCheckBox("TODO (needs review)", self)
         container.addWidget(self.todo_check)
 
     def build_modern_english_edit(self, container: QVBoxLayout) -> None:
@@ -919,8 +1012,8 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
 
         """
         layout = QHBoxLayout()
-        layout.addWidget(QLabel("Modern English Meaning:"))
-        self.modern_english_edit = QLineEdit()
+        layout.addWidget(QLabel("Modern English Meaning:", self))
+        self.modern_english_edit = QLineEdit(self)
         self.modern_english_edit.setPlaceholderText("e.g., time, season")
         layout.addWidget(self.modern_english_edit)
         container.addLayout(layout)
@@ -936,8 +1029,8 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
 
         """
         layout = QHBoxLayout()
-        layout.addWidget(QLabel("Root:"))
-        self.root_edit = QLineEdit()
+        layout.addWidget(QLabel("Root:", self))
+        self.root_edit = QLineEdit(self)
         self.root_edit.setPlaceholderText("e.g., bēon, hēof")
         layout.addWidget(self.root_edit)
         container.addLayout(layout)
@@ -954,22 +1047,22 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
 
         """
         layout = QHBoxLayout()
-        self.clear_button = QPushButton("Clear All")
+        self.clear_button = QPushButton("Clear All", self)
         self.clear_button.clicked.connect(self._clear_all)
         layout.addWidget(self.clear_button)
 
-        self.save_as_preset_button = QPushButton("Save as Preset")
+        self.save_as_preset_button = QPushButton("Save as Preset", self)
         self.save_as_preset_button.setEnabled(False)
         self.save_as_preset_button.clicked.connect(self._on_save_as_preset)
         layout.addWidget(self.save_as_preset_button)
 
         layout.addStretch()
 
-        self.cancel_button = QPushButton("Cancel")
+        self.cancel_button = QPushButton("Cancel", self)
         self.cancel_button.clicked.connect(self.reject)
         layout.addWidget(self.cancel_button)
 
-        self.apply_button = QPushButton("Apply")
+        self.apply_button = QPushButton("Apply", self)
         self.apply_button.setDefault(True)
         self.apply_button.clicked.connect(self.save)
         layout.addWidget(self.apply_button)
@@ -1057,9 +1150,6 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         # Trigger field creation
         self._on_pos_changed()
 
-        # Ensure preset dropdown is updated after POS is set. Use QTimer to
-        # ensure this happens after the UI is fully updated
-        QTimer.singleShot(0, self._update_preset_dropdown)
         self.part_of_speech_manager.load_from_annotation(self.annotation)
         # Load metadata
         if self.annotation.confidence is not None:
@@ -1272,8 +1362,6 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         self._update_status_label()
         # Update preset dropdown after POS change
         self._update_preset_dropdown()
-
-        QTimer.singleShot(100, self._update_preset_dropdown)
 
     def _on_save_as_preset(self) -> None:
         """

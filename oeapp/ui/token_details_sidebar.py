@@ -53,9 +53,10 @@ class FieldRenderer(AnnotationLookupsMixin):
             spacing: Spacing between the label and the value
 
         """
+        parent_widget = parent_layout.parentWidget()
         container = QHBoxLayout()
         container.setContentsMargins(0, 0, 0, 0)
-        label_widget = QLabel(f"{label}: ")
+        label_widget = QLabel(f"{label}: ", parent_widget)
         label_widget.setStyleSheet(cls.LABEL_STYLE)
         container.addWidget(label_widget)
         container.addSpacing(spacing)
@@ -64,7 +65,7 @@ class FieldRenderer(AnnotationLookupsMixin):
         else:
             if value is None:
                 value = "?"
-            value_widget = QLabel(str(value))
+            value_widget = QLabel(str(value), parent_widget)
             value_widget.setStyleSheet(cls.SET_VALUE_STYLE)
             container.addWidget(value_widget)
         parent_layout.addLayout(container)
@@ -101,15 +102,16 @@ class AbstractPartOfSpeechRenderer(AnnotationLookupsMixin):
             NoAnnotationAvailable: If no annotation is available
 
         """
+        parent_widget = parent_layout.parentWidget()
         if not self.annotation or not self.annotation.pos:
             # No annotation or POS set
-            no_pos_label = QLabel("No annotation available")
+            no_pos_label = QLabel("No annotation available", parent_widget)
             no_pos_label.setStyleSheet("color: #999; font-style: italic;")
             parent_layout.addWidget(no_pos_label)
             raise NoAnnotationAvailable
         pos_text = self.PART_OF_SPEECH_MAP[self.annotation.pos]
         if pos_text:
-            pos_label = QLabel(pos_text)
+            pos_label = QLabel(pos_text, parent_widget)
             pos_label.setStyleSheet(self.POS_LABEL_STYLE)
             parent_layout.addWidget(pos_label)
             parent_layout.addSpacing(23)
@@ -442,7 +444,7 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
         self._current_idiom = None
         self._current_sentence = None
 
-        empty_label = QLabel("Word details")
+        empty_label = QLabel("Word details", self.content_widget)
         empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         empty_label.setFont(QFont("Arial", 16))
         empty_label.setStyleSheet("color: #666;")
@@ -480,7 +482,7 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
 
     def rule(self) -> None:
         """Display a horizontal rule."""
-        separator = QLabel("─" * 24)
+        separator = QLabel("─" * 24, self.content_widget)
         separator.setStyleSheet(
             "color: #ccc; font-family: Helvetica; font-weight: normal;"
         )
@@ -513,7 +515,7 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
         token_text += f"{token.surface}"
         if context_str:
             token_text += f"<sub style='{self.SUB_STYLE}'>{context_str}</sub>"
-        token_label = QLabel(token_text)
+        token_label = QLabel(token_text, self.content_widget)
         token_label.setFont(self.TOKEN_FONT)
         token_label.setWordWrap(True)
         self.content_layout.addWidget(token_label)
@@ -532,7 +534,8 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
 
         """
         number_label = QLabel(
-            f"[{sentence.display_order}] ¶:{sentence.paragraph_number} S:{sentence.sentence_number_in_paragraph}"  # noqa: E501
+            f"[{sentence.display_order}] ¶:{sentence.paragraph_number} S:{sentence.sentence_number_in_paragraph}",  # noqa: E501
+            self.content_widget,
         )
         number_label.setFont(self.LINE_LABEL_FONT)
         number_label.setStyleSheet(self.LINE_LABEL_STYLE)
@@ -555,10 +558,10 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
         else:
             root_layout = QHBoxLayout()
             root_layout.setContentsMargins(0, 0, 0, 0)
-            value_widget = QLabel(str(root_value))
+            value_widget = QLabel(str(root_value), self.content_widget)
             value_widget.setStyleSheet(self.field_renderer.SET_VALUE_STYLE)
             root_layout.addWidget(value_widget)
-            dict_button = QPushButton()
+            dict_button = QPushButton(self.content_widget)
             dict_button.setIcon(render_svg(self.BOOK_ICON_SVG, self.BOOK_ICON_SIZE))
             dict_button.setMaximumWidth(25)
             dict_button.setToolTip("Open in Bosworth-Toller dictionary")
@@ -570,7 +573,7 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
                 lambda _checked=False, rv=annotation.root: open_bosworth_toller(rv)
             )
             root_layout.addWidget(dict_button)
-            root_widget = QWidget()
+            root_widget = QWidget(self.content_widget)
             root_widget.setLayout(root_layout)
             self.field_renderer.format_field(
                 "Root", root_widget, parent_layout=self.content_layout
@@ -586,7 +589,8 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
         """
         # Modern English Meaning
         # Modern English Meaning Label
-        mod_e_label = QLabel("Modern English Meaning:", wordWrap=True)
+        mod_e_label = QLabel("Modern English Meaning:", self.content_widget)
+        mod_e_label.setWordWrap(True)
         mod_e_label.setFont(QFont("Helvetica", 12, QFont.Weight.Bold))
         if not annotation.modern_english_meaning:
             mod_e_label.setStyleSheet("color: #999; font-style: bold;")
@@ -594,7 +598,7 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
             container.setContentsMargins(0, 0, 0, 0)
             container.addWidget(mod_e_label)
             container.addSpacing(30)
-            mod_e_value_label = QLabel("?")
+            mod_e_value_label = QLabel("?", self.content_widget)
             container.addWidget(mod_e_value_label)
             self.content_layout.addLayout(container)
             return
@@ -609,7 +613,7 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
             if annotation.modern_english_meaning
             else "?"
         )
-        mod_e_value_label = QLabel(mod_e_value_text)
+        mod_e_value_label = QLabel(mod_e_value_text, self.content_widget)
         mod_e_value_label.setWordWrap(True)
         self.content_layout.addWidget(mod_e_value_label)
         if not annotation.modern_english_meaning:
@@ -730,7 +734,7 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
         if context_str:
             text += f"<sub style='{self.SUB_STYLE}'>{context_str}</sub>"
 
-        label = QLabel(text)
+        label = QLabel(text, self.content_widget)
         label.setFont(self.TOKEN_FONT)
         label.setWordWrap(True)
         self.content_layout.addWidget(label)
@@ -747,7 +751,9 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
             self.confidence(annotation)
             self.modern_english_meaning(annotation)
         else:
-            no_ann_label = QLabel("No annotation available for this idiom.")
+            no_ann_label = QLabel(
+                "No annotation available for this idiom.", self.content_widget
+            )
             no_ann_label.setStyleSheet("color: #999; font-style: italic;")
             self.content_layout.addWidget(no_ann_label)
 

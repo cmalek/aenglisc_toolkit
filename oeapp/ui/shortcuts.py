@@ -1,12 +1,11 @@
 from typing import TYPE_CHECKING
 
-
 from PySide6.QtGui import QKeySequence, QShortcut
-from PySide6.QtWidgets import QWidget
-
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+    from PySide6.QtWidgets import QWidget
 
     from oeapp.ui.dialogs.annotation_modal import AnnotationModal
     from oeapp.ui.main_window import MainWindow
@@ -41,7 +40,7 @@ class GlobalShortcuts(ShortcutsMixin):
 
     """
 
-    def __init__(self, parent: "MainWindow"):
+    def __init__(self, parent: MainWindow):
         """Initialize the shortcuts."""
         super().__init__(parent)
         self.main_window = parent

@@ -162,7 +162,7 @@ def clear_layout(layout: QLayout) -> None:
 
         widget = item.widget()
         if widget is not None:
-            widget.setParent(None)
+            widget.hide()
             widget.deleteLater()
             continue
 

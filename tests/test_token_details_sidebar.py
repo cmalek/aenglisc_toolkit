@@ -1,9 +1,10 @@
 """Unit tests for TokenDetailsSidebar."""
 
 import pytest
+from PySide6.QtWidgets import QApplication, QLabel
 
 from oeapp.ui.token_details_sidebar import TokenDetailsSidebar
-from tests.conftest import create_test_project
+from tests.conftest import create_test_project, create_test_sentence
 
 
 class TestTokenDetailsSidebar:
@@ -154,3 +155,47 @@ class TestTokenDetailsSidebar:
 
         assert label_found is True
         assert value_found is True
+
+
+class TestTokenDetailsSidebarLifecycle:
+    """Test cases for the lifecycle of TokenDetailsSidebar."""
+
+    @pytest.fixture
+    def token(self, db_session):
+        """Create a test token."""
+        project = create_test_project(db_session, name="Sidebar Project")
+        sentence = create_test_sentence(
+            db_session, project_id=project.id, text="Se cyning ricsode"
+        )
+        return sentence.tokens
+
+    def test_no_floating_widgets_on_update(self, qtbot, token):
+        """Verify that updating the sidebar doesn't leave floating widgets."""
+        sidebar = TokenDetailsSidebar()
+        qtbot.addWidget(sidebar)
+        sidebar.show()
+
+        # Initial windows
+        initial_windows = set(QApplication.topLevelWidgets())
+
+        # Render first token
+        sidebar.render_token(token[1], token[1].sentence)
+        QApplication.processEvents()
+
+        # Should have added some labels, but they should not be top-level windows
+        current_windows = set(QApplication.topLevelWidgets())
+        new_windows = current_windows - initial_windows
+        # Filter for visible windows
+        visible_new_windows = [w for w in new_windows if w.isVisible()]
+        assert not visible_new_windows, f"Expected no new visible windows, found {visible_new_windows}"
+
+        # Render second token - this calls clear_sidebar()
+        sidebar.render_token(token[2], token[2].sentence)
+        QApplication.processEvents()
+
+        current_windows = set(QApplication.topLevelWidgets())
+        new_windows = current_windows - initial_windows
+        visible_new_windows = [w for w in new_windows if w.isVisible()]
+
+        # If the bug exists, clear_layout's setParent(None) might make them visible windows
+        assert not visible_new_windows, f"Expected no new visible windows after update, found {visible_new_windows}"

@@ -1,9 +1,10 @@
 """Unit tests for AnnotationModal and related POS field classes."""
 
 import pytest
+import weakref
 from unittest.mock import MagicMock
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QFormLayout, QWidget, QVBoxLayout, QPushButton
+from PySide6.QtWidgets import QFormLayout, QWidget, QVBoxLayout, QPushButton, QApplication
 
 from oeapp.models import Annotation, Token, Idiom
 from oeapp.models.annotation_preset import AnnotationPreset
@@ -30,18 +31,22 @@ class TestPartOfSpeechFieldsBase:
     """Test cases for PartOfSpeechFieldsBase."""
 
     @pytest.fixture
-    def layout(self):
-        return QFormLayout()
+    def parent_widget(self):
+        return QWidget()
 
     @pytest.fixture
-    def fields_base(self, layout):
+    def layout(self, parent_widget):
+        return QFormLayout(parent_widget)
+
+    @pytest.fixture
+    def fields_base(self, layout, parent_widget):
         class ConcreteFields(PartOfSpeechFieldsBase):
             PART_OF_SPEECH = "Test"
             def build(self):
                 self.add_combo("gender", "Gender", self.GENDER_MAP)
                 self.add_combo("number", "Number", self.NUMBER_MAP)
 
-        return ConcreteFields(layout)
+        return ConcreteFields(layout, parent_widget)
 
     def test_add_combo(self, fields_base):
         fields_base.build()
@@ -69,13 +74,6 @@ class TestPartOfSpeechFieldsBase:
         fields_base.fields["gender"].setCurrentIndex(1)
         fields_base.reset()
         assert fields_base.fields["gender"].currentIndex() == 0
-
-    def test_unbuild(self, fields_base):
-        fields_base.build()
-        assert fields_base.layout.rowCount() > 0
-        fields_base.unbuild()
-        assert fields_base.layout.rowCount() == 0
-        assert not fields_base.fields
 
     def test_load_from_indices(self, fields_base):
         fields_base.build()
@@ -176,8 +174,9 @@ class TestPartOfSpeechSubclasses:
         (NoneFields, {}),
     ])
     def test_subclass_build_and_items(self, cls, expected_field_maps):
-        layout = QFormLayout()
-        fields = cls(layout)
+        parent = QWidget()
+        layout = QFormLayout(parent)
+        fields = cls(layout, parent)
         fields.build()
 
         # Verify all expected fields exist
@@ -198,34 +197,34 @@ class TestPartOfSpeechFormManager:
 
     @pytest.fixture
     def manager(self):
-        return PartOfSpeechFormManager(QFormLayout())
+        parent = QWidget()
+        layout = QVBoxLayout(parent)
+        return PartOfSpeechFormManager(layout, parent)
 
     def test_select_pos(self, manager):
         manager.select("N")
         assert isinstance(manager.current, NounFields)
-        assert manager.layout.rowCount() > 0
+        assert manager.container_layout.count() > 0
 
     def test_select_none(self, manager):
         manager.select(None)
         assert isinstance(manager.current, NoneFields)
-        assert manager.layout.rowCount() == 0
+        # N/A has no fields, but it should still have its layout in the container
+        assert manager.container_layout.count() > 0
 
     def test_select_invalid(self, manager):
         with pytest.raises(ValueError, match="Invalid Part of Speech"):
             manager.select("INVALID")
 
-    def test_build(self, manager):
+    def test_select_rebuild(self, manager):
         manager.select("N")
-        # select calls build()
-        assert manager.layout.rowCount() > 0
+        assert manager.container_layout.count() > 0
 
-        # Test that building new POS unbuilds previous one
+        # Test that switching POS clears the layout and creates a new one
         prev_fields = manager.current
         manager.select("V")
-        assert manager.layout.rowCount() > 0
-        # prev_fields.layout is the same object as manager.layout, so rowCount will be > 0
-        # but prev_fields.fields should be empty after unbuild() calls clear()
-        assert not prev_fields.fields
+        assert manager.container_layout.count() > 0
+        assert manager.current is not prev_fields
 
     def test_reset(self, manager):
         manager.select("N")
@@ -280,8 +279,9 @@ class TestPOSFieldModelMapping:
         InterjectionFields, NoneFields
     ])
     def test_fields_map_to_model_attributes(self, cls):
-        layout = QFormLayout()
-        fields_obj = cls(layout)
+        parent = QWidget()
+        layout = QFormLayout(parent)
+        fields_obj = cls(layout, parent)
         fields_obj.build()
 
         valid_attributes = {column.name for column in Annotation.__table__.columns}
@@ -294,8 +294,9 @@ class TestPOSFieldModelMapping:
     ])
     def test_special_field_maps(self, cls, attr, expected_map):
         """Test that fields requiring special maps (like PRONOUN_NUMBER_MAP) use them."""
-        layout = QFormLayout()
-        fields_obj = cls(layout)
+        parent = QWidget()
+        layout = QFormLayout(parent)
+        fields_obj = cls(layout, parent)
         fields_obj.build()
 
         assert attr in fields_obj.lookup_map
@@ -485,3 +486,96 @@ class TestAnnotationModal:
 
         modal.confidence_slider.setValue(0)
         assert modal.confidence_label.text() == "0%"
+
+
+class TestAnnotationModalLifecycle:
+    """Test cases for the lifecycle and repeated opening of AnnotationModal."""
+
+    @pytest.fixture
+    def token(self, db_session):
+        """Create a test token."""
+        project = create_test_project(db_session, name="Lifecycle Project")
+        sentence = create_test_sentence(
+            db_session, project_id=project.id, text="Se cyning ricsode"
+        )
+        return sentence.tokens  # "Se", "cyning", "ricsode"
+
+    def test_wa_delete_on_close_is_set(self, qtbot, token):
+        """Verify that WA_DeleteOnClose is set to ensure cleanup."""
+        modal = AnnotationModal(token=token[0])
+        qtbot.addWidget(modal)
+        assert modal.testAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+
+    def test_repeated_opening_on_same_token(self, qtbot, token):
+        """Test that fields are correctly loaded when opening multiple times on same token."""
+        # First opening
+        modal1 = AnnotationModal(token=token[1])
+        qtbot.addWidget(modal1)
+        modal1.show()
+        modal1.pos_combo.setCurrentText("Noun (N)")
+
+        # Capture weak references to fields
+        gender_combo1 = modal1.part_of_speech_manager.current.fields["gender"]
+        weak_gender1 = weakref.ref(gender_combo1)
+
+        assert isinstance(modal1.part_of_speech_manager.current, NounFields)
+        assert not gender_combo1.isWindow()
+
+        # Cancel the modal
+        modal1.reject()
+
+        # Second opening
+        modal2 = AnnotationModal(token=token[1])
+        qtbot.addWidget(modal2)
+        modal2.show()
+        modal2.pos_combo.setCurrentText("Noun (N)")
+
+        gender_combo2 = modal2.part_of_speech_manager.current.fields["gender"]
+
+        assert gender_combo2 is not gender_combo1
+
+        # Verify old fields are not top-level windows
+        old_gender = weak_gender1()
+        if old_gender is not None:
+            assert not old_gender.isWindow()
+
+        assert not gender_combo2.isWindow()
+        assert gender_combo2.window() == modal2.window()
+        modal2.accept()
+
+    def test_opening_on_different_tokens(self, qtbot, token):
+        """Test that fields correctly appear when switching between different tokens."""
+        # Open on token 1 (cyning - Noun)
+        modal1 = AnnotationModal(token=token[1])
+        qtbot.addWidget(modal1)
+        modal1.pos_combo.setCurrentText("Noun (N)")
+        assert isinstance(modal1.part_of_speech_manager.current, NounFields)
+        modal1.accept()
+
+        # Open on token 2 (ricsode - Verb)
+        modal2 = AnnotationModal(token=token[2])
+        qtbot.addWidget(modal2)
+        modal2.pos_combo.setCurrentText("Verb (V)")
+        assert isinstance(modal2.part_of_speech_manager.current, VerbFields)
+        modal2.accept()
+
+    def test_no_extra_top_level_windows(self, qtbot, token):
+        """Verify that no extra top-level windows are created (floating fields)."""
+        initial_windows = [w for w in QApplication.topLevelWidgets() if w.isVisible()]
+
+        modal = AnnotationModal(token=token[1])
+        qtbot.addWidget(modal)
+        modal.show()
+
+        # Select a POS to trigger dynamic field creation
+        modal.pos_combo.setCurrentText("Noun (N)")
+
+        # We should only see the modal as a new visible top-level window
+        current_windows = [w for w in QApplication.topLevelWidgets() if w.isVisible()]
+        # Filter out potential internal Qt windows or the main window if it exists
+        new_windows = [w for w in current_windows if w not in initial_windows]
+
+        assert len(new_windows) == 1, f"Expected 1 new window (the modal), found {len(new_windows)}: {new_windows}"
+        assert new_windows[0] == modal
+
+        modal.reject()
