@@ -207,7 +207,7 @@ class AnnotationPreset(SaveDeleteMixin, Base):
             session.commit()
         return preset
 
-    def to_dict(self) -> dict:
+    def to_json(self) -> dict:
         """
         Serialize preset to dictionary with all field values.
 

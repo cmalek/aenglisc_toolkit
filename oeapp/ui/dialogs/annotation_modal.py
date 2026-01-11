@@ -3,7 +3,6 @@
 from typing import TYPE_CHECKING, ClassVar, Final, cast
 
 from PySide6.QtCore import QObject, Qt, QTimer, Signal
-from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -36,18 +35,536 @@ if TYPE_CHECKING:
     from oeapp.types import PresetPos
 
 
+class PartOfSpeechFieldsBase(AnnotationLookupsMixin):
+    """
+    The base class for the Part of Speech set of fields.
+
+    This must be subclassed to provide the fields for the particular Part of
+    Speech.
+
+    Args:
+        parent: The parent widget
+
+    """
+
+    #: The Part of Speech Name
+    PART_OF_SPEECH: str
+
+    def __init__(self, layout: QFormLayout) -> None:
+        """
+        Initialize the Part of Speech form.
+        """
+        #: The layout to add the fields to
+        self.layout = layout
+        #: The fields for the Part of Speech form
+        self.fields: dict[str, QComboBox] = {}
+        #: The lookup map for the fields
+        self.lookup_map: dict[str, dict[str | None, str]] = {}
+        #: The code to combo index map for the fields
+        self.code_to_index_map: dict[str, dict[str | None, int]] = {}
+        #: The index to code map for the fields
+        self.index_to_code_map: dict[str, dict[int, str | None]] = {}
+
+    def add_combo(
+        self,
+        attr: str,
+        label: str,
+        lookup_map: dict[str | None, str],
+    ) -> None:
+        """
+        Add a combo box to the Part of Speech form.
+
+        Args:
+            attr: The attribute name for the field
+            label: The label for the combo box
+            lookup_map: The lookup map for the combo box.  This should be one of
+                the lookup maps from
+                :class:`~oeapp.ui.mixins.AnnotationLookupsMixin`. like
+                :attr:`~oeapp.ui.mixins.AnnotationLookupsMixin.ARTICLE_TYPE_MAP`.
+
+        """
+        combo = QComboBox()
+        combo.addItems(list(lookup_map.values()))
+        self.lookup_map[attr] = lookup_map
+        self.code_to_index_map[attr] = {k: i for i, k in enumerate(lookup_map.keys())}
+        self.index_to_code_map[attr] = {
+            i: k for k, i in self.code_to_index_map[attr].items()
+        }
+        self.add_field(attr, label, combo)
+
+    def clear(self) -> None:
+        """
+        Reset the Part of Speech form.
+        """
+        self.fields.clear()
+        self.lookup_map.clear()
+        self.code_to_index_map.clear()
+        self.index_to_code_map.clear()
+
+    def reset(self) -> None:
+        """
+        Reset the fields to their default values.
+        """
+        for field in self.fields.values():
+            field.setCurrentIndex(0)
+
+    def add_field(self, attr: str, label: str, field: QComboBox) -> None:
+        """
+        Add a field to the Part of Speech form.
+
+        Args:
+            attr: The attribute name for the field on :class:`~oeapp.models.Annotation`
+            label: The label for the field
+            field: The field to add
+
+        """
+        self.fields[attr] = field
+        self.layout.addRow(label, field)
+
+    def build(self) -> None:
+        """
+        Build the Part of Speech form.
+        """
+        msg = "Subclasses must implement this method"
+        raise NotImplementedError(msg)
+
+    def unbuild(self) -> None:
+        """
+        Clear the Part of Speech form.
+        """
+        while self.layout.rowCount() > 0:
+            self.layout.removeRow(0)
+        self.clear()
+
+    def load_from_indices(self, indices: dict[str, int]) -> None:
+        """
+        Load the values from the indices into the Part of Speech form.
+        """
+        for attr, index in indices.items():
+            if attr in self.fields:
+                self.fields[attr].blockSignals(True)  # noqa: FBT003
+                self.fields[attr].setCurrentIndex(index)
+                self.fields[attr].blockSignals(False)  # noqa: FBT003
+
+    def load_from_preset(self, preset: AnnotationPreset) -> None:
+        """
+        Load the values from the preset into the Part of Speech form.
+        """
+        for attr, value in preset.to_json().items():
+            if attr in self.lookup_map:
+                if value == CLEAR_SENTINEL:
+                    # "Clear" was selected - set to empty selection (index 0)
+                    self.fields[attr].setCurrentIndex(0)
+                    continue
+                if value is None:
+                    # Empty was selected - don't change this field, skip it
+                    continue
+                # Actually set the value
+                index = self.code_to_index_map[attr].get(value)
+                if index is not None:
+                    self.fields[attr].blockSignals(True)  # noqa: FBT003
+                    self.fields[attr].setCurrentIndex(index)
+                    self.fields[attr].blockSignals(False)  # noqa: FBT003
+
+    def load_from_annotation(self, annotation: Annotation) -> None:
+        """
+        Load the annotation into the Part of Speech form.
+        """
+        for attr, value in annotation.to_json().items():
+            if attr in self.lookup_map:
+                index = self.code_to_index_map[attr].get(value)
+                if index is not None:
+                    self.fields[attr].blockSignals(True)  # noqa: FBT003
+                    self.fields[attr].setCurrentIndex(index)
+                    self.fields[attr].blockSignals(False)  # noqa: FBT003
+
+    def extract_indices(self) -> dict[str, int]:
+        """
+        Extract the indices from the Part of Speech form.
+        """
+        return {attr: self.fields[attr].currentIndex() for attr in self.fields}
+
+    def extract_values(self) -> dict[str, str | None]:
+        """
+        Extract the values from the form and return them as a dictionary.
+        """
+        return {
+            attr: self.index_to_code_map[attr].get(self.fields[attr].currentIndex())
+            for attr in self.fields
+        }
+
+    def update_annotation(self, annotation: Annotation) -> None:
+        """
+        Extract the values from the form and save them to the annotation.
+
+        Args:
+            annotation: The annotation to save the values to
+
+        Keyword Args:
+            commit: Whether to commit the changes to the database
+
+        Raises:
+            AttributeError: If the attribute we we think is associated with an
+                combo box is not a valid Annotation attribute
+
+        """
+        valid_fields = {column.name for column in Annotation.__table__.columns}
+        values = self.extract_values()
+        for attr, value in values.items():
+            if attr not in valid_fields:
+                msg = f"Invalid Annotation attribute: {attr}"
+                raise AttributeError(msg)
+            setattr(annotation, attr, value)
+
+
+class NounFields(PartOfSpeechFieldsBase):
+    """
+    The fields for the Noun form.
+    """
+
+    PART_OF_SPEECH: str = "Noun"
+
+    def build(self) -> None:
+        """
+        Build the Noun form.
+
+        - Adds the gender combo box
+        - Adds the number combo box
+        - Adds the case combo box
+        - Adds the declension combo box
+        """
+        self.add_combo("gender", "Gender", self.GENDER_MAP)
+        self.add_combo("number", "Number", self.NUMBER_MAP)
+        self.add_combo("case", "Case", self.CASE_MAP)
+        self.add_combo("declension", "Declension", self.DECLENSION_MAP)
+
+
+class VerbFields(PartOfSpeechFieldsBase):
+    """
+    The fields for the Verb form.
+    """
+
+    PART_OF_SPEECH: str = "Verb"
+
+    def build(self) -> None:
+        """
+        Build the Verb form.
+
+        - Adds the verb class combo box
+        - Adds the verb tense combo box
+        - Adds the verb mood combo box
+        - Adds the verb person combo box
+        - Adds the verb number combo box
+        - Adds the verb aspect combo box
+        - Adds the verb form combo box
+        """
+        self.add_combo("verb_class", "Class", self.VERB_CLASS_MAP)
+        self.add_combo("verb_tense", "Tense", self.VERB_TENSE_MAP)
+        self.add_combo("verb_mood", "Mood", self.VERB_MOOD_MAP)
+        self.add_combo("verb_person", "Person", self.VERB_PERSON_MAP)
+        self.add_combo("number", "Number", self.NUMBER_MAP)
+        self.add_combo("verb_aspect", "Aspect", self.VERB_ASPECT_MAP)
+        self.add_combo("verb_form", "Form", self.VERB_FORM_MAP)
+
+
+class PronounFields(PartOfSpeechFieldsBase):
+    """
+    The fields for the Pronoun form.
+    """
+
+    PART_OF_SPEECH: str = "Pronoun"
+
+    def build(self) -> None:
+        """
+        Build the Pronoun form.
+
+        - Adds the pronoun type combo box
+        - Adds the pronoun gender combo box
+        - Adds the pronoun number combo box
+        - Adds the pronoun case combo box
+        """
+        self.add_combo("pronoun_type", "Type", self.PRONOUN_TYPE_MAP)
+        self.add_combo("gender", "Gender", self.GENDER_MAP)
+        self.add_combo("pronoun_number", "Number", self.PRONOUN_NUMBER_MAP)
+        self.add_combo("case", "Case", self.CASE_MAP)
+
+
+class PrepositionFields(PartOfSpeechFieldsBase):
+    """
+    The fields for the Preposition form.
+    """
+
+    PART_OF_SPEECH: str = "Preposition"
+
+    def build(self) -> None:
+        """
+        Build the Preposition form.
+
+        - Adds the preposition case combo box
+        """
+        self.add_combo("prep_case", "Governed Case", self.PREPOSITION_CASE_MAP)
+
+
+class AdjectiveFields(PartOfSpeechFieldsBase):
+    """
+    The fields for the Adjective form.
+    """
+
+    PART_OF_SPEECH: str = "Adjective"
+
+    def build(self) -> None:
+        """
+        Build the Adjective form.
+
+        - Adds the adjective degree combo box
+        - Adds the adjective inflection combo box
+        """
+        self.add_combo("adjective_degree", "Degree", self.ADJECTIVE_DEGREE_MAP)
+        self.add_combo(
+            "adjective_inflection",
+            "Inflection",
+            self.ADJECTIVE_INFLECTION_MAP,
+        )
+        self.add_combo("gender", "Gender", self.GENDER_MAP)
+        self.add_combo("number", "Number", self.NUMBER_MAP)
+        self.add_combo("case", "Case", self.CASE_MAP)
+
+
+class ArticleFields(PartOfSpeechFieldsBase):
+    """
+    The fields for the Article form.
+    """
+
+    PART_OF_SPEECH: str = "Article"
+
+    def build(self) -> None:
+        """
+        Build the Article form.
+        """
+        self.add_combo("article_type", "Type", self.ARTICLE_TYPE_MAP)
+        self.add_combo("gender", "Gender", self.GENDER_MAP)
+        self.add_combo("number", "Number", self.NUMBER_MAP)
+        self.add_combo("case", "Case", self.CASE_MAP)
+
+
+class AdverbFields(PartOfSpeechFieldsBase):
+    """
+    The fields for the Adverb form.
+    """
+
+    PART_OF_SPEECH: str = "Adverb"
+
+    def build(self) -> None:
+        """
+        Build the Adverb form.
+
+        - Adds the adverb degree combo box
+        """
+        self.add_combo("adverb_degree", "Degree", self.ADVERB_DEGREE_MAP)
+
+
+class ConjunctionFields(PartOfSpeechFieldsBase):
+    """
+    The fields for the Conjunction form.
+    """
+
+    PART_OF_SPEECH: str = "Conjunction"
+
+    def build(self) -> None:
+        """
+        Build the Conjunction form.
+        """
+        self.add_combo("conjunction_type", "Type", self.CONJUNCTION_TYPE_MAP)
+
+
+class InterjectionFields(PartOfSpeechFieldsBase):
+    """
+    The fields for the Interjection form.  There are no fields for Interjection.
+    """
+
+    PART_OF_SPEECH: str = "Interjection"
+
+    def build(self) -> None:
+        """
+        Build the Interjection form.
+        """
+
+
+class NoneFields(PartOfSpeechFieldsBase):
+    """
+    The fields for the None form.  There are no fields for None.
+    """
+
+    PART_OF_SPEECH: str = "N/A"
+
+    def build(self) -> None:
+        """
+        Build the None form.
+        """
+
+
+class PartOfSpeechFormManager:
+    """
+    Manager for the Part of Speech form."""
+
+    PARTS_OF_SPEECH: ClassVar[dict[str | None, type[PartOfSpeechFieldsBase]]] = {
+        "N": NounFields,
+        "V": VerbFields,
+        "A": AdjectiveFields,
+        "D": ArticleFields,
+        "R": PronounFields,
+        "E": PrepositionFields,
+        "B": AdverbFields,
+        "C": ConjunctionFields,
+        "I": InterjectionFields,
+        None: NoneFields,
+    }
+
+    def __init__(self, layout: QFormLayout) -> None:
+        """
+        Initialize the Part of Speech form manager.
+        """
+        #: The layout to add the fields to
+        self.layout = layout
+        #: The previous Part of Speech fields, kept so we can clear them when we
+        #: change to a new Part of Speech
+        self.previous: PartOfSpeechFieldsBase | None = None
+        #: The current Part of Speech fields
+        self.current: PartOfSpeechFieldsBase = NoneFields(self.layout)
+
+    def select(self, pos: str | None) -> None:
+        """
+        Set the current Part of Speech fields.
+
+        Args:
+            pos: The Part of Speech code to set the fields for, like "N", "V",
+                "A", "R", "D", "E", "B", "C", "I"
+
+        Raises:
+            ValueError: If the Part of Speech is invalid
+
+        """
+        if pos not in self.PARTS_OF_SPEECH:
+            msg = f"Invalid Part of Speech: {pos}"
+            raise ValueError(msg)
+        self.previous = self.current
+        self.current = self.PARTS_OF_SPEECH[pos](self.layout)
+        self.build()
+
+    def build(self) -> None:
+        """
+        Build the Part of Speech form.
+        """
+        if self.current:
+            if self.previous:
+                self.previous.unbuild()
+                self.previous.clear()
+            self.current.build()
+
+    def reset(self) -> None:
+        """
+        Reset the Part of Speech form.
+        """
+        if self.current:
+            self.current.reset()
+
+    def load_from_indices(self, indices: dict[str, int]) -> None:
+        """
+        Load the values from the indices into the Part of Speech form.
+        """
+        if self.current:
+            self.current.load_from_indices(indices)
+
+    def load_from_preset(self, preset: AnnotationPreset) -> None:
+        """
+        Load the values from the preset into the Part of Speech form.
+        """
+        if self.current:
+            self.current.load_from_preset(preset)
+
+    def load_from_annotation(self, annotation: Annotation) -> None:
+        """
+        Load the annotation into the Part of Speech form.
+
+        Args:
+            annotation: The annotation to load the values from
+
+        Raises:
+            AssertionError: If the current Part of Speech fields are not set
+
+        """
+        assert self.current is not None, (  # noqa: S101
+            "load_from_annotation called a selected Part of Speech"
+        )
+        if self.current:
+            self.current.load_from_annotation(annotation)
+
+    def extract_indices(self) -> dict[str, int]:
+        """
+        Extract the indices from the Part of Speech form.
+        """
+        if self.current:
+            return self.current.extract_indices()
+        return {}
+
+    def extract_values(self) -> dict[str, str | None]:
+        """
+        Extract the values from the Part of Speech form.
+
+        Returns:
+            A dictionary of the values from the Part of Speech form
+
+        Raises:
+            AssertionError: If the current Part of Speech fields are not set
+
+        """
+        assert self.current is not None, (  # noqa: S101
+            "extract_values called without a selected Part of Speech"
+        )
+        return self.current.extract_values()
+
+    def update_annotation(self, annotation: Annotation) -> None:
+        """
+        Update the annotation with the values from the Part of Speech form.
+
+        Args:
+            annotation: The annotation to update
+
+        Raises:
+            AssertionError: If the current Part of Speech fields are not set
+
+        """
+        assert self.current is not None, (  # noqa: S101
+            "update_annotation called without a selected Part of Speech"
+        )
+        self.current.update_annotation(annotation)
+
+
 class AnnotationModal(AnnotationLookupsMixin, QDialog):
     """Modal dialog for annotating tokens with prompt-based entry."""
+
+    # -------------------------------------------------------------------------
+    # Signals
+    # -------------------------------------------------------------------------
+
+    # Signal emitted when annotation is applied
+    annotation_applied = Signal(Annotation)
+
+    # -------------------------------------------------------------------------
+    # Constants
+    # -------------------------------------------------------------------------
 
     #: Dialog width
     DIALOG_WIDTH: Final[int] = 500
     #: Dialog height
     DIALOG_HEIGHT: Final[int] = 600
 
-    annotation_applied = Signal(Annotation)
+    # -------------------------------------------------------------------------
+    # Class-level state
+    # -------------------------------------------------------------------------
 
     # Class-level state to remember last used values per POS type
-    _last_values: ClassVar[dict[str, dict]] = {}
+    _last_values: ClassVar[dict[str, dict[str, int]]] = {}
 
     def __init__(
         self,
@@ -68,6 +585,9 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
             parent: Parent widget
 
         """
+        # We need this here to avoid circular import
+        from oeapp.ui.shortcuts import AnnotationModalShortcuts  # noqa: PLC0415
+
         super().__init__(parent)
         self.token = token
         self.idiom = idiom
@@ -82,28 +602,10 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
 
         self.fields_widget: QWidget | None = None
         self.preset_service = AnnotationPresetService()
-        self._setup_ui()
-        self._setup_keyboard_shortcuts()
-        self._load_existing_annotation()
-
-    def _setup_keyboard_shortcuts(self):
-        """Set up keyboard shortcuts."""
-        # POS shortcuts
-        for key in self.PART_OF_SPEECH_MAP:
-            shortcut = QShortcut(QKeySequence(key), self)
-            shortcut.activated.connect(lambda k=key: self._select_pos_by_key(k))
-
-        # Enter to apply
-        apply_shortcut = QShortcut(QKeySequence(Qt.Key.Key_Return), self)
-        apply_shortcut.activated.connect(self._apply_annotation)
-
-        # Cmd/Ctrl+S to apply
-        save_shortcut = QShortcut(QKeySequence("Ctrl+S"), self)
-        save_shortcut.activated.connect(self._apply_annotation)
-
-        # Esc to cancel
-        cancel_shortcut = QShortcut(QKeySequence(Qt.Key.Key_Escape), self)
-        cancel_shortcut.activated.connect(self.reject)
+        self.build()
+        self.part_of_speech_manager = PartOfSpeechFormManager(self.fields_layout)
+        AnnotationModalShortcuts(self).execute()
+        self.load()
 
     def _init_token_annotation(self, annotation: Annotation | None) -> None:
         """
@@ -152,154 +654,85 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         # Link back for creation if needed
         self.annotation.idiom = idiom
 
-    def _setup_ui(self):  # noqa: PLR0915
+    @property
+    def title_text(self) -> str:
+        """
+        Get the title text for the dialog.
+        """
+        return self.token.surface if self.token else "Idiom"
+
+    def build(self):
         """
         Set up the UI layout.
 
+        - Sets the window title adn window flags
+        - Builds the header section
+        - Builds the Part of Speech selection section
+        - Builds the Part of Speech dynamic section
+        - Builds the Metadata section
+        - Builds the action buttons
+
         """
-        title_text = self.token.surface if self.token else "Idiom"
-        # TODO: consider setting title_text to the idiom text surfaces; a consideration
-        # could be that the idiom text surfaces are too long for the title.
-        self.setWindowTitle(f"Annotate: {title_text}")
+        self.setWindowTitle(f"Annotate: {self.title_text}")
         self.setModal(True)
         self.resize(self.DIALOG_WIDTH, self.DIALOG_HEIGHT)
 
         layout = QVBoxLayout(self)
-
-        # Header: Current token word and POS status
-        self._setup_header(layout)
-
+        # Header section
+        self.build_header(layout)
         layout.addSpacing(10)
 
-        # POS Selection
-        pos_group = QGroupBox("Part of Speech")
-        pos_layout = QVBoxLayout()
-        self.pos_combo = QComboBox()
-        # Add empty option first, then all POS options
-        self.pos_combo.addItem("")  # Empty option for "no selection"
-        self.pos_combo.addItems(
-            cast(
-                "list[str]",
-                [v for v in self.PART_OF_SPEECH_MAP.values() if v is not None],
-            )
-        )
-        # Set initial selection to empty (index 0) and block signals to prevent
-        # _on_pos_changed from firing during initialization
-        self.pos_combo.blockSignals(True)  # noqa: FBT003
-        self.pos_combo.setCurrentIndex(0)  # Empty selection
-        self.pos_combo.blockSignals(False)  # noqa: FBT003
-        self.pos_combo.currentIndexChanged.connect(self._on_pos_changed)
-        pos_layout.addWidget(self.pos_combo)
+        # Part of Speech Section
+        self.build_pos_section(layout)
 
-        # Preset selection
-        preset_layout = QHBoxLayout()
-        self.preset_combo = QComboBox()
-        self.preset_combo.setEnabled(False)
-        preset_layout.addWidget(QLabel("Preset:"))
-        preset_layout.addWidget(self.preset_combo)
-        self.apply_preset_button = QPushButton("Apply")
-        self.apply_preset_button.setEnabled(False)
-        self.apply_preset_button.clicked.connect(self._on_preset_apply)
-        preset_layout.addWidget(self.apply_preset_button)
-        pos_layout.addLayout(preset_layout)
-
-        pos_group.setLayout(pos_layout)
-        layout.addWidget(pos_group)
-
-        # Dynamic fields section
-        self.fields_group = QGroupBox("Annotation Fields")
-        self.fields_layout = QFormLayout()
-        self.fields_widget = QWidget()
-        self.fields_widget.setLayout(self.fields_layout)
-        self.fields_group.setLayout(QVBoxLayout())
-        self.fields_group.layout().addWidget(self.fields_widget)
-        layout.addWidget(self.fields_group)
+        # Dynamic fields section for specific POS types
+        self.build_pos_dynamic_section(layout)
 
         # Metadata section
-        metadata_group = QGroupBox("Metadata")
-        metadata_layout = QVBoxLayout()
-
-        confidence_layout = QHBoxLayout()
-        confidence_layout.addWidget(QLabel("Confidence:"))
-        self.confidence_slider = QSlider(Qt.Orientation.Horizontal)
-        self.confidence_slider.setRange(0, 100)
-        self.confidence_slider.setValue(100)
-        self.confidence_label = QLabel("100%")
-        self.confidence_slider.valueChanged.connect(
-            lambda v: self.confidence_label.setText(f"{v}%")
-        )
-        confidence_layout.addWidget(self.confidence_slider)
-        confidence_layout.addWidget(self.confidence_label)
-        metadata_layout.addLayout(confidence_layout)
-
-        self.todo_check = QCheckBox("TODO (needs review)")
-        metadata_layout.addWidget(self.todo_check)
-
-        modern_english_layout = QHBoxLayout()
-        modern_english_layout.addWidget(QLabel("Modern English Meaning:"))
-        self.modern_english_edit = QLineEdit()
-        self.modern_english_edit.setPlaceholderText("e.g., time, season")
-        modern_english_layout.addWidget(self.modern_english_edit)
-        metadata_layout.addLayout(modern_english_layout)
-
-        root_layout = QHBoxLayout()
-        root_layout.addWidget(QLabel("Root:"))
-        self.root_edit = QLineEdit()
-        self.root_edit.setPlaceholderText("e.g., bēon, hēof")
-        root_layout.addWidget(self.root_edit)
-        metadata_layout.addLayout(root_layout)
-
-        metadata_group.setLayout(metadata_layout)
-        layout.addWidget(metadata_group)
+        self.build_metadata_section(layout)
 
         layout.addStretch()
 
         # Action buttons
-        button_layout = QHBoxLayout()
-        self.clear_button = QPushButton("Clear All")
-        self.clear_button.clicked.connect(self._clear_all)
-        button_layout.addWidget(self.clear_button)
-
-        self.save_as_preset_button = QPushButton("Save as Preset")
-        self.save_as_preset_button.setEnabled(False)
-        self.save_as_preset_button.clicked.connect(self._on_save_as_preset)
-        button_layout.addWidget(self.save_as_preset_button)
-
-        button_layout.addStretch()
-
-        self.cancel_button = QPushButton("Cancel")
-        self.cancel_button.clicked.connect(self.reject)
-        button_layout.addWidget(self.cancel_button)
-
-        self.apply_button = QPushButton("Apply")
-        self.apply_button.setDefault(True)
-        self.apply_button.clicked.connect(self._apply_annotation)
-        button_layout.addWidget(self.apply_button)
-
-        layout.addLayout(button_layout)
+        self.build_action_buttons(layout)
 
         # Keyboard shortcuts will be set up in _setup_keyboard_shortcuts()
 
-    def _setup_header(self, layout: QVBoxLayout) -> None:
+    def build_header(self, layout: QVBoxLayout) -> None:
         """
         Set up the header area with token/idiom info.
+
+        This is where :attr:`status_label` is set up.
 
         Args:
             layout: Layout to add the header to
 
         """
         if self.token:
-            header_label = QLabel(f"Token: <b>{self.token.surface}</b>")
-            header_label.setFont(self.font())
-            layout.addWidget(header_label)
+            self.build_token_header(layout)
         elif self.idiom:
-            self._setup_idiom_header(layout)
+            self.build_idiom_header(layout)
 
         self.status_label = QLabel("POS: Not set")
         self.status_label.setStyleSheet("color: #666; font-style: italic;")
         layout.addWidget(self.status_label)
 
-    def _setup_idiom_header(self, layout: QVBoxLayout) -> None:
+    def build_token_header(self, layout: QVBoxLayout) -> None:
+        """
+        Set up the token header.
+
+        Args:
+            layout: Layout to add the header to
+
+        """
+        assert self.token is not None, (  # noqa: S101
+            "build_token_header called without self.token being set"
+        )
+        header_label = QLabel(f"Token: <b>{self.token.surface}</b>")
+        header_label.setFont(self.font())
+        layout.addWidget(header_label)
+
+    def build_idiom_header(self, layout: QVBoxLayout) -> None:
         """
         Set up the idiom header with clickable tokens.
 
@@ -335,128 +768,358 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         tokens_layout.addStretch()
         layout.addLayout(tokens_layout)
 
-    def _on_token_link_clicked(self, token: Token) -> None:
+    def build_pos_section(self, container: QVBoxLayout) -> None:
         """
-        Handle clicking a token link in an idiom modal.
+        Set up the Part of Speech section.
 
         Args:
-            token: Token to open the annotation modal for
+            container: Container layout to add the Part of Speech section to
 
         """
-        # Close current modal and open a new one for the token
+        pos_group = QGroupBox("Part of Speech")
+        pos_layout = QVBoxLayout()
+        self.build_pos_combo(pos_layout)
+        self.build_preset_selection(pos_layout)
+        pos_group.setLayout(pos_layout)
+        container.addWidget(pos_group)
+
+    def build_pos_combo(self, container: QVBoxLayout) -> None:
+        """
+        Set up the POS selection section.
+
+        This method adds the POS selection section to the given layout, and
+        connects the currentIndexChanged signal to the _on_pos_changed method.
+
+        This is where :attr:`pos_combo` is set up.
+
+        Args:
+            container: Container layout to add the POS selection section to
+
+        """
+        self.pos_combo = QComboBox()
+        self.pos_combo.addItem("")  # Empty option for "no selection"
+        self.pos_combo.addItems(
+            cast(
+                "list[str]",
+                [v for v in self.PART_OF_SPEECH_MAP.values() if v is not None],
+            ),
+        )
+        # Set initial selection to empty (index 0) and block signals to prevent
+        # _on_pos_changed from firing during initialization
+        self.pos_combo.blockSignals(True)  # noqa: FBT003
+        self.pos_combo.setCurrentIndex(0)  # Empty selection
+        self.pos_combo.blockSignals(False)  # noqa: FBT003
+        self.pos_combo.currentIndexChanged.connect(self._on_pos_changed)
+        container.addWidget(self.pos_combo)
+
+    def build_preset_selection(self, container: QVBoxLayout) -> None:
+        """
+        Set up the preset selection section.
+
+        This method adds the preset selection section to the given layout, and
+        connects the currentIndexChanged signal to the _on_preset_apply method.
+
+        This is where :attr:`preset_combo` and :attr:`apply_preset_button` are set up.
+
+        Args:
+            container: Container layout to add the preset selection section to
+
+        """
+        layout = QHBoxLayout()
+        self.preset_combo = QComboBox()
+        self.preset_combo.setEnabled(False)
+        layout.addWidget(QLabel("Preset:"))
+        layout.addWidget(self.preset_combo)
+        self.apply_preset_button = QPushButton("Apply")
+        self.apply_preset_button.setEnabled(False)
+        self.apply_preset_button.clicked.connect(self._on_preset_apply)
+        layout.addWidget(self.apply_preset_button)
+        container.addLayout(layout)
+
+    def build_pos_dynamic_section(self, container: QVBoxLayout) -> None:
+        """
+        Build the dynamic section for the POS.  The per-POS dynamic section
+        changes based on the selected POS, and is updated by the :meth:`_on_pos_changed`
+        method, which is called when :attr:`pos_combo` is changed.
+
+        This is where :attr:`fields_group`, :attr:`fields_layout`, and
+        :attr:`fields_widget` are set up.
+
+        Args:
+            container: Container layout to add the dynamic section to
+
+        """
+        self.fields_group = QGroupBox("Annotation Fields")
+        self.fields_layout = QFormLayout()
+        self.fields_widget = QWidget()
+        self.fields_widget.setLayout(self.fields_layout)
+        self.fields_group.setLayout(QVBoxLayout())
+        cast("QVBoxLayout", self.fields_group.layout()).addWidget(self.fields_widget)
+        container.addWidget(self.fields_group)
+
+    def build_metadata_section(self, container: QVBoxLayout) -> None:
+        """
+        Set up the metadata section.
+
+        Args:
+            container: Container layout to add the metadata section to
+
+        """
+        group = QGroupBox("Metadata")
+        layout = QVBoxLayout()
+        self.build_confidence_slider(layout)
+        self.build_todo_check(layout)
+        self.build_modern_english_edit(layout)
+        self.build_root_edit(layout)
+        group.setLayout(layout)
+        container.addWidget(group)
+
+    def build_confidence_slider(self, container: QVBoxLayout) -> None:
+        """
+        Set up the confidence slider.
+
+        This is where :attr:`confidence_slider` and :attr:`confidence_label` are set up.
+
+        Args:
+            container: Container layout to add the confidence slider to
+
+        """
+        layout = QHBoxLayout()
+        layout.addWidget(QLabel("Confidence:"))
+        self.confidence_slider = QSlider(Qt.Orientation.Horizontal)
+        self.confidence_slider.setRange(0, 100)
+        self.confidence_slider.setValue(100)
+        self.confidence_label = QLabel("100%")
+        self.confidence_slider.valueChanged.connect(
+            lambda v: self.confidence_label.setText(f"{v}%")
+        )
+        layout.addWidget(self.confidence_slider)
+        layout.addWidget(self.confidence_label)
+        container.addLayout(layout)
+
+    def build_todo_check(self, container: QVBoxLayout) -> None:
+        """
+        Set up the TODO check box.
+
+        Args:
+            container: Container layout to add the TODO check box to
+
+        """
+        self.todo_check = QCheckBox("TODO (needs review)")
+        container.addWidget(self.todo_check)
+
+    def build_modern_english_edit(self, container: QVBoxLayout) -> None:
+        """
+        Set up the modern English edit.
+
+        This is where :attr:`modern_english_edit` is set up.
+
+        Args:
+            container: Container layout to add the modern English edit to
+
+        """
+        layout = QHBoxLayout()
+        layout.addWidget(QLabel("Modern English Meaning:"))
+        self.modern_english_edit = QLineEdit()
+        self.modern_english_edit.setPlaceholderText("e.g., time, season")
+        layout.addWidget(self.modern_english_edit)
+        container.addLayout(layout)
+
+    def build_root_edit(self, container: QVBoxLayout) -> None:
+        """
+        Set up the root edit.
+
+        This is where :attr:`root_edit` is set up.
+
+        Args:
+            container: Container layout to add the root edit to
+
+        """
+        layout = QHBoxLayout()
+        layout.addWidget(QLabel("Root:"))
+        self.root_edit = QLineEdit()
+        self.root_edit.setPlaceholderText("e.g., bēon, hēof")
+        layout.addWidget(self.root_edit)
+        container.addLayout(layout)
+
+    def build_action_buttons(self, container: QVBoxLayout) -> None:
+        """
+        Set up the action buttons.
+
+        This is where :attr:`clear_button`, :attr:`save_as_preset_button`,
+        :attr:`cancel_button`, and :attr:`apply_button` are set up.
+
+        Args:
+            container: Container layout to add the action buttons to
+
+        """
+        layout = QHBoxLayout()
+        self.clear_button = QPushButton("Clear All")
+        self.clear_button.clicked.connect(self._clear_all)
+        layout.addWidget(self.clear_button)
+
+        self.save_as_preset_button = QPushButton("Save as Preset")
+        self.save_as_preset_button.setEnabled(False)
+        self.save_as_preset_button.clicked.connect(self._on_save_as_preset)
+        layout.addWidget(self.save_as_preset_button)
+
+        layout.addStretch()
+
+        self.cancel_button = QPushButton("Cancel")
+        self.cancel_button.clicked.connect(self.reject)
+        layout.addWidget(self.cancel_button)
+
+        self.apply_button = QPushButton("Apply")
+        self.apply_button.setDefault(True)
+        self.apply_button.clicked.connect(self.save)
+        layout.addWidget(self.apply_button)
+
+        container.addLayout(layout)
+
+    def _update_status_label(self):
+        """
+        Update status label with current annotation summary.
+
+        - If the POS is not set, set the status label to "POS: Not set"
+        - If the POS is set, add the POS to the summary parts
+        - If the gender is set, add the gender to the summary parts
+        - If the number is set, add the number to the summary parts
+        - Join the summary parts with a comma and space
+        - Set the status label to the summary
+        """
+        pos_text = self.pos_combo.currentText()
+        if not pos_text:
+            self.status_label.setText("POS: Not set")
+            return
+        summary_parts = [pos_text]
+        values = self.part_of_speech_manager.extract_values()
+
+        # Check for gender
+        gender = values.get("gender")
+        if gender:
+            summary_parts.append(self.GENDER_MAP.get(gender, gender))
+
+        # Check for number (could be 'number' or 'pronoun_number')
+        number = values.get("number") or values.get("pronoun_number")
+        if number:
+            # Try PRONOUN_NUMBER_MAP first as it's more inclusive (has Dual)
+            num_text = self.PRONOUN_NUMBER_MAP.get(number) or self.NUMBER_MAP.get(
+                number
+            )
+            if num_text:
+                summary_parts.append(num_text)
+            else:
+                summary_parts.append(number)
+
+        parts = ", ".join(summary_parts)
+        self.status_label.setText(f"POS: {parts}")
+
+    # -------------------------------------------------------------------------
+    # Annotation related methods
+    # -------------------------------------------------------------------------
+
+    def load(self) -> None:
+        """
+        Load existing annotation values into the form.
+
+        If there is a POS set on the annotation, then:
+
+            - Build the Part of Speech form for the annotation's POS
+            - Load the last used values for the POS
+            - Load the preset dropdown
+            - Load the annotation into the Part of Speech form
+            - Load metadata
+
+        Otherwise, set the POS combo to empty/None (index 0), clear
+        the Part of Speech form, and clear the metadata.
+        """
+        if not self.annotation.pos:
+            # No annotation exists, ensure POS combo is set to empty/None (index 0)
+            # Block signals temporarily to prevent _on_pos_changed from firing
+            self.pos_combo.blockSignals(True)  # noqa: FBT003
+            self.pos_combo.setCurrentIndex(0)  # Empty selection
+            self.pos_combo.blockSignals(False)  # noqa: FBT003
+            return
+
+        # Set POS
+        # Note: Index 0 is empty string, so POS options start at index 1
+        pos_index = 0
+        if self.annotation.pos:
+            pos_text = self.PART_OF_SPEECH_MAP.get(self.annotation.pos)
+            if pos_text:
+                pos_index = self.pos_combo.findText(pos_text)
+
+        # Block signals temporarily to prevent double-triggering
+        self.pos_combo.blockSignals(True)  # noqa: FBT003
+        self.pos_combo.setCurrentIndex(max(0, pos_index))
+        self.pos_combo.blockSignals(False)  # noqa: FBT003
+
+        # Trigger field creation
+        self._on_pos_changed()
+
+        # Ensure preset dropdown is updated after POS is set. Use QTimer to
+        # ensure this happens after the UI is fully updated
+        QTimer.singleShot(0, self._update_preset_dropdown)
+        self.part_of_speech_manager.load_from_annotation(self.annotation)
+        # Load metadata
+        if self.annotation.confidence is not None:
+            self.confidence_slider.setValue(self.annotation.confidence)
+        if self.annotation.modern_english_meaning:
+            self.modern_english_edit.setText(self.annotation.modern_english_meaning)
+        if self.annotation.root:
+            self.root_edit.setText(self.annotation.root)
+
+    def save(self) -> None:
+        """
+        Save the annotation.
+
+        - Get the current POS
+        - If the POS is empty, set the annotation's POS to None
+        - Otherwise, get the POS code from the POS combo box
+        - Save the current values for future use
+        - Update the annotation with the values from the Part of Speech form
+        - Extract metadata
+        - Save the annotation
+        """
+        # Get POS
+        # Note: Index 0 is empty string, so we need to subtract 1 from the index
+        # to map to the correct POS code
+        combo_index = self.pos_combo.currentIndex()
+        if combo_index == 0:
+            # Empty selection
+            self.annotation.pos = None
+        else:
+            self.annotation.pos = self.PART_OF_SPEECH_REVERSE_MAP.get(
+                self.pos_combo.currentText()
+            )
+
+        # Save current values for future use
+        if self.annotation.pos:
+            self._last_values[self.annotation.pos] = (
+                self.part_of_speech_manager.extract_indices()
+            )
+        # Update the annotation with the values from the Part of Speech form
+        self.part_of_speech_manager.update_annotation(self.annotation)
+
+        # Extract metadata
+        self.annotation.confidence = self.confidence_slider.value()
+        modern_english_text = self.modern_english_edit.text().strip()
+        if modern_english_text:
+            self.annotation.modern_english_meaning = modern_english_text
+        else:
+            self.annotation.modern_english_meaning = None
+        root_text = self.root_edit.text().strip()
+        if root_text:
+            self.annotation.root = root_text
+        else:
+            self.annotation.root = None
+
+        self.annotation_applied.emit(self.annotation)
         self.accept()
-        parent = self.parent()
-        if hasattr(parent, "_open_token_modal"):
-            parent._open_token_modal(token)
 
-    def _select_pos_by_key(self, pos_key: str):
-        """
-        Select POS by keyboard shortcut.
-
-        Args:
-            pos_key: POS key (N, V, A, R, D, B, C, E, I)
-
-        """
-        pos_text = self.PART_OF_SPEECH_MAP.get(pos_key)  # type: ignore[attr-defined]
-        if pos_text:
-            index = self.pos_combo.findText(pos_text)
-            if index >= 0:
-                self.pos_combo.setCurrentIndex(index)
-                # _on_pos_changed will be triggered by setCurrentIndex
-
-    def _on_pos_changed(self) -> None:  # noqa: PLR0912
-        """
-        Handle POS selection change.
-        """
-        # Clear existing fields and delete widget references
-        # Delete widget attributes to prevent accessing deleted C++ objects
-        widget_attrs = [
-            "gender_combo",
-            "number_combo",
-            "case_combo",
-            "declension_combo",
-            "verb_class_combo",
-            "verb_tense_combo",
-            "verb_mood_combo",
-            "verb_person_combo",
-            "verb_number_combo",
-            "verb_aspect_combo",
-            "verb_form_combo",
-            "adj_degree_combo",
-            "adj_inflection_combo",
-            "adj_gender_combo",
-            "adj_number_combo",
-            "adj_case_combo",
-            "pro_type_combo",
-            "pro_gender_combo",
-            "pro_number_combo",
-            "pro_case_combo",
-            "prep_case_combo",
-            "article_type_combo",
-            "article_gender_combo",
-            "article_number_combo",
-            "article_case_combo",
-            "adv_degree_combo",
-            "conj_type_combo",
-            "interjection_type_combo",
-        ]
-        for attr in widget_attrs:
-            if hasattr(self, attr):
-                delattr(self, attr)
-
-        # Clear existing fields
-        while self.fields_layout.rowCount() > 0:
-            self.fields_layout.removeRow(0)
-
-        pos = self.PART_OF_SPEECH_REVERSE_MAP.get(self.pos_combo.currentText())
-
-        # If switching between actual POS types (not from/to empty),
-        # clear the lexical fields to prevent cross-token corruption
-        prev_pos = self.annotation.pos
-        if pos and prev_pos and pos != prev_pos:
-            self.root_edit.clear()
-            self.modern_english_edit.clear()
-
-        # Update Save as Preset button state
-        self.save_as_preset_button.setEnabled(pos in ("N", "V", "A", "R", "D"))
-
-        # Clear preset selection when POS changes
-        if hasattr(self, "preset_combo"):
-            self.preset_combo.setCurrentIndex(0)
-
-        if pos == "N":  # Noun
-            self._add_noun_fields()
-            self._restore_last_values("N")
-        elif pos == "V":  # Verb
-            self._add_verb_fields()
-            self._restore_last_values("V")
-        elif pos == "D":  # Determiner/Article
-            self._add_article_fields()
-            self._restore_last_values("D")
-        elif pos == "A":  # Adjective
-            self._add_adjective_fields()
-            self._restore_last_values("A")
-        elif pos == "R":  # Pronoun
-            self._add_pronoun_fields()
-            self._restore_last_values("R")
-        elif pos == "E":  # Preposition
-            self._add_preposition_fields()
-            self._restore_last_values("E")
-        elif pos == "B":  # Adverb
-            self._add_adverb_fields()
-            self._restore_last_values("B")
-        elif pos == "C":  # Conjunction
-            self._add_conjunction_fields()
-            self._restore_last_values("C")
-        elif pos == "I":  # Interjection
-            self._add_interjection_fields()
-            self._restore_last_values("I")
-
-        self._update_status_label()
-        # Update preset dropdown after POS change
-        self._update_preset_dropdown()
-
-        QTimer.singleShot(100, self._update_preset_dropdown)
+    # -------------------------------------------------------------------------
+    # Preset dropdown methods
+    # -------------------------------------------------------------------------
 
     def _update_preset_dropdown(self) -> None:
         """Populate preset dropdown based on current POS selection."""
@@ -513,8 +1176,20 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         """Refresh preset dropdown from database."""
         self._update_preset_dropdown()
 
+    # -------------------------------------------------------------------------
+    # Event handlers
+    # -------------------------------------------------------------------------
+
     def _on_preset_apply(self) -> None:
-        """Apply selected preset values to form fields."""
+        """
+        Apply selected preset values to form fields.
+
+        - If the preset is not selected, return
+        - Get the preset ID from the preset combo box
+        - Get the preset from the database, if not found, return
+        - Load the preset values into the Part of Speech form
+        - Update the status label based on the new preset
+        """
         if self.preset_combo.currentIndex() == 0:
             # Empty selection
             return
@@ -527,237 +1202,78 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         if not preset:
             return
 
-        mapping = self._get_field_to_widget_mapping(cast("PresetPos", preset.pos))
-        for field_name, (widget_attr, reverse_map) in mapping.items():
-            preset_value = getattr(preset, field_name, None)
-
-            if not hasattr(self, widget_attr):
-                continue
-
-            widget = getattr(self, widget_attr)
-            if isinstance(widget, QComboBox):
-                if preset_value == CLEAR_SENTINEL:
-                    # "Clear" was selected - set to empty selection (index 0)
-                    widget.setCurrentIndex(0)
-                elif preset_value is None:
-                    # Empty was selected - don't change this field, skip it
-                    continue
-                elif reverse_map:
-                    # Convert preset code to UI value using reverse map
-                    # Find the index in the combo that matches the preset value
-                    # Reverse map maps index -> code, we need code -> index
-                    code_to_index = {v: k for k, v in reverse_map.items()}
-                    index = code_to_index.get(preset_value)
-                    if index is not None:
-                        widget.setCurrentIndex(index)
-                else:
-                    # For editable combos, set text directly
-                    widget.setCurrentText(preset_value)
-
+        self.part_of_speech_manager.load_from_preset(preset)
         self._update_status_label()
 
-    def _get_field_to_widget_mapping(self, pos: PresetPos) -> dict:
+    def _on_token_link_clicked(self, token: Token) -> None:
         """
-        Return mapping dict: {field_name: (widget_attr, reverse_map)} for
-        applying presets.
+        Handle clicking a token link in an idiom modal.
 
         Args:
-            pos: Part of speech code
-
-        Returns:
-            Dictionary mapping field names to (widget attribute name, reverse
-            map)
+            token: Token to open the annotation modal for
 
         """
-        if pos == "N":
-            return {
-                "gender": ("gender_combo", self.GENDER_REVERSE_MAP),
-                "number": ("number_combo", self.NUMBER_REVERSE_MAP),
-                "case": ("case_combo", self.CASE_REVERSE_MAP),
-                "declension": ("declension_combo", self.DECLENSION_REVERSE_MAP),
-            }
-        if pos == "V":
-            return {
-                "verb_class": ("verb_class_combo", self.VERB_CLASS_REVERSE_MAP),
-                "verb_tense": ("verb_tense_combo", self.VERB_TENSE_REVERSE_MAP),
-                "verb_mood": ("verb_mood_combo", self.VERB_MOOD_REVERSE_MAP),
-                "verb_person": ("verb_person_combo", self.VERB_PERSON_REVERSE_MAP),
-                "number": ("verb_number_combo", self.NUMBER_REVERSE_MAP),
-                "verb_aspect": ("verb_aspect_combo", self.VERB_ASPECT_REVERSE_MAP),
-                "verb_form": ("verb_form_combo", self.VERB_FORM_REVERSE_MAP),
-            }
-        if pos == "A":
-            return {
-                "adjective_degree": (
-                    "adj_degree_combo",
-                    self.ADJECTIVE_DEGREE_REVERSE_MAP,
-                ),
-                "adjective_inflection": (
-                    "adj_inflection_combo",
-                    self.ADJECTIVE_INFLECTION_REVERSE_MAP,
-                ),
-                "gender": ("adj_gender_combo", self.GENDER_REVERSE_MAP),
-                "number": ("adj_number_combo", self.NUMBER_REVERSE_MAP),
-                "case": ("adj_case_combo", self.CASE_REVERSE_MAP),
-            }
-        if pos == "R":
-            return {
-                "pronoun_type": ("pro_type_combo", self.PRONOUN_TYPE_REVERSE_MAP),
-                "gender": ("pro_gender_combo", self.GENDER_REVERSE_MAP),
-                "pronoun_number": (
-                    "pro_number_combo",
-                    self.PRONOUN_NUMBER_REVERSE_MAP,
-                ),
-                "case": ("pro_case_combo", self.CASE_REVERSE_MAP),
-            }
-        if pos == "D":
-            return {
-                "article_type": ("article_type_combo", self.ARTICLE_TYPE_REVERSE_MAP),
-                "gender": ("article_gender_combo", self.GENDER_REVERSE_MAP),
-                "number": ("article_number_combo", self.NUMBER_REVERSE_MAP),
-                "case": ("article_case_combo", self.CASE_REVERSE_MAP),
-            }
-        return {}
+        # Close current modal and open a new one for the token
+        self.accept()
+        parent = self.parent()
+        if hasattr(parent, "_open_token_modal"):
+            parent._open_token_modal(token)
 
-    def _extract_current_field_values(self) -> dict:  # noqa: PLR0912, PLR0915
+    def _select_pos_by_key(self, pos_key: str):
         """
-        Extract current form values into dictionary format for preset.
+        Select POS by keyboard shortcut.  This is an event handler for the
+        keyboard shortcuts.
 
-        Returns:
-            Dictionary with field names as keys and codes as values (None for
-            empty/unset)
+        Args:
+            pos_key: POS key (N, V, A, R, D, B, C, E, I)
 
+        """
+        pos_text = self.PART_OF_SPEECH_MAP.get(pos_key)  # type: ignore[attr-defined]
+        if pos_text:
+            index = self.pos_combo.findText(pos_text)
+            if index >= 0:
+                self.pos_combo.setCurrentIndex(index)
+                # _on_pos_changed will be triggered by setCurrentIndex
+
+    def _on_pos_changed(self) -> None:
+        """
+        Handle POS selection change.
+
+        - Get the current POS and previous POS
+        - If the POS is changing and the previous POS is not None, clear the
+          root and modern English edit fields
+        - Clear the preset selection
+        - Update the Save as Preset button state based on the POS
+        - Build the Part of Speech form for the new POS
+        - Load the last used values for the new POS
+        - Update the status label based on the new POS
         """
         pos = self.PART_OF_SPEECH_REVERSE_MAP.get(self.pos_combo.currentText())
-        if not pos or pos not in ("N", "V", "A", "R", "D"):
-            return {}
+        prev_pos = self.annotation.pos
 
-        field_values = {}
-        if pos == "N":
-            if hasattr(self, "gender_combo"):
-                idx = self.gender_combo.currentIndex()
-                field_values["gender"] = (
-                    self.GENDER_REVERSE_MAP.get(idx) if idx > 0 else None
-                )
-            if hasattr(self, "number_combo"):
-                idx = self.number_combo.currentIndex()
-                field_values["number"] = (
-                    self.NUMBER_REVERSE_MAP.get(idx) if idx > 0 else None
-                )
-            if hasattr(self, "case_combo"):
-                idx = self.case_combo.currentIndex()
-                field_values["case"] = (
-                    self.CASE_REVERSE_MAP.get(idx) if idx > 0 else None
-                )
-            if hasattr(self, "declension_combo"):
-                text = self.declension_combo.currentText().strip()
-                field_values["declension"] = text if text else None
-        elif pos == "V":
-            if hasattr(self, "verb_class_combo"):
-                idx = self.verb_class_combo.currentIndex()
-                field_values["verb_class"] = (
-                    self.VERB_CLASS_REVERSE_MAP.get(idx) if idx > 0 else None
-                )
-            if hasattr(self, "verb_tense_combo"):
-                idx = self.verb_tense_combo.currentIndex()
-                field_values["verb_tense"] = (
-                    self.VERB_TENSE_REVERSE_MAP.get(idx) if idx > 0 else None
-                )
-            if hasattr(self, "verb_mood_combo"):
-                idx = self.verb_mood_combo.currentIndex()
-                field_values["verb_mood"] = (
-                    self.VERB_MOOD_REVERSE_MAP.get(idx) if idx > 0 else None
-                )
-            if hasattr(self, "verb_person_combo"):
-                idx = self.verb_person_combo.currentIndex()
-                field_values["verb_person"] = (
-                    self.VERB_PERSON_REVERSE_MAP.get(idx) if idx > 0 else None
-                )
-            if hasattr(self, "verb_number_combo"):
-                idx = self.verb_number_combo.currentIndex()
-                field_values["number"] = (
-                    self.NUMBER_REVERSE_MAP.get(idx) if idx > 0 else None
-                )
-            if hasattr(self, "verb_aspect_combo"):
-                idx = self.verb_aspect_combo.currentIndex()
-                field_values["verb_aspect"] = (
-                    self.VERB_ASPECT_REVERSE_MAP.get(idx) if idx > 0 else None
-                )
-            if hasattr(self, "verb_form_combo"):
-                idx = self.verb_form_combo.currentIndex()
-                field_values["verb_form"] = (
-                    self.VERB_FORM_REVERSE_MAP.get(idx) if idx > 0 else None
-                )
-        elif pos == "A":
-            if hasattr(self, "adj_degree_combo"):
-                idx = self.adj_degree_combo.currentIndex()
-                field_values["adjective_degree"] = (
-                    self.ADJECTIVE_DEGREE_REVERSE_MAP.get(idx) if idx > 0 else None
-                )
-            if hasattr(self, "adj_inflection_combo"):
-                idx = self.adj_inflection_combo.currentIndex()
-                field_values["adjective_inflection"] = (
-                    self.ADJECTIVE_INFLECTION_REVERSE_MAP.get(idx) if idx > 0 else None
-                )
-            if hasattr(self, "adj_gender_combo"):
-                idx = self.adj_gender_combo.currentIndex()
-                field_values["gender"] = (
-                    self.GENDER_REVERSE_MAP.get(idx) if idx > 0 else None
-                )
-            if hasattr(self, "adj_number_combo"):
-                idx = self.adj_number_combo.currentIndex()
-                field_values["number"] = (
-                    self.NUMBER_REVERSE_MAP.get(idx) if idx > 0 else None
-                )
-            if hasattr(self, "adj_case_combo"):
-                idx = self.adj_case_combo.currentIndex()
-                field_values["case"] = (
-                    self.CASE_REVERSE_MAP.get(idx) if idx > 0 else None
-                )
-        elif pos == "R":
-            if hasattr(self, "pro_type_combo"):
-                idx = self.pro_type_combo.currentIndex()
-                field_values["pronoun_type"] = (
-                    self.PRONOUN_TYPE_REVERSE_MAP.get(idx) if idx > 0 else None
-                )
-            if hasattr(self, "pro_gender_combo"):
-                idx = self.pro_gender_combo.currentIndex()
-                field_values["gender"] = (
-                    self.GENDER_REVERSE_MAP.get(idx) if idx > 0 else None
-                )
-            if hasattr(self, "pro_number_combo"):
-                idx = self.pro_number_combo.currentIndex()
-                field_values["pronoun_number"] = (
-                    self.PRONOUN_NUMBER_REVERSE_MAP.get(idx) if idx > 0 else None
-                )
-            if hasattr(self, "pro_case_combo"):
-                idx = self.pro_case_combo.currentIndex()
-                field_values["case"] = (
-                    self.CASE_REVERSE_MAP.get(idx) if idx > 0 else None
-                )
-        elif pos == "D":
-            if hasattr(self, "article_type_combo"):
-                idx = self.article_type_combo.currentIndex()
-                field_values["article_type"] = (
-                    self.ARTICLE_TYPE_REVERSE_MAP.get(idx) if idx > 0 else None
-                )
-            if hasattr(self, "article_gender_combo"):
-                idx = self.article_gender_combo.currentIndex()
-                field_values["gender"] = (
-                    self.GENDER_REVERSE_MAP.get(idx) if idx > 0 else None
-                )
-            if hasattr(self, "article_number_combo"):
-                idx = self.article_number_combo.currentIndex()
-                field_values["number"] = (
-                    self.NUMBER_REVERSE_MAP.get(idx) if idx > 0 else None
-                )
-            if hasattr(self, "article_case_combo"):
-                idx = self.article_case_combo.currentIndex()
-                field_values["case"] = (
-                    self.CASE_REVERSE_MAP.get(idx) if idx > 0 else None
-                )
+        # If switching between actual POS types (not from/to empty),
+        # clear the lexical fields to prevent cross-token corruption
+        if pos and prev_pos and pos != prev_pos:
+            self.root_edit.clear()
+            self.modern_english_edit.clear()
 
-        return field_values
+        # Clear preset selection when POS changes
+        if hasattr(self, "preset_combo"):
+            self.preset_combo.setCurrentIndex(0)
+        # Update Save as Preset button state
+        self.save_as_preset_button.setEnabled(pos in ("N", "V", "A", "R", "D"))
+
+        # Build the Part of Speech form
+        self.part_of_speech_manager.select(pos)
+        # Load the last used values for the new POS
+        if pos in self._last_values:
+            self.part_of_speech_manager.load_from_indices(self._last_values[pos])
+
+        self._update_status_label()
+        # Update preset dropdown after POS change
+        self._update_preset_dropdown()
+
+        QTimer.singleShot(100, self._update_preset_dropdown)
 
     def _on_save_as_preset(self) -> None:
         """
@@ -771,7 +1287,7 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         if not pos or pos not in ("N", "V", "A", "R", "D"):
             return
 
-        field_values = self._extract_current_field_values()
+        field_values = self.part_of_speech_manager.extract_values()
 
         main_window = None
         app = QApplication.instance()
@@ -827,704 +1343,25 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         # is available
         QTimer.singleShot(0, self._refresh_preset_dropdown)
 
-    def _restore_last_values(self, pos: str) -> None:  # noqa: PLR0912, PLR0915
-        """
-        Restore last used values for a POS type.
-
-        Args:
-            pos: POS type code
-
-        """
-        if pos not in self._last_values:
-            return
-
-        last_vals = self._last_values[cast("str", pos)]
-
-        # Restore values based on POS
-        if pos == "N" and hasattr(self, "gender_combo"):
-            if "gender" in last_vals:
-                self.gender_combo.setCurrentIndex(last_vals["gender"])
-            if "number" in last_vals:
-                self.number_combo.setCurrentIndex(last_vals["number"])
-            if "case" in last_vals:
-                self.case_combo.setCurrentIndex(last_vals["case"])
-            if "declension" in last_vals:
-                self.declension_combo.setCurrentIndex(last_vals["declension"])
-        elif pos == "V" and hasattr(self, "verb_class_combo"):
-            if "verb_class" in last_vals:
-                self.verb_class_combo.setCurrentIndex(last_vals["verb_class"])
-            if "verb_tense" in last_vals:
-                self.verb_tense_combo.setCurrentIndex(last_vals["verb_tense"])
-            if "verb_mood" in last_vals:
-                self.verb_mood_combo.setCurrentIndex(last_vals["verb_mood"])
-            if "verb_person" in last_vals:
-                self.verb_person_combo.setCurrentIndex(last_vals["verb_person"])
-            if "verb_number" in last_vals:
-                self.verb_number_combo.setCurrentIndex(last_vals["verb_number"])
-            if "verb_aspect" in last_vals:
-                self.verb_aspect_combo.setCurrentIndex(last_vals["verb_aspect"])
-            if "verb_form" in last_vals:
-                self.verb_form_combo.setCurrentIndex(last_vals["verb_form"])
-        elif pos == "D" and hasattr(self, "article_type_combo"):
-            if "article_type" in last_vals:
-                self.article_type_combo.setCurrentIndex(last_vals["article_type"])
-            if "article_gender" in last_vals:
-                self.article_gender_combo.setCurrentIndex(last_vals["article_gender"])
-            if "article_number" in last_vals:
-                self.article_number_combo.setCurrentIndex(last_vals["article_number"])
-            if "article_case" in last_vals:
-                self.article_case_combo.setCurrentIndex(last_vals["article_case"])
-        elif pos == "R" and hasattr(self, "pro_type_combo"):
-            if "pronoun_type" in last_vals:
-                self.pro_type_combo.setCurrentIndex(last_vals["pronoun_type"])
-            if "pronoun_gender" in last_vals:
-                self.pro_gender_combo.setCurrentIndex(last_vals["pronoun_gender"])
-            if "pronoun_number" in last_vals:
-                self.pro_number_combo.setCurrentIndex(last_vals["pronoun_number"])
-            if "pronoun_case" in last_vals:
-                self.pro_case_combo.setCurrentIndex(last_vals["pronoun_case"])
-        elif pos == "E" and hasattr(self, "prep_case_combo"):
-            if "prep_case" in last_vals:
-                self.prep_case_combo.setCurrentIndex(last_vals["prep_case"])
-        elif pos == "B" and hasattr(self, "adv_degree_combo"):
-            if "adverb_degree" in last_vals:
-                self.adv_degree_combo.setCurrentIndex(last_vals["adverb_degree"])
-        elif pos == "C" and hasattr(self, "conj_type_combo"):
-            if "conj_type" in last_vals:
-                self.conj_type_combo.setCurrentIndex(last_vals["conj_type"])
-        elif pos == "I" and hasattr(self, "interjection_type_combo"):
-            if "interjection_type" in last_vals:
-                self.interjection_type_combo.setCurrentIndex(
-                    last_vals["interjection_type"]
-                )
-        elif pos == "A" and hasattr(self, "adj_degree_combo"):
-            if "adjective_degree" in last_vals:
-                self.adj_degree_combo.setCurrentIndex(last_vals["adjective_degree"])
-            if "adjective_inflection" in last_vals:
-                self.adj_inflection_combo.setCurrentIndex(
-                    last_vals["adjective_inflection"]
-                )
-
-    def _save_current_values(self, pos: PresetPos) -> None:
-        """
-        Save current values for a POS type.
-
-        Args:
-            pos: POS type code
-
-        """
-        if pos not in self._last_values:
-            self._last_values[pos] = {}
-
-        if pos == "N":
-            self._last_values[pos]["gender"] = self.gender_combo.currentIndex()
-            self._last_values[pos]["number"] = self.number_combo.currentIndex()
-            self._last_values[pos]["case"] = self.case_combo.currentIndex()
-            self._last_values[pos]["declension"] = self.declension_combo.currentIndex()
-        elif pos == "V":
-            self._last_values[pos]["verb_class"] = self.verb_class_combo.currentIndex()
-            self._last_values[pos]["verb_tense"] = self.verb_tense_combo.currentIndex()
-            self._last_values[pos]["verb_mood"] = self.verb_mood_combo.currentIndex()
-            self._last_values[pos]["verb_person"] = (
-                self.verb_person_combo.currentIndex()
-            )
-            self._last_values[pos]["verb_number"] = (
-                self.verb_number_combo.currentIndex()
-            )
-            self._last_values[pos]["verb_aspect"] = (
-                self.verb_aspect_combo.currentIndex()
-            )
-            self._last_values[pos]["verb_form"] = self.verb_form_combo.currentIndex()
-        elif pos == "D":
-            self._last_values[pos]["article_type"] = (
-                self.article_type_combo.currentIndex()
-            )
-            self._last_values[pos]["article_gender"] = (
-                self.article_gender_combo.currentIndex()
-            )
-            self._last_values[pos]["article_number"] = (
-                self.article_number_combo.currentIndex()
-            )
-            self._last_values[pos]["article_case"] = (
-                self.article_case_combo.currentIndex()
-            )
-        elif pos == "R":
-            self._last_values[pos]["pronoun_type"] = self.pro_type_combo.currentIndex()
-            self._last_values[pos]["pronoun_gender"] = (
-                self.pro_gender_combo.currentIndex()
-            )
-            self._last_values[pos]["pronoun_number"] = (
-                self.pro_number_combo.currentIndex()
-            )
-            self._last_values[pos]["pronoun_case"] = self.pro_case_combo.currentIndex()
-        elif pos == "E":
-            self._last_values[pos]["prep_case"] = self.prep_case_combo.currentIndex()
-        elif pos == "B":
-            self._last_values[pos]["adverb_degree"] = (
-                self.adv_degree_combo.currentIndex()
-            )
-        elif pos == "C":
-            self._last_values[pos]["conj_type"] = self.conj_type_combo.currentIndex()
-        elif pos == "I":
-            pass
-        elif pos == "A":
-            self._last_values[pos]["adjective_degree"] = (
-                self.adj_degree_combo.currentIndex()
-            )
-            self._last_values[pos]["adjective_inflection"] = (
-                self.adj_inflection_combo.currentIndex()
-            )
-
-    def _add_article_fields(self) -> None:
-        """Add fields for article annotation."""
-        self.article_type_combo = QComboBox()
-        self.article_type_combo.addItems(
-            cast("list[str]", self.ARTICLE_TYPE_MAP.values())
-        )
-        self.fields_layout.addRow("Type:", self.article_type_combo)
-
-        self.article_gender_combo = QComboBox()
-        self.article_gender_combo.addItems(cast("list[str]", self.GENDER_MAP.values()))
-        self.fields_layout.addRow("Gender:", self.article_gender_combo)
-
-        self.article_number_combo = QComboBox()
-        self.article_number_combo.addItems(cast("list[str]", self.NUMBER_MAP.values()))
-        self.fields_layout.addRow("Number:", self.article_number_combo)
-
-        self.article_case_combo = QComboBox()
-        self.article_case_combo.addItems(cast("list[str]", self.CASE_MAP.values()))
-        self.fields_layout.addRow("Case:", self.article_case_combo)
-
-    def _add_noun_fields(self) -> None:
-        """Add fields for noun annotation."""
-        self.gender_combo = QComboBox()
-        self.gender_combo.addItems(cast("list[str]", self.GENDER_MAP.values()))
-        self.fields_layout.addRow("Gender:", self.gender_combo)
-
-        self.number_combo = QComboBox()
-        self.number_combo.addItems(cast("list[str]", self.NUMBER_MAP.values()))
-        self.fields_layout.addRow("Number:", self.number_combo)
-
-        self.case_combo = QComboBox()
-        self.case_combo.addItems(cast("list[str]", self.CASE_MAP.values()))
-        self.fields_layout.addRow("Case:", self.case_combo)
-
-        self.declension_combo = QComboBox()
-        self.declension_combo.setEditable(True)
-        self.declension_combo.addItems(cast("list[str]", self.DECLENSION_MAP.values()))
-        self.fields_layout.addRow("Declension:", self.declension_combo)
-
-    def _add_verb_fields(self) -> None:
-        """Add fields for verb annotation."""
-        self.verb_class_combo = QComboBox()
-        self.verb_class_combo.setEditable(True)
-        self.verb_class_combo.addItems(cast("list[str]", self.VERB_CLASS_MAP.values()))
-        self.fields_layout.addRow("Class:", self.verb_class_combo)
-
-        self.verb_tense_combo = QComboBox()
-        self.verb_tense_combo.addItems(cast("list[str]", self.VERB_TENSE_MAP.values()))
-        self.fields_layout.addRow("Tense:", self.verb_tense_combo)
-
-        self.verb_mood_combo = QComboBox()
-        self.verb_mood_combo.addItems(cast("list[str]", self.VERB_MOOD_MAP.values()))
-        self.fields_layout.addRow("Mood:", self.verb_mood_combo)
-
-        self.verb_person_combo = QComboBox()
-        self.verb_person_combo.addItems(
-            cast("list[str]", self.VERB_PERSON_MAP.values())
-        )
-        self.fields_layout.addRow("Person:", self.verb_person_combo)
-
-        self.verb_number_combo = QComboBox()
-        self.verb_number_combo.addItems(cast("list[str]", self.NUMBER_MAP.values()))
-        self.fields_layout.addRow("Number:", self.verb_number_combo)
-
-        self.verb_aspect_combo = QComboBox()
-        self.verb_aspect_combo.addItems(
-            cast("list[str]", self.VERB_ASPECT_MAP.values())
-        )
-        self.fields_layout.addRow("Aspect:", self.verb_aspect_combo)
-
-        self.verb_form_combo = QComboBox()
-        self.verb_form_combo.addItems(cast("list[str]", self.VERB_FORM_MAP.values()))
-        self.fields_layout.addRow("Form:", self.verb_form_combo)
-
-    def _add_adjective_fields(self) -> None:
-        """Add fields for adjective annotation."""
-        self.adj_degree_combo = QComboBox()
-        self.adj_degree_combo.addItems(
-            cast("list[str]", self.ADJECTIVE_DEGREE_MAP.values())
-        )
-        self.fields_layout.addRow("Degree:", self.adj_degree_combo)
-
-        self.adj_inflection_combo = QComboBox()
-        self.adj_inflection_combo.addItems(
-            cast("list[str]", self.ADJECTIVE_INFLECTION_MAP.values())
-        )
-        self.fields_layout.addRow("Inflection:", self.adj_inflection_combo)
-
-        self.adj_gender_combo = QComboBox()
-        self.adj_gender_combo.addItems(cast("list[str]", self.GENDER_MAP.values()))
-        self.fields_layout.addRow("Gender:", self.adj_gender_combo)
-
-        self.adj_number_combo = QComboBox()
-        self.adj_number_combo.addItems(cast("list[str]", self.NUMBER_MAP.values()))
-        self.fields_layout.addRow("Number:", self.adj_number_combo)
-
-        self.adj_case_combo = QComboBox()
-        self.adj_case_combo.addItems(cast("list[str]", self.CASE_MAP.values()))
-        self.fields_layout.addRow("Case:", self.adj_case_combo)
-
-    def _add_pronoun_fields(self) -> None:
-        """Add fields for pronoun annotation."""
-        self.pro_type_combo = QComboBox()
-        self.pro_type_combo.addItems(cast("list[str]", self.PRONOUN_TYPE_MAP.values()))
-        self.fields_layout.addRow("Type:", self.pro_type_combo)
-
-        self.pro_gender_combo = QComboBox()
-        self.pro_gender_combo.addItems(cast("list[str]", self.GENDER_MAP.values()))
-        self.fields_layout.addRow("Gender:", self.pro_gender_combo)
-
-        self.pro_number_combo = QComboBox()
-        self.pro_number_combo.addItems(
-            cast("list[str]", self.PRONOUN_NUMBER_MAP.values())
-        )
-        self.fields_layout.addRow("Number:", self.pro_number_combo)
-
-        self.pro_case_combo = QComboBox()
-        self.pro_case_combo.addItems(cast("list[str]", self.CASE_MAP.values()))
-        self.fields_layout.addRow("Case:", self.pro_case_combo)
-
-    def _add_preposition_fields(self) -> None:
-        """Add fields for preposition annotation."""
-        self.prep_case_combo = QComboBox()
-        self.prep_case_combo.addItems(
-            cast("list[str]", self.PREPOSITION_CASE_MAP.values())
-        )
-        self.fields_layout.addRow("Governed Case:", self.prep_case_combo)
-
-    def _add_adverb_fields(self) -> None:
-        """Add fields for adverb annotation."""
-        self.adv_degree_combo = QComboBox()
-        self.adv_degree_combo.addItems(
-            cast("list[str]", self.ADVERB_DEGREE_MAP.values())
-        )
-        self.fields_layout.addRow("Degree:", self.adv_degree_combo)
-
-    def _add_conjunction_fields(self) -> None:
-        """Add fields for conjunction annotation."""
-        self.conj_type_combo = QComboBox()
-        self.conj_type_combo.addItems(
-            cast("list[str]", self.CONJUNCTION_TYPE_MAP.values())
-        )
-        self.fields_layout.addRow("Type:", self.conj_type_combo)
-
-    def _add_interjection_fields(self) -> None:
-        """Add fields for interjection annotation."""
-
-    def _load_existing_annotation(self) -> None:  # noqa: PLR0912
-        """Load existing annotation values into the form."""
-        if not self.annotation.pos:
-            # No annotation exists, ensure POS combo is set to empty/None (index 0)
-            # Block signals temporarily to prevent _on_pos_changed from firing
-            self.pos_combo.blockSignals(True)  # noqa: FBT003
-            self.pos_combo.setCurrentIndex(0)  # Empty selection
-            self.pos_combo.blockSignals(False)  # noqa: FBT003
-            return
-
-        # Set POS
-        # Note: Index 0 is empty string, so POS options start at index 1
-        pos_index = 0
-        if self.annotation.pos:
-            pos_text = self.PART_OF_SPEECH_MAP.get(self.annotation.pos)
-            if pos_text:
-                pos_index = self.pos_combo.findText(pos_text)
-
-        # Block signals temporarily to prevent double-triggering
-        self.pos_combo.blockSignals(True)  # noqa: FBT003
-        self.pos_combo.setCurrentIndex(max(0, pos_index))
-        self.pos_combo.blockSignals(False)  # noqa: FBT003
-
-        # Trigger field creation
-        self._on_pos_changed()
-
-        # Ensure preset dropdown is updated after POS is set. Use QTimer to
-        # ensure this happens after the UI is fully updated
-        QTimer.singleShot(0, self._update_preset_dropdown)
-
-        # Load values based on POS
-        if self.annotation.pos == "N":
-            self._load_noun_values()
-        elif self.annotation.pos == "V":
-            self._load_verb_values()
-        elif self.annotation.pos == "A":
-            self._load_adjective_values()
-        elif self.annotation.pos == "D":
-            self._load_article_values()
-        elif self.annotation.pos == "R":
-            self._load_pronoun_values()
-        elif self.annotation.pos == "E":
-            self._load_preposition_values()
-        elif self.annotation.pos == "B":
-            self._load_adverb_values()
-        elif self.annotation.pos == "C":
-            self._load_conjunction_values()
-        elif self.annotation.pos == "I":
-            self._load_interjection_values()
-
-        # Load metadata
-        if self.annotation.confidence is not None:
-            self.confidence_slider.setValue(self.annotation.confidence)
-        if self.annotation.modern_english_meaning:
-            self.modern_english_edit.setText(self.annotation.modern_english_meaning)
-        if self.annotation.root:
-            self.root_edit.setText(self.annotation.root)
-
-    def _find_index_for_code(
-        self, reverse_map: dict[int, str], code: str | None
-    ) -> int:
-        """Find the combo box index for a given code using a reverse map."""
-        if code is None:
-            return 0
-        for idx, mapped_code in reverse_map.items():
-            if mapped_code == code:
-                return idx
-        return 0
-
-    def _load_article_values(self) -> None:
-        """Load article annotation values."""
-        self.article_type_combo.setCurrentIndex(
-            self._find_index_for_code(
-                self.ARTICLE_TYPE_REVERSE_MAP, self.annotation.article_type
-            )
-        )
-        self.article_gender_combo.setCurrentIndex(
-            self._find_index_for_code(self.GENDER_REVERSE_MAP, self.annotation.gender)
-        )
-        self.article_number_combo.setCurrentIndex(
-            self._find_index_for_code(self.NUMBER_REVERSE_MAP, self.annotation.number)
-        )
-        self.article_case_combo.setCurrentIndex(
-            self._find_index_for_code(self.CASE_REVERSE_MAP, self.annotation.case)
-        )
-
-    def _load_noun_values(self) -> None:
-        """Load noun annotation values."""
-        self.gender_combo.setCurrentIndex(
-            self._find_index_for_code(self.GENDER_REVERSE_MAP, self.annotation.gender)
-        )
-        self.number_combo.setCurrentIndex(
-            self._find_index_for_code(self.NUMBER_REVERSE_MAP, self.annotation.number)
-        )
-        self.case_combo.setCurrentIndex(
-            self._find_index_for_code(self.CASE_REVERSE_MAP, self.annotation.case)
-        )
-        if self.annotation.declension:
-            idx = self._find_index_for_code(
-                self.DECLENSION_REVERSE_MAP, self.annotation.declension
-            )
-            if idx > 0:
-                self.declension_combo.setCurrentIndex(idx)
-            else:
-                self.declension_combo.setCurrentText(self.annotation.declension)
-
-    def _load_verb_values(self) -> None:
-        """Load verb annotation values."""
-        if self.annotation.verb_class:
-            idx = self._find_index_for_code(
-                self.VERB_CLASS_REVERSE_MAP, self.annotation.verb_class
-            )
-            if idx > 0:
-                self.verb_class_combo.setCurrentIndex(idx)
-            else:
-                self.verb_class_combo.setCurrentText(self.annotation.verb_class)
-
-        self.verb_tense_combo.setCurrentIndex(
-            self._find_index_for_code(
-                self.VERB_TENSE_REVERSE_MAP, self.annotation.verb_tense
-            )
-        )
-        self.verb_mood_combo.setCurrentIndex(
-            self._find_index_for_code(
-                self.VERB_MOOD_REVERSE_MAP, self.annotation.verb_mood
-            )
-        )
-        self.verb_person_combo.setCurrentIndex(
-            self._find_index_for_code(
-                self.VERB_PERSON_REVERSE_MAP, self.annotation.verb_person
-            )
-        )
-        self.verb_number_combo.setCurrentIndex(
-            self._find_index_for_code(self.NUMBER_REVERSE_MAP, self.annotation.number)
-        )
-        self.verb_aspect_combo.setCurrentIndex(
-            self._find_index_for_code(
-                self.VERB_ASPECT_REVERSE_MAP, self.annotation.verb_aspect
-            )
-        )
-        self.verb_form_combo.setCurrentIndex(
-            self._find_index_for_code(
-                self.VERB_FORM_REVERSE_MAP, self.annotation.verb_form
-            )
-        )
-
-    def _load_adjective_values(self) -> None:
-        """Load adjective annotation values."""
-        self.adj_degree_combo.setCurrentIndex(
-            self._find_index_for_code(
-                self.ADJECTIVE_DEGREE_REVERSE_MAP, self.annotation.adjective_degree
-            )
-        )
-        self.adj_inflection_combo.setCurrentIndex(
-            self._find_index_for_code(
-                self.ADJECTIVE_INFLECTION_REVERSE_MAP,
-                self.annotation.adjective_inflection,
-            )
-        )
-        self.adj_gender_combo.setCurrentIndex(
-            self._find_index_for_code(self.GENDER_REVERSE_MAP, self.annotation.gender)
-        )
-        self.adj_number_combo.setCurrentIndex(
-            self._find_index_for_code(self.NUMBER_REVERSE_MAP, self.annotation.number)
-        )
-        self.adj_case_combo.setCurrentIndex(
-            self._find_index_for_code(self.CASE_REVERSE_MAP, self.annotation.case)
-        )
-
-    def _load_pronoun_values(self) -> None:
-        """Load pronoun annotation values."""
-        self.pro_type_combo.setCurrentIndex(
-            self._find_index_for_code(
-                self.PRONOUN_TYPE_REVERSE_MAP, self.annotation.pronoun_type
-            )
-        )
-        self.pro_gender_combo.setCurrentIndex(
-            self._find_index_for_code(self.GENDER_REVERSE_MAP, self.annotation.gender)
-        )
-        self.pro_number_combo.setCurrentIndex(
-            self._find_index_for_code(
-                self.PRONOUN_NUMBER_REVERSE_MAP, self.annotation.pronoun_number
-            )
-        )
-        self.pro_case_combo.setCurrentIndex(
-            self._find_index_for_code(self.CASE_REVERSE_MAP, self.annotation.case)
-        )
-
-    def _load_preposition_values(self) -> None:
-        """Load preposition annotation values."""
-        self.prep_case_combo.setCurrentIndex(
-            self._find_index_for_code(
-                self.PREPOSITION_CASE_REVERSE_MAP, self.annotation.prep_case
-            )
-        )
-
-    def _load_adverb_values(self) -> None:
-        """Load adverb annotation values."""
-        self.adv_degree_combo.setCurrentIndex(
-            self._find_index_for_code(
-                self.ADVERB_DEGREE_REVERSE_MAP, self.annotation.adverb_degree
-            )
-        )
-
-    def _load_conjunction_values(self) -> None:
-        """Load conjunction annotation values."""
-        self.conj_type_combo.setCurrentIndex(
-            self._find_index_for_code(
-                self.CONJUNCTION_TYPE_REVERSE_MAP, self.annotation.conjunction_type
-            )
-        )
-
-    def _load_interjection_values(self):
-        """Load interjection annotation values."""
-        # Interjections don't have many fields in the current model
-
-    def _update_status_label(self):
-        """Update status label with current annotation summary."""
-        pos_text = self.pos_combo.currentText()
-        if not pos_text:
-            self.status_label.setText("POS: Not set")
-            return
-
-        summary_parts = [pos_text]
-        # Add summary based on POS
-        if hasattr(self, "gender_combo") and self.gender_combo.currentIndex() > 0:
-            summary_parts.append(self.gender_combo.currentText())
-        if hasattr(self, "number_combo") and self.number_combo.currentIndex() > 0:
-            summary_parts.append(self.number_combo.currentText())
-
-        self.status_label.setText(f"POS: {', '.join(summary_parts)}")
-
     def _clear_all(self) -> None:
-        """Clear all fields."""
+        """
+        Clear all fields.
+
+        - Set the POS combo box to index 0 (empty/None selection)
+        - Clear the Part of Speech form
+        - Clear the metadata fields:
+
+            - Confidence slider to 100
+            - Todo check to False
+            - Modern English edit to empty string
+            - Root edit to empty string
+        """
         # Set to index 0 (empty/None selection)
         self.pos_combo.setCurrentIndex(0)
+        # Clear the Part of Speech form
+        self.part_of_speech_manager.reset()
+        # Clear the metadata fields
         self.confidence_slider.setValue(100)
         self.todo_check.setChecked(False)
         self.modern_english_edit.clear()
         self.root_edit.clear()
-
-    def _apply_annotation(self) -> None:  # noqa: PLR0912
-        """Apply annotation and close dialog."""
-        # Get POS
-        # Note: Index 0 is empty string, so we need to subtract 1 from the index
-        # to map to the correct POS code
-        combo_index = self.pos_combo.currentIndex()
-        if combo_index == 0:
-            # Empty selection
-            self.annotation.pos = None
-        else:
-            self.annotation.pos = self.PART_OF_SPEECH_REVERSE_MAP.get(
-                self.pos_combo.currentText()
-            )
-
-        # Save current values for future use
-        if self.annotation.pos:
-            self._save_current_values(cast("PresetPos", self.annotation.pos))
-
-        # Extract values based on POS
-        if self.annotation.pos == "N":
-            self._extract_noun_values()
-        elif self.annotation.pos == "V":
-            self._extract_verb_values()
-        elif self.annotation.pos == "A":
-            self._extract_adjective_values()
-        elif self.annotation.pos == "D":
-            self._extract_article_values()
-        elif self.annotation.pos == "R":
-            self._extract_pronoun_values()
-        elif self.annotation.pos == "E":
-            self._extract_preposition_values()
-        elif self.annotation.pos == "B":
-            self._extract_adverb_values()
-        elif self.annotation.pos == "C":
-            self._extract_conjunction_values()
-        elif self.annotation.pos == "I":
-            pass
-
-        # Extract metadata
-        self.annotation.confidence = self.confidence_slider.value()
-        modern_english_text = self.modern_english_edit.text().strip()
-        if modern_english_text:
-            self.annotation.modern_english_meaning = modern_english_text
-        else:
-            self.annotation.modern_english_meaning = None
-        root_text = self.root_edit.text().strip()
-        if root_text:
-            self.annotation.root = root_text
-        else:
-            self.annotation.root = None
-
-        self.annotation_applied.emit(self.annotation)
-        self.accept()
-
-    def _extract_article_values(self):
-        """Extract article annotation values."""
-        self.annotation.article_type = self.ARTICLE_TYPE_REVERSE_MAP.get(
-            self.article_type_combo.currentIndex()
-        )
-        self.annotation.gender = self.GENDER_REVERSE_MAP.get(
-            self.article_gender_combo.currentIndex()
-        )
-        self.annotation.number = self.NUMBER_REVERSE_MAP.get(
-            self.article_number_combo.currentIndex()
-        )
-        self.annotation.case = self.CASE_REVERSE_MAP.get(
-            self.article_case_combo.currentIndex()
-        )
-
-    def _extract_noun_values(self):
-        """Extract noun annotation values."""
-        self.annotation.gender = self.GENDER_REVERSE_MAP.get(
-            self.gender_combo.currentIndex()
-        )
-        self.annotation.number = self.NUMBER_REVERSE_MAP.get(
-            self.number_combo.currentIndex()
-        )
-        self.annotation.case = self.CASE_REVERSE_MAP.get(self.case_combo.currentIndex())
-        idx = self.declension_combo.currentIndex()
-        if idx > 0:
-            self.annotation.declension = self.DECLENSION_REVERSE_MAP.get(idx)
-        else:
-            text = self.declension_combo.currentText().strip()
-            self.annotation.declension = text if text else None
-
-    def _extract_verb_values(self):
-        """Extract verb annotation values."""
-        idx = self.verb_class_combo.currentIndex()
-        if idx > 0:
-            self.annotation.verb_class = self.VERB_CLASS_REVERSE_MAP.get(idx)
-        else:
-            text = self.verb_class_combo.currentText().strip()
-            self.annotation.verb_class = text if text else None
-
-        self.annotation.verb_tense = self.VERB_TENSE_REVERSE_MAP.get(
-            self.verb_tense_combo.currentIndex()
-        )
-        self.annotation.verb_mood = self.VERB_MOOD_REVERSE_MAP.get(
-            self.verb_mood_combo.currentIndex()
-        )
-        self.annotation.verb_person = self.VERB_PERSON_REVERSE_MAP.get(
-            cast("int", self.verb_person_combo.currentIndex())
-        )
-        self.annotation.number = self.NUMBER_REVERSE_MAP.get(
-            self.verb_number_combo.currentIndex()
-        )
-        self.annotation.verb_aspect = self.VERB_ASPECT_REVERSE_MAP.get(
-            self.verb_aspect_combo.currentIndex()
-        )
-        self.annotation.verb_form = self.VERB_FORM_REVERSE_MAP.get(
-            self.verb_form_combo.currentIndex()
-        )
-
-    def _extract_adjective_values(self):
-        """Extract adjective annotation values."""
-        self.annotation.adjective_degree = self.ADJECTIVE_DEGREE_REVERSE_MAP.get(
-            self.adj_degree_combo.currentIndex()
-        )
-        self.annotation.adjective_inflection = (
-            self.ADJECTIVE_INFLECTION_REVERSE_MAP.get(
-                self.adj_inflection_combo.currentIndex()
-            )
-        )
-        self.annotation.gender = self.GENDER_REVERSE_MAP.get(
-            self.adj_gender_combo.currentIndex()
-        )
-        self.annotation.number = self.NUMBER_REVERSE_MAP.get(
-            self.adj_number_combo.currentIndex()
-        )
-        self.annotation.case = self.CASE_REVERSE_MAP.get(
-            self.adj_case_combo.currentIndex()
-        )
-
-    def _extract_pronoun_values(self):
-        """Extract pronoun annotation values."""
-        self.annotation.pronoun_type = self.PRONOUN_TYPE_REVERSE_MAP.get(
-            self.pro_type_combo.currentIndex()
-        )
-        self.annotation.gender = self.GENDER_REVERSE_MAP.get(
-            self.pro_gender_combo.currentIndex()
-        )
-        self.annotation.pronoun_number = self.PRONOUN_NUMBER_REVERSE_MAP.get(
-            self.pro_number_combo.currentIndex()
-        )
-        self.annotation.case = self.CASE_REVERSE_MAP.get(
-            self.pro_case_combo.currentIndex()
-        )
-
-    def _extract_preposition_values(self):
-        """Extract preposition annotation values."""
-        self.annotation.prep_case = self.PREPOSITION_CASE_REVERSE_MAP.get(
-            self.prep_case_combo.currentIndex()
-        )
-
-    def _extract_adverb_values(self):
-        """Extract adverb annotation values."""
-        self.annotation.adverb_degree = self.ADVERB_DEGREE_REVERSE_MAP.get(
-            self.adv_degree_combo.currentIndex()
-        )
-
-    def _extract_conjunction_values(self):
-        """Extract conjunction annotation values."""
-        self.annotation.conjunction_type = self.CONJUNCTION_TYPE_REVERSE_MAP.get(
-            self.conj_type_combo.currentIndex()
-        )

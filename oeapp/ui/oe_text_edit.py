@@ -1,4 +1,3 @@
-import traceback
 from typing import TYPE_CHECKING, Final, cast
 
 from PySide6.QtCore import QPoint, Qt, QTimer, Signal
@@ -312,7 +311,6 @@ class OldEnglishTextSelector:
         """
         if not self.sentence_card:
             return
-        print("token_selection", order_index)
         # 1. If click is within existing range selection, don't clear it yet.
         # This allows double-click to work on the selection.
         if self.selected_token_range:
@@ -376,7 +374,6 @@ class OldEnglishTextSelector:
         """
         if not self.sentence_card:
             return
-        print("deselect")
         if self._pending_deselect_token_index is not None:
             order_index = self._pending_deselect_token_index
             # Only deselect if the token index still matches or click was in range

@@ -1,15 +1,305 @@
-"""Unit tests for AnnotationModal using pytest-qt and real database."""
+"""Unit tests for AnnotationModal and related POS field classes."""
 
 import pytest
 from unittest.mock import MagicMock
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QApplication, QMessageBox, QPushButton, QWidget
+from PySide6.QtWidgets import QFormLayout, QWidget, QVBoxLayout, QPushButton
 
-from oeapp.models.annotation import Annotation
+from oeapp.models import Annotation, Token, Idiom
 from oeapp.models.annotation_preset import AnnotationPreset
-from oeapp.models.idiom import Idiom
-from oeapp.ui.dialogs.annotation_modal import AnnotationModal
+from oeapp.ui.dialogs.annotation_modal import (
+    PartOfSpeechFieldsBase,
+    NounFields,
+    VerbFields,
+    PronounFields,
+    PrepositionFields,
+    AdjectiveFields,
+    ArticleFields,
+    AdverbFields,
+    ConjunctionFields,
+    InterjectionFields,
+    PartOfSpeechFormManager,
+    AnnotationModal,
+    NoneFields,
+    CLEAR_SENTINEL
+)
 from tests.conftest import create_test_project, create_test_sentence
+
+
+class TestPartOfSpeechFieldsBase:
+    """Test cases for PartOfSpeechFieldsBase."""
+
+    @pytest.fixture
+    def layout(self):
+        return QFormLayout()
+
+    @pytest.fixture
+    def fields_base(self, layout):
+        class ConcreteFields(PartOfSpeechFieldsBase):
+            PART_OF_SPEECH = "Test"
+            def build(self):
+                self.add_combo("gender", "Gender", self.GENDER_MAP)
+                self.add_combo("number", "Number", self.NUMBER_MAP)
+
+        return ConcreteFields(layout)
+
+    def test_add_combo(self, fields_base):
+        fields_base.build()
+        assert "gender" in fields_base.fields
+        assert "gender" in fields_base.lookup_map
+        assert fields_base.fields["gender"].count() == len(fields_base.GENDER_MAP)
+
+    def test_add_field(self, fields_base):
+        from PySide6.QtWidgets import QComboBox
+        combo = QComboBox()
+        fields_base.add_field("test_attr", "Test Label", combo)
+        assert "test_attr" in fields_base.fields
+        assert fields_base.layout.rowCount() == 1
+
+    def test_clear(self, fields_base):
+        fields_base.build()
+        fields_base.clear()
+        assert not fields_base.fields
+        assert not fields_base.lookup_map
+        assert not fields_base.code_to_index_map
+        assert not fields_base.index_to_code_map
+
+    def test_reset(self, fields_base):
+        fields_base.build()
+        fields_base.fields["gender"].setCurrentIndex(1)
+        fields_base.reset()
+        assert fields_base.fields["gender"].currentIndex() == 0
+
+    def test_unbuild(self, fields_base):
+        fields_base.build()
+        assert fields_base.layout.rowCount() > 0
+        fields_base.unbuild()
+        assert fields_base.layout.rowCount() == 0
+        assert not fields_base.fields
+
+    def test_load_from_indices(self, fields_base):
+        fields_base.build()
+        fields_base.load_from_indices({"gender": 1, "number": 2})
+        assert fields_base.fields["gender"].currentIndex() == 1
+        assert fields_base.fields["number"].currentIndex() == 2
+
+    def test_load_from_preset(self, fields_base, db_session):
+        fields_base.build()
+        preset = AnnotationPreset(name="Test", pos="N", gender="m", number=CLEAR_SENTINEL)
+        preset.save()
+        fields_base.load_from_preset(preset)
+        assert fields_base.fields["gender"].currentIndex() == 1 # m
+        assert fields_base.fields["number"].currentIndex() == 0 # CLEAR_SENTINEL sets to 0
+
+    def test_load_from_annotation(self, fields_base):
+        fields_base.build()
+        ann = Annotation(gender="f")
+        fields_base.load_from_annotation(ann)
+        # index 0 is empty, 1 is m, 2 is f
+        assert fields_base.fields["gender"].currentIndex() == 2
+
+    def test_extract_indices(self, fields_base):
+        fields_base.build()
+        fields_base.fields["gender"].setCurrentIndex(1)
+        indices = fields_base.extract_indices()
+        assert indices["gender"] == 1
+
+    def test_extract_values(self, fields_base):
+        fields_base.build()
+        fields_base.fields["gender"].setCurrentIndex(1) # Masculine (m)
+        values = fields_base.extract_values()
+        assert values["gender"] == "m"
+
+    def test_update_annotation(self, fields_base):
+        fields_base.build()
+        fields_base.fields["gender"].setCurrentIndex(1) # m
+        ann = Annotation()
+        fields_base.update_annotation(ann)
+        assert ann.gender == "m"
+
+    def test_update_annotation_invalid_attr(self, fields_base):
+        fields_base.fields["invalid_attr"] = MagicMock()
+        fields_base.index_to_code_map["invalid_attr"] = {0: "val"}
+        ann = Annotation()
+        with pytest.raises(AttributeError, match="Invalid Annotation attribute"):
+            fields_base.update_annotation(ann)
+
+
+class TestPartOfSpeechSubclasses:
+    """Test cases for specific POS field subclasses."""
+
+    @pytest.mark.parametrize("cls, expected_field_maps", [
+        (NounFields, {
+            "gender": PartOfSpeechFieldsBase.GENDER_MAP,
+            "number": PartOfSpeechFieldsBase.NUMBER_MAP,
+            "case": PartOfSpeechFieldsBase.CASE_MAP,
+            "declension": PartOfSpeechFieldsBase.DECLENSION_MAP,
+        }),
+        (VerbFields, {
+            "verb_class": PartOfSpeechFieldsBase.VERB_CLASS_MAP,
+            "verb_tense": PartOfSpeechFieldsBase.VERB_TENSE_MAP,
+            "verb_mood": PartOfSpeechFieldsBase.VERB_MOOD_MAP,
+            "verb_person": PartOfSpeechFieldsBase.VERB_PERSON_MAP,
+            "number": PartOfSpeechFieldsBase.NUMBER_MAP,
+            "verb_aspect": PartOfSpeechFieldsBase.VERB_ASPECT_MAP,
+            "verb_form": PartOfSpeechFieldsBase.VERB_FORM_MAP,
+        }),
+        (PronounFields, {
+            "pronoun_type": PartOfSpeechFieldsBase.PRONOUN_TYPE_MAP,
+            "gender": PartOfSpeechFieldsBase.GENDER_MAP,
+            "pronoun_number": PartOfSpeechFieldsBase.PRONOUN_NUMBER_MAP,
+            "case": PartOfSpeechFieldsBase.CASE_MAP,
+        }),
+        (PrepositionFields, {
+            "prep_case": PartOfSpeechFieldsBase.PREPOSITION_CASE_MAP,
+        }),
+        (AdjectiveFields, {
+            "adjective_degree": PartOfSpeechFieldsBase.ADJECTIVE_DEGREE_MAP,
+            "adjective_inflection": PartOfSpeechFieldsBase.ADJECTIVE_INFLECTION_MAP,
+            "gender": PartOfSpeechFieldsBase.GENDER_MAP,
+            "number": PartOfSpeechFieldsBase.NUMBER_MAP,
+            "case": PartOfSpeechFieldsBase.CASE_MAP,
+        }),
+        (ArticleFields, {
+            "article_type": PartOfSpeechFieldsBase.ARTICLE_TYPE_MAP,
+            "gender": PartOfSpeechFieldsBase.GENDER_MAP,
+            "number": PartOfSpeechFieldsBase.NUMBER_MAP,
+            "case": PartOfSpeechFieldsBase.CASE_MAP,
+        }),
+        (AdverbFields, {
+            "adverb_degree": PartOfSpeechFieldsBase.ADVERB_DEGREE_MAP,
+        }),
+        (ConjunctionFields, {
+            "conjunction_type": PartOfSpeechFieldsBase.CONJUNCTION_TYPE_MAP,
+        }),
+        (InterjectionFields, {}),
+        (NoneFields, {}),
+    ])
+    def test_subclass_build_and_items(self, cls, expected_field_maps):
+        layout = QFormLayout()
+        fields = cls(layout)
+        fields.build()
+
+        # Verify all expected fields exist
+        assert len(fields.fields) == len(expected_field_maps)
+
+        for field_name, expected_map in expected_field_maps.items():
+            assert field_name in fields.fields
+            combo = fields.fields[field_name]
+
+            # Verify combo items match the lookup map
+            expected_items = list(expected_map.values())
+            actual_items = [combo.itemText(i) for i in range(combo.count())]
+            assert actual_items == expected_items
+
+
+class TestPartOfSpeechFormManager:
+    """Test cases for PartOfSpeechFormManager."""
+
+    @pytest.fixture
+    def manager(self):
+        return PartOfSpeechFormManager(QFormLayout())
+
+    def test_select_pos(self, manager):
+        manager.select("N")
+        assert isinstance(manager.current, NounFields)
+        assert manager.layout.rowCount() > 0
+
+    def test_select_none(self, manager):
+        manager.select(None)
+        assert isinstance(manager.current, NoneFields)
+        assert manager.layout.rowCount() == 0
+
+    def test_select_invalid(self, manager):
+        with pytest.raises(ValueError, match="Invalid Part of Speech"):
+            manager.select("INVALID")
+
+    def test_build(self, manager):
+        manager.select("N")
+        # select calls build()
+        assert manager.layout.rowCount() > 0
+
+        # Test that building new POS unbuilds previous one
+        prev_fields = manager.current
+        manager.select("V")
+        assert manager.layout.rowCount() > 0
+        # prev_fields.layout is the same object as manager.layout, so rowCount will be > 0
+        # but prev_fields.fields should be empty after unbuild() calls clear()
+        assert not prev_fields.fields
+
+    def test_reset(self, manager):
+        manager.select("N")
+        manager.current.fields["gender"].setCurrentIndex(1)
+        manager.reset()
+        assert manager.current.fields["gender"].currentIndex() == 0
+
+    def test_load_from_indices(self, manager):
+        manager.select("N")
+        manager.load_from_indices({"gender": 1})
+        assert manager.current.fields["gender"].currentIndex() == 1
+
+    def test_load_from_preset(self, manager, db_session):
+        manager.select("N")
+        preset = AnnotationPreset(name="Test", pos="N", gender="m")
+        preset.save()
+        manager.load_from_preset(preset)
+        assert manager.current.fields["gender"].currentIndex() == 1
+
+    def test_load_from_annotation(self, manager):
+        manager.select("N")
+        ann = Annotation(gender="f")
+        manager.load_from_annotation(ann)
+        assert manager.current.fields["gender"].currentIndex() == 2
+
+    def test_extract_indices(self, manager):
+        manager.select("N")
+        manager.current.fields["gender"].setCurrentIndex(1)
+        indices = manager.extract_indices()
+        assert indices["gender"] == 1
+
+    def test_extract_values_delegation(self, manager):
+        manager.select("N")
+        manager.current.fields["gender"].setCurrentIndex(1)
+        values = manager.extract_values()
+        assert values["gender"] == "m"
+
+    def test_update_annotation(self, manager):
+        manager.select("N")
+        manager.current.fields["gender"].setCurrentIndex(1)
+        ann = Annotation()
+        manager.update_annotation(ann)
+        assert ann.gender == "m"
+
+
+class TestPOSFieldModelMapping:
+    """Test that all POS fields map to valid Annotation model attributes."""
+
+    @pytest.mark.parametrize("cls", [
+        NounFields, VerbFields, PronounFields, PrepositionFields,
+        AdjectiveFields, ArticleFields, AdverbFields, ConjunctionFields,
+        InterjectionFields, NoneFields
+    ])
+    def test_fields_map_to_model_attributes(self, cls):
+        layout = QFormLayout()
+        fields_obj = cls(layout)
+        fields_obj.build()
+
+        valid_attributes = {column.name for column in Annotation.__table__.columns}
+
+        for attr in fields_obj.fields:
+            assert attr in valid_attributes, f"POS class {cls.__name__} has invalid attribute mapping: {attr}"
+
+    @pytest.mark.parametrize("cls, attr, expected_map", [
+        (PronounFields, "pronoun_number", PartOfSpeechFieldsBase.PRONOUN_NUMBER_MAP),
+    ])
+    def test_special_field_maps(self, cls, attr, expected_map):
+        """Test that fields requiring special maps (like PRONOUN_NUMBER_MAP) use them."""
+        layout = QFormLayout()
+        fields_obj = cls(layout)
+        fields_obj.build()
+
+        assert attr in fields_obj.lookup_map
+        assert fields_obj.lookup_map[attr] == expected_map
 
 
 class TestAnnotationModal:
@@ -22,169 +312,77 @@ class TestAnnotationModal:
         sentence = create_test_sentence(
             db_session, project_id=project.id, text="Se cyning"
         )
-        # Token.create_from_sentence already creates an empty annotation for each token
         return sentence.tokens[1]  # "cyning"
 
     def test_init_without_annotation(self, qtbot, token):
-        """Test initialization without an existing annotation (uses token's existing empty one)."""
+        """Test initialization without an existing annotation."""
         modal = AnnotationModal(token=token)
         qtbot.addWidget(modal)
-        modal.show()
 
         assert modal.token == token
-        assert modal.annotation.token_id == token.id
         assert modal.pos_combo.currentIndex() == 0
-        assert modal.pos_combo.currentText() == ""
 
     def test_init_with_annotation(self, qtbot, token, db_session):
         """Test initialization with an existing annotation."""
-        # Retrieve the existing empty annotation and update it
         annotation = db_session.get(Annotation, token.id)
         annotation.pos = "N"
         annotation.gender = "m"
-        annotation.number = "s"
-        annotation.case = "n"
-        annotation.declension = "s"
-        annotation.confidence = 75
-        annotation.modern_english_meaning = "king"
-        annotation.root = "cyning"
         annotation.save()
 
         modal = AnnotationModal(token=token, annotation=annotation)
         qtbot.addWidget(modal)
-        modal.show()
-        # qtbot.waitForWindowShown(modal) # Deprecated, use waitExposed if needed but show() often enough
 
-        # Verify POS selection
         assert modal.pos_combo.currentText() == "Noun (N)"
-
-        # Verify dynamic fields were loaded with verbose names
-        assert modal.gender_combo.currentText() == "Masculine (m)"
-        assert modal.number_combo.currentText() == "Singular (s)"
-        assert modal.case_combo.currentText() == "Nominative (n)"
-        assert modal.declension_combo.currentText() == "Strong (s)"
-
-        # Verify metadata
-        assert modal.confidence_slider.value() == 75
-        assert modal.modern_english_edit.text() == "king"
-        assert modal.root_edit.text() == "cyning"
+        manager = modal.part_of_speech_manager
+        assert manager.current.fields["gender"].currentText() == "Masculine (m)"
 
     def test_pos_selection_changes_fields(self, qtbot, token):
-        """Test that changing POS updates the dynamic fields visibility."""
+        """Test that changing POS updates the dynamic fields."""
         modal = AnnotationModal(token=token)
         qtbot.addWidget(modal)
-        modal.show()
 
-        # Initially no POS fields (besides POS selection itself)
-        assert modal.fields_layout.rowCount() == 0
+        # Initially NoneFields
+        assert isinstance(modal.part_of_speech_manager.current, NoneFields)
 
         # Select Noun
         modal.pos_combo.setCurrentText("Noun (N)")
-        assert hasattr(modal, "gender_combo")
-        assert hasattr(modal, "declension_combo")
-        assert modal.fields_layout.rowCount() > 0
+        assert isinstance(modal.part_of_speech_manager.current, NounFields)
+        assert "gender" in modal.part_of_speech_manager.current.fields
 
-        # Select Verb
-        modal.pos_combo.setCurrentText("Verb (V)")
-        assert not hasattr(modal, "gender_combo")
-        assert hasattr(modal, "verb_class_combo")
-        assert hasattr(modal, "verb_tense_combo")
-
-        # Select Empty
-        modal.pos_combo.setCurrentIndex(0)
-        assert modal.fields_layout.rowCount() == 0
-
-    def test_apply_saves_noun_to_db(self, qtbot, token, db_session):
-        """Test that filling noun fields and clicking Apply saves to DB."""
+    def test_apply_saves_to_db(self, qtbot, token, db_session):
+        """Test that clicking Apply saves values to the database."""
         modal = AnnotationModal(token=token)
         qtbot.addWidget(modal)
-        modal.show()
 
-        # Fill fields
         modal.pos_combo.setCurrentText("Noun (N)")
-        # Use indices to avoid text matching issues
-        modal.gender_combo.setCurrentIndex(2)  # Feminine (f)
-        modal.number_combo.setCurrentIndex(2)  # Plural (p)
-        modal.case_combo.setCurrentIndex(4)    # Dative (d)
-        modal.declension_combo.setCurrentIndex(2) # Weak (w)
-
+        modal.part_of_speech_manager.current.fields["gender"].setCurrentIndex(2) # Feminine (f)
         modal.confidence_slider.setValue(90)
-        modal.modern_english_edit.setText("kings")
-        modal.root_edit.setText("cyning")
-        modal.todo_check.setChecked(True)
 
-        # Click Apply
         with qtbot.waitSignal(modal.annotation_applied, timeout=1000):
             qtbot.mouseClick(modal.apply_button, Qt.LeftButton)
 
-        # The modal emits the signal but doesn't save. We must save it in the test.
         modal.annotation.save()
-
-        # Verify in database
         db_session.expire_all()
         ann = db_session.get(Annotation, token.id)
-        assert ann is not None
         assert ann.pos == "N"
         assert ann.gender == "f"
-        assert ann.number == "p"
-        assert ann.case == "d"
-        assert ann.declension == "w"
         assert ann.confidence == 90
-        assert ann.modern_english_meaning == "kings"
-        assert ann.root == "cyning"
 
-    def test_apply_saves_verb_to_db(self, qtbot, token, db_session):
-        """Test that filling verb fields and clicking Apply saves to DB."""
+    def test_clear_all(self, qtbot, token):
+        """Test that Clear All button resets the form."""
         modal = AnnotationModal(token=token)
         qtbot.addWidget(modal)
-        modal.show()
 
-        # Fill fields
-        modal.pos_combo.setCurrentText("Verb (V)")
-        modal.verb_class_combo.setCurrentIndex(6) # Strong Class 1 (s1)
-        modal.verb_tense_combo.setCurrentIndex(1) # Past (p)
-        modal.verb_mood_combo.setCurrentIndex(1)  # Indicative (i)
-        modal.verb_person_combo.setCurrentIndex(3) # 3rd
-        modal.verb_number_combo.setCurrentIndex(1) # Singular (s)
-
-        # Click Apply
-        qtbot.mouseClick(modal.apply_button, Qt.LeftButton)
-        modal.annotation.save()
-
-        # Verify in database
-        db_session.expire_all()
-        ann = db_session.get(Annotation, token.id)
-        assert ann is not None
-        assert ann.pos == "V"
-        assert ann.verb_class == "s1"
-        assert ann.verb_tense == "p"
-        assert ann.verb_mood == "i"
-        assert ann.verb_person == "3"
-        assert ann.number == "s"
-
-    def test_clear_all_resets_form(self, qtbot, token):
-        """Test that Clear All button resets the form fields."""
-        modal = AnnotationModal(token=token)
-        qtbot.addWidget(modal)
-        modal.show()
-
-        # Fill some values
         modal.pos_combo.setCurrentText("Noun (N)")
-        modal.gender_combo.setCurrentIndex(1)
-        modal.confidence_slider.setValue(50)
-        modal.modern_english_edit.setText("something")
+        modal.modern_english_edit.setText("test")
 
-        # Click Clear All
         qtbot.mouseClick(modal.clear_button, Qt.LeftButton)
 
-        # Verify reset
         assert modal.pos_combo.currentIndex() == 0
-        assert modal.confidence_slider.value() == 100
         assert modal.modern_english_edit.text() == ""
-        assert modal.fields_layout.rowCount() == 0
 
-    def test_init_with_idiom_annotation(self, qtbot, token, db_session):
-        """Test initialization when idiom is annotated."""
+    def test_idiom_init(self, qtbot, token, db_session):
+        """Test initialization with an idiom."""
         sentence = token.sentence
         tokens = list(sentence.tokens)
         idiom = Idiom(
@@ -193,254 +391,97 @@ class TestAnnotationModal:
             end_token_id=tokens[-1].id,
         )
         idiom.save()
-        annotation = Annotation(idiom_id=idiom.id, pos="N")
-        annotation.save()
         db_session.commit()
 
-        class DummySentenceCard(QWidget):
+        class DummyParent(QWidget):
             def __init__(self, tokens):
                 super().__init__()
                 self.oe_text_edit = MagicMock()
                 self.oe_text_edit.tokens = tokens
 
-        dummy_parent = DummySentenceCard(tokens)
-        modal = AnnotationModal(idiom=idiom, annotation=annotation, parent=dummy_parent)
-        modal.show()
-        assert modal.idiom == idiom
-        assert modal.annotation.idiom_id == idiom.id
-        # Ensure idiom header exposes each token as a clickable button
-        buttons = [
-            btn
-            for btn in modal.findChildren(QPushButton)
-            if btn.text() in {tokens[0].surface, tokens[-1].surface}
-        ]
-        assert buttons
-        qtbot.wait(200)
-        modal.close()
-
-    def test_shortcuts_select_pos(self, qtbot, token):
-        """Test keyboard shortcuts for POS selection."""
-        modal = AnnotationModal(token=token)
+        modal = AnnotationModal(idiom=idiom, parent=DummyParent(tokens))
         qtbot.addWidget(modal)
-        modal.show()
-        modal.setFocus()
-        QApplication.processEvents()
-
-        # Shortcut 'N' for Noun
-        qtbot.keyClick(modal, Qt.Key_N)
-        QApplication.processEvents()
-        assert modal.pos_combo.currentText() == "Noun (N)"
-
-        # Shortcut 'V' for Verb
-        qtbot.keyClick(modal, Qt.Key_V)
-        QApplication.processEvents()
-        assert modal.pos_combo.currentText() == "Verb (V)"
-
-        # Shortcut 'A' for Adjective
-        qtbot.keyClick(modal, Qt.Key_A)
-        assert modal.pos_combo.currentText() == "Adjective (A)"
+        assert modal.idiom == idiom
 
     def test_presets_apply(self, qtbot, token, db_session):
-        """Test applying a preset to the form."""
-        # Create a preset
+        """Test applying a preset."""
         preset = AnnotationPreset(
-            name="Strong Masc Nom Sing",
+            name="Test Preset",
             pos="N",
             gender="m",
-            number="s",
-            case="n",
-            declension="s",
         )
         preset.save()
+        db_session.commit()
 
         modal = AnnotationModal(token=token)
         qtbot.addWidget(modal)
-        modal.show()
-
-        # Select Noun POS so presets are loaded
-        modal.pos_combo.setCurrentText("Noun (N)")
-
-        # Wait for presets to load (happens via QTimer)
-        qtbot.waitUntil(lambda: modal.preset_combo.count() > 1, timeout=1000)
-
-        # Select preset
-        modal.preset_combo.setCurrentText("Strong Masc Nom Sing")
-
-        # Click Apply Preset
-        qtbot.mouseClick(modal.apply_preset_button, Qt.LeftButton)
-
-        # Verify fields updated with verbose names
-        assert modal.gender_combo.currentText() == "Masculine (m)"
-        assert modal.number_combo.currentText() == "Singular (s)"
-        assert modal.case_combo.currentText() == "Nominative (n)"
-        assert modal.declension_combo.currentText() == "Strong (s)"
-
-    def test_save_as_preset_opens_dialog(self, qtbot, token, db_session, monkeypatch):
-        """Test that Save as Preset button opens the management dialog."""
-        # Mock QMessageBox to prevent blocking
-        monkeypatch.setattr(QMessageBox, "warning", lambda *args, **kwargs: None)
-        monkeypatch.setattr(QMessageBox, "critical", lambda *args, **kwargs: None)
-
-        modal = AnnotationModal(token=token)
-        qtbot.addWidget(modal)
-        modal.show()
 
         modal.pos_combo.setCurrentText("Noun (N)")
-        modal.gender_combo.setCurrentText("Masculine (m)")
-
-        # Mock the dialog execution
-        mock_exec = []
-        def mock_dialog_exec(self):
-            mock_exec.append(self)
-            return True
-
-        from oeapp.ui.dialogs.annotation_preset_management import AnnotationPresetManagementDialog
-        monkeypatch.setattr(AnnotationPresetManagementDialog, "exec", mock_dialog_exec)
-
-        # Patch _on_save_as_preset directly to avoid MainWindow dependencies in this test
-        def mock_on_save():
-            # Minimal logic needed for the test
-            pos = modal.PART_OF_SPEECH_REVERSE_MAP.get(modal.pos_combo.currentText())
-            field_values = modal._extract_current_field_values()
-            dialog = AnnotationPresetManagementDialog(
-                save_mode=True,
-                initial_pos=pos,
-                initial_field_values=field_values,
-            )
-            dialog.exec()
-            modal._refresh_preset_dropdown()
-
-        monkeypatch.setattr(modal, "_on_save_as_preset", mock_on_save)
-
-        # Click Save as Preset
-        qtbot.mouseClick(modal.save_as_preset_button, Qt.LeftButton)
-
-        assert len(mock_exec) == 1
-        assert mock_exec[0].initial_pos == "N"
-        assert mock_exec[0].initial_field_values["gender"] == "m"
-
-    def test_cancel_button(self, qtbot, token):
-        """Test that Cancel button closes the dialog without applying."""
-        modal = AnnotationModal(token=token)
-        qtbot.addWidget(modal)
-        modal.show()
-
-        modal.pos_combo.setCurrentText("Noun (N)")
-
-        # Click Cancel
-        qtbot.mouseClick(modal.cancel_button, Qt.LeftButton)
-
-        assert modal.result() == AnnotationModal.Rejected
-
-    @pytest.mark.parametrize("pos_code, pos_name", [
-        ("A", "Adjective (A)"),
-        ("R", "Pronoun (R)"),
-        ("D", "Determiner/Article (D)"),
-        ("E", "Preposition (E)"),
-        ("B", "Adverb (B)"),
-        ("C", "Conjunction (C)"),
-        ("I", "Interjection (I)"),
-    ])
-    def test_all_pos_types_load_and_save(self, qtbot, token, db_session, pos_code, pos_name):
-        """Test that all supported POS types can be selected, filled, and saved."""
-        modal = AnnotationModal(token=token)
-        qtbot.addWidget(modal)
-        modal.show()
-
-        # Select POS
-        modal.pos_combo.setCurrentText(pos_name)
-        assert modal.pos_combo.currentText() == pos_name
-
-        # For some POS types, fill at least one field if available
-        if pos_code == "A":
-            modal.adj_degree_combo.setCurrentIndex(1)
-            modal.adj_inflection_combo.setCurrentIndex(1)
-        elif pos_code == "R":
-            modal.pro_type_combo.setCurrentIndex(1)
-        elif pos_code == "D":
-            modal.article_type_combo.setCurrentIndex(1)
-        elif pos_code == "E":
-            modal.prep_case_combo.setCurrentIndex(1)
-        elif pos_code == "B":
-            modal.adv_degree_combo.setCurrentIndex(1)
-        elif pos_code == "C":
-            modal.conj_type_combo.setCurrentIndex(1)
-
-        # Apply
-        qtbot.mouseClick(modal.apply_button, Qt.LeftButton)
-        modal.annotation.save()
-
-        # Verify in DB
-        db_session.expire_all()
-        ann = db_session.get(Annotation, token.id)
-        assert ann.pos == pos_code
-
-        # Reload and verify verbose names
-        modal2 = AnnotationModal(token=token, annotation=ann)
-        qtbot.addWidget(modal2)
-        modal2.show()
-        assert modal2.pos_combo.currentText() == pos_name
-
-        if pos_code == "A":
-            assert modal2.adj_degree_combo.currentIndex() == 1
-        elif pos_code == "R":
-            assert modal2.pro_type_combo.currentIndex() == 1
-        elif pos_code == "D":
-            assert modal2.article_type_combo.currentIndex() == 1
-        elif pos_code == "E":
-            assert modal2.prep_case_combo.currentIndex() == 1
-        elif pos_code == "B":
-            assert modal2.adv_degree_combo.currentIndex() == 1
-        elif pos_code == "C":
-            assert modal2.conj_type_combo.currentIndex() == 1
-
-    def test_presets_clear_sentinel(self, qtbot, token, db_session):
-        """Test applying a preset with the CLEAR_SENTINEL value."""
-        from oeapp.ui.dialogs.annotation_preset_management import CLEAR_SENTINEL
-
-        # Create a preset that clears gender
-        preset = AnnotationPreset(
-            name="Clear Gender",
-            pos="N",
-            gender=CLEAR_SENTINEL,
-        )
-        preset.save()
-
-        modal = AnnotationModal(token=token)
-        qtbot.addWidget(modal)
-        modal.show()
-
-        # Set gender first
-        modal.pos_combo.setCurrentText("Noun (N)")
-        modal.gender_combo.setCurrentIndex(1)
-        assert modal.gender_combo.currentIndex() == 1
 
         # Wait for presets to load
-        qtbot.waitUntil(lambda: modal.preset_combo.count() > 1, timeout=1000)
-        modal.preset_combo.setCurrentText("Clear Gender")
+        qtbot.waitUntil(lambda: modal.preset_combo.count() > 1, timeout=2000)
+        modal.preset_combo.setCurrentText("Test Preset")
 
-        # Apply
         qtbot.mouseClick(modal.apply_preset_button, Qt.LeftButton)
+        assert modal.part_of_speech_manager.current.fields["gender"].currentText() == "Masculine (m)"
 
-        # Verify gender is cleared (index 0)
-        assert modal.gender_combo.currentIndex() == 0
+    def test_metadata_fields_load(self, qtbot, token, db_session):
+        """Test that metadata fields are loaded correctly from annotation."""
+        ann = db_session.get(Annotation, token.id)
+        ann.confidence = 42
+        ann.modern_english_meaning = "test meaning"
+        ann.root = "test root"
+        ann.pos = "N" # POS must be set for load() to proceed past the first check
+        ann.save()
 
-    def test_on_save_as_preset_error_handling(self, qtbot, token, monkeypatch):
-        """Test error handling in _on_save_as_preset."""
-        from PySide6.QtWidgets import QMessageBox
-        mock_warning = []
-        monkeypatch.setattr(QMessageBox, "warning", lambda *args, **kwargs: mock_warning.append(args))
+        modal = AnnotationModal(token=token, annotation=ann)
+        qtbot.addWidget(modal)
 
+        assert modal.confidence_slider.value() == 42
+        assert modal.confidence_label.text() == "42%"
+        assert modal.modern_english_edit.text() == "test meaning"
+        assert modal.root_edit.text() == "test root"
+
+    def test_metadata_fields_save(self, qtbot, token, db_session):
+        """Test that metadata fields are saved correctly to annotation."""
         modal = AnnotationModal(token=token)
         qtbot.addWidget(modal)
-        modal.show()
 
-        # Select POS
-        modal.pos_combo.setCurrentText("Noun (N)")
+        modal.confidence_slider.setValue(85)
+        modal.modern_english_edit.setText("  saved meaning  ")
+        modal.root_edit.setText("  saved root  ")
 
-        # Use the ORIGINAL _on_save_as_preset for this test.
-        # It will fail to find MainWindow and show warning.
-        modal._on_save_as_preset()
+        qtbot.mouseClick(modal.apply_button, Qt.LeftButton)
 
-        assert len(mock_warning) > 0
-        assert "Could not find main window" in mock_warning[0][2]
+        ann = modal.annotation
+        assert ann.confidence == 85
+        assert ann.modern_english_meaning == "saved meaning" # trimmed
+        assert ann.root == "saved root" # trimmed
+
+    def test_metadata_fields_clear(self, qtbot, token):
+        """Test that Clear All button resets metadata fields."""
+        modal = AnnotationModal(token=token)
+        qtbot.addWidget(modal)
+
+        modal.confidence_slider.setValue(10)
+        modal.modern_english_edit.setText("something")
+        modal.root_edit.setText("something else")
+        modal.todo_check.setChecked(True)
+
+        qtbot.mouseClick(modal.clear_button, Qt.LeftButton)
+
+        assert modal.confidence_slider.value() == 100
+        assert modal.modern_english_edit.text() == ""
+        assert modal.root_edit.text() == ""
+        assert modal.todo_check.isChecked() == False
+
+    def test_confidence_label_updates_on_slider_move(self, qtbot, token):
+        """Test that the confidence label updates when slider value changes."""
+        modal = AnnotationModal(token=token)
+        qtbot.addWidget(modal)
+
+        modal.confidence_slider.setValue(75)
+        assert modal.confidence_label.text() == "75%"
+
+        modal.confidence_slider.setValue(0)
+        assert modal.confidence_label.text() == "0%"

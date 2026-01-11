@@ -148,13 +148,13 @@ class TestAnnotationPreset:
         preset.delete()
         assert AnnotationPreset.get(preset_id) is None
 
-    def test_to_dict_method(self, db_session):
+    def test_to_json_method(self, db_session):
         """Test to_dict() method."""
         preset = AnnotationPreset.create(
             name="Dict Test", pos="R", pronoun_type="p", gender="m"
         )
 
-        data = preset.to_dict()
+        data = preset.to_json()
         assert data["id"] == preset.id
         assert data["name"] == "Dict Test"
         assert data["pos"] == "R"

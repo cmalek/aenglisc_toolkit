@@ -1,14 +1,34 @@
 from typing import TYPE_CHECKING
 
+
 from PySide6.QtGui import QKeySequence, QShortcut
+from PySide6.QtWidgets import QWidget
+
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from oeapp.ui.dialogs.annotation_modal import AnnotationModal
     from oeapp.ui.main_window import MainWindow
 
 
-class GlobalShortcuts:
+class ShortcutsMixin:
+    """
+    Mixin for keyboard shortcuts.
+    """
+
+    def __init__(self, parent: QWidget):
+        self.parent = parent
+
+    def add_shortcut(self, key: str, action: Callable[[], None]) -> None:
+        """
+        Add a keyboard shortcut to the application.
+        """
+        shortcut = QShortcut(QKeySequence(key), self.parent)
+        shortcut.activated.connect(action)
+
+
+class GlobalShortcuts(ShortcutsMixin):
     """
     Global keyboard shortcuts for the application.
 
@@ -21,9 +41,10 @@ class GlobalShortcuts:
 
     """
 
-    def __init__(self, main_window: MainWindow):
+    def __init__(self, parent: "MainWindow"):
         """Initialize the shortcuts."""
-        self.main_window = main_window
+        super().__init__(parent)
+        self.main_window = parent
 
     def execute(self) -> None:
         """
@@ -36,15 +57,26 @@ class GlobalShortcuts:
         self.add_shortcut("Ctrl+R", self.main_window.application_state.redo)
         self.add_shortcut("Ctrl+Shift+R", self.main_window.application_state.redo)
 
-    def add_shortcut(self, key: str, action: Callable[[], None]) -> None:
-        """
-        Add a keyboard shortcut to the application.
 
-        Args:
-            key: The key sequence to bind to the action, e.g. "Ctrl+N"
-            action: The action to perform when the key is pressed.  This should
-                be a callable that takes no arguments and returns None.
+class AnnotationModalShortcuts(ShortcutsMixin):
+    """
+    Keyboard shortcuts for the annotation modal.
+    """
 
+    def __init__(self, parent: AnnotationModal):
+        super().__init__(parent)
+        self.annotation_modal = parent
+
+    def execute(self) -> None:
         """
-        shortcut = QShortcut(QKeySequence(key), self.main_window)
-        shortcut.activated.connect(action)
+        Add all the shortcuts to the annotation modal.
+        """
+        for key in self.annotation_modal.PART_OF_SPEECH_MAP:
+            if key is not None:
+                self.add_shortcut(
+                    key,
+                    lambda k=key: self.annotation_modal._select_pos_by_key(k),  # type: ignore[misc]
+                )
+        self.add_shortcut("Enter", self.annotation_modal.save)
+        self.add_shortcut("Ctrl+S", self.annotation_modal.save)
+        self.add_shortcut("Escape", self.annotation_modal.reject)
