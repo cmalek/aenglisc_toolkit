@@ -138,3 +138,4 @@ docs.tar.gz
 .ruff_cache
 .dccache
 
+default.db
