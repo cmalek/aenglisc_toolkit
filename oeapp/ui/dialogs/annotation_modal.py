@@ -1,6 +1,6 @@
 """Annotation modal dialog."""
 
-from typing import TYPE_CHECKING, ClassVar, Final, TypedDict, cast
+from typing import TYPE_CHECKING, ClassVar, Final, cast
 
 from PySide6.QtCore import QObject, Qt, QTimer, Signal
 from PySide6.QtWidgets import (

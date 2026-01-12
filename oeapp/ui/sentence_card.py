@@ -645,6 +645,13 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
         if annotation.token_id:
             self.oe_text_edit.annotations[annotation.token_id] = annotation
             self.token_table.update_annotation(annotation)
+        elif annotation.idiom_id:
+            # For idiom annotations, we need to refresh the sentence relationships
+            # to pick up the new idiom and its annotation, then update the tokens
+            # in the text edit so it knows which tokens are now part of an idiom.
+            self.session.refresh(self.sentence, ["tokens", "idioms"])
+            self.oe_text_edit.set_tokens()
+            self.oe_text_edit.render_readonly_text()
 
         self.annotation_applied.emit(annotation)
         self.sentence_highlighter.highlight()
@@ -711,10 +718,6 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
         # Link annotation to idiom
         annotation.idiom_id = idiom.id
         self._on_annotation_applied(annotation)
-
-        # Refresh idioms
-        self.session.refresh(self.sentence)
-        self.oe_text_edit.sentence_card = self
 
     def _on_annotation_applied(self, annotation: Annotation) -> None:
         """
@@ -864,14 +867,9 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
     # Event handlers
     # ========================================================================
 
-    def _on_idiom_selection(self, start_order: int, end_order: int) -> None:  # noqa: ARG002
+    def _on_idiom_selection(self, *args) -> None:  # noqa: ARG002
         """
         Event handler for idiom selection.
-
-        Args:
-            start_order: Start order index of the idiom
-            end_order: End order index of the idiom
-
         """
         self.add_note_button.setEnabled(False)
 

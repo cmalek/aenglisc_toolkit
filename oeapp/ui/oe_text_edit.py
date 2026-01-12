@@ -562,6 +562,7 @@ class OldEnglishTextEdit(QTextEdit):
         self.token_selected.connect(self._sentence_card._on_token_selection)
         self.token_deselected.connect(self._sentence_card.reset_selected_token)
         self.idiom_selection.connect(self._sentence_card._on_idiom_selection)
+        self.new_idiom_selection.connect(self._sentence_card._on_idiom_selection)
         self.range_selection.connect(self._sentence_card._on_range_selection)
 
         # Token table
