@@ -605,6 +605,10 @@ def touch_project_on_change(session, flush_context, instances):  # noqa: ARG001,
     """
     Update Project.updated_at whenever a related entity is changed.
     """
+    from oeapp.services.logs import get_logger  # noqa: PLC0415
+
+    logger = get_logger(__name__)
+
     projects_to_touch = set()
 
     # Check new, dirty (modified), and deleted objects
@@ -622,7 +626,7 @@ def touch_project_on_change(session, flush_context, instances):  # noqa: ARG001,
                 project = obj.project
                 if not project and obj.project_id:
                     project = session.get(Project, obj.project_id)
-            elif classname == "Token" or classname == "Note":
+            elif classname in {"Token", "Note"}:
                 sentence = obj.sentence
                 if not sentence and obj.sentence_id:
                     from .sentence import Sentence  # noqa: PLC0415
@@ -644,7 +648,8 @@ def touch_project_on_change(session, flush_context, instances):  # noqa: ARG001,
                         sentence = session.get(Sentence, token.sentence_id)
                     if sentence:
                         project = sentence.project
-        except Exception:  # noqa: BLE001
+        except Exception:
+            logger.exception("project.touch_on_change.error")
             # If relationship is not accessible, skip
             continue
 

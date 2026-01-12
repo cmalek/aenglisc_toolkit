@@ -238,6 +238,7 @@ class AnnotationLookupsMixin:
         "d": "Demonstrative (d)",
         "i": "Interrogative (i)",
         "m": "Miscellaneous (m)",
+        "ind": "Indefinite (ind)",
     }
     #: A Reverse lookup map for pronoun type long form to code.  The key
     #: is the index of the long form in the PRONOUN_TYPE_MAP, and the value

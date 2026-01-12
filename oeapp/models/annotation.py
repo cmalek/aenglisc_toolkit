@@ -39,7 +39,7 @@ class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
             "\"case\" IN ('n','a','g','d','i')", name="ck_annotations_case"
         ),
         CheckConstraint(
-            "pronoun_type IN ('p','rx','r','d','i', 'm')",
+            "pronoun_type IN ('p','rx','r','d','i','m','ind')",
             name="ck_annotations_pronoun_type",
         ),
         CheckConstraint(

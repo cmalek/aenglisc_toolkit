@@ -89,6 +89,7 @@ class AnnotationTextualMixin:
         "d": "dem",
         "i": "int",
         "m": "misc",
+        "ind": "indef",
     }
 
     #: Pronoun number map.
