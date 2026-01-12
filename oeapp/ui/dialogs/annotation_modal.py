@@ -1386,13 +1386,6 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         - Update the status label based on the new POS
         """
         pos = self.PART_OF_SPEECH_REVERSE_MAP.get(self.pos_combo.currentText())
-        prev_pos = self.annotation.pos
-
-        # If switching between actual POS types (not from/to empty),
-        # clear the lexical fields to prevent cross-token corruption
-        if pos and prev_pos and pos != prev_pos:
-            self.root_edit.clear()
-            self.modern_english_edit.clear()
 
         # Clear preset selection when POS changes
         if hasattr(self, "preset_combo"):
