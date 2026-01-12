@@ -342,6 +342,10 @@ class InterjectionRenderer(AbstractPartOfSpeechRenderer):
     pass
 
 
+class NumberRenderer(AbstractPartOfSpeechRenderer):
+    pass
+
+
 class NoneRenderer(AbstractPartOfSpeechRenderer):
     pass
 
@@ -387,6 +391,7 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
         "B": AdverbRenderer,
         "C": ConjunctionRenderer,
         "I": InterjectionRenderer,
+        "L": NumberRenderer,
         "": NoneRenderer,
         None: NoneRenderer,
     }
