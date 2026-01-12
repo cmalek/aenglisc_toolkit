@@ -70,7 +70,7 @@ class TestCopyAnnotation:
         annotation.gender = "m"
         annotation.number = "s"
         annotation.case = "n"
-        annotation.declension = "a-stem"
+        annotation.declension = "i"
         annotation.modern_english_meaning = "king"
         annotation.root = "cyning"
         annotation.uncertain = False
@@ -97,7 +97,7 @@ class TestCopyAnnotation:
         assert copied["gender"] == "m"
         assert copied["number"] == "s"
         assert copied["case"] == "n"
-        assert copied["declension"] == "a-stem"
+        assert copied["declension"] == "i"
         assert copied["modern_english_meaning"] == "king"
         assert copied["root"] == "cyning"
 
@@ -210,7 +210,7 @@ class TestPasteAnnotation:
             "gender": "m",
             "number": "s",
             "case": "n",
-            "declension": "a-stem",
+            "declension": "i",
             "article_type": None,
             "pronoun_type": None,
             "pronoun_number": None,

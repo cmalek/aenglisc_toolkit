@@ -190,7 +190,7 @@ class TestCommandManager:
                 "gender": "m",
                 "number": "s",
                 "case": "n",
-                "declension": "strong",
+                "declension": "s",
                 "confidence": 100,
             }
         )
@@ -266,7 +266,7 @@ class TestCommandManager:
                 "gender": "m",
                 "number": "s",
                 "case": "n",
-                "declension": "strong",
+                "declension": "s",
                 "confidence": 100,
             }
         )

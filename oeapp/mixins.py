@@ -75,6 +75,7 @@ class AnnotationTextualMixin:
         "jo": "jo",
         "wa": "wa",
         "wo": "wo",
+        "pu": "-pu/-po",
     }
 
     # ===============================

@@ -130,6 +130,7 @@ class AnnotationLookupsMixin:
         "jo": "jo-stem (jo)",
         "wa": "wa-stem (wa)",
         "wo": "wo-stem (wo)",
+        "pu": "abstract -pu/-po (pu)",
     }
     #: A Reverse lookup map for declension long form to code.  The key
     #: is the index of the long form in the DECLENSION_MAP, and the value
