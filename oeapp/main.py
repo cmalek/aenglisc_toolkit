@@ -17,6 +17,7 @@ if platform.system() == "Darwin":
         if sys.argv and len(sys.argv) > 0:
             sys.argv[0] = "Ænglisc Toolkit"
 
+from oeapp.services.logs import configure_logging, get_logger
 from oeapp.ui.application import create_application
 
 
@@ -24,6 +25,10 @@ def main():
     """
     Run the Ænglisc Toolkit application.
     """
+    configure_logging()
+    logger = get_logger(__name__)
+    logger.info("Application starting")
+
     app = create_application()
     sys.exit(app.exec())
 

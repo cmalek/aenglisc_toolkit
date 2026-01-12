@@ -211,7 +211,7 @@ class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
         return data
 
     @classmethod
-    def from_json(
+    def from_json(  # noqa: PLR0912
         cls,
         token_id: int | None,
         ann_data: dict,
@@ -231,6 +231,11 @@ class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
             Annotation
 
         """
+        # Import here to avoid circular import
+        from oeapp.services.logs import get_logger  # noqa: PLC0415
+
+        logger = get_logger(cls.__name__)
+
         annotation = None
         if token_id is not None and idiom_id is not None:
             msg = "Either token_id or idiom_id must be provided, not both"
@@ -262,6 +267,33 @@ class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
         if updated_at:
             annotation.updated_at = updated_at
         annotation.save(commit=commit)
+        if commit:
+            _logger = logger.bind(
+                annotation_id=annotation.id,
+            )
+            if annotation.token is not None:
+                logger.info(
+                    "annotation.from_json.token",
+                    project_id=annotation.token.sentence.project_id,
+                    project_name=annotation.token.sentence.project.name,
+                    sentence_id=annotation.token.sentence_id,
+                    sentence_number=annotation.token.sentence.display_order,
+                    token_id=annotation.token.id,
+                    text=annotation.token.surface,
+                )
+            if annotation.idiom is not None:
+                _logger.info(
+                    "annotation.from_json.idiom",
+                    project_id=annotation.idiom.sentence.project_id,
+                    project_name=annotation.idiom.sentence.project.name,
+                    sentence_id=annotation.idiom.sentence_id,
+                    sentence_number=annotation.idiom.sentence.display_order,
+                    idiom_id=annotation.idiom_id,
+                    text=annotation.idiom.sentence.get_token_surfaces(
+                        annotation.idiom.start_token.id,
+                        annotation.idiom.end_token.id,
+                    ),
+                )
         return annotation
 
     def from_annotation(
@@ -280,6 +312,11 @@ class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
             Annotation
 
         """
+        # Import here to avoid circular import
+        from oeapp.services.logs import get_logger  # noqa: PLC0415
+
+        logger = get_logger(self.__class__.__name__)
+
         if annotation.token_id is not None and annotation.idiom_id is not None:
             msg = "Either token_id or idiom_id must be provided, not both"
             raise ValueError(msg)
@@ -317,7 +354,97 @@ class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
         self.root = annotation.root
         if commit:
             self.save()
+            _logger = logger.bind(annotation_id=self.id)
+            if self.token_id is not None:
+                _logger.info(
+                    "annotation.token.from_annotation",
+                    project_id=self.token.sentence.project_id,
+                    project_name=self.token.sentence.project.name,
+                    sentence_id=self.token.sentence_id,
+                    sentence_number=self.token.sentence.display_order,
+                    token_id=self.token_id,
+                    text=self.token.surface,
+                )
+            if self.idiom_id is not None:
+                _logger.info(
+                    "annotation.idiom.from_annotation",
+                    project_id=self.idiom.sentence.project_id,
+                    project_name=self.idiom.sentence.project.name,
+                    sentence_id=self.idiom.sentence_id,
+                    sentence_number=self.idiom.sentence.display_order,
+                    idiom_id=self.idiom_id,
+                    text=self.idiom.sentence.get_token_surfaces(
+                        self.idiom.start_token.id,
+                        self.idiom.end_token.id,
+                    ),
+                )
         return self
+
+    def save(self, commit: bool = True) -> None:  # noqa: FBT001, FBT002
+        """Save the annotation."""
+        # Import here to avoid circular import
+        from oeapp.services.logs import get_logger  # noqa: PLC0415
+
+        logger = get_logger(self.__class__.__name__)
+        super().save(commit=commit)
+        if commit:
+            _logger = logger.bind(annotation_id=self.id)
+            if self.token_id is not None:
+                _logger.info(
+                    "annotation.token.save",
+                    project_id=self.token.sentence.project_id,
+                    project_name=self.token.sentence.project.name,
+                    sentence_id=self.token.sentence_id,
+                    sentence_number=self.token.sentence.display_order,
+                    token_id=self.token_id,
+                    text=self.token.surface,
+                )
+            if self.idiom_id is not None:
+                _logger.info(
+                    "annotation.idiom.save",
+                    project_id=self.idiom.sentence.project_id,
+                    project_name=self.idiom.sentence.project.name,
+                    sentence_id=self.idiom.sentence_id,
+                    sentence_number=self.idiom.sentence.display_order,
+                    idiom_id=self.idiom_id,
+                    text=self.idiom.sentence.get_token_surfaces(
+                        self.idiom.start_token.id,
+                        self.idiom.end_token.id,
+                    ),
+                )
+
+    def delete(self, commit: bool = True) -> None:  # noqa: FBT001, FBT002
+        """Delete the annotation."""
+        # Import here to avoid circular import
+        from oeapp.services.logs import get_logger  # noqa: PLC0415
+
+        logger = get_logger(self.__class__.__name__)
+        super().delete(commit=commit)
+        if commit:
+            _logger = logger.bind(annotation_id=self.id)
+            if self.token_id is not None:
+                _logger.info(
+                    "annotation.token.delete",
+                    project_id=self.token.sentence.project_id,
+                    project_name=self.token.sentence.project.name,
+                    sentence_id=self.token.sentence_id,
+                    sentence_number=self.token.sentence.display_order,
+                    token_id=self.token_id,
+                    text=self.token.surface,
+                )
+            if self.idiom_id is not None:
+                _logger.info(
+                    "annotation.idiom.delete",
+                    project_id=self.idiom.sentence.project_id,
+                    project_name=self.idiom.sentence.project.name,
+                    sentence_id=self.idiom.sentence_id,
+                    sentence_number=self.idiom.sentence.display_order,
+                    idiom_id=self.idiom_id,
+                    text=self.idiom.sentence.get_token_surfaces(
+                        self.idiom.start_token.id,
+                        self.idiom.end_token.id,
+                    ),
+                )
 
     @classmethod
     def _extract_base_fields_from_json(cls, ann_data: dict) -> dict:

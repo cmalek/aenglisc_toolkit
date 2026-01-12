@@ -4,7 +4,7 @@ import builtins
 import difflib
 import re
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, ClassVar, cast
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String, UniqueConstraint, select
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -192,6 +192,11 @@ class Token(SaveDeleteMixin, Base):
             List of :class:`~oeapp.models.token.Token` objects
 
         """
+        # Import here to avoid circular import
+        from oeapp.services.logs import get_logger  # noqa: PLC0415
+
+        logger = get_logger(cls.__name__)
+
         session = cls._get_session()
         # Tokenize sentence
         token_strings = cls.tokenize(sentence_text)
@@ -213,6 +218,15 @@ class Token(SaveDeleteMixin, Base):
         session.flush()
         if commit:
             session.commit()
+            if len(tokens) > 0:
+                logger.info(
+                    "token.create_from_sentence.success",
+                    project_id=tokens[0].sentence.project_id,
+                    project_name=tokens[0].sentence.project.name,
+                    sentence_id=sentence_id,
+                    sentence_number=tokens[0].sentence.display_order,
+                    text=sentence_text,
+                )
         return tokens
 
     @classmethod
@@ -230,6 +244,12 @@ class Token(SaveDeleteMixin, Base):
             List of messages
 
         """
+        # Import here to avoid circular import
+        from oeapp.models.sentence import Sentence  # noqa: PLC0415
+        from oeapp.services.logs import get_logger  # noqa: PLC0415
+
+        logger = get_logger(cls.__name__)
+
         session = cls._get_session()
         token_strings = cls.tokenize(sentence_text)
         existing_tokens = cls.list(sentence_id)
@@ -277,6 +297,17 @@ class Token(SaveDeleteMixin, Base):
         )
 
         session.commit()
+        sentence = cast("Sentence", Sentence.get(sentence_id))
+        if len(cls.list(sentence_id)) > 0:
+            logger.info(
+                "token.update_from_sentence.success",
+                project_id=sentence.project_id,
+                project_name=sentence.project.name,
+                sentence_id=sentence_id,
+                sentence_number=sentence.display_order,
+                text_oe=sentence.text_oe,
+                token_count=len(sentence.tokens),
+            )
         return messages
 
     @classmethod

@@ -302,8 +302,8 @@ class TestMigrationFlow:
 
                     # Check logs
                     log_messages = [record.message for record in caplog.records]
-                    assert any("Created pre-migration backup" in msg for msg in log_messages)
-                    assert any("Deleted pre-migration backup" in msg for msg in log_messages)
+                    assert any("migration.backup.created" in msg for msg in log_messages)
+                    assert any("migration.backup.deleted" in msg for msg in log_messages)
 
     def test_migrate_logs_no_pending_migrations(self, migration_service_with_temp_db, caplog):
         """Test that migrate() logs when no pending migrations."""
@@ -315,7 +315,7 @@ class TestMigrationFlow:
                     service.migrate()
 
                     log_messages = [record.message for record in caplog.records]
-                    assert any("No pending migrations found" in msg for msg in log_messages)
+                    assert any("migration.no-pending-migrations" in msg for msg in log_messages)
 
 
 class TestMigrationFailureDialog:

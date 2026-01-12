@@ -253,6 +253,11 @@ class Sentence(SaveDeleteMixin, Base):
             The new :class:`~oeapp.models.sentence.Sentence` object
 
         """
+        # Import here to avoid circular import
+        from oeapp.services.logs import get_logger  # noqa: PLC0415
+
+        logger = get_logger(cls.__name__)
+
         session = cls._get_session()
         # Calculate paragraph_number and sentence_number_in_paragraph if not provided
         if paragraph_number is None or sentence_number_in_paragraph is None:
@@ -280,6 +285,14 @@ class Sentence(SaveDeleteMixin, Base):
 
         if commit:
             session.commit()
+            logger.info(
+                "sentence.created",
+                project_id=sentence.project_id,
+                project_name=sentence.project.name,
+                sentence_id=sentence.id,
+                display_order=sentence.display_order,
+                text_oe=text_oe,
+            )
         return sentence
 
     @classmethod
@@ -488,7 +501,6 @@ class Sentence(SaveDeleteMixin, Base):
             "tokens": [],
             "notes": [],
         }
-
         # Sort tokens by order_index
         tokens = sorted(self.tokens, key=lambda t: t.order_index)
         for token in tokens:
@@ -514,6 +526,11 @@ class Sentence(SaveDeleteMixin, Base):
             Created Sentence entity
 
         """
+        # Import here to avoid circular import
+        from oeapp.services.logs import get_logger  # noqa: PLC0415
+
+        logger = get_logger(cls.__name__)
+
         sentence = cls(
             project_id=project_id,
             display_order=sentence_data["display_order"],
@@ -544,6 +561,16 @@ class Sentence(SaveDeleteMixin, Base):
         for note_data in sentence_data.get("notes", []):
             Note.from_json(sentence.id, note_data, token_map)
 
+        logger.info(
+            "sentence.from_json",
+            project_id=sentence.project_id,
+            project_name=sentence.project.name,
+            sentence_id=sentence.id,
+            sentence_number=sentence.display_order,
+            text_oe=sentence.text_oe,
+            text_modern=sentence.text_modern,
+            is_paragraph_start=sentence.is_paragraph_start,
+        )
         return sentence
 
     def update(self, text_oe: str, commit: bool = True) -> builtins.list[str]:  # noqa: FBT001, FBT002
@@ -560,6 +587,11 @@ class Sentence(SaveDeleteMixin, Base):
             List of messages about changes (e.g. deleted idioms)
 
         """
+        # Import here to avoid circular import
+        from oeapp.services.logs import get_logger  # noqa: PLC0415
+
+        logger = get_logger(self.__class__.__name__)
+
         session = self._get_session()
         self.text_oe = text_oe
         messages = Token.update_from_sentence(text_oe, self.id)
@@ -567,7 +599,58 @@ class Sentence(SaveDeleteMixin, Base):
             session.commit()
         # Refresh to get updated tokens
         session.refresh(self)
+        logger.info(
+            "sentence.update",
+            sentence_id=self.id,
+            project_id=self.project_id,
+            project_name=self.project.name,
+            sentence_number=self.display_order,
+            text_oe=self.text_oe,
+            text_modern=self.text_modern,
+            is_paragraph_start=self.is_paragraph_start,
+        )
         return messages
+
+    def save(self, commit: bool = True) -> None:  # noqa: FBT001, FBT002
+        """
+        Save the sentence.
+        """
+        # Import here to avoid circular import
+        from oeapp.services.logs import get_logger  # noqa: PLC0415
+
+        logger = get_logger(self.__class__.__name__)
+
+        super().save(commit=commit)
+        logger.info(
+            "sentence.saved",
+            project_id=self.project_id,
+            project_name=self.project.name,
+            sentence_id=self.id,
+            sentence_number=self.display_order,
+            text_oe=self.text_oe,
+            text_modern=self.text_modern,
+            is_paragraph_start=self.is_paragraph_start,
+        )
+
+    def delete(self, commit: bool = True) -> None:  # noqa: FBT001, FBT002
+        """
+        Delete the sentence.
+        """
+        # Import here to avoid circular import
+        from oeapp.services.logs import get_logger  # noqa: PLC0415
+
+        logger = get_logger(self.__class__.__name__)
+        super().delete(commit=commit)
+        logger.info(
+            "sentence.deleted",
+            project_id=self.project_id,
+            project_name=self.project.name,
+            sentence_id=self.id,
+            sentence_number=self.display_order,
+            text_oe=self.text_oe,
+            text_modern=self.text_modern,
+            is_paragraph_start=self.is_paragraph_start,
+        )
 
     def _sort_notes_by_position(
         self, notes: builtins.list[Note]

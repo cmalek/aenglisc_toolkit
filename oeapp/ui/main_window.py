@@ -98,9 +98,6 @@ class MainWindow(QMainWindow):
         self.application_state.set_main_window(self)
 
         self.content_layout: QVBoxLayout | None = None
-        # Handle migrations with backup/restore on failure
-        # Note: session is created after migrations to avoid issues
-        self._handle_migrations()
         # Build the main window
         self.build()
 

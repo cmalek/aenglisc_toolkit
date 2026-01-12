@@ -127,6 +127,11 @@ class Project(SaveDeleteMixin, Base):
             The new :class:`~oeapp.models.project.Project` object
 
         """
+        # Import here to avoid circular import
+        from oeapp.services.logs import get_logger  # noqa: PLC0415
+
+        logger = get_logger(cls.__name__)
+
         session = cls._get_session()
         # Check if project with this name already exists
         if cls.exists(name):
@@ -165,6 +170,14 @@ class Project(SaveDeleteMixin, Base):
 
         if commit:
             session.commit()
+            logger.info(
+                "project.created",
+                project_id=project.id,
+                name=name,
+                source=source,
+                translator=translator,
+                notes=notes,
+            )
 
         return project
 
@@ -180,6 +193,11 @@ class Project(SaveDeleteMixin, Base):
             text: Old English text to process and append to the project
 
         """
+        # Import here to avoid circular import
+        from oeapp.services.logs import get_logger  # noqa: PLC0415
+
+        logger = get_logger(self.__class__.__name__)
+
         session = self._get_session()
         # Find the maximum display_order for existing sentences
         max_order = (
@@ -208,9 +226,11 @@ class Project(SaveDeleteMixin, Base):
 
         # Determine starting paragraph and sentence numbers
         if last_sentence:
-            current_paragraph = last_sentence.paragraph_number
+            start_paragraph = last_sentence.paragraph_number
+            current_paragraph = start_paragraph
             current_sentence_in_para = last_sentence.sentence_number_in_paragraph
         else:
+            start_paragraph = 0
             current_paragraph = 0
             current_sentence_in_para = 0
 
@@ -237,6 +257,12 @@ class Project(SaveDeleteMixin, Base):
             )
 
         session.commit()
+        logger.info(
+            "project.append_oe_text",
+            project_id=self.id,
+            sentences_added=len(sentences_data),
+            paragraphs_added=paragraph_number - start_paragraph,
+        )
 
     def to_json(self) -> dict:
         """
@@ -246,6 +272,16 @@ class Project(SaveDeleteMixin, Base):
             Dictionary containing project data
 
         """
+        # Import here to avoid circular import
+        from oeapp.services.logs import get_logger  # noqa: PLC0415
+
+        logger = get_logger(self.__class__.__name__)
+        logger.info(
+            "project.to_json",
+            project_id=self.id,
+            project_name=self.name,
+            sentences_count=len(self.sentences),
+        )
         return {
             "name": self.name,
             "source": self.source,
@@ -277,6 +313,11 @@ class Project(SaveDeleteMixin, Base):
             Created Project entity
 
         """
+        # Import here to avoid circular import
+        from oeapp.services.logs import get_logger  # noqa: PLC0415
+
+        logger = get_logger(cls.__name__)
+
         project = cls(
             name=resolved_name,
             source=project_data.get("source"),
@@ -290,7 +331,48 @@ class Project(SaveDeleteMixin, Base):
         if updated_at:
             project.updated_at = updated_at
         project.save(commit=commit)
+        logger.info(
+            "project.from_json",
+            name=project.name,
+            source=project.source,
+            translator=project.translator,
+            notes=project.notes,
+        )
         return project
+
+    def save(self, commit: bool = True) -> None:  # noqa: FBT001, FBT002
+        """
+        Save the project.
+        """
+        # Import here to avoid circular import
+        from oeapp.services.logs import get_logger  # noqa: PLC0415
+
+        logger = get_logger(self.__class__.__name__)
+
+        super().save(commit=commit)
+        if commit:
+            logger.info(
+                "project.saved",
+                project_id=self.id,
+                project_name=self.name,
+                sentences_count=len(self.sentences),
+            )
+
+    def delete(self, commit: bool = True) -> None:  # noqa: FBT001, FBT002
+        """
+        Delete the project.
+        """
+        # Import here to avoid circular import
+        from oeapp.services.logs import get_logger  # noqa: PLC0415
+
+        logger = get_logger(self.__class__.__name__)
+        super().delete(commit=commit)
+        if commit:
+            logger.info(
+                "project.deleted",
+                project_id=self.id,
+                project_name=self.name,
+            )
 
     @classmethod
     def split_sentences(  # noqa: PLR0912, PLR0915
@@ -519,7 +601,7 @@ class Project(SaveDeleteMixin, Base):
 
 
 @event.listens_for(Session, "before_flush")
-def touch_project_on_change(session, flush_context, instances):
+def touch_project_on_change(session, flush_context, instances):  # noqa: ARG001, PLR0912
     """
     Update Project.updated_at whenever a related entity is changed.
     """

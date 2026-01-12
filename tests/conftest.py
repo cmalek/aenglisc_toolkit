@@ -19,6 +19,14 @@ if "OE_ANNOTATOR_DB_PATH" not in os.environ:
     _temp_db.close()
     os.environ["OE_ANNOTATOR_DB_PATH"] = _temp_db.name
 
+# Set a temporary app data path for tests
+if "OE_ANNOTATOR_DATA_PATH" not in os.environ:
+    import tempfile
+    os.environ["OE_ANNOTATOR_DATA_PATH"] = tempfile.mkdtemp()
+
+from oeapp.services.logs import configure_logging
+configure_logging()
+
 from oeapp.models import *
 
 from oeapp.commands import CommandManager

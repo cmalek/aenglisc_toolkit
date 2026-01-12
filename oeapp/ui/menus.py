@@ -10,6 +10,7 @@ from oeapp.ui.dialogs import (
     NewProjectDialog,
     OpenProjectDialog,
 )
+from oeapp.ui.dialogs.log_viewer import LogViewerDialog
 
 # Import AnnotationPresetManagementDialog lazily when needed to avoid import-time issues
 
@@ -178,6 +179,10 @@ class ToolsMenu:
         backups_view_action.triggered.connect(self.main_window.show_backups_dialog)
         self.tools_menu.addAction(backups_view_action)
 
+        view_logs_action = QAction("&View Logs", self.tools_menu)
+        view_logs_action.triggered.connect(self._show_log_viewer)
+        self.tools_menu.addAction(view_logs_action)
+
         self.tools_menu.addSeparator()
 
         pos_presets_action = QAction("POS &Presets...", self.tools_menu)
@@ -194,6 +199,15 @@ class ToolsMenu:
         """Show the POS presets management dialog."""
         dialog = AnnotationPresetManagementDialog()
         dialog.exec()
+
+    def _show_log_viewer(self) -> None:
+        """Show the log viewer dialog."""
+        if not hasattr(self, "_log_viewer") or not self._log_viewer.isVisible():
+            self._log_viewer = LogViewerDialog(self.main_window)
+            self._log_viewer.show()
+        else:
+            self._log_viewer.raise_()
+            self._log_viewer.activateWindow()
 
 
 class PreferencesMenu:

@@ -152,6 +152,11 @@ class Note(SaveDeleteMixin, Base):
             Created Note entity
 
         """
+        # Import here to avoid circular import
+        from oeapp.services.logs import get_logger  # noqa: PLC0415
+
+        logger = get_logger(cls.__name__)
+
         note = cls(
             sentence_id=sentence_id,
             note_text_md=note_data["note_text_md"],
@@ -183,6 +188,65 @@ class Note(SaveDeleteMixin, Base):
                 note.end_token = None
         else:
             note.end_token = None
-
+        if note.sentence is not None:
+            logger.info(
+                "note.from_json",
+                project_id=note.sentence.project_id,
+                project_name=note.sentence.project.name,
+                sentence_id=note.sentence_id,
+                sentence_number=note.sentence.display_order,
+                start_token_id=note.start_token,
+                note_id=note.id,
+                oe_text=note.sentence.get_token_surfaces(
+                    note.start_token,
+                    note.end_token,
+                ),
+                md_text=note.note_text_md,
+            )
         note.save(commit=commit)
         return note
+
+    def save(self, commit: bool = True) -> None:  # noqa: FBT001, FBT002
+        """
+        Save the note.
+        """
+        # Import here to avoid circular import
+        from oeapp.services.logs import get_logger  # noqa: PLC0415
+
+        logger = get_logger(self.__class__.__name__)
+
+        super().save(commit=commit)
+        logger.info(
+            "note.saved",
+            project_id=self.sentence.project_id,
+            project_name=self.sentence.project.name,
+            note_id=self.id,
+            sentence_id=self.sentence_id,
+            oe_text=self.sentence.get_token_surfaces(
+                self.start_token,
+                self.end_token,
+            ),
+            md_text=self.note_text_md,
+        )
+
+    def delete(self, commit: bool = True) -> None:  # noqa: FBT001, FBT002
+        """
+        Delete the note.
+        """
+        # Import here to avoid circular import
+        from oeapp.services.logs import get_logger  # noqa: PLC0415
+
+        logger = get_logger(self.__class__.__name__)
+        super().delete(commit=commit)
+        logger.info(
+            "note.deleted",
+            project_id=self.sentence.project_id,
+            project_name=self.sentence.project.name,
+            note_id=self.id,
+            sentence_id=self.sentence_id,
+            oe_text=self.sentence.get_token_surfaces(
+                self.start_token,
+                self.end_token,
+            ),
+            md_text=self.note_text_md,
+        )

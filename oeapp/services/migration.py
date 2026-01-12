@@ -2,7 +2,6 @@
 
 import ast
 import json
-import logging
 import re
 import shutil
 import sys
@@ -34,9 +33,8 @@ from oeapp.exc import (
 )
 
 from .backup import BackupService
+from .logs import get_logger
 from .mixins import ProjectFoldersMixin
-
-logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -347,6 +345,8 @@ class MigrationService(ProjectFoldersMixin):
                 (created if not provided)
 
         """
+        #: The logger for the migration service.
+        self.logger = get_logger(__name__)
         # Allow dependency injection for testing, but create defaults for normal use
         self.backup_service = (
             backup_service if backup_service is not None else BackupService()
@@ -621,14 +621,21 @@ class MigrationService(ProjectFoldersMixin):
 
         if not db_path.exists():
             msg = f"Database file does not exist: {db_path}"
-            logger.error(msg)
+            self.logger.error(
+                "migration.backup.failed",
+                error=OSError(msg),
+                db_path=db_path,
+                backup_path=backup_path,
+            )
             raise BackupFailed(OSError(msg), backup_path)
 
         try:
             shutil.copy2(db_path, backup_path)
-            logger.info(f"Created pre-migration backup: {backup_path}")
+            self.logger.info("migration.backup.created", backup_path=str(backup_path))
         except (OSError, PermissionError) as e:
-            logger.exception("Failed to create pre-migration backup")
+            self.logger.exception(
+                "migration.backup.failed", error=e, backup_path=str(backup_path)
+            )
             raise BackupFailed(e, backup_path) from e
 
         return backup_path
@@ -646,14 +653,26 @@ class MigrationService(ProjectFoldersMixin):
 
         if not backup_path.exists():
             msg = f"Pre-migration backup file does not exist: {backup_path}"
-            logger.error(msg)
+            self.logger.error(
+                "migration.restore.no-backup-file",
+                db_path=db_path,
+                backup_path=str(backup_path),
+            )
             raise BackupFailed(OSError(msg), backup_path)
 
         try:
             shutil.copy2(backup_path, db_path)
-            logger.info(f"Restored database from pre-migration backup: {backup_path}")
+            self.logger.info(
+                "migration.restore.success",
+                db_path=db_path,
+                backup_path=str(backup_path),
+            )
         except (OSError, PermissionError) as e:
-            logger.exception("Failed to restore pre-migration backup")
+            self.logger.exception(
+                "migration.restore.failed",
+                db_path=db_path,
+                backup_path=str(backup_path),
+            )
             raise BackupFailed(e, backup_path) from e
 
     def _delete_pre_migration_backup(self) -> None:
@@ -665,9 +684,14 @@ class MigrationService(ProjectFoldersMixin):
         if backup_path.exists():
             try:
                 backup_path.unlink()
-                logger.info(f"Deleted pre-migration backup: {backup_path}")
-            except (OSError, PermissionError) as e:
-                logger.warning(f"Failed to delete pre-migration backup: {e}")
+                self.logger.info(
+                    "migration.backup.deleted", backup_path=str(backup_path)
+                )
+            except (OSError, PermissionError):
+                self.logger.exception(
+                    "migration.backup.delete.failed",
+                    backup_path=str(backup_path),
+                )
 
     def restore(self, backup_path: Path) -> tuple[str | None, str | None]:
         """
@@ -702,10 +726,17 @@ class MigrationService(ProjectFoldersMixin):
         """
         result = command.revision(self.config, message=name, autogenerate=True)
         if result is None:
+            self.logger.error("migration.creation.failed", name=name)
             msg = f"Failed to create migration: {name}"
             raise MigrationCreationFailed(Exception(msg))
         result = cast("Script", result)
         self.migration_metadata_service.update(result.revision, __version__)
+        self.logger.info(
+            "migration.creation.success",
+            name=name,
+            revision_id=result.revision,
+            version=__version__,
+        )
         return MigrationCreationResult(
             migration_file_path=Path(result.path),
             revision_id=result.revision,
@@ -725,7 +756,7 @@ class MigrationService(ProjectFoldersMixin):
         """
         # Check for pending migrations
         if not self.has_pending_migrations():
-            logger.info("No pending migrations found")
+            self.logger.info("migration.no-pending-migrations")
             # Return current migration state
             db_version = self.db_migration_version()
             return MigrationResult(
@@ -752,7 +783,7 @@ class MigrationService(ProjectFoldersMixin):
                 self._restore_pre_migration_backup()
             except BackupFailed:
                 # If restore fails, log it but still raise the original migration error
-                logger.exception("Failed to restore pre-migration backup")
+                self.logger.exception("migration.restore.failed")
             # Get backup metadata for error reporting
             app_version, migration_version = None, None
             try:
@@ -760,8 +791,9 @@ class MigrationService(ProjectFoldersMixin):
                 db_version = self.db_migration_version()
                 migration_version = db_version
             except (OSError, ValueError, AttributeError) as version_error:
-                logger.debug(
-                    f"Could not get migration version after restore: {version_error}"
+                self.logger.debug(
+                    "migration.restore.failed",
+                    error=version_error,
                 )
             raise MigrationFailed(e, app_version, migration_version) from e
         else:
@@ -804,6 +836,10 @@ class MigrationService(ProjectFoldersMixin):
                     {"version": initial_version},
                 )
                 conn.commit()
+                self.logger.info(
+                    "migration.alembic.table.created",
+                    initial_version=initial_version,
+                )
             return MigrationResult(
                 app_version=__version__,
                 migration_version=cast("str", initial_version),
@@ -812,6 +848,10 @@ class MigrationService(ProjectFoldersMixin):
         command.upgrade(self.config, "head")
         # Migration succeeded - return current version
         current_version = self.db_migration_version()
+        self.logger.info(
+            "migration.migrate.success",
+            current_version=current_version,
+        )
         return MigrationResult(
             app_version=__version__,
             migration_version=cast("str", current_version),

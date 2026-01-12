@@ -20,7 +20,12 @@ config = context.config
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    # Only configure logging if it's not already configured
+    # This prevents Alembic from overriding the app's logging configuration
+    # when running migrations from within the application.
+    from logging import getLogger
+    if not getLogger().handlers:
+        fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 # Set target_metadata for autogenerate support
 target_metadata = Base.metadata

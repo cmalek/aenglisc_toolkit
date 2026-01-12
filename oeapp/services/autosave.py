@@ -4,6 +4,8 @@ from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QObject, QTimer
 
+from .logs import get_logger
+
 if TYPE_CHECKING:
     from collections.abc import Callable
 
@@ -30,6 +32,8 @@ class AutosaveService(QObject):
         self._timer: QTimer | None = None
         #: Whether there is a pending autosave.
         self._pending = False
+        #: The logger for the autosave service.
+        self.logger = get_logger(__name__)
 
     def trigger(self) -> None:
         """
@@ -63,6 +67,8 @@ class AutosaveService(QObject):
             except Exception as e:  # noqa: BLE001
                 print(f"Autosave error: {e}")  # noqa: T201
                 self._pending = False
+            else:
+                self.logger.info("Autosave successful")
 
     def save_now(self) -> None:
         """
@@ -79,6 +85,8 @@ class AutosaveService(QObject):
             self.save_callback()
         except Exception as e:  # noqa: BLE001
             print(f"Save error: {e}")  # noqa: T201
+        else:
+            self.logger.info("Save successful")
 
     def cancel(self) -> None:
         """

@@ -119,6 +119,11 @@ class AnnotationPreset(SaveDeleteMixin, Base):
                 already exists
 
         """
+        # Import here to avoid circular import
+        from oeapp.services.logs import get_logger  # noqa: PLC0415
+
+        logger = get_logger(cls.__name__)
+
         if not name or not name.strip():
             msg = "Preset name cannot be empty"
             raise ValueError(msg)
@@ -132,6 +137,12 @@ class AnnotationPreset(SaveDeleteMixin, Base):
         session.flush()
         if commit:
             session.commit()
+            logger.info(
+                "annotation_preset.create.success",
+                preset_id=preset.id,
+                name=name,
+                pos=pos,
+            )
         return preset
 
     @classmethod
@@ -192,6 +203,11 @@ class AnnotationPreset(SaveDeleteMixin, Base):
             sqlalchemy.exc.IntegrityError: If name change would create duplicate
 
         """
+        # Import here to avoid circular import
+        from oeapp.services.logs import get_logger  # noqa: PLC0415
+
+        logger = get_logger(cls.__name__)
+
         session = cls._get_session()
         preset = cls.get(preset_id)
         if not preset:
@@ -205,6 +221,12 @@ class AnnotationPreset(SaveDeleteMixin, Base):
         session.flush()
         if commit:
             session.commit()
+            logger.info(
+                "annotation_preset.update.success",
+                preset_id=preset_id,
+                name=preset.name,
+                pos=preset.pos,
+            )
         return preset
 
     def to_json(self) -> dict:

@@ -1,5 +1,6 @@
 """Utility functions for Ænglisc Toolkit."""
 
+import os
 import re
 import sys
 from datetime import UTC, datetime
@@ -13,6 +14,39 @@ from PySide6.QtSvg import QSvgRenderer
 
 if TYPE_CHECKING:
     from PySide6.QtWidgets import QLayout
+
+
+def get_app_data_path() -> Path:
+    """
+    Get the base path for application data.
+
+    - If OE_ANNOTATOR_DATA_PATH environment variable is set, use that.
+    - On Windows, the path is the user's
+        ``AppData/Local/Ænglisc Toolkit`` directory.
+    - On macOS, the path is the user's
+        ``~/Library/Application Support/Ænglisc Toolkit`` directory.
+    - On Linux, the path is the user's
+        ``~/.config/Ænglisc Toolkit`` directory.
+
+    Returns:
+        Path to the application data directory
+
+    Raises:
+        ValueError: If the platform is not supported
+
+    """
+    env_path = os.environ.get("OE_ANNOTATOR_DATA_PATH")
+    if env_path:
+        return Path(env_path)
+
+    if sys.platform == "win32":
+        return Path.home() / "AppData" / "Local" / "Ænglisc Toolkit"
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support" / "Ænglisc Toolkit"
+    if sys.platform == "linux":
+        return Path.home() / ".config" / "Ænglisc Toolkit"
+    msg = f"Unsupported platform: {sys.platform}"
+    raise ValueError(msg)
 
 
 def get_resource_path(relative_path: str) -> Path:

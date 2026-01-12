@@ -15,6 +15,8 @@ from oeapp.db import get_project_db_path
 from oeapp.exc import BackupFailed
 from oeapp.models.project import Project
 
+from .logs import get_logger
+
 if TYPE_CHECKING:
     from pathlib import Path
 
@@ -33,6 +35,8 @@ class BackupService(QObject):
         self.db_path = get_project_db_path()
         self.backup_dir = self.db_path.parent / "backups"
         self.backup_dir.mkdir(parents=True, exist_ok=True)
+        #: The logger for the backup service.
+        self.logger = get_logger(__name__)
 
     def get_num_backups(self) -> int:
         """
@@ -195,7 +199,9 @@ class BackupService(QObject):
         try:
             shutil.copy2(self.db_path, backup_path)
         except (OSError, PermissionError) as e:
-            print(f"Failed to copy database file: {e}")  # noqa: T201
+            self.logger.exception(
+                "backup.failed", error=e, backup_path=str(backup_path)
+            )
             raise BackupFailed(e, backup_path) from e
 
         # Create temporary engine and session to extract metadata
@@ -212,8 +218,12 @@ class BackupService(QObject):
             try:
                 metadata = self.extract_backup_metadata(temp_engine)
             except (SQLAlchemyError, OSError) as e:
+                self.logger.exception(
+                    "backup.metadata.extraction.failed",
+                    error=e,
+                    backup_path=str(backup_path),
+                )
                 # If metadata extraction fails, create minimal metadata
-                print(f"Metadata extraction failed, using minimal metadata: {e}")  # noqa: T201
                 try:
                     db_size = self.db_path.stat().st_size
                 except OSError:
@@ -233,6 +243,11 @@ class BackupService(QObject):
                 with metadata_path.open("w", encoding="utf-8") as f:
                     json.dump(metadata, f, indent=2)
             except (OSError, PermissionError, TypeError) as e:
+                self.logger.exception(
+                    "backup.metadata.save.failed",
+                    error=e,
+                    backup_path=str(backup_path),
+                )
                 raise BackupFailed(e, metadata_path) from e
                 # Continue anyway - backup file was created successfully
 
@@ -246,6 +261,7 @@ class BackupService(QObject):
                 print(f"Failed to cleanup old backups: {e}")  # noqa: T201
                 # Continue - backup was successful
 
+            self.logger.info("backup.success", backup_path=str(backup_path))
             return backup_path
         finally:
             temp_session.close()

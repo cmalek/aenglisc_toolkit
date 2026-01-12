@@ -56,3 +56,47 @@ class Idiom(SaveDeleteMixin, Base):
         uselist=False,
         cascade="all, delete-orphan",
     )
+
+    def save(self, commit: bool = True) -> None:  # noqa: FBT001, FBT002
+        """
+        Save the idiom.
+        """
+        # Import here to avoid circular import
+        from oeapp.services.logs import get_logger  # noqa: PLC0415
+
+        logger = get_logger(self.__class__.__name__)
+
+        super().save(commit=commit)
+        logger.info(
+            "idiom.saved",
+            project_id=self.sentence.project_id,
+            project_name=self.sentence.project.name,
+            sentence_id=self.sentence_id,
+            sentence_number=self.sentence.display_order,
+            idiom_id=self.id,
+            text=self.sentence.get_token_surfaces(
+                self.start_token.id,
+                self.end_token.id,
+            ),
+        )
+
+    def delete(self, commit: bool = True) -> None:  # noqa: FBT001, FBT002
+        """
+        Delete the idiom.
+        """
+        # Import here to avoid circular import
+        from oeapp.services.logs import get_logger  # noqa: PLC0415
+
+        logger = get_logger(self.__class__.__name__)
+        super().delete(commit=commit)
+        if commit:
+            logger.info(
+                "idiom.deleted",
+                idiom_id=self.id,
+                project_id=self.sentence.project_id,
+                sentence_id=self.sentence_id,
+                text=self.sentence.get_token_surfaces(
+                    self.start_token.id,
+                    self.end_token.id,
+                ),
+            )

@@ -1,7 +1,6 @@
 """SQLAlchemy database setup for Ænglisc Toolkit."""
 
 import os
-import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final, cast
 
@@ -10,6 +9,8 @@ from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 if TYPE_CHECKING:
     import sqlite3
+
+from oeapp.utils import get_app_data_path
 
 #: The default database name.
 DEFAULT_DB_NAME: Final[str] = "default.db"
@@ -24,13 +25,7 @@ def get_project_db_path() -> Path:
     Get the path to the project database.
 
     - If OE_ANNOTATOR_DB_PATH environment variable is set, use that.
-    - On Windows, the database is created in the user's
-        ``AppData/Local/Ænglisc Toolkit/projects`` directory.
-    - On macOS, the database is created in the user's
-        ``~/Library/Application Support/Ænglisc Toolkit/projects`` directory.
-    - On Linux, the database is created in the user's
-        ``~/.config/Ænglisc Toolkit/projects`` directory.
-    - If the platform is not supported, raise a ValueError.
+    - Otherwise, use the "projects" subdirectory in the app data path.
 
     Returns:
         Path to the database file
@@ -40,21 +35,7 @@ def get_project_db_path() -> Path:
     if env_path:
         return Path(env_path)
 
-    if sys.platform not in ["win32", "darwin", "linux"]:
-        msg = f"Unsupported platform: {sys.platform}"
-        raise ValueError(msg)
-    if sys.platform == "win32":
-        db_path = Path.home() / "AppData" / "Local" / "Ænglisc Toolkit" / "projects"
-    elif sys.platform == "darwin":
-        db_path = (
-            Path.home()
-            / "Library"
-            / "Application Support"
-            / "Ænglisc Toolkit"
-            / "projects"
-        )
-    elif sys.platform == "linux":
-        db_path = Path.home() / ".config" / "Ænglisc Toolkit" / "projects"
+    db_path = get_app_data_path() / "projects"
     db_path.mkdir(parents=True, exist_ok=True)
     return db_path / DEFAULT_DB_NAME
 
