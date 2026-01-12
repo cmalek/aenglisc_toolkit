@@ -570,6 +570,7 @@ class OldEnglishTextEdit(QTextEdit):
 
         # Token details sidebar
         self.token_selected.connect(token_details_sidebar._on_token_selected)
+        self.idiom_selection.connect(token_details_sidebar._on_idiom_selected)
         self.token_deselected.connect(token_details_sidebar._on_token_deselected)
 
     @property
