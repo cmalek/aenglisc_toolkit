@@ -40,8 +40,15 @@ class AnnotationPresetManagementDialog(AnnotationLookupsMixin, SessionMixin, QDi
     """
     Dialog for managing annotation presets.
 
-    Args:
-        main_window: Main window instance (for session access)
+    Supported Parts of Speech are: Noun, Verb, Adjective, Pronoun, Article.
+
+    Note:
+        We're purposely only supporting Parts of Speech that have many
+        fields.  Adverbs (1 field), Prepositions (1 field), Conjunctions (1
+        field), Interjections (no fields), and Numbers (no fields) are not
+        supported, because the user would have to do more clicks to select
+        and apply the preset than just selecting the POS and then selecting
+        one or zero fields.
 
     Keyword Args:
         save_mode: If True, hide tabs and show only save form
@@ -262,7 +269,17 @@ class AnnotationPresetManagementDialog(AnnotationLookupsMixin, SessionMixin, QDi
         self, pos: PresetPos, form_layout: QFormLayout
     ) -> None:
         """
-        Populate form fields for a POS tab.
+        Populate form fields for a POS tab, for supported Parts of Speech.
+
+        Supported Parts of Speech are: Noun, Verb, Adjective, Pronoun, Article.
+
+        Note:
+            We're purposely only supporting Parts of Speech that have many
+            fields.  Adverbs (1 field), Prepositions (1 field), Conjunctions (1
+            field), Interjections (no fields), and Numbers (no fields) are not
+            supported, because the user would have to do more clicks to select
+            and apply the preset than just selecting the POS and then selecting
+            one or zero fields.
 
         Args:
             pos: POS code (N, V, A, R, D)

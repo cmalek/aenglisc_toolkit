@@ -20,6 +20,7 @@ class AnnotationLookupsMixin:
         "C": "Conjunction (C)",
         "E": "Preposition (E)",
         "I": "Interjection (I)",
+        "L": "Number (L)",
     }
     #: A Reverse lookup map for part of speech long form to code.  The key
     # is the long form, and the value is the code.
@@ -37,6 +38,7 @@ class AnnotationLookupsMixin:
         "C": QColor(255, 20, 147),  # Deep pink for Conjunction
         "E": QColor(255, 255, 0),  # Yellow for Preposition
         "I": QColor(255, 192, 203),  # Pink for Interjection
+        "L": QColor(193, 240, 0),  # Light beige for Number
         None: QColor(255, 255, 255),  # White (no highlight) for unannotated
     }
 

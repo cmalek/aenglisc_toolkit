@@ -30,7 +30,8 @@ class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
     __tablename__ = "annotations"
     __table_args__ = (
         CheckConstraint(
-            "pos IN ('N','V','A','R','D','B','C','E','I')", name="ck_annotations_pos"
+            "pos IN ('N','V','A','R','D','B','C','E','I', 'L')",
+            name="ck_annotations_pos",
         ),
         CheckConstraint("gender IN ('m','f','n')", name="ck_annotations_gender"),
         CheckConstraint("number IN ('s','p')", name="ck_annotations_number"),

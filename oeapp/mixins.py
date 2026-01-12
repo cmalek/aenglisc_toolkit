@@ -23,6 +23,7 @@ class AnnotationTextualMixin:
         "C": "conj",
         "E": "prep",
         "I": "int",
+        "L": "num",
     }
 
     #: A lookup map for gender codes to their short form.
@@ -278,8 +279,9 @@ class AnnotationTextualMixin:
                 annotation.conjunction_type
             ]
             pos_str += f":{conjunction_type_str}"
-        elif annotation.pos in {"E", "I"}:
-            # Prepositions and interjections don't get any additional information
+        elif annotation.pos in {"E", "I", "L"}:
+            # Prepositions, interjections, and numbers don't get any additional
+            # information
             pass
         return pos_str
 

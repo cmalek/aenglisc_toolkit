@@ -441,6 +441,19 @@ class InterjectionFields(PartOfSpeechFieldsBase):
         """
 
 
+class NumberFields(PartOfSpeechFieldsBase):
+    """
+    The fields for the Number form.  There are no fields for Number.
+    """
+
+    PART_OF_SPEECH: str = "Number"
+
+    def build(self) -> None:
+        """
+        Build the Number form.
+        """
+
+
 class NoneFields(PartOfSpeechFieldsBase):
     """
     The fields for the None form.  There are no fields for None.
@@ -470,6 +483,7 @@ class PartOfSpeechFormManager:
         "B": AdverbFields,
         "C": ConjunctionFields,
         "I": InterjectionFields,
+        "L": NumberFields,
         None: NoneFields,
     }
 
