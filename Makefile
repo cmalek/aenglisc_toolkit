@@ -1,6 +1,6 @@
 VERSION = 0.1.0
 
-PACKAGE = building_directory
+PACKAGE = aenglisc_toolkit
 
 DOCKER_REGISTRY = 131067624433.dkr.ecr.us-west-2.amazonaws.com/caltech-imss-ads
 IN_CODEPIPELINE := $(if $(CODEBUILD_BUILD_ID),True,False)
