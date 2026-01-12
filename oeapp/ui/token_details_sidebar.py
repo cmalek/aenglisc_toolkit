@@ -110,6 +110,8 @@ class AbstractPartOfSpeechRenderer(AnnotationLookupsMixin):
             parent_layout.addWidget(no_pos_label)
             raise NoAnnotationAvailable
         pos_text = self.PART_OF_SPEECH_MAP[self.annotation.pos]
+        if self.annotation.idiom_id:
+            pos_text += " (idiom)"
         if pos_text:
             pos_label = QLabel(pos_text, parent_widget)
             pos_label.setStyleSheet(self.POS_LABEL_STYLE)
