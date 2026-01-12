@@ -464,6 +464,10 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
         """
         Clear all content from the sidebar and reset the current token and
         sentence.
+
+        Args:
+            layout: Layout to clear, if None, the content layout is cleared
+
         """
         if not layout:
             layout = self.content_layout

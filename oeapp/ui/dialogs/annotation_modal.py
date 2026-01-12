@@ -514,7 +514,7 @@ class PartOfSpeechFormManager:
 
         Args:
             pos: The Part of Speech code to set the fields for, like "N", "V",
-                "A", "R", "D", "E", "B", "C", "I"
+                "A", "R", "D", "E", "B", "C", "I", "L"
 
         Raises:
             ValueError: If the Part of Speech is invalid
@@ -547,8 +547,8 @@ class PartOfSpeechFormManager:
         """
         Helper to clear a layout and its sub-layouts/widgets.
 
-        This is a recursive function that iterates recursively through the
-        layout and hides and deletes all widgets.
+        This is a recursive function that iterates through the layout and hides
+        and deletes all widgets and sub-layouts.
 
         Args:
             layout: The layout to clear
@@ -574,7 +574,7 @@ class PartOfSpeechFormManager:
         """
         Load the values from the indices into the Part of Speech form.
 
-        If there is no current Part of Speech fields, do nothing.
+        If :attr:`current` is not set, do nothing.
 
         Args:
             indices: A dictionary of the attribute names and the indices to load
@@ -588,6 +588,12 @@ class PartOfSpeechFormManager:
     def load_from_preset(self, preset: AnnotationPreset) -> None:
         """
         Load the values from the preset into the Part of Speech form.
+
+        If :attr:`current` is not set, do nothing.
+
+        Args:
+            preset: The preset to load the values from
+
         """
         if self.current:
             self.current.load_from_preset(preset)
@@ -612,6 +618,12 @@ class PartOfSpeechFormManager:
     def extract_indices(self) -> dict[str, int]:
         """
         Extract the indices from the Part of Speech form.
+
+        If :attr:`current` is not set, return an empty dictionary.
+
+        Returns:
+            A dictionary of the indices from the Part of Speech form
+
         """
         if self.current:
             return self.current.extract_indices()
@@ -1226,7 +1238,28 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
     # -------------------------------------------------------------------------
 
     def _update_preset_dropdown(self) -> None:
-        """Populate preset dropdown based on current POS selection."""
+        """
+        Populate preset dropdown based on current POS selection.
+
+        Does the following:
+
+        - If :attr:`preset_combo` or :attr:`apply_preset_button` is not set, do nothing.
+        - Get the current POS text from the POS combo box
+        - If the POS is not set, disable the preset dropdown and "Apply Preset" button
+        - Look up the POS code from the POS display text
+        - If the POS code is invalid or unsupported, disable the preset dropdown
+          and apply preset button
+        - Get the presets for this POS
+        - Clear and populate the preset dropdown
+        - If there are presets, enable the preset dropdown and apply preset button
+
+        Args:
+            None
+
+        Returns:
+            None
+
+        """
         # Ensure we have the required widgets
         if not hasattr(self, "preset_combo") or not hasattr(
             self, "apply_preset_button"
