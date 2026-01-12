@@ -592,6 +592,7 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
             "number": annotation.number,
             "case": annotation.case,
             "declension": annotation.declension,
+            "article_type": annotation.article_type,
             "pronoun_type": annotation.pronoun_type,
             "pronoun_number": annotation.pronoun_number,
             "verb_class": annotation.verb_class,
