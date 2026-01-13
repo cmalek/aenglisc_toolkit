@@ -143,10 +143,6 @@ class MainWindow(QMainWindow):
         self.main_layout.setSpacing(0)
         self.setCentralWidget(central_widget)
 
-        # Build top toolbar
-        self.toolbar = self.build_toolbar()
-        self.main_layout.addWidget(self.toolbar)
-
         # Create a container for the two-column layout
         column_container = QWidget()
         central_layout = QHBoxLayout(column_container)
@@ -154,10 +150,23 @@ class MainWindow(QMainWindow):
         central_layout.setSpacing(0)
         self.main_layout.addWidget(column_container, stretch=1)
 
+        # Build a QVBoxLayout for the main content area so we can add the
+        # toolbar and the main content area to it
+        self.main_content_layout = QVBoxLayout()
+        self.main_content_layout.setContentsMargins(0, 0, 0, 0)
+        self.main_content_layout.setSpacing(0)
+        central_layout.addLayout(self.main_content_layout)
+
+        # Build top toolbar
+        self.toolbar = self.build_toolbar()
+        self.main_content_layout.addWidget(self.toolbar)
         # Create the main content area.  This is a scroll area that contains the
         # sentence cards.
+
         self.main_column = self.build_main_content_area()
-        self.content_layout = self.build_main_content(self.main_column, central_layout)
+        self.content_layout = self.build_main_content(
+            self.main_column, self.main_content_layout
+        )
         self.token_details_sidebar = self.build_sidebar_area(central_layout)
         self.show_empty(self.content_layout)
 
@@ -173,7 +182,7 @@ class MainWindow(QMainWindow):
         toolbar.setObjectName("main_toolbar")
         toolbar.setStyleSheet(
             "#main_toolbar { background-color: #cccccc; "
-            "border-bottom: 1px solid #ccc; }"
+            "border-bottom: 3px solid #aaa; }"
         )
         layout = QHBoxLayout(toolbar)
         layout.setContentsMargins(10, 10, 10, 10)
@@ -293,7 +302,7 @@ class MainWindow(QMainWindow):
         return scroll_area
 
     def build_main_content(
-        self, container: QScrollArea, layout: QHBoxLayout
+        self, container: QScrollArea, layout: QVBoxLayout
     ) -> QVBoxLayout:
         """
         Build the main content area layout.  This is where the sentence cards
