@@ -1,5 +1,6 @@
 """Notes panel UI component."""
 
+import re
 from typing import TYPE_CHECKING, Final, cast
 
 from PySide6.QtCore import Qt, Signal
@@ -20,6 +21,7 @@ from oeapp.utils import clear_layout
 if TYPE_CHECKING:
     from oeapp.models.note import Note
     from oeapp.models.sentence import Sentence
+    from oeapp.ui.main_window import MainWindow
     from oeapp.ui.sentence_card import SentenceCard
 
 
@@ -208,6 +210,73 @@ class NotesPanel(QWidget):
             20, 40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding
         )
         layout.addItem(spacer)
+
+        # If there is an active search, re-apply it
+        if (
+            hasattr(self.state.main_window, "search_input")
+            and cast("MainWindow", self.state.main_window).search_input.text()
+        ):
+            self.highlight_search(
+                cast("MainWindow", self.state.main_window).search_input.text()
+            )
+
+    def highlight_search(self, pattern: str) -> int:
+        """
+        Highlight matches in all note labels.
+
+        Args:
+            pattern: Search pattern
+
+        Returns:
+            int: Number of matches found
+
+        """
+        total_matches = 0
+        if not pattern:
+            # Clear highlights
+            for i, note in enumerate(self.sentence.sorted_notes, start=1):
+                if i <= len(self.note_labels):
+                    self.note_labels[i - 1].setText(self.build_note(i, note))
+            return 0
+
+        for i, note in enumerate(self.sentence.sorted_notes, start=1):
+            if i > len(self.note_labels):
+                continue
+
+            label = self.note_labels[i - 1]
+            original_text = self.build_note(i, note)
+
+            # Simple case-insensitive search and replace with HTML span
+            # We need to be careful about not breaking existing HTML tags
+            # A simple approach: split by tags, replace in text parts, rejoin
+            parts = re.split(r"(<[^>]+>)", original_text)
+            highlighted_parts = []
+            matches_in_note = 0
+
+            for part in parts:
+                if part.startswith("<"):
+                    highlighted_parts.append(part)
+                else:
+                    # Search in text part
+                    escaped_pattern = re.escape(pattern)
+
+                    def replace_func(match):
+                        nonlocal matches_in_note
+                        matches_in_note += 1
+                        return (
+                            '<span style="background-color: yellow; color: black;'
+                            f'">{match.group(0)}</span>'
+                        )
+
+                    highlighted_text = re.sub(
+                        escaped_pattern, replace_func, part, flags=re.IGNORECASE
+                    )
+                    highlighted_parts.append(highlighted_text)
+
+            label.setText("".join(highlighted_parts))
+            total_matches += matches_in_note
+
+        return total_matches
 
     def build_note(self, note_number: int, note: Note) -> str:
         """

@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING, ClassVar, cast
 
-from PySide6.QtGui import QColor, QTextCharFormat, QTextCursor
+from PySide6.QtGui import QColor, QTextCharFormat, QTextCursor, QTextDocument
 from PySide6.QtWidgets import QComboBox, QTextEdit
 
 from oeapp.ui.dialogs import (
@@ -585,14 +585,25 @@ class WholeSentenceHighlighter:
 
     def set_highlights(self, extra_selections: list[QTextEdit.ExtraSelection]) -> None:
         """
-        Set the highlights for the sentence.
+        Set the highlights for the sentence, preserving search highlights.
 
         Args:
             extra_selections: List of extra selections to set
 
         """
         assert self.card, "Sentence card is required"  # noqa: S101
-        self.card.oe_text_edit.setExtraSelections(extra_selections)
+
+        # Get existing search highlights
+        existing = self.card.oe_text_edit.extraSelections()
+        search_highlights = [
+            s
+            for s in existing
+            if s.format.property(SearchHighlighter.SEARCH_HIGHLIGHT_PROPERTY)  # type: ignore[attr-defined]
+        ]
+
+        # Combine new highlights with search highlights
+        all_highlights = [*extra_selections, *search_highlights]
+        self.card.oe_text_edit.setExtraSelections(all_highlights)
 
     def highlight(self) -> None:
         """
@@ -726,10 +737,24 @@ class SingleInstanceHighlighter(SelectTokensMixin):
         self, selections: list[QTextEdit.ExtraSelection]
     ) -> None:
         """
-        Set the existing extra selections.
+        Set the existing extra selections, preserving search highlights.
         """
-        self.oe_text_edit.setExtraSelections(selections)
-        self.existing_selections = self.oe_text_edit.extraSelections()
+        # Get existing search highlights
+        existing = self.oe_text_edit.extraSelections()
+        search_highlights = [
+            s
+            for s in existing
+            if s.format.property(SearchHighlighter.SEARCH_HIGHLIGHT_PROPERTY)  # type: ignore[attr-defined]
+        ]
+
+        # Combine provided selections with search highlights
+        all_selections = [*selections, *search_highlights]
+        self.oe_text_edit.setExtraSelections(all_selections)
+        self.existing_selections = [
+            s
+            for s in self.oe_text_edit.extraSelections()
+            if not s.format.property(SearchHighlighter.SEARCH_HIGHLIGHT_PROPERTY)  # type: ignore[attr-defined]
+        ]
 
     def unhighlight(self) -> None:
         """
@@ -806,3 +831,79 @@ class SingleInstanceHighlighter(SelectTokensMixin):
         last_end = token_positions[-1][1]
         self._current_highlight_start = first_start
         self._current_highlight_length = last_end - first_start
+
+
+class SearchHighlighter:
+    """
+    Highlighter for search results in a QTextEdit.
+    """
+
+    #: Color for search highlighting (bright yellow)
+    SEARCH_COLOR: ClassVar[QColor] = QColor(255, 255, 0)
+    #: Property ID for search highlight in ExtraSelection
+    SEARCH_HIGHLIGHT_PROPERTY: ClassVar[int] = 1002
+
+    @staticmethod
+    def highlight_text(text_edit: QTextEdit, pattern: str) -> int:
+        """
+        Highlight all occurrences of pattern in text_edit.
+
+        Args:
+            text_edit: QTextEdit to highlight
+            pattern: Search pattern
+
+        Returns:
+            int: Number of matches found
+
+        """
+        # First, remove existing search highlights
+        selections = text_edit.extraSelections()
+        selections = [
+            s
+            for s in selections
+            if not s.format.property(SearchHighlighter.SEARCH_HIGHLIGHT_PROPERTY)  # type: ignore[attr-defined]
+        ]
+
+        if not pattern:
+            text_edit.setExtraSelections(selections)
+            return 0
+
+        matches = 0
+        doc = text_edit.document()
+        cursor = QTextCursor(doc)
+
+        while True:
+            cursor = doc.find(
+                pattern,
+                cursor,
+                QTextDocument.FindFlag.FindCaseSensitively
+                if False
+                else QTextDocument.FindFlag(0),
+            )
+            if cursor.isNull():
+                break
+
+            matches += 1
+
+            selection = QTextEdit.ExtraSelection()
+            selection.format.setBackground(SearchHighlighter.SEARCH_COLOR)  # type: ignore[attr-defined]
+            selection.format.setProperty(  # type: ignore[attr-defined]
+                SearchHighlighter.SEARCH_HIGHLIGHT_PROPERTY,
+                True,  # noqa: FBT003
+            )
+            selection.cursor = cursor  # type: ignore[attr-defined]
+            selections.append(selection)
+
+        text_edit.setExtraSelections(selections)
+        return matches
+
+    @staticmethod
+    def clear_highlight(text_edit: QTextEdit) -> None:
+        """Clear search highlights from text_edit."""
+        selections = text_edit.extraSelections()
+        selections = [
+            s
+            for s in selections
+            if not s.format.property(SearchHighlighter.SEARCH_HIGHLIGHT_PROPERTY)  # type: ignore[attr-defined]
+        ]
+        text_edit.setExtraSelections(selections)

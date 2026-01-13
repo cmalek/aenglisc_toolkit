@@ -11,7 +11,11 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import QTextEdit, QWidget
 
 from oeapp.models import Idiom
-from oeapp.ui.highlighting import SingleInstanceHighlighter, WholeSentenceHighlighter
+from oeapp.ui.highlighting import (
+    SearchHighlighter,
+    SingleInstanceHighlighter,
+    WholeSentenceHighlighter,
+)
 
 if TYPE_CHECKING:
     from oeapp.models.note import Note
@@ -851,6 +855,19 @@ class OldEnglishTextEdit(QTextEdit):
             token = cast("Token", self.tokens_by_index.get(current_token_index))
             if token:
                 highlighter.highlight(token.order_index)
+
+        # Re-apply search highlighting if needed
+        if (
+            self._main_window
+            and hasattr(self._main_window, "search_input")
+            and self._main_window.search_input.text()
+        ):
+            scope = self._main_window.search_scope_combo.currentText()
+            if scope in ["OE Text", "All"]:
+                SearchHighlighter.highlight_text(
+                    self, self._main_window.search_input.text()
+                )
+
         self.resize_to_fit_text()
 
     def render_token(  # noqa: PLR0913
@@ -1215,7 +1232,7 @@ class OldEnglishTextEdit(QTextEdit):
         super().mouseDoubleClickEvent(event)
         self.annotate_token(event.position().toPoint())
 
-    def keyPressEvent(self, event: QKeyEvent) -> None:  # noqa: N802
+    def keyPressEvent(self, event: QKeyEvent) -> None:  # noqa: N802, PLR0911, PLR0912
         """
         Handle key press events.
 
@@ -1269,7 +1286,25 @@ class OldEnglishTextEdit(QTextEdit):
                             )._open_annotation_modal()
                         event.accept()
                         return
+                    # Search navigation
+                    if event.key() == Qt.Key.Key_N:
+                        if self._main_window:
+                            if event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
+                                self._main_window.action_service.prev_match()
+                            else:
+                                self._main_window.action_service.next_match()
+                        event.accept()
+                        return
                 else:
+                    # Search navigation even if no token is selected
+                    if event.key() == Qt.Key.Key_N:
+                        if self._main_window:
+                            if event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
+                                self._main_window.action_service.prev_match()
+                            else:
+                                self._main_window.action_service.next_match()
+                        event.accept()
+                        return
                     # If no token is selected, ignore the key press so it bubbles up
                     event.ignore()
                     return

@@ -34,7 +34,7 @@ from oeapp.ui.dialogs import (
     AnnotationModal,
     NoteDialog,
 )
-from oeapp.ui.highlighting import WholeSentenceHighlighter
+from oeapp.ui.highlighting import SearchHighlighter, WholeSentenceHighlighter
 from oeapp.ui.mixins import AnnotationLookupsMixin
 from oeapp.ui.notes_panel import NotesPanel
 from oeapp.ui.oe_text_edit import OldEnglishTextEdit
@@ -73,8 +73,12 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
     idiom_selected_for_details = Signal(
         object, object, object
     )  # Idiom, Sentence, SentenceCard
-    # Signal emitted when an annotation is applied
+    #: Signal emitted when an annotation is applied
     annotation_applied = Signal(Annotation)
+    #: Signal emitted when entering edit mode
+    edit_mode_started = Signal()
+    #: Signal emitted when exiting edit mode
+    edit_mode_finished = Signal()
 
     def __init__(
         self,
@@ -183,6 +187,48 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
         # Set focus on OE text edit
         self.oe_text_edit.setFocus()
         return True
+
+    def highlight_search(self, pattern: str, scope: str) -> int:
+        """
+        Highlight matches in OE text, translation, and notes.
+
+        Args:
+            pattern: Search pattern
+            scope: Search scope ("OE Text", "ModE text", "Notes", "All")
+
+        Returns:
+            int: Number of matches found
+
+        """
+        total_matches = 0
+
+        # OE Text scope
+        if scope in ["OE Text", "All"]:
+            total_matches += SearchHighlighter.highlight_text(
+                self.oe_text_edit, pattern
+            )
+        else:
+            SearchHighlighter.clear_highlight(self.oe_text_edit)
+
+        # ModE text scope
+        if scope in ["ModE text", "All"]:
+            total_matches += SearchHighlighter.highlight_text(
+                self.translation_edit, pattern
+            )
+        else:
+            SearchHighlighter.clear_highlight(self.translation_edit)
+
+        # Notes scope
+        if scope in ["Notes", "All"]:
+            total_matches += self.notes_panel.highlight_search(pattern)
+        else:
+            self.notes_panel.highlight_search("")
+
+        # Make translation_edit read-only when search is active to allow
+        # N/Shift-N shortcuts
+        self.translation_edit.setReadOnly(bool(pattern))
+
+        return total_matches
 
     # -------------------------------------------------------------------------
     # Build methods
@@ -932,6 +978,7 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
         self.cancel_edit_button.setVisible(True)
         # Set edit mode
         self.oe_text_edit.in_edit_mode = True
+        self.edit_mode_started.emit()
 
     def _on_save_oe_clicked(self) -> None:
         """
@@ -988,6 +1035,7 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
         self.edit_oe_button.setVisible(True)
         # Show Add Note button
         self.add_note_button.setVisible(True)
+        self.edit_mode_finished.emit()
 
     def _on_cancel_edit_clicked(self) -> None:
         """
@@ -1016,6 +1064,7 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
         # Show Edit OE button and Add Note button
         self.edit_oe_button.setVisible(True)
         self.add_note_button.setVisible(True)
+        self.edit_mode_finished.emit()
 
     # -------------------------------------------------------------------------
     # Translation text edit related event handlers

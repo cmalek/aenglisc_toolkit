@@ -7,11 +7,14 @@ from typing import TYPE_CHECKING, Any, Final, cast
 from PySide6.QtCore import QSettings, Qt, QTimer
 from PySide6.QtWidgets import (
     QApplication,
+    QComboBox,
     QFileDialog,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QMainWindow,
     QMessageBox,
+    QPushButton,
     QScrollArea,
     QVBoxLayout,
     QWidget,
@@ -55,6 +58,8 @@ from oeapp.ui.token_details_sidebar import TokenDetailsSidebar
 from oeapp.utils import get_logo_pixmap
 
 if TYPE_CHECKING:
+    from PySide6.QtGui import QKeyEvent
+
     from oeapp.models.annotation import Annotation
     from oeapp.models.idiom import Idiom
     from oeapp.models.sentence import Sentence
@@ -70,7 +75,7 @@ class MainWindow(QMainWindow):
     SIDEBAR_WIDTH: Final[int] = 350
     #: Sidebar Style
     SIDEBAR_STYLE: Final[str] = (
-        "background-color: #f5f5f5; border-left: 1px solid #ddd;"
+        "#sidebar { background-color: #f5f5f5; border-left: 1px solid #ddd; }"
     )
 
     def __init__(self) -> None:
@@ -97,6 +102,8 @@ class MainWindow(QMainWindow):
         self.application_state.reset()
         self.application_state.set_main_window(self)
 
+        #: Count of sentence cards in edit mode
+        self._edit_mode_count = 0
         self.content_layout: QVBoxLayout | None = None
         # Build the main window
         self.build()
@@ -128,14 +135,123 @@ class MainWindow(QMainWindow):
         """
         # Create the QApplicaiton
         self.create_application()
-        # Create a two-column layout for the main window.
-        central_layout = self.build_main_container()
+
+        # Central widget with vertical layout to hold search toolbar and content
+        central_widget = QWidget()
+        self.main_layout = QVBoxLayout(central_widget)
+        self.main_layout.setContentsMargins(0, 0, 0, 0)
+        self.main_layout.setSpacing(0)
+        self.setCentralWidget(central_widget)
+
+        # Build top toolbar
+        self.toolbar = self.build_toolbar()
+        self.main_layout.addWidget(self.toolbar)
+
+        # Create a container for the two-column layout
+        column_container = QWidget()
+        central_layout = QHBoxLayout(column_container)
+        central_layout.setContentsMargins(0, 0, 0, 0)
+        central_layout.setSpacing(0)
+        self.main_layout.addWidget(column_container, stretch=1)
+
         # Create the main content area.  This is a scroll area that contains the
         # sentence cards.
         self.main_column = self.build_main_content_area()
         self.content_layout = self.build_main_content(self.main_column, central_layout)
         self.token_details_sidebar = self.build_sidebar_area(central_layout)
         self.show_empty(self.content_layout)
+
+    def build_toolbar(self) -> QWidget:
+        """
+        Build the search toolbar.
+
+        Returns:
+            QWidget: The search toolbar widget
+
+        """
+        toolbar = QWidget()
+        toolbar.setObjectName("main_toolbar")
+        toolbar.setStyleSheet(
+            "#main_toolbar { background-color: #cccccc; "
+            "border-bottom: 1px solid #ccc; }"
+        )
+        layout = QHBoxLayout(toolbar)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(10)
+
+        layout.addWidget(QLabel("Search:"))
+
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("Enter tokens or phrases...")
+        self.search_input.textChanged.connect(self._on_search_text_changed)
+        self.search_input.returnPressed.connect(self.action_service.focus_first_match)
+
+        # Intercept Escape key in search input
+        def on_key_pressed(event: QKeyEvent):
+            if event.key() == Qt.Key.Key_Escape:
+                self._on_clear_search_clicked()
+                event.accept()
+            else:
+                QLineEdit.keyPressEvent(self.search_input, event)
+
+        self.search_input.keyPressEvent = on_key_pressed  # type: ignore[assignment]
+
+        layout.addWidget(self.search_input, stretch=1)
+
+        self.search_counter_label = QLabel("0 / 0")
+        self.search_counter_label.setStyleSheet("color: #666; font-weight: bold;")
+        layout.addWidget(self.search_counter_label)
+
+        self.search_clear_button = QPushButton("Clear")
+        self.search_clear_button.clicked.connect(self._on_clear_search_clicked)
+        layout.addWidget(self.search_clear_button)
+
+        self.search_scope_combo = QComboBox()
+        self.search_scope_combo.addItems(["OE Text", "ModE text", "Notes", "All"])
+        self.search_scope_combo.currentIndexChanged.connect(
+            self._on_search_scope_changed
+        )
+        layout.addWidget(self.search_scope_combo)
+
+        return toolbar
+
+    def _on_search_text_changed(self, text: str) -> None:
+        """Handle search text change."""
+        self.action_service.perform_search(text, self.search_scope_combo.currentText())
+
+    def _on_search_scope_changed(self, index: int) -> None:  # noqa: ARG002
+        """Handle search scope change."""
+        self.action_service.perform_search(
+            self.search_input.text(), self.search_scope_combo.currentText()
+        )
+
+    def _on_clear_search_clicked(self) -> None:
+        """Handle clear search button click."""
+        self.search_input.clear()
+        self.search_input.setFocus()
+
+    def keyPressEvent(self, event: QKeyEvent) -> None:  # noqa: N802
+        """Handle global key presses, like Escape to clear search."""
+        if event.key() == Qt.Key.Key_Escape:
+            self._on_clear_search_clicked()
+            event.accept()
+            return
+        super().keyPressEvent(event)
+
+    def update_search_ui_state(self, is_editing: bool) -> None:  # noqa: FBT001
+        """
+        Update the search UI state (enabled/disabled) based on whether
+        any sentence card is in edit mode.
+        """
+        if is_editing:
+            self._edit_mode_count += 1
+        else:
+            self._edit_mode_count = max(0, self._edit_mode_count - 1)
+
+        enabled = self._edit_mode_count == 0
+        self.search_input.setEnabled(enabled)
+        self.search_clear_button.setEnabled(enabled)
+        self.search_scope_combo.setEnabled(enabled)
 
     def create_application(self) -> None:
         """
@@ -160,23 +276,6 @@ class MainWindow(QMainWindow):
         welcome_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         welcome_label.setStyleSheet("font-size: 14pt; color: #666; padding: 50px;")
         layout.addWidget(welcome_label)
-
-    def build_main_container(self) -> QHBoxLayout:
-        """
-        Build the content area widget.  This is where the columns are located.
-
-        Returns:
-            tuple[QWidget, QHBoxLayout]: The main window's content area widget
-            and layout
-
-        """
-        # Central widget with two-column layout
-        central_widget = QWidget()
-        central_layout = QHBoxLayout(central_widget)
-        central_layout.setContentsMargins(0, 0, 0, 0)
-        central_layout.setSpacing(0)
-        self.setCentralWidget(central_widget)
-        return central_layout
 
     def build_main_content_area(self) -> QScrollArea:
         """
@@ -228,10 +327,21 @@ class MainWindow(QMainWindow):
 
         """
         sidebar = TokenDetailsSidebar()
+        sidebar.setObjectName("sidebar")
         sidebar.setFixedWidth(self.SIDEBAR_WIDTH)
         sidebar.setStyleSheet(self.SIDEBAR_STYLE)
         layout.addWidget(sidebar)
         return sidebar
+
+    def closeEvent(self, event) -> None:  # noqa: N802
+        """Handle window close event."""
+        # Stop backup timer
+        if self.backup_timer:
+            self.backup_timer.stop()
+        # Stop autosave service
+        if self.autosave_service:
+            self.autosave_service.cancel()
+        super().closeEvent(event)
 
     def reload_main_window(self) -> None:
         """
@@ -341,6 +451,8 @@ class MainWindow(QMainWindow):
         """
         dialog = SettingsDialog(self)
         dialog.execute()
+        # Clear search after settings changes as they may affect display/tokenization
+        self._on_clear_search_clicked()
 
     def show_restore_dialog(self) -> None:
         """
@@ -417,10 +529,95 @@ class MainWindowActions:
         self.backup_service = BackupService()
         #: Application state
         self.application_state = ApplicationState()
-        #: Sentence cards (reference to main_window's list)
-        self.sentence_cards = main_window.sentence_cards
         #: Messages
         self.messages = main_window.messages
+
+        #: List of sentence cards with matches
+        self.search_results: list[SentenceCard] = []
+        #: Current match index in search_results
+        self.current_match_index: int = -1
+
+    @property
+    def sentence_cards(self) -> list[SentenceCard]:
+        """Get the current sentence cards from main window."""
+        return self.main_window.sentence_cards
+
+    def perform_search(self, pattern: str, scope: str) -> None:
+        """
+        Perform search across all sentence cards.
+
+        Args:
+            pattern: Search pattern
+            scope: Search scope ("OE Text", "ModE text", "Notes", "All")
+
+        """
+        self.search_results = []
+        total_matches = 0
+
+        for card in self.sentence_cards:
+            matches = card.highlight_search(pattern, scope)
+            if matches > 0:
+                self.search_results.append(card)
+                total_matches += matches
+
+        self.current_match_index = -1 if not self.search_results else 0
+        self._update_search_ui(total_matches)
+
+    def _update_search_ui(self, total_matches: int) -> None:
+        """Update search UI elements based on search results."""
+        # Update counter label
+        current = self.current_match_index + 1 if self.current_match_index >= 0 else 0
+        self.main_window.search_counter_label.setText(f"{current} / {total_matches}")
+
+        # Update input background color
+        if self.main_window.search_input.text() and total_matches == 0:
+            self.main_window.search_input.setStyleSheet("background-color: #ffcccc;")
+        else:
+            self.main_window.search_input.setStyleSheet("")
+
+    def next_match(self) -> None:
+        """Navigate to the next matching sentence card."""
+        if not self.search_results:
+            return
+
+        self.current_match_index = (self.current_match_index + 1) % len(
+            self.search_results
+        )
+        self._focus_current_match()
+
+    def prev_match(self) -> None:
+        """Navigate to the previous matching sentence card."""
+        if not self.search_results:
+            return
+
+        self.current_match_index = (self.current_match_index - 1) % len(
+            self.search_results
+        )
+        self._focus_current_match()
+
+    def focus_first_match(self) -> None:
+        """Focus the first match in search results."""
+        if self.search_results:
+            self.current_match_index = 0
+            self._focus_current_match()
+
+    def _focus_current_match(self) -> None:
+        """Focus the current matching sentence card and scroll it into view."""
+        if 0 <= self.current_match_index < len(self.search_results):
+            card = self.search_results[self.current_match_index]
+            self.main_window.ensure_visible(card)
+            # Ensure the widget can receive focus
+            card.oe_text_edit.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+            card.oe_text_edit.setFocus(Qt.FocusReason.OtherFocusReason)
+            # Update counter label
+            self._update_search_ui(self._get_total_matches())
+
+    def _get_total_matches(self) -> int:
+        """Calculate total matches from all cards (roughly, based on label)."""
+        try:
+            return int(self.main_window.search_counter_label.text().split(" / ")[1])
+        except (ValueError, IndexError):
+            return 0
 
     @property
     def command_manager(self):
@@ -933,14 +1130,24 @@ class ProjectUI:
         self.show_error = main_window.messages.show_error
         self.show_information = main_window.messages.show_information
 
-    def load(self, project: Project) -> None:
+    def load(self, project: Project, clear_search: bool = True) -> None:  # noqa: FBT001, FBT002
         """
         Build the project.
 
         Args:
             project: Project to load
+            clear_search: Whether to clear the search toolbar
 
         """
+        # Clear or re-apply search
+        if clear_search:
+            self.main_window._on_clear_search_clicked()
+        else:
+            self.main_window.action_service.perform_search(
+                self.main_window.search_input.text(),
+                self.main_window.search_scope_combo.currentText(),
+            )
+
         self.application_state[CURRENT_PROJECT_ID] = project.id
 
         # Initialize autosave and command manager
@@ -948,9 +1155,16 @@ class ProjectUI:
 
         # Clear existing content
         for i in reversed(range(self.content_layout.count())):
-            self.content_layout.itemAt(i).widget().deleteLater()  # type: ignore[union-attr]
+            item = self.content_layout.itemAt(i)
+            if item and item.widget():
+                widget = item.widget()
+                if widget:
+                    widget.deleteLater()
 
         self.sentence_cards = []
+        # Also clear the main window's reference
+        self.main_window.sentence_cards = []
+
         for sentence in project.sentences:
             # Add paragraph separator if this sentence starts a paragraph
             if sentence.is_paragraph_start and len(self.sentence_cards) > 0:
@@ -967,6 +1181,7 @@ class ProjectUI:
                 main_window=self.main_window,
             )
             self.sentence_cards.append(card)
+            self.main_window.sentence_cards.append(card)
             self.content_layout.addWidget(card)
             card.translation_edit.textChanged.connect(self._on_translation_changed)
             card.oe_text_edit.textChanged.connect(self._on_sentence_text_changed)
@@ -976,6 +1191,13 @@ class ProjectUI:
             card.token_selected_for_details.connect(self._on_token_selected_for_details)
             card.idiom_selected_for_details.connect(self._on_idiom_selected_for_details)
             card.annotation_applied.connect(self._on_annotation_applied)
+            card.edit_mode_started.connect(
+                lambda: self.main_window.update_search_ui_state(True)  # noqa: FBT003
+            )
+            card.edit_mode_finished.connect(
+                lambda: self.main_window.update_search_ui_state(False)  # noqa: FBT003
+            )
+            card.edit_mode_started.connect(self.main_window._on_clear_search_clicked)
 
     def reload(self) -> None:
         """
@@ -1000,7 +1222,8 @@ class ProjectUI:
         existing_autosave = self.autosave_service
 
         # Refresh the project configuration (reloads all sentence cards)
-        self.load(project)
+        # Search is reapplied after reload
+        self.load(project, clear_search=False)
 
         # Restore preserved services
         if existing_command_manager:
@@ -1031,6 +1254,12 @@ class ProjectUI:
         for card in self.sentence_cards:
             if card.sentence.id:
                 card.set_tokens()
+
+        # Re-apply search highlighting after refresh
+        self.main_window.action_service.perform_search(
+            self.main_window.search_input.text(),
+            self.main_window.search_scope_combo.currentText(),
+        )
 
     def save(self) -> None:
         """
@@ -1088,7 +1317,8 @@ class ProjectUI:
         existing_autosave = self.autosave_service
 
         # Refresh the project configuration (reloads all sentence cards)
-        self.load(project)
+        # Search is reapplied after merge
+        self.load(project, clear_search=False)
 
         # Restore preserved services
         if existing_command_manager:
@@ -1189,7 +1419,8 @@ class ProjectUI:
         existing_autosave = self.autosave_service
 
         # Refresh the project configuration (reloads all sentence cards)
-        self.load(project)
+        # Search is reapplied after deletion
+        self.load(project, clear_search=False)
 
         # Restore preserved services
         if existing_command_manager:
