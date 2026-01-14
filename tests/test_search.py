@@ -22,25 +22,25 @@ def search_project(db_session, window):
     """Create a project with several sentences for testing search."""
     # Ensure we use the SAME session that window is using
     session = window.application_state.session
-    
+
     project = Project(name="Search Test Project")
     session.add(project)
     session.commit()
-    
+
     s1 = Sentence.create(project_id=project.id, text_oe="Se cyning rad.", display_order=1, commit=False)
     s1.text_modern = "The king rode."
     session.add(s1)
-    
+
     s2 = Sentence.create(project_id=project.id, text_oe="Þæt scip seglode.", display_order=2, commit=False)
     s2.text_modern = "The ship sailed."
     session.add(s2)
-    
+
     s3 = Sentence.create(project_id=project.id, text_oe="Se guma sang.", display_order=3, commit=False)
     s3.text_modern = "The man sang."
     session.add(s3)
-    
+
     session.commit()
-    
+
     # Reload project to ensure all relationships are fresh
     db_project = session.get(Project, project.id)
     window.load_project(db_project)
@@ -61,7 +61,7 @@ def test_search_highlighting_oe(qtbot, window, search_project):
     """Test that typing in the search box highlights matches in OE text."""
     window.search_input.setText("Se ")
     qtbot.wait(200)
-    
+
     assert window.search_counter_label.text() == "1 / 2"
     assert len(window.sentence_cards[0].oe_text_edit.extraSelections()) > 0
     assert len(window.sentence_cards[1].oe_text_edit.extraSelections()) == 0
@@ -72,11 +72,11 @@ def test_search_scope_switching(qtbot, window, search_project):
     window.search_input.setText("The ")
     qtbot.wait(200)
     assert "0 / 0" in window.search_counter_label.text()
-    
+
     window.search_scope_combo.setCurrentText("ModE text")
     qtbot.wait(200)
     assert "1 / 3" in window.search_counter_label.text()
-    
+
     assert len(window.sentence_cards[0].translation_edit.extraSelections()) > 0
     assert len(window.sentence_cards[1].translation_edit.extraSelections()) > 0
     assert len(window.sentence_cards[2].translation_edit.extraSelections()) > 0
@@ -87,27 +87,27 @@ def test_search_navigation(qtbot, window, search_project):
     qtbot.wait(200)
     assert "1 / 2" in window.search_counter_label.text()
     assert window.action_service.current_match_index == 0
-    
+
     # Focus search input and press Enter/Return
     window.search_input.setFocus()
     qtbot.keyClick(window.search_input, Qt.Key.Key_Return)
     qtbot.wait(200)
-    
+
     # Check if first match is focused (logic verification)
     assert window.action_service.current_match_index == 0
-    
+
     # Press N
     window.action_service.next_match()
     qtbot.wait(200)
     assert window.action_service.current_match_index == 1
     assert "2 / 2" in window.search_counter_label.text()
-    
+
     # Press N again (wrap around)
     window.action_service.next_match()
     qtbot.wait(200)
     assert window.action_service.current_match_index == 0
     assert "1 / 2" in window.search_counter_label.text()
-    
+
     # Press Shift+N (previous)
     window.action_service.prev_match()
     qtbot.wait(200)
@@ -116,11 +116,14 @@ def test_search_navigation(qtbot, window, search_project):
 
 def test_search_no_matches_feedback(qtbot, window, search_project):
     """Test visual feedback when no matches are found."""
+    style_sheet = window.search_input.styleSheet()
+    assert style_sheet == ""
     window.search_input.setText("NonExistentWord")
     qtbot.wait(200)
     assert "0 / 0" in window.search_counter_label.text()
-    assert "background-color: #ffcccc;" in window.search_input.styleSheet()
-    
+    # We should have a style sheet now, indicating the no matches
+    assert "background-color" in window.search_input.styleSheet()
+
     window.search_input.clear()
     qtbot.wait(200)
     assert window.search_input.styleSheet() == ""
@@ -130,14 +133,14 @@ def test_search_disabling_during_edit(qtbot, window, search_project):
     card = window.sentence_cards[0]
     qtbot.mouseClick(card.edit_oe_button, Qt.MouseButton.LeftButton)
     qtbot.wait(200)
-    
+
     assert not window.search_input.isEnabled()
     assert not window.search_clear_button.isEnabled()
     assert not window.search_scope_combo.isEnabled()
-    
+
     qtbot.mouseClick(card.cancel_edit_button, Qt.MouseButton.LeftButton)
     qtbot.wait(200)
-    
+
     assert window.search_input.isEnabled()
     assert window.search_clear_button.isEnabled()
     assert window.search_scope_combo.isEnabled()
@@ -147,11 +150,11 @@ def test_search_clearing(qtbot, window, search_project):
     window.search_input.setText("Se ")
     qtbot.wait(200)
     assert window.search_input.text() == "Se "
-    
+
     qtbot.mouseClick(window.search_clear_button, Qt.MouseButton.LeftButton)
     qtbot.wait(200)
     assert window.search_input.text() == ""
-    
+
     window.search_input.setText("Se ")
     qtbot.wait(200)
     window.search_input.setFocus()
@@ -163,11 +166,11 @@ def test_translation_readonly_during_search(qtbot, window, search_project):
     """Test that translation boxes are read-only during active search."""
     card = window.sentence_cards[0]
     assert not card.translation_edit.isReadOnly()
-    
+
     window.search_input.setText("Se ")
     qtbot.wait(200)
     assert card.translation_edit.isReadOnly()
-    
+
     window.search_input.clear()
     qtbot.wait(200)
     assert not card.translation_edit.isReadOnly()

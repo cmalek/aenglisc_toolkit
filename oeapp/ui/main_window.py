@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final, cast
 
 from PySide6.QtCore import QSettings, Qt, QTimer
+from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -52,6 +53,7 @@ from oeapp.ui.dialogs import (
 )
 from oeapp.ui.dialogs.help_dialog import HelpDialog
 from oeapp.ui.menus import MainMenu
+from oeapp.ui.mixins import ThemeMixin
 from oeapp.ui.sentence_card import SentenceCard
 from oeapp.ui.shortcuts import GlobalShortcuts
 from oeapp.ui.token_details_sidebar import TokenDetailsSidebar
@@ -75,7 +77,8 @@ class MainWindow(QMainWindow):
     SIDEBAR_WIDTH: Final[int] = 350
     #: Sidebar Style
     SIDEBAR_STYLE: Final[str] = (
-        "#sidebar { background-color: #f5f5f5; border-left: 1px solid #ddd; }"
+        "#sidebar { background-color: palette(base); "
+        "border-left: 3px solid palette(highlight); }"
     )
 
     def __init__(self) -> None:
@@ -181,8 +184,7 @@ class MainWindow(QMainWindow):
         toolbar = QWidget()
         toolbar.setObjectName("main_toolbar")
         toolbar.setStyleSheet(
-            "#main_toolbar { background-color: #cccccc; "
-            "border-bottom: 3px solid #aaa; }"
+            "#main_toolbar { border-bottom: 3px solid palette(highlight); }"
         )
         layout = QHBoxLayout(toolbar)
         layout.setContentsMargins(10, 10, 10, 10)
@@ -208,7 +210,9 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.search_input, stretch=1)
 
         self.search_counter_label = QLabel("0 / 0")
-        self.search_counter_label.setStyleSheet("color: #666; font-weight: bold;")
+        self.search_counter_label.setStyleSheet(
+            "color: palette(highlight); font-weight: bold;"
+        )
         layout.addWidget(self.search_counter_label)
 
         self.search_clear_button = QPushButton("Clear")
@@ -238,9 +242,16 @@ class MainWindow(QMainWindow):
         """Handle clear search button click."""
         self.search_input.clear()
         self.search_input.setFocus()
+        self.search_input.setStyleSheet("")
 
     def keyPressEvent(self, event: QKeyEvent) -> None:  # noqa: N802
-        """Handle global key presses, like Escape to clear search."""
+        """
+        Handle global key presses, like Escape to clear search.
+
+        Args:
+            event: The key event
+
+        """
         if event.key() == Qt.Key.Key_Escape:
             self._on_clear_search_clicked()
             event.accept()
@@ -251,6 +262,10 @@ class MainWindow(QMainWindow):
         """
         Update the search UI state (enabled/disabled) based on whether
         any sentence card is in edit mode.
+
+        Args:
+            is_editing: Whether any sentence card is in edit mode
+
         """
         if is_editing:
             self._edit_mode_count += 1
@@ -283,7 +298,9 @@ class MainWindow(QMainWindow):
             "Welcome to Ænglisc Toolkit\n\nUse File → New Project to get started"
         )
         welcome_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        welcome_label.setStyleSheet("font-size: 14pt; color: #666; padding: 50px;")
+        welcome_label.setStyleSheet(
+            "font-size: 14pt; color: pallete(text-muted); padding: 50px;"
+        )
         layout.addWidget(welcome_label)
 
     def build_main_content_area(self) -> QScrollArea:
@@ -519,7 +536,7 @@ class MainWindow(QMainWindow):
         self.project_ui.refresh()
 
 
-class MainWindowActions:
+class MainWindowActions(ThemeMixin):
     """
     Main window actions.  We separate the work from the UI to make the code more
     readable and maintainable.
@@ -573,14 +590,25 @@ class MainWindowActions:
         self._update_search_ui(total_matches)
 
     def _update_search_ui(self, total_matches: int) -> None:
-        """Update search UI elements based on search results."""
+        """
+        Update search UI elements based on search results.
+
+        Args:
+            total_matches: Total number of matches
+
+        """
         # Update counter label
         current = self.current_match_index + 1 if self.current_match_index >= 0 else 0
         self.main_window.search_counter_label.setText(f"{current} / {total_matches}")
 
         # Update input background color
-        if self.main_window.search_input.text() and total_matches == 0:
-            self.main_window.search_input.setStyleSheet("background-color: #ffcccc;")
+        if self.main_window.search_input.text():
+            if total_matches == 0:
+                self.main_window.search_input.setStyleSheet(
+                    f"background-color: {self.reddish.name()};"
+                )
+            else:
+                self.main_window.search_input.setStyleSheet("")
         else:
             self.main_window.search_input.setStyleSheet("")
 
@@ -1179,8 +1207,22 @@ class ProjectUI:
             if sentence.is_paragraph_start and len(self.sentence_cards) > 0:
                 separator = QWidget()
                 separator.setFixedHeight(20)
+                palette = separator.palette()
+                mid = palette.color(QPalette.ColorRole.Mid)
+                # lighten mid to a lighter gray
+                h, s, v, a = mid.getHsv()  # type: ignore[misc]
+                v = min(v, 255)  # type: ignore[has-type]
+                v = int((v + 255 + 20) % 255)  # shift toward lighter gray
+                background = QColor.fromHsv(h, s, v, a)  # type: ignore[has-type]
+                # lighten again to a much lighter gray
+                h, s, v, a = mid.getHsv()  # type: ignore[misc]
+                v = min(v, 0)  # type: ignore[has-type]
+                v = int((v + 255 + 20) % 255)  # shift toward lighter gray
+                border = QColor.fromHsv(h, s, v, a)  # type: ignore[has-type]
                 separator.setStyleSheet(
-                    "background-color: #e0e0e0; border-top: 2px solid #999;"
+                    f"background-color: {background.name()}; "
+                    f"border-top: 2px solid {border.name()};"
+                    f"border-bottom: 2px solid {border.name()};"
                 )
                 self.content_layout.addWidget(separator)
 

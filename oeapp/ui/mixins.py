@@ -1,11 +1,59 @@
 """Annotation lookup maps mixin."""
 
-from typing import Final
+from copy import deepcopy
+from functools import cached_property
+from typing import Final, cast
 
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QColor, QPalette
+from PySide6.QtWidgets import QApplication
 
 
-class AnnotationLookupsMixin:
+class ThemeMixin:
+    """Mixin class providing theme-related functionality."""
+
+    def darken_color(self, color: QColor) -> QColor:
+        """
+        Darken a color by 40%.
+        """
+        if color == self.theme_base_color:
+            return color
+        h, s, v, a = color.getHsv()  # type: ignore[misc]
+        v = max(v - 40, 0)  # type: ignore[has-type]
+        s = max(s - 40, 0)  # type: ignore[has-type]
+        h = max(h - 40, 0)  # type: ignore[has-type]
+        a = max(a - 40, 0)  # type: ignore[has-type]
+        return QColor.fromHsv(h, s, v, a)  # type: ignore[has-type]
+
+    @cached_property
+    def reddish(self) -> QColor:
+        """
+        Redden a color by 40%.
+        """
+        if self.is_dark_theme:
+            return QColor.fromString("#73391d")
+        color = self.theme_base_color
+        _h, _s, v, _a = color.getHsv()  # type: ignore[misc]
+        return QColor.fromHsv(0, 40, v, 80)  # type: ignore[has-type]
+
+    @property
+    def theme_base_color(self) -> QColor:
+        """
+        Get the base color for the theme.
+        """
+        palette = cast("QApplication", QApplication.instance()).palette()
+        return palette.color(QPalette.ColorRole.Base)
+
+    @property
+    def is_dark_theme(self) -> bool:
+        """
+        Check if the theme is dark.
+
+        A lightness value of the base color less than 128 is considered dark.
+        """
+        return self.theme_base_color.lightness() < 128  # noqa: PLR2004
+
+
+class AnnotationLookupsMixin(ThemeMixin):
     """Mixin class providing lookup maps for annotation fields."""
 
     #: A lookup map for part of speech codes to their long form.
@@ -39,9 +87,7 @@ class AnnotationLookupsMixin:
         "E": QColor(255, 255, 0),  # Yellow for Preposition
         "I": QColor(255, 192, 203),  # Pink for Interjection
         "L": QColor(193, 240, 0),  # Light beige for Number
-        None: QColor(255, 255, 255),  # White (no highlight) for unannotated
     }
-
     #: A lookup map for article type codes to their long form.
     ARTICLE_TYPE_MAP: Final[dict[str | None, str]] = {
         None: "",
@@ -90,7 +136,6 @@ class AnnotationLookupsMixin:
         "d": QColor(144, 238, 144),  # Light green for Dual
         "pl": QColor(255, 127, 127),  # Light coral for Plural
         "p": QColor(255, 127, 127),  # Light coral for Plural (Verbs)
-        None: QColor(255, 255, 255),  # White (no highlight) for unannotated
     }
 
     #: A lookup map for case codes to their long form.
@@ -115,7 +160,6 @@ class AnnotationLookupsMixin:
         "g": QColor(255, 255, 153),  # Light yellow for Genitive
         "d": QColor(255, 200, 150),  # Light orange for Dative
         "i": QColor(255, 182, 193),  # Light pink for Instrumental
-        None: QColor(255, 255, 255),  # White (no highlight) for unannotated
     }
 
     #: A lookup map for declension codes to their long form.
@@ -333,3 +377,20 @@ class AnnotationLookupsMixin:
 
     #: Color for idiom highlighting mode (pale magenta)
     IDIOM_HIGHLIGHT_COLOR: Final[QColor] = QColor(255, 200, 255)
+
+    def color_map(self, color_map_name: str) -> dict[str | None, QColor]:
+        """
+        Get the color map for the given prefix.
+
+        Args:
+            color_map_name: The name of the color map to get.
+
+        Returns:
+            The color map for the given prefix.
+
+        """
+        colors = deepcopy(getattr(self, color_map_name))
+        if self.is_dark_theme:
+            colors = {k: self.darken_color(v) for k, v in colors.items()}
+        colors[None] = self.theme_base_color
+        return colors

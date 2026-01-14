@@ -1,6 +1,7 @@
 import sys
 
-from PySide6.QtCore import QCoreApplication, QTimer
+import qt_themes
+from PySide6.QtCore import QCoreApplication, QSettings, QTimer
 from PySide6.QtGui import QFontDatabase, QGuiApplication, QIcon
 from PySide6.QtWidgets import QApplication, QSystemTrayIcon
 
@@ -25,6 +26,13 @@ def create_application() -> QApplication:
     QCoreApplication.setApplicationName("Ænglisc Toolkit")  # Name in the menu bar
 
     app = QApplication(sys.argv)
+    settings = QSettings()
+    theme = settings.value("theme/name", "dark", type=str)
+    if theme == "dark":
+        theme = "nord"
+    elif theme == "light":
+        theme = "modern_light"
+    qt_themes.set_theme(theme)
     # Create the icon
     icon_path = get_resource_path("assets/logo.icns")
     icon = QIcon(str(icon_path))

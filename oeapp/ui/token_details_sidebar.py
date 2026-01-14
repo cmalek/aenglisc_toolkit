@@ -27,11 +27,13 @@ if TYPE_CHECKING:
 
 class FieldRenderer(AnnotationLookupsMixin):
     #: Style for label text (e.g. Part of Speech:)
-    LABEL_STYLE: Final[str] = "color: #666; font-family: Helvetica; font-weight: bold;"
+    LABEL_STYLE: Final[str] = (
+        "color: palette(text); font-family: Helvetica; font-weight: bold;"
+    )
     #: Style for unset value text (e.g. ?)
-    UNSET_VALUE_STYLE: Final[str] = "color: #999; font-style: italic;"
+    UNSET_VALUE_STYLE: Final[str] = "color: palette(text-muted); font-style: italic;"
     #: Style for set value text (e.g. Dog)
-    SET_VALUE_STYLE: Final[str] = "color: #333; font-family: Helvetica; "
+    SET_VALUE_STYLE: Final[str] = "color: palette(text); font-family: Helvetica; "
 
     @classmethod
     def format_field(
@@ -74,7 +76,7 @@ class FieldRenderer(AnnotationLookupsMixin):
 class AbstractPartOfSpeechRenderer(AnnotationLookupsMixin):
     #: Font for part of speech label text (e.g. Part of Speech:)
     POS_LABEL_STYLE: Final[str] = (
-        "color: #999; font-family: Helvetica; font-size: 18px;"
+        "color: palette(text-muted); font-family: Helvetica; font-size: 18px;"
     )
 
     def __init__(self, annotation: Annotation | None) -> None:
@@ -106,7 +108,9 @@ class AbstractPartOfSpeechRenderer(AnnotationLookupsMixin):
         if not self.annotation or not self.annotation.pos:
             # No annotation or POS set
             no_pos_label = QLabel("No annotation available", parent_widget)
-            no_pos_label.setStyleSheet("color: #999; font-style: italic;")
+            no_pos_label.setStyleSheet(
+                "color: palette(text-muted); font-style: italic;"
+            )
             parent_layout.addWidget(no_pos_label)
             raise NoAnnotationAvailable
         pos_text = self.PART_OF_SPEECH_MAP[self.annotation.pos]
@@ -370,7 +374,7 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
     #: SVG data for the book icon.  This is used for the Bosworth-Toller
     #: dictionary icon.
     BOOK_ICON_SVG: Final[str] = """
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
 <path d="M3 19a9 9 0 0 1 9 0a9 9 0 0 1 9 0" />
 <path d="M3 6a9 9 0 0 1 9 0a9 9 0 0 1 9 0" />
@@ -399,18 +403,20 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
     #: Font for line labels (e.g. [1] ¶:1 S:1)
     LINE_LABEL_FONT: Final[QFont] = QFont("Helvetica", 12, QFont.Weight.Bold)
     #: Style for line labels (e.g. [1] ¶:1 S:1)
-    LINE_LABEL_STYLE: Final[str] = "color: #333;"
+    LINE_LABEL_STYLE: Final[str] = "color: palette(text);"
 
     #: Font for label text (e.g. Part of Speech: Noun)
     LABEL_FONT: Final[QFont] = QFont("Helvetica", 12, QFont.Weight.Bold)
 
     #: Style for superscript text (e.g. N) for the surface form
-    SUP_STYLE: Final[str] = "color: #666; font-family: Helvetica; font-weight: normal;"
+    SUP_STYLE: Final[str] = (
+        "color: palette(accent); font-family: Helvetica; font-weight: normal;"
+    )
     #: Style for subscript text (e.g. M) for the surface form
     SUB_STYLE: Final[str] = SUP_STYLE
     #: Style for the token text (e.g. Dog) for the surface form
     TOKEN_STYLE: Final[str] = (
-        "color: #000; font-family: Helvetica; font-weight: normal;"  # noqa: S105
+        "color: palette(text); font-family: Helvetica; font-weight: normal;"  # noqa: S105
     )
     TOKEN_FONT: Final[QFont] = QFont("Anvers", 18, QFont.Weight.Bold)
 
@@ -454,7 +460,7 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
         empty_label = QLabel("Word details", self.content_widget)
         empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         empty_label.setFont(QFont("Arial", 16))
-        empty_label.setStyleSheet("color: #666;")
+        empty_label.setStyleSheet("color: palette(text-muted);")
 
         self.content_layout.addStretch()
         self.content_layout.addWidget(empty_label)
@@ -495,7 +501,7 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
         """Display a horizontal rule."""
         separator = QLabel("─" * 24, self.content_widget)
         separator.setStyleSheet(
-            "color: #ccc; font-family: Helvetica; font-weight: normal;"
+            "color: palette(border); font-family: Helvetica; font-weight: normal;"
         )
         self.content_layout.addWidget(separator)
         self.content_layout.addSpacing(10)
@@ -530,7 +536,7 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
         token_label.setFont(self.TOKEN_FONT)
         token_label.setWordWrap(True)
         self.content_layout.addWidget(token_label)
-        self.content_layout.addSpacing(10)
+        self.content_layout.addSpacing(30)
 
     def line_label(self, sentence: Sentence) -> None:
         """
@@ -578,7 +584,8 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
             dict_button.setToolTip("Open in Bosworth-Toller dictionary")
             dict_button.setStyleSheet(
                 "QPushButton { padding: 2px; } "
-                "QPushButton:hover { background-color: #f0f0f0; border-radius: 3px; }"
+                "QPushButton:hover { background-color: palette(base); "
+                "border-radius: 3px; }"
             )
             dict_button.clicked.connect(
                 lambda _checked=False, rv=annotation.root: open_bosworth_toller(rv)
@@ -602,9 +609,9 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
         # Modern English Meaning Label
         mod_e_label = QLabel("Modern English Meaning:", self.content_widget)
         mod_e_label.setWordWrap(True)
-        mod_e_label.setFont(QFont("Helvetica", 12, QFont.Weight.Bold))
+        mod_e_label.setFont(QFont("Helvetica", 14, QFont.Weight.Bold))
         if not annotation.modern_english_meaning:
-            mod_e_label.setStyleSheet("color: #999; font-style: bold;")
+            mod_e_label.setStyleSheet("color: palette(text-muted); font-style: bold;")
             container = QHBoxLayout()
             container.setContentsMargins(0, 0, 0, 0)
             container.addWidget(mod_e_label)
@@ -614,7 +621,7 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
             self.content_layout.addLayout(container)
             return
         mod_e_label.setStyleSheet(
-            "color: #000; font-family: Helvetica; font-weight: bold;"
+            "color: palette(text); font-family: Helvetica; font-weight: bold;"
         )
         self.content_layout.addWidget(mod_e_label)
 
@@ -628,10 +635,13 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
         mod_e_value_label.setWordWrap(True)
         self.content_layout.addWidget(mod_e_value_label)
         if not annotation.modern_english_meaning:
-            mod_e_value_label.setStyleSheet("color: #999; font-style: italic;")
+            mod_e_value_label.setStyleSheet(
+                "color: palette(text-muted); font-style: italic;"
+            )
         else:
             mod_e_value_label.setStyleSheet(
-                "background-color: #888; color: #fff; font-family: Helvetica; "
+                "background-color: palette(base); color: palette(text); "
+                "font-family: Helvetica; "
                 "font-weight: normal; padding: 5px; border-radius: 3px;"
             )
             mod_e_value_label.setSizePolicy(
@@ -639,7 +649,7 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
                 mod_e_value_label.sizePolicy().verticalPolicy(),
             )
             mod_e_value_label.setMaximumWidth(
-                int(mod_e_value_label.parentWidget().width() * 0.8)  # type: ignore[union-attr]
+                int(mod_e_value_label.parentWidget().width())  # type: ignore[union-attr]
                 if mod_e_value_label.parentWidget()
                 else 16777215
             )
@@ -692,6 +702,8 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
             return
         self.root(annotation)
         self.confidence(annotation)
+        self.content_layout.addSpacing(30)
+        self.rule()
         self.modern_english_meaning(annotation)
         self.content_layout.addStretch()
 
@@ -765,7 +777,9 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
             no_ann_label = QLabel(
                 "No annotation available for this idiom.", self.content_widget
             )
-            no_ann_label.setStyleSheet("color: #999; font-style: italic;")
+            no_ann_label.setStyleSheet(
+                "color: palette(text-muted); font-style: italic;"
+            )
             self.content_layout.addWidget(no_ann_label)
 
         self.content_layout.addStretch()

@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     from oeapp.ui.sentence_card import SentenceCard
 
 
-class SelectTokensMixin:
+class SelectTokensMixin(AnnotationLookupsMixin):
     """
     Mixin for selecting tokens in the Old English text edit.
     """
@@ -115,6 +115,8 @@ class SelectTokensMixin:
         # Apply highlight format
         char_format = QTextCharFormat()
         char_format.setBackground(color)
+        if self.is_dark_theme:
+            char_format.setForeground(self.theme_base_color)
 
         # Mark as selection highlight if a property is provided
         if highlight_property:
@@ -129,7 +131,7 @@ class SelectTokensMixin:
         return extra_selection
 
 
-class HighlighterCommandBase(AnnotationLookupsMixin, SelectTokensMixin):
+class HighlighterCommandBase(SelectTokensMixin):
     """
     Base class for highlighting tokens in the Old English text edit.  This is
     used as the base class for the various highlighting modes: POS, Case,
@@ -148,8 +150,10 @@ class HighlighterCommandBase(AnnotationLookupsMixin, SelectTokensMixin):
     #: highlighting dropdown and filter dialog.
     DESCRIPTIVE_NAME: ClassVar[str] = ""
     #: Color map for highlighting tokens, or a single color if there is no mapping
-    #: needed.
-    COLORS: ClassVar[dict[str | None, QColor] | QColor | None] = None
+    #: needed.  This is either a string name of a color map from
+    #: :class:`~oeapp.mixins.AnnotationLookupsMixin` : or a single
+    #: :class:`~PySide6.QtGui.QColor`.
+    COLORS: ClassVar[str | QColor] = ""
     #: Atrribute db code to human-readable name.  Set this to one of the `*_MAP`
     # attributes : From :class:`~oeapp.mixins.AnnotationLookupsMixin`.
     CODE_TO_NAME_MAPPING: ClassVar[dict[str | None, str] | None] = None
@@ -218,7 +222,7 @@ class HighlighterCommandBase(AnnotationLookupsMixin, SelectTokensMixin):
         if isinstance(self.COLORS, QColor):
             colors = cast("QColor", self.COLORS)
         else:
-            colors = cast("dict[str | None, QColor]", self.COLORS)
+            colors = self.color_map(self.COLORS)
         self.unhighlight()
         text = self.highlighter.get_oe_text()
         if not text or not self.tokens:
@@ -311,9 +315,7 @@ class POSHighlighterCommand(HighlighterCommandBase):
     """
 
     DESCRIPTIVE_NAME: ClassVar[str] = "Part of Speech"
-    COLORS: ClassVar[dict[str | None, QColor] | QColor | None] = (
-        AnnotationLookupsMixin.POS_COLORS
-    )
+    COLORS: ClassVar[str | QColor] = "POS_COLORS"
     CODE_TO_NAME_MAPPING: ClassVar[dict[str | None, str] | None] = (
         AnnotationLookupsMixin.PART_OF_SPEECH_MAP
     )
@@ -340,9 +342,7 @@ class CaseHighlighterCommand(HighlighterCommandBase):
     """
 
     DESCRIPTIVE_NAME: ClassVar[str] = "Case"
-    COLORS: ClassVar[dict[str | None, QColor] | QColor | None] = (
-        AnnotationLookupsMixin.CASE_COLORS
-    )
+    COLORS: ClassVar[str | QColor] = "CASE_COLORS"
     CODE_TO_NAME_MAPPING: ClassVar[dict[str | None, str] | None] = (
         AnnotationLookupsMixin.CASE_MAP
     )
@@ -384,9 +384,7 @@ class NumberHighlighterCommand(HighlighterCommandBase):
     """
 
     DESCRIPTIVE_NAME: ClassVar[str] = "Number"
-    COLORS: ClassVar[dict[str | None, QColor] | QColor | None] = (
-        AnnotationLookupsMixin.NUMBER_COLORS
-    )
+    COLORS: ClassVar[str | QColor] = "NUMBER_COLORS"
     CODE_TO_NAME_MAPPING: ClassVar[dict[str | None, str] | None] = (
         AnnotationLookupsMixin.NUMBER_MAP
     )
@@ -430,9 +428,7 @@ class IdiomHighlighterCommand(HighlighterCommandBase):
 
     DESCRIPTIVE_NAME: ClassVar[str] = "Idiom"
     # Color for idiom highlighting
-    COLORS: ClassVar[dict[str | None, QColor] | QColor | None] = (
-        AnnotationLookupsMixin.IDIOM_HIGHLIGHT_COLOR
-    )
+    COLORS: ClassVar[str | QColor] = AnnotationLookupsMixin.IDIOM_HIGHLIGHT_COLOR
 
     def highlight(self) -> None:
         """
@@ -899,7 +895,17 @@ class SearchHighlighter:
 
     @staticmethod
     def clear_highlight(text_edit: QTextEdit) -> None:
-        """Clear search highlights from text_edit."""
+        """
+        Clear search highlights from ``text_edit``.
+
+        If the text edit is read-only, do nothing.
+
+        Args:
+            text_edit: QTextEdit to clear highlights from
+
+        """
+        if text_edit.isReadOnly():
+            return
         selections = text_edit.extraSelections()
         selections = [
             s

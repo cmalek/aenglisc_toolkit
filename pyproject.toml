@@ -29,6 +29,7 @@ dependencies = [
     "sqlalchemy>=2.0",
     "superqt>=0.7.6",
     "structlog>=25.5.0",
+    "qt-themes>=0.4.0",
 ]
 
 [dependency-groups]
@@ -102,6 +103,10 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "markdown.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "qt_themes.*"
 ignore_missing_imports = true
 
 
