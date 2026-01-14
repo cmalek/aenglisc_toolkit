@@ -565,7 +565,12 @@ class WholeSentenceHighlighter:
         )
         # Block signals temporarily to avoid triggering change signal
         self.highlighting_combo.blockSignals(True)  # noqa: FBT003
+        self.highlighting_combo.setCurrentIndex(0)
         self.card.oe_text_edit.setExtraSelections([])
+        # Set the active command to None
+        self.active_command = NoneHighlighterCommand(self)
+        # Set the active index to 0
+        self.active_index = 0
         self.highlighting_combo.blockSignals(False)  # noqa: FBT003
 
     def clear_active_command(self) -> None:

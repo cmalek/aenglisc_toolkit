@@ -1,7 +1,6 @@
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QAction, QKeySequence, QShortcut
+from PySide6.QtGui import QKeySequence, QShortcut
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -36,8 +35,22 @@ class GlobalShortcuts(ShortcutsMixin):
 
     - J/K for next/previous sentence
     - T for focus translation
+    - Focus search input: Ctrl+F
+    - Focus first match: Ctrl+G
+    - Next search match: N (Works in search mode only)
+    - Previous search match: Shift+N (Works in search mode only)
+    - Escape
+
+        - If in search mode: Clear search
+        - If not in search mode: Undo all highlighting and selection
+
     - Undo: Ctrl+Z
     - Redo: Ctrl+R or Ctrl+Shift+R
+    - Scroll to last sentence: Shift+Down
+    - Scroll to first sentence: Shift+Up
+
+    Args:
+        parent: The parent widget
 
     """
 
@@ -55,7 +68,7 @@ class GlobalShortcuts(ShortcutsMixin):
         self.add_shortcut("T", self.main_window.action_service.focus_translation)
         self.add_shortcut("N", self.main_window.action_service.next_match)
         self.add_shortcut("Shift+N", self.main_window.action_service.prev_match)
-        self.add_shortcut("Escape", self.main_window._on_clear_search_clicked)
+        self.add_shortcut("Escape", self.main_window.action_service.on_escape_pressed)
         self.add_shortcut("Ctrl+Z", self.main_window.application_state.undo)
         self.add_shortcut("Ctrl+R", self.main_window.application_state.redo)
         self.add_shortcut("Ctrl+Shift+R", self.main_window.application_state.redo)

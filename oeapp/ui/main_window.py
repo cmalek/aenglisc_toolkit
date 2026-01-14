@@ -667,15 +667,42 @@ class MainWindowActions(ThemeMixin):
             return 0
 
     def scroll_to_end(self) -> None:
-        """Scroll to the last sentence card."""
+        """
+        Scroll to the last sentence card and focus it.
+
+        This is a the event handler for the Shift+Down shortcut.
+        """
         if self.sentence_cards:
             card = self.sentence_cards[-1]
             self.main_window.ensure_visible(card)
             card.oe_text_edit.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
             card.oe_text_edit.setFocus(Qt.FocusReason.OtherFocusReason)
 
+    def on_escape_pressed(self) -> None:
+        """
+        Handle escape key press.
+
+        This is a the event handler for the Escape shortcut.
+        """
+        # If we're in search mode, clear the search
+        if self.main_window.search_input.text():
+            self.main_window._on_clear_search_clicked()
+            return
+
+        # If we're not in search mode, iterate through the sentence cards
+        # and clear all highlighting
+        for card in self.sentence_cards:
+            card.oe_text_edit.unhighlight()
+
+        # Clear the sidebar
+        self.main_window.token_details_sidebar.clear_sidebar()
+
     def scroll_to_start(self) -> None:
-        """Scroll to the first sentence card."""
+        """
+        Scroll to the first sentence card and focus it.
+
+        This is a the event handler for the Shift+Up shortcut.
+        """
         if self.sentence_cards:
             card = self.sentence_cards[0]
             self.main_window.ensure_visible(card)

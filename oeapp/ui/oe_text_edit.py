@@ -750,6 +750,14 @@ class OldEnglishTextEdit(QTextEdit):
             self.sentence_highlighter.highlight()
             self.sentence_highlighter.show_filter_dialog()
 
+    def unhighlight(self) -> None:
+        """
+        Unhighlight the text edit.
+        """
+        self.reset_selection()
+        if self.sentence_highlighter:
+            self.sentence_highlighter.unhighlight()
+
     # -------------------------------------------------------------------------
     # Text rendering methods
     # -------------------------------------------------------------------------
