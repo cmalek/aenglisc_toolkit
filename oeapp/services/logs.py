@@ -79,7 +79,7 @@ def configure_logging() -> None:
                 processor=structlog.dev.ConsoleRenderer(),
             )
         )
-        handlers.append(console_handler)
+        handlers.append(console_handler)  # type: ignore[arg-type]
 
     # Configure standard logging
     logging.basicConfig(
