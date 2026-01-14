@@ -1,7 +1,9 @@
 from typing import TYPE_CHECKING, ClassVar, cast
 
-from PySide6.QtGui import QColor, QTextCharFormat, QTextCursor, QTextDocument
+from PySide6.QtCore import QSettings
+from PySide6.QtGui import QColor, QPalette, QTextCharFormat, QTextCursor, QTextDocument
 from PySide6.QtWidgets import QComboBox, QTextEdit
+from qtpy.QtWidgets import QApplication
 
 from oeapp.ui.dialogs import (
     CaseFilterDialog,
@@ -852,6 +854,8 @@ class SearchHighlighter:
             int: Number of matches found
 
         """
+        settings = QSettings()
+        is_dark_theme = settings.value("theme/name", "dark", type=str) == "dark"
         # First, remove existing search highlights
         selections = text_edit.extraSelections()
         selections = [
@@ -883,6 +887,13 @@ class SearchHighlighter:
 
             selection = QTextEdit.ExtraSelection()
             selection.format.setBackground(SearchHighlighter.SEARCH_COLOR)  # type: ignore[attr-defined]
+            if is_dark_theme:
+                theme_base_color = (
+                    cast("QApplication", QApplication.instance())
+                    .palette()
+                    .color(QPalette.ColorRole.Base)
+                )
+                selection.format.setForeground(theme_base_color)  # type: ignore[attr-defined]
             selection.format.setProperty(  # type: ignore[attr-defined]
                 SearchHighlighter.SEARCH_HIGHLIGHT_PROPERTY,
                 True,  # noqa: FBT003
