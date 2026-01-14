@@ -1,6 +1,5 @@
 from typing import TYPE_CHECKING, Final, cast
 
-import qt_themes
 from PySide6.QtCore import QSettings, QTimer
 from PySide6.QtWidgets import (
     QComboBox,

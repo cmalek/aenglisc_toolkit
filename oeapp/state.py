@@ -2,7 +2,6 @@ import sys
 from typing import TYPE_CHECKING, cast
 
 from PySide6.QtCore import QSettings
-from PySide6.QtWidgets import QApplication
 
 from oeapp.commands import CommandManager
 from oeapp.db import SessionLocal
