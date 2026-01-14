@@ -2,6 +2,7 @@
 
 import logging
 import logging.handlers
+import os
 import sys
 from typing import TYPE_CHECKING
 
@@ -68,18 +69,21 @@ def configure_logging() -> None:
             processor=structlog.processors.JSONRenderer(),
         )
     )
+    handlers = [file_handler]
 
-    # Console handler (Text) - only for development or if specifically requested
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setFormatter(
-        structlog.stdlib.ProcessorFormatter(
-            processor=structlog.dev.ConsoleRenderer(),
+    if "AENGLISC_TOOLKIT_DEBUG" in os.environ:
+        # Console handler (Text) - only for development or if specifically requested
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.setFormatter(
+            structlog.stdlib.ProcessorFormatter(
+                processor=structlog.dev.ConsoleRenderer(),
+            )
         )
-    )
+        handlers.append(console_handler)
 
     # Configure standard logging
     logging.basicConfig(
-        handlers=[file_handler, console_handler],
+        handlers=handlers,
         level=logging.INFO,
         force=True,
     )
