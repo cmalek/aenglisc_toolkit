@@ -33,8 +33,6 @@ class GlobalShortcuts(ShortcutsMixin):
 
     The following shortcuts are set up here:
 
-    - J/K for next/previous sentence
-    - T for focus translation
     - Focus search input: Ctrl+F
     - Focus first match: Ctrl+G
     - Next search match: N (Works in search mode only)
@@ -63,9 +61,6 @@ class GlobalShortcuts(ShortcutsMixin):
         """
         Add all the shortcuts to the main window.
         """
-        self.add_shortcut("J", self.main_window.action_service.next_sentence)
-        self.add_shortcut("K", self.main_window.action_service.prev_sentence)
-        self.add_shortcut("T", self.main_window.action_service.focus_translation)
         self.add_shortcut("N", self.main_window.action_service.next_match)
         self.add_shortcut("Shift+N", self.main_window.action_service.prev_match)
         self.add_shortcut("Escape", self.main_window.action_service.on_escape_pressed)
