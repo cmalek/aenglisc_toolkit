@@ -632,6 +632,12 @@ class MainWindowActions(ThemeMixin):
         )
         self._focus_current_match()
 
+    def focus_search_input(self) -> None:
+        """Focus the search input."""
+        self.main_window.search_input.setFocus()
+        self.main_window.search_input.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.main_window.search_input.setFocus(Qt.FocusReason.OtherFocusReason)
+
     def focus_first_match(self) -> None:
         """Focus the first match in search results."""
         if self.search_results:
@@ -639,7 +645,11 @@ class MainWindowActions(ThemeMixin):
             self._focus_current_match()
 
     def _focus_current_match(self) -> None:
-        """Focus the current matching sentence card and scroll it into view."""
+        """
+        Focus the current matching sentence card, scroll it into view, and
+        outline the result so the user knows which result is focused.
+
+        """
         if 0 <= self.current_match_index < len(self.search_results):
             card = self.search_results[self.current_match_index]
             self.main_window.ensure_visible(card)
@@ -655,6 +665,22 @@ class MainWindowActions(ThemeMixin):
             return int(self.main_window.search_counter_label.text().split(" / ")[1])
         except (ValueError, IndexError):
             return 0
+
+    def scroll_to_end(self) -> None:
+        """Scroll to the last sentence card."""
+        if self.sentence_cards:
+            card = self.sentence_cards[-1]
+            self.main_window.ensure_visible(card)
+            card.oe_text_edit.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+            card.oe_text_edit.setFocus(Qt.FocusReason.OtherFocusReason)
+
+    def scroll_to_start(self) -> None:
+        """Scroll to the first sentence card."""
+        if self.sentence_cards:
+            card = self.sentence_cards[0]
+            self.main_window.ensure_visible(card)
+            card.oe_text_edit.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+            card.oe_text_edit.setFocus(Qt.FocusReason.OtherFocusReason)
 
     @property
     def command_manager(self):

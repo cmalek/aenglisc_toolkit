@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING
 
-from PySide6.QtGui import QKeySequence, QShortcut
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QAction, QKeySequence, QShortcut
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -58,6 +59,10 @@ class GlobalShortcuts(ShortcutsMixin):
         self.add_shortcut("Ctrl+Z", self.main_window.application_state.undo)
         self.add_shortcut("Ctrl+R", self.main_window.application_state.redo)
         self.add_shortcut("Ctrl+Shift+R", self.main_window.application_state.redo)
+        self.add_shortcut("Ctrl+F", self.main_window.action_service.focus_search_input)
+        self.add_shortcut("Ctrl+G", self.main_window.action_service.focus_first_match)
+        self.add_shortcut("Shift+Down", self.main_window.action_service.scroll_to_end)
+        self.add_shortcut("Shift+Up", self.main_window.action_service.scroll_to_start)
 
 
 class AnnotationModalShortcuts(ShortcutsMixin):
