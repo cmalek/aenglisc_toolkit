@@ -129,7 +129,8 @@ class MainWindow(QMainWindow):
         # built because various widgets need to exist in the main window so that
         # the project UI can access them.
         self.project_ui = ProjectUI(self)
-        MainMenu(self).build()
+        self.main_menu = MainMenu(self)
+        self.main_menu.build()
         GlobalShortcuts(self).execute()
 
     def build_main_window(self) -> None:

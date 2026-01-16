@@ -354,25 +354,14 @@ class NoneRenderer(AbstractPartOfSpeechRenderer):
     pass
 
 
-class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
+class BaseTokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
     """
-    Sidebar widget displaying detailed token information.  The sidebar displays
-    the token's surface form, its annotations, and its dictionary entry, Modern
-    English Meaning, Uncertainty, Alternatives, and Confidence.
-
-    It is displayed to the right of the text editor, and is populated when a
-    token is selected in the text editor.
-
-    Args:
-        parent: Parent widget
-
+    Base sidebar widget displaying detailed token information.
     """
 
-    #: Size of the book icon in pixels.  This is used for the Bosworth-Toller
-    #: dictionary icon.
+    #: Size of the book icon in pixels.
     BOOK_ICON_SIZE: Final[int] = 16
-    #: SVG data for the book icon.  This is used for the Bosworth-Toller
-    #: dictionary icon.
+    #: SVG data for the book icon.
     BOOK_ICON_SVG: Final[str] = """
     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
@@ -383,8 +372,7 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
 <path d="M21 6l0 13" />
 </svg>"""  # noqa: E501
 
-    #: A lookup map for POS codes to their render method.  The key is the POS
-    #: code, and the value is the name of the method to call to render the fields.
+    #: A lookup map for POS codes to their render method.
     POS_RENDER_MAP: Final[dict[str | None, type[AbstractPartOfSpeechRenderer]]] = {
         "N": NounRenderer,
         "V": VerbRenderer,
@@ -421,7 +409,7 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
     TOKEN_FONT: Final[QFont] = QFont("Anvers", 18, QFont.Weight.Bold)
 
     def __init__(self, parent: QWidget | None = None) -> None:
-        """Initialize the token details sidebar."""
+        """Initialize the base token details sidebar."""
         super().__init__(parent)
         self._current_token: Token | None = None
         self._current_idiom: Idiom | None = None
@@ -468,12 +456,7 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
 
     def clear_sidebar(self, layout: QVBoxLayout | QHBoxLayout | None = None) -> None:
         """
-        Clear all content from the sidebar and reset the current token and
-        sentence.
-
-        Args:
-            layout: Layout to clear, if None, the content layout is cleared
-
+        Clear all content from the sidebar.
         """
         if not layout:
             layout = self.content_layout
@@ -482,12 +465,11 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
     def part_of_speech(self, annotation: Annotation) -> None:
         """
         Display the part of speech field and its associated fields.
-
         If the annotation has no part of speech, display a label indicating that
         no part of speech is available.
 
         Args:
-            annotation: Annotation to display
+            annotation: The Annotation to display
 
         """
         if annotation is None:
@@ -547,7 +529,7 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
         Example: [1] ¶:1 S:1
 
         Args:
-            sentence: Sentence to display
+            sentence: Sentence to display given sentence.
 
         """
         number_label = QLabel(
@@ -564,9 +546,9 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
 
         Args:
             annotation: Annotation to display
+        field.
 
         """
-        # Root
         root_value = annotation.root if annotation.root else "?"
         if root_value == "?":
             self.field_renderer.format_field(
@@ -605,8 +587,8 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
             annotation: Annotation to display
 
         """
-        # Modern English Meaning
         # Modern English Meaning Label
+
         mod_e_label = QLabel("Modern English Meaning:", self.content_widget)
         mod_e_label.setWordWrap(True)
         mod_e_label.setFont(QFont("Helvetica", 14, QFont.Weight.Bold))
@@ -664,7 +646,7 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
             annotation: Annotation to display
 
         """
-        # Confidence
+        # Confidence Value
         confidence_value = (
             f"{annotation.confidence}%" if annotation.confidence is not None else "?"
         )
@@ -678,7 +660,7 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
 
         Args:
             token: Token to display
-            sentence: Sentence containing the token
+            sentence: Sentence to display
 
         """
         self._current_token = token
@@ -688,11 +670,8 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
 
         annotation = cast("Annotation", token.annotation)
 
-        # Line label, e.g. [1] ¶:1 S:1
         self.line_label(sentence)
-        # Horizontal rule
         self.rule()
-        # Token surface form
         self.surface_form(token)
         self.rule()
         self.content_layout.addSpacing(10)
@@ -713,7 +692,7 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
 
         Args:
             idiom: Idiom to display
-            sentence: Sentence containing the idiom
+            sentence: Sentence to display
 
         """
         self._current_token = None
@@ -723,12 +702,10 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
 
         annotation = cast("Annotation", idiom.annotation)
 
-        # Line label, e.g. [1] ¶:1 S:1
         self.line_label(sentence)
-        # Horizontal rule
         self.rule()
 
-        # Idiom surface forms (all tokens joined)
+        # Idiom surface form (all tokens in the idiom)
         tokens, _ = sentence.sorted_tokens
         idiom_tokens = [
             t
@@ -739,7 +716,7 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
         ]
         surface = " ".join(t.surface for t in idiom_tokens)
 
-        # Similar to surface_form but for idiom
+        # Similar to surface_form, but for idioms
         pos_str = ""
         gender_str = ""
         context_str = ""
@@ -784,9 +761,11 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
 
         self.content_layout.addStretch()
 
-    # -------------------------------------------------------------------------
-    # Event handlers
-    # -------------------------------------------------------------------------
+
+class TokenDetailsSidebar(BaseTokenDetailsSidebar):
+    """
+    Sidebar widget displaying detailed token information in the main window.
+    """
 
     def _on_token_deselected(self) -> None:
         """
@@ -805,3 +784,60 @@ class TokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
         Handle idiom selection.
         """
         self.render_idiom(idiom, idiom.sentence)
+
+
+class FullTranslationSidebar(BaseTokenDetailsSidebar):
+    """
+    Sidebar widget displaying detailed token information in the full translation window.
+
+    Args:
+        parent: Parent widget
+
+    """
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._is_sidebar_open: bool = False
+
+    def set_sidebar_open(self, is_open: bool) -> None:  # noqa: FBT001
+        """
+        Set whether the sidebar is currently open/visible.
+
+        Args:
+            is_open: Whether the sidebar is open/visible
+
+        """
+        self._is_sidebar_open = is_open
+
+    # ------------------------------------------------------------
+    # Event handlers
+    # ------------------------------------------------------------
+
+    def _on_token_deselected(self) -> None:
+        """
+        Handle token deselection: Close the sidebar, and show the empty state.
+        """
+        if self._is_sidebar_open:
+            self.show_empty()
+
+    def _on_token_selected(self, token: Token) -> None:
+        """
+        Handle token selection: Open the sidebar and render the token details.
+
+        Args:
+            token: Token to display
+
+        """
+        if self._is_sidebar_open:
+            self.render_token(token, token.sentence)
+
+    def _on_idiom_selected(self, idiom: Idiom) -> None:
+        """
+        Handle idiom selection: Open the sidebar and render the idiom details.
+
+        Args:
+            idiom: Idiom to display
+
+        """
+        if self._is_sidebar_open:
+            self.render_idiom(idiom, idiom.sentence)

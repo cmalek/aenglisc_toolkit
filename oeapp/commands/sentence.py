@@ -1,7 +1,7 @@
 """Sentence related commands."""
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Literal
+from typing import Any, Literal
 
 from sqlalchemy import select
 
@@ -12,9 +12,6 @@ from oeapp.models.sentence import Sentence
 from oeapp.models.token import Token
 
 from .abstract import Command
-
-if TYPE_CHECKING:
-    from sqlalchemy.orm import Session
 
 
 @dataclass

@@ -119,6 +119,80 @@ class DOCXExporter(SessionMixin, AnnotationTextualMixin, TokenOccurrenceMixin):
         else:
             return True
 
+    def export_side_by_side(self, project_id: int, output_path: Path) -> bool:
+        """
+        Export project to DOCX file in side-by-side landscape format.
+
+        Args:
+            project_id: Project ID to export
+            output_path: Path to output DOCX file
+
+        Returns:
+            True if successful, False otherwise
+
+        """
+        doc: DocumentObject = Document()
+
+        # Set landscape orientation
+        section = doc.sections[0]
+        # In python-docx, to swap to landscape we must swap height and width
+        original_width = section.page_width
+        original_height = section.page_height
+        section.page_width = original_height
+        section.page_height = original_width
+        section.orientation = 1 # landscape
+
+        # Standard margins
+        section.top_margin = Inches(0.5)
+        section.bottom_margin = Inches(0.5)
+        section.left_margin = Inches(0.5)
+        section.right_margin = Inches(0.5)
+
+        project = Project.get(project_id)
+        if project is None:
+            return False
+
+        doc.add_heading(f"Translation: {project.name}", level=1)
+        if project.source:
+            doc.add_paragraph(f"Source: {project.source}")
+
+        # Use a table for side-by-side alignment
+        table = doc.add_table(rows=0, cols=2)
+        table.autofit = False
+
+        # Page width is 11 inches, margins 0.5 each -> 10 inches available
+        col_width = Inches(5.0)
+
+        current_oe_p = None
+        current_mode_p = None
+
+        for sentence in project.sentences:
+            if sentence.is_paragraph_start or current_oe_p is None:
+                row = table.add_row()
+                oe_cell = row.cells[0]
+                mode_cell = row.cells[1]
+                oe_cell.width = col_width
+                mode_cell.width = col_width
+                current_oe_p = oe_cell.paragraphs[0]
+                current_mode_p = mode_cell.paragraphs[0]
+            else:
+                current_oe_p.add_run(" ")
+                current_mode_p.add_run(" ")
+
+            # Add OE text (without full annotations for the side-by-side clean view)
+            current_oe_p.add_run(sentence.text_oe)
+            # Add ModE text
+            mode_run = current_mode_p.add_run(sentence.text_modern or "[...]")
+            if not sentence.text_modern:
+                mode_run.font.italic = True
+
+        try:
+            doc.save(str(output_path))
+            return True
+        except Exception as e:
+            print(f"Export error: {e}") # noqa: T201
+            return False
+
     def _setup_document_styles(self, doc: DocumentObject) -> None:
         """
         Set up document styles.

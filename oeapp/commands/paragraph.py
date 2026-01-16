@@ -1,15 +1,12 @@
 """Paragraph related commands."""
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from oeapp.models.mixins import SessionMixin
 from oeapp.models.sentence import Sentence
 
 from .abstract import Command
-
-if TYPE_CHECKING:
-    from sqlalchemy.orm import Session
 
 
 @dataclass

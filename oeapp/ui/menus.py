@@ -52,14 +52,57 @@ class MainMenu:
         """Build the main menu."""
         # Save a reference to the file menu so PreferencesMenu can find it,
         # if needed.
-        self.file_menu = FileMenu(self, self.main_window).file_menu
-        ProjectMenu(self, self.main_window)
-        ToolsMenu(self, self.main_window)
-        HelpMenu(self, self.main_window)
+        self.file_menu_obj = FileMenu(self, self.main_window)
+        self.file_menu = self.file_menu_obj.file_menu
+        self.project_menu = ProjectMenu(self, self.main_window)
+        self.tools_menu = ToolsMenu(self, self.main_window)
+        self.window_menu_obj = WindowMenu(self, self.main_window)
+        self.help_menu = HelpMenu(self, self.main_window)
         # This must come after the file menu so we can find the right place for
         # the menu entry based on OS; on macOS, it goes in the application menu,
         # on Windows/Linux, it goes in the File menu.
-        PreferencesMenu(self, self.main_window)
+        self.preferences_menu = PreferencesMenu(self, self.main_window)
+
+
+class WindowMenu:
+    """
+    A "Window" menu to be added to the main menu bar.
+    """
+
+    def __init__(self, main_menu: MainMenu, main_window: MainWindow) -> None:
+        self.main_window = main_window
+        self.main_menu = main_menu
+        self.populate()
+
+    def populate(self) -> None:
+        self.window_menu = self.main_menu.add_menu("&Window")
+
+        full_translation_action = QAction("&Full Translation", self.window_menu)
+        full_translation_action.setShortcut(QKeySequence("Ctrl+Shift+F"))
+        full_translation_action.triggered.connect(self._show_full_translation)
+        self.window_menu.addAction(full_translation_action)
+
+    def _show_full_translation(self) -> None:
+        from oeapp.models.project import Project
+        from oeapp.state import CURRENT_PROJECT_ID
+        from oeapp.ui.full_translation_window import FullTranslationWindow
+
+        project_id = self.main_window.application_state.get(CURRENT_PROJECT_ID)
+        if not project_id:
+            self.main_window.messages.show_warning("No project open")
+            return
+
+        project = Project.get(project_id)
+        if not project:
+            self.main_window.messages.show_error("Could not load project")
+            return
+
+        if not hasattr(self, "_full_window") or not self._full_window.isVisible():
+            self._full_window = FullTranslationWindow(project, self.main_window)
+            self._full_window.show()
+        else:
+            self._full_window.raise_()
+            self._full_window.activateWindow()
 
 
 class FileMenu:
