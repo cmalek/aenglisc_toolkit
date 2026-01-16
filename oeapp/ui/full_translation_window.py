@@ -1,5 +1,6 @@
 """Full translation side-by-side window."""
 
+import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Final, cast
 
@@ -26,6 +27,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMainWindow,
     QPushButton,
+    QScrollArea,
     QSplitter,
     QTextEdit,
     QVBoxLayout,
@@ -49,9 +51,11 @@ SENTENCE_ID_PROPERTY: Final[int] = QTextFormat.UserProperty + 10  # type: ignore
 # Property IDs for ExtraSelections
 TOKEN_HIGHLIGHT_PROPERTY: Final[int] = QTextFormat.UserProperty + 11  # type: ignore[attr-defined]
 SENTENCE_HIGHLIGHT_PROPERTY: Final[int] = QTextFormat.UserProperty + 12  # type: ignore[attr-defined]
+NOTE_ID_PROPERTY: Final[int] = QTextFormat.UserProperty + 13  # type: ignore[attr-defined]
+NOTE_HIGHLIGHT_PROPERTY: Final[int] = QTextFormat.UserProperty + 14  # type: ignore[attr-defined]
 
 
-class FullProjectOldEnglishTextEdit(OldEnglishTextEdit):
+class FullProjectOldEnglishTextEdit(ThemeMixin, OldEnglishTextEdit):
     """
     OE text edit for the full project view.
 
@@ -118,6 +122,15 @@ class FullProjectOldEnglishTextEdit(OldEnglishTextEdit):
             text = sentence.text_oe
             last_pos = 0
 
+            # Map of end_token_id -> list of note numbers
+            token_to_note_numbers: dict[int, list[int]] = {}
+            if self._full_window:
+                for note_num, note in self._full_window.project_notes:
+                    if note.sentence_id == sentence_id and note.end_token:
+                        if note.end_token not in token_to_note_numbers:
+                            token_to_note_numbers[note.end_token] = []
+                        token_to_note_numbers[note.end_token].append(note_num)
+
             for token in tokens:
                 token_id = cast("int", token.id)
                 self.tokens_by_id[token_id] = token
@@ -144,6 +157,20 @@ class FullProjectOldEnglishTextEdit(OldEnglishTextEdit):
                     start_in_doc,
                     end_in_doc,
                 )
+
+                # Insert note superscripts if any
+                if token_id in token_to_note_numbers:
+                    for note_num in token_to_note_numbers[token_id]:
+                        note_fmt = QTextCharFormat()
+                        note_fmt.setVerticalAlignment(
+                            QTextCharFormat.VerticalAlignment.AlignSuperScript
+                        )
+                        # We don't want the superscript to be part of the token for selection
+                        # but it should belong to the sentence
+                        note_fmt.setProperty(SENTENCE_ID_PROPERTY, sentence_id)
+                        note_fmt.setProperty(NOTE_ID_PROPERTY, note_num)
+                        cursor.insertText(str(note_num), note_fmt)
+
                 last_pos = token_end
 
             if last_pos < len(text):
@@ -294,6 +321,73 @@ class FullProjectOldEnglishTextEdit(OldEnglishTextEdit):
             selection.format.setProperty(SENTENCE_HIGHLIGHT_PROPERTY, True)  # type: ignore[attr-defined]  # noqa: FBT003
             selections.append(selection)
 
+        self.setExtraSelections(selections)
+
+    def highlight_note_tokens(self, note: Note, highlight: bool) -> None:
+        """
+        Highlight the tokens covered by a note.
+        """
+        selections = self.extraSelections()
+        # Filter out existing highlights for THIS specific note
+        # We use a custom property to identify which note this highlight belongs to
+        selections = [
+            s
+            for s in selections
+            if s.format.property(NOTE_HIGHLIGHT_PROPERTY) != note.id
+        ]
+
+        if highlight:
+            # Find all tokens in the range
+            tokens_in_range = []
+            in_range = False
+            # We need to sort tokens by order_index to find the range
+            sorted_tokens = sorted(
+                [
+                    t
+                    for t in self.tokens_by_id.values()
+                    if t.sentence_id == note.sentence_id
+                ],
+                key=lambda t: t.order_index,
+            )
+
+            for token in sorted_tokens:
+                if token.id == note.start_token:
+                    in_range = True
+                if in_range:
+                    tokens_in_range.append(token)
+                if token.id == note.end_token:
+                    break
+
+            for token in tokens_in_range:
+                pos = self.token_positions.get(
+                    (note.sentence_id, cast("int", token.id))
+                )
+                if pos:
+                    start, end = pos
+                    cursor = QTextCursor(self.document())
+                    cursor.setPosition(start)
+                    cursor.setPosition(end, QTextCursor.MoveMode.KeepAnchor)
+
+                    selection = QTextEdit.ExtraSelection()
+                    selection.cursor = cursor
+                    selection.format.setBackground(
+                        QColor("#e1f5fe")
+                    )  # Light blue for notes
+                    if self.is_dark_theme:
+                        selection.format.setForeground(self.theme_base_color)
+                    selection.format.setProperty(NOTE_HIGHLIGHT_PROPERTY, note.id)
+                    selections.append(selection)
+
+        self.setExtraSelections(selections)
+
+    def clear_all_note_highlights(self) -> None:
+        """
+        Clear all note-related highlights.
+        """
+        selections = self.extraSelections()
+        selections = [
+            s for s in selections if not s.format.property(NOTE_HIGHLIGHT_PROPERTY)
+        ]
         self.setExtraSelections(selections)
 
 
@@ -475,7 +569,9 @@ class FullProjectTextSelector(OldEnglishTextSelector):
 
         - If the text edit is read-only, get the token ID at the cursor position
         - If a token is found, select the token by calling :meth:`token_selection`
-        - If no token is found, get the sentence ID at the cursor position
+        - If no token is found, check if a note superscript was clicked
+        - If a note is found, scroll to and highlight it
+        - If no note is found, get the sentence ID at the cursor position
         - If a sentence is found, emit the :attr:`sentence_selected` signal
         - If no sentence is found, deselect any existing token or sentence highlights
           by calling :meth:`deselect`
@@ -491,6 +587,16 @@ class FullProjectTextSelector(OldEnglishTextSelector):
             if token_id:
                 self.token_selection(token_id)
             else:
+                # Check for note superscript click
+                note_num = cursor.charFormat().property(NOTE_ID_PROPERTY)
+                if note_num and self.text_edit._full_window:
+                    self.text_edit._full_window._on_note_clicked(note_num)
+                    # Optionally scroll to the note widget
+                    area = self.text_edit._full_window.notes_area
+                    if note_num in area.note_widgets:
+                        area.ensureWidgetVisible(area.note_widgets[note_num])
+                    return
+
                 # If we clicked non-token text, we might still want to select
                 # the sentence
                 sentence_id = self.text_edit.find_sentence_at_position(
@@ -613,7 +719,20 @@ class FullTranslationWindow(QMainWindow):
         self.setWindowTitle(f"Full Translation - {project.name}")
         self.resize(1200, 800)
 
+        self.project_notes: list[tuple[int, Note]] = []
+        self._collect_project_notes()
         self.build()
+
+    def _collect_project_notes(self) -> None:
+        """
+        Collect all notes from all sentences in the project and number them.
+        """
+        self.project_notes.clear()
+        note_num = 1
+        for sentence in self.project.sentences:
+            for note in sentence.sorted_notes:
+                self.project_notes.append((note_num, note))
+                note_num += 1
 
     def build(self) -> None:
         """
@@ -727,6 +846,12 @@ class FullTranslationWindow(QMainWindow):
             self.splitter, 1
         )  # 1 stretch factor - fills remaining space
 
+        # Add Notes Area underneath splitter
+        self.notes_area = FullProjectNotesArea(self.project_notes, self)
+        self.notes_area.setMaximumHeight(200)  # Limit height of notes area
+        self.notes_area.note_clicked.connect(self._on_note_clicked)
+        self.main_layout.addWidget(self.notes_area, 0)
+
     def build_oe_edit(self) -> None:
         """
         Build the OE edit.
@@ -799,6 +924,7 @@ class FullTranslationWindow(QMainWindow):
         # context
         cast("OldEnglishTextSelector", self.oe_edit.selector).deselect()
         self.oe_edit.highlight_sentence(sentence_id)
+        self.deselect_all_notes()
 
     def _on_mode_sentence_deselected(self) -> None:
         """ModE sentence deselected -> clear OE highlighting."""
@@ -817,6 +943,16 @@ class FullTranslationWindow(QMainWindow):
         # but we use this to open the sidebar.
         if not self.token_details_sidebar._is_sidebar_open:
             self._toggle_sidebar(True)  # noqa: FBT003
+        self.deselect_all_notes()
+
+    def deselect_all_notes(self) -> None:
+        """
+        Deselect all notes in the UI and clear highlights.
+        """
+        if hasattr(self, "notes_area"):
+            for widget in self.notes_area.note_widgets.values():
+                widget.set_selected(False)
+        self.oe_edit.clear_all_note_highlights()
 
     def _on_idiom_selected(self, idiom: Idiom) -> None:  # noqa: ARG002
         """
@@ -848,7 +984,7 @@ class FullTranslationWindow(QMainWindow):
     def _on_search_changed(self, text: str) -> None:
         """
         Event handler for search changed: Highlight the search text in both
-        the OE and ModE columns.
+        the OE and ModE columns, and the notes area.
 
         Args:
             text: Search text
@@ -856,6 +992,31 @@ class FullTranslationWindow(QMainWindow):
         """
         SearchHighlighter.highlight_text(self.oe_edit, text)
         SearchHighlighter.highlight_text(self.mode_edit, text)
+        self.notes_area.highlight_search(text)
+
+    def _on_note_clicked(self, note_num: int) -> None:
+        """
+        Handle clicking on a note in the notes area.
+        """
+        # Find the note
+        note = next((n for num, n in self.project_notes if num == note_num), None)
+        if not note:
+            return
+
+        target_widget = self.notes_area.note_widgets.get(note_num)
+        was_selected = target_widget.is_selected
+
+        # Always deselect all notes in the UI first
+        for widget in self.notes_area.note_widgets.values():
+            widget.set_selected(False)
+
+        # Clear all note highlights in the OE edit
+        self.oe_edit.clear_all_note_highlights()
+
+        # If it wasn't selected, select it now
+        if not was_selected:
+            target_widget.set_selected(True)
+            self.oe_edit.highlight_note_tokens(note, True)
 
     def _toggle_sidebar(self, checked: bool) -> None:  # noqa: FBT001
         """
@@ -905,3 +1066,92 @@ class FullTranslationWindow(QMainWindow):
                 self.main_window.messages.show_message("Exported successfully")
             else:
                 self.main_window.messages.show_error("Export failed")
+
+
+class FullProjectNoteWidget(ThemeMixin, QWidget):
+    """Widget for a single note in the notes area."""
+
+    clicked = Signal(int)  # emits note_num
+
+    def __init__(self, note_num: int, note: Note, parent: QWidget | None = None):
+        super().__init__(parent)
+        self.note_num = note_num
+        self.note = note
+        self.is_selected = False
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        self.label = QLabel(f"<b>{note_num}.</b> {note.note_text_md}")
+        self.label.setWordWrap(True)
+        layout.addWidget(self.label)
+
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+    def mousePressEvent(self, event: QMouseEvent) -> None:  # noqa: N802
+        self.clicked.emit(self.note_num)
+        super().mousePressEvent(event)
+
+    def set_selected(self, selected: bool) -> None:
+        self.is_selected = selected
+        if selected:
+            self.setStyleSheet(
+                "background-color: palette(highlight); color: palette(highlighted-text);"
+            )
+        else:
+            self.setStyleSheet("")
+
+
+class FullProjectNotesArea(QScrollArea):
+    """Area displaying all project notes."""
+
+    note_clicked = Signal(int)
+
+    def __init__(
+        self, project_notes: list[tuple[int, Note]], parent: QWidget | None = None
+    ):
+        super().__init__(parent)
+        self.setWidgetResizable(True)
+        self.container = QWidget()
+        self.main_layout = QVBoxLayout(self.container)
+        self.main_layout.setContentsMargins(0, 0, 0, 0)
+        self.main_layout.setSpacing(0)
+        self.main_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self.setWidget(self.container)
+
+        self.note_widgets: dict[int, FullProjectNoteWidget] = {}
+
+        if not project_notes:
+            self.main_layout.addWidget(QLabel("No notes in this project."))
+        else:
+            for note_num, note in project_notes:
+                widget = FullProjectNoteWidget(note_num, note)
+                widget.clicked.connect(self.note_clicked.emit)
+                self.main_layout.addWidget(widget)
+                self.note_widgets[note_num] = widget
+
+    def set_note_selected(self, note_num: int, selected: bool) -> None:
+        if note_num in self.note_widgets:
+            self.note_widgets[note_num].set_selected(selected)
+
+    def highlight_search(self, text: str) -> None:
+        """
+        Highlight search matches in note widgets.
+        """
+        for widget in self.note_widgets.values():
+            original_content = widget.note.note_text_md
+            if not text:
+                widget.label.setText(f"<b>{widget.note_num}.</b> {original_content}")
+                continue
+
+            # Case-insensitive search and replacement using HTML
+            if text.lower() in original_content.lower():
+                highlighted = re.sub(
+                    f"({re.escape(text)})",
+                    r'<span style="background-color: #ffeb3b; color: black;">\1</span>',
+                    original_content,
+                    flags=re.IGNORECASE,
+                )
+                widget.label.setText(f"<b>{widget.note_num}.</b> {highlighted}")
+            else:
+                widget.label.setText(f"<b>{widget.note_num}.</b> {original_content}")

@@ -140,7 +140,7 @@ class DOCXExporter(SessionMixin, AnnotationTextualMixin, TokenOccurrenceMixin):
         original_height = section.page_height
         section.page_width = original_height
         section.page_height = original_width
-        section.orientation = 1 # landscape
+        section.orientation = 1  # landscape
 
         # Standard margins
         section.top_margin = Inches(0.5)
@@ -155,6 +155,20 @@ class DOCXExporter(SessionMixin, AnnotationTextualMixin, TokenOccurrenceMixin):
         doc.add_heading(f"Translation: {project.name}", level=1)
         if project.source:
             doc.add_paragraph(f"Source: {project.source}")
+
+        # Collect and number all notes project-wide
+        project_notes = []
+        note_num = 1
+        note_map = {}  # (sentence_id, token_id) -> list of note numbers
+        for sentence in project.sentences:
+            for note in sentence.sorted_notes:
+                project_notes.append((note_num, note))
+                if note.end_token:
+                    key = (sentence.id, note.end_token)
+                    if key not in note_map:
+                        note_map[key] = []
+                    note_map[key].append(note_num)
+                note_num += 1
 
         # Use a table for side-by-side alignment
         table = doc.add_table(rows=0, cols=2)
@@ -179,18 +193,48 @@ class DOCXExporter(SessionMixin, AnnotationTextualMixin, TokenOccurrenceMixin):
                 current_oe_p.add_run(" ")
                 current_mode_p.add_run(" ")
 
-            # Add OE text (without full annotations for the side-by-side clean view)
-            current_oe_p.add_run(sentence.text_oe)
+            # Add OE text with superscripts for notes
+            tokens, token_id_to_start = sentence.sorted_tokens
+            text = sentence.text_oe
+            last_pos = 0
+            for token in tokens:
+                token_start = token_id_to_start[token.id]
+                if token_start > last_pos:
+                    current_oe_p.add_run(text[last_pos:token_start])
+
+                current_oe_p.add_run(token.surface)
+
+                # Add note superscripts
+                key = (sentence.id, token.id)
+                if key in note_map:
+                    for n_num in note_map[key]:
+                        n_run = current_oe_p.add_run(str(n_num))
+                        n_run.font.superscript = True
+
+                last_pos = token_start + len(token.surface)
+
+            if last_pos < len(text):
+                current_oe_p.add_run(text[last_pos:])
+
             # Add ModE text
             mode_run = current_mode_p.add_run(sentence.text_modern or "[...]")
             if not sentence.text_modern:
                 mode_run.font.italic = True
 
+        # Add notes at the end of the document
+        if project_notes:
+            doc.add_page_break()
+            doc.add_heading("Notes", level=2)
+            for n_num, note in project_notes:
+                p = doc.add_paragraph()
+                p.add_run(f"{n_num}. ").bold = True
+                p.add_run(note.note_text_md)
+
         try:
             doc.save(str(output_path))
             return True
         except Exception as e:
-            print(f"Export error: {e}") # noqa: T201
+            print(f"Export error: {e}")  # noqa: T201
             return False
 
     def _setup_document_styles(self, doc: DocumentObject) -> None:
