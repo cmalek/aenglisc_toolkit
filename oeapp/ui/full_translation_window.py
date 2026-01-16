@@ -34,6 +34,7 @@ from PySide6.QtWidgets import (
 
 from oeapp.services.export_docx import DOCXExporter
 from oeapp.ui.highlighting import SearchHighlighter
+from oeapp.ui.mixins import ThemeMixin
 from oeapp.ui.oe_text_edit import OldEnglishTextEdit, OldEnglishTextSelector
 from oeapp.ui.token_details_sidebar import FullTranslationSidebar
 
@@ -296,7 +297,7 @@ class FullProjectOldEnglishTextEdit(OldEnglishTextEdit):
         self.setExtraSelections(selections)
 
 
-class FullProjectModernEnglishTextEdit(QTextEdit):
+class FullProjectModernEnglishTextEdit(ThemeMixin, QTextEdit):
     """
     Modern English text edit for the full project view with sentence mapping.
     """
@@ -442,6 +443,8 @@ class FullProjectModernEnglishTextEdit(QTextEdit):
             selection.format.setBackground(  # type: ignore[attr-defined]
                 QColor("#e3f2fd")
             )  # Light blue
+            if self.is_dark_theme:
+                selection.format.setForeground(self.theme_base_color)  # type: ignore[attr-defined]
             selection.format.setProperty(SENTENCE_HIGHLIGHT_PROPERTY, True)  # type: ignore[attr-defined]  # noqa: FBT003
             selections.append(selection)
 
@@ -600,6 +603,7 @@ class FullTranslationWindow(QMainWindow):
     Window for side-by-side OE and ModE translation view.
     """
 
+    #: Width of the sidebar in pixels
     SIDEBAR_WIDTH: Final[int] = 350
 
     def __init__(self, project: Project, main_window: MainWindow):
@@ -612,13 +616,16 @@ class FullTranslationWindow(QMainWindow):
         self.build()
 
     def build(self) -> None:
+        """
+        Build the full translation window.
+        """
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
 
         # Horizontal layout for the whole window: [Main Content Area | Sidebar]
-        window_layout = QHBoxLayout(central_widget)
-        window_layout.setContentsMargins(0, 0, 0, 0)
-        window_layout.setSpacing(0)
+        self.window_layout = QHBoxLayout(central_widget)
+        self.window_layout.setContentsMargins(0, 0, 0, 0)
+        self.window_layout.setSpacing(0)
 
         # Left side: Vertical layout for [Banner | Toolbar | Text Area]
         self.main_area = QWidget()
@@ -634,7 +641,7 @@ class FullTranslationWindow(QMainWindow):
         self.build_content()
 
         # Add main area to window layout
-        window_layout.addWidget(self.main_area, 1)
+        self.window_layout.addWidget(self.main_area, 1)
 
         # Sidebar (on the right side of the entire window)
         self.build_sidebar()
@@ -750,7 +757,7 @@ class FullTranslationWindow(QMainWindow):
         """
         self.token_details_sidebar = FullTranslationSidebar(self)
         self.token_details_sidebar.setMaximumWidth(0)  # Initially closed
-        self.main_layout.addWidget(self.token_details_sidebar, 0)  # 0 stretch factor
+        self.window_layout.addWidget(self.token_details_sidebar, 0)  # 0 stretch factor
 
     # ------------------------------------------------------------
     # Event handlers
