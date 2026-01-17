@@ -195,3 +195,37 @@ class TestFullTranslationWindow:
                 found_no_notes_label = True
                 break
         assert found_no_notes_label
+
+    def test_project_metadata_banner(self, db_session, mock_main_window):
+        """Test that project metadata (source, translator, notes) is displayed in the banner."""
+        project = Project.create(
+            name="Metadata Project",
+            text="Sentence one.",
+            source="Test Source",
+            translator="Test Translator",
+            notes="These are some project notes that should be long enough to wrap and be limited in width."
+        )
+        window = FullTranslationWindow(project, mock_main_window)
+
+        assert hasattr(window, "source_banner")
+        assert window.source_label.text() == "<b>Source:</b> Test Source"
+        assert window.translator_label.text() == "<b>Translator:</b> <i>Test Translator</i>"
+        assert window.notes_label.text() == f"<b>Project Notes:</b><br/> <i>{project.notes}</i>"
+
+        # Verify width constraint and wrapping
+        assert window.notes_label.wordWrap() is True
+        assert window.notes_label.maximumWidth() == 800
+
+    def test_banner_visibility_with_only_notes(self, db_session, mock_main_window):
+        """Test that the banner is visible even if only project notes are present."""
+        project = Project.create(
+            name="Notes Only Project",
+            text="Sentence one.",
+            notes="Only notes here."
+        )
+        window = FullTranslationWindow(project, mock_main_window)
+
+        assert hasattr(window, "source_banner")
+        assert not hasattr(window, "source_label")
+        assert not hasattr(window, "translator_label")
+        assert window.notes_label.text() == "<b>Project Notes:</b><br/> <i>Only notes here.</i>"

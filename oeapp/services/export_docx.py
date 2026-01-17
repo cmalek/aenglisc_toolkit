@@ -155,6 +155,10 @@ class DOCXExporter(SessionMixin, AnnotationTextualMixin, TokenOccurrenceMixin):
         doc.add_heading(f"Translation: {project.name}", level=1)
         if project.source:
             doc.add_paragraph(f"Source: {project.source}")
+        if project.translator:
+            doc.add_paragraph(f"Translator: {project.translator}")
+        if project.notes:
+            doc.add_paragraph(f"Project Notes: {project.notes}")
 
         # Collect and number all notes project-wide
         project_notes = []

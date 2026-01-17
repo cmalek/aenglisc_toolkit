@@ -346,3 +346,30 @@ class TestDOCXExporter:
         result = exporter.export(project.id, output_path)
 
         assert result is False
+
+    def test_export_side_by_side_includes_metadata(self, db_session, tmp_path):
+        """Test export_side_by_side() includes project metadata in header."""
+        project = create_test_project(
+            db_session,
+            name="Side Project",
+            text="Sentence one.",
+            source="Side Source",
+            translator="Side Translator",
+            notes="Side Project Notes"
+        )
+
+        exporter = DOCXExporter()
+        output_path = tmp_path / "side_by_side.docx"
+
+        result = exporter.export_side_by_side(project.id, output_path)
+
+        assert result is True
+        assert output_path.exists()
+
+        doc = Document(str(output_path))
+        full_text = "\n".join([p.text for p in doc.paragraphs])
+
+        assert "Translation: Side Project" in full_text
+        assert "Source: Side Source" in full_text
+        assert "Translator: Side Translator" in full_text
+        assert "Project Notes: Side Project Notes" in full_text

@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
     QSplitter,
     QTextEdit,
     QVBoxLayout,
@@ -757,10 +758,10 @@ class FullTranslationWindow(QMainWindow):
         self.main_layout.setContentsMargins(0, 0, 0, 0)
         self.main_layout.setSpacing(0)
 
-        # Source Banner (Pinned)
-        self.build_source_banner()
         # Toolbar
         self.build_toolbar()
+        # Source Banner (Pinned)
+        self.build_source_banner()
         # Content columns
         self.build_content()
 
@@ -776,16 +777,67 @@ class FullTranslationWindow(QMainWindow):
     def build_source_banner(self) -> None:
         """
         Build the source banner.
+
+        - If the project has a source, translator, or notes, build a banner with
+          the source information.
+        - The banner is a vertical layout with the source, translator, and notes.
+        - The notes are limited to 800px width and wrap.
+        - If there are notes and either source or translator, a top border is added
+          to the notes section.
+
         """
-        if self.project.source:
+        if self.project.source or self.project.translator or self.project.notes:
             self.source_banner = QWidget()
+            self.source_banner.setObjectName("source_banner")
             self.source_banner.setStyleSheet(
+                "QWidget#source_banner { "
                 "background-color: palette(alternate-base); "
                 "border-bottom: 1px solid palette(border);"
+                "}"
             )
-            self.source_layout = QHBoxLayout(self.source_banner)
-            self.source_label = QLabel(f"<b>Source:</b> {self.project.source}")
-            self.source_layout.addWidget(self.source_label)
+            self.source_banner.setSizePolicy(
+                QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum
+            )
+            self.source_layout = QVBoxLayout(self.source_banner)
+            self.source_layout.setContentsMargins(10, 5, 10, 5)
+            self.source_layout.setSpacing(0)
+            self.source_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+            self.source_layout.setSizeConstraint(
+                QVBoxLayout.SizeConstraint.SetMinAndMaxSize
+            )
+            # Title row
+            if self.project.source:
+                self.source_label = QLabel(f"<b>Title:</b> {self.project.name}")
+                self.source_label.setContentsMargins(0, 0, 0, 5)
+                self.source_layout.addWidget(self.source_label)
+
+            # Source row
+            if self.project.source:
+                self.source_label = QLabel(f"<b>Source:</b> {self.project.source}")
+                self.source_label.setContentsMargins(0, 0, 0, 5)
+                self.source_layout.addWidget(self.source_label)
+
+            # Translator row
+            if self.project.translator:
+                text = f"<b>Translator:</b> <i>{self.project.translator}</i>"
+                self.translator_label = QLabel(text)
+                self.translator_label.setContentsMargins(0, 0, 0, 5)
+                self.source_layout.addWidget(self.translator_label)
+
+            # Notes row
+            if self.project.notes:
+                notes_html = self.project.notes.replace("\n", "<br/>")
+                text = f"<b>Project Notes:</b><br/> <i>{notes_html}</i>"
+                self.notes_label = QLabel(text)
+                self.notes_label.setWordWrap(True)
+                self.notes_label.setMaximumWidth(800)
+                self.notes_label.setContentsMargins(0, 0, 0, 5)
+                # Ensure the label can grow vertically and its height is respected
+                self.notes_label.setSizePolicy(
+                    QSizePolicy.Policy.Preferred, QSizePolicy.Policy.MinimumExpanding
+                )
+                self.source_layout.addWidget(self.notes_label)
+
             self.main_layout.addWidget(self.source_banner, 0)  # 0 stretch factor
 
     def build_toolbar(self) -> None:
