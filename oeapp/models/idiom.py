@@ -57,6 +57,21 @@ class Idiom(SaveDeleteMixin, Base):
         cascade="all, delete-orphan",
     )
 
+    @classmethod
+    def get(cls, idiom_id: int) -> Idiom | None:
+        """
+        Get an idiom by ID.
+
+        Args:
+            idiom_id: ID of the idiom
+
+        Returns:
+            Idiom or None if not found
+
+        """
+        session = cls._get_session()
+        return session.get(cls, idiom_id)
+
     def save(self, commit: bool = True) -> None:  # noqa: FBT001, FBT002
         """
         Save the idiom.

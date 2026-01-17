@@ -4,6 +4,8 @@ from typing import TYPE_CHECKING
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import QMenu, QMenuBar
 
+from oeapp.models.project import Project
+from oeapp.state import CURRENT_PROJECT_ID
 from oeapp.ui.dialogs import (
     AnnotationPresetManagementDialog,
     AppendTextDialog,
@@ -11,6 +13,7 @@ from oeapp.ui.dialogs import (
     OpenProjectDialog,
 )
 from oeapp.ui.dialogs.log_viewer import LogViewerDialog
+from oeapp.ui.full_translation_window import FullTranslationWindow
 
 # Import AnnotationPresetManagementDialog lazily when needed to avoid import-time issues
 
@@ -72,9 +75,15 @@ class WindowMenu:
     def __init__(self, main_menu: MainMenu, main_window: MainWindow) -> None:
         self.main_window = main_window
         self.main_menu = main_menu
+        self._full_window: FullTranslationWindow
         self.populate()
 
     def populate(self) -> None:
+        """
+        Populate the window menu with the following actions:
+
+        - Full Translation
+        """
         self.window_menu = self.main_menu.add_menu("&Window")
 
         full_translation_action = QAction("&Full Translation", self.window_menu)
@@ -82,11 +91,14 @@ class WindowMenu:
         full_translation_action.triggered.connect(self._show_full_translation)
         self.window_menu.addAction(full_translation_action)
 
-    def _show_full_translation(self) -> None:
-        from oeapp.models.project import Project
-        from oeapp.state import CURRENT_PROJECT_ID
-        from oeapp.ui.full_translation_window import FullTranslationWindow
+    # ------------------------------------------------------------
+    # Event handlers
+    # ------------------------------------------------------------
 
+    def _show_full_translation(self) -> None:
+        """
+        Event handler for full translation menu item: Show the full translation window.
+        """
         project_id = self.main_window.application_state.get(CURRENT_PROJECT_ID)
         if not project_id:
             self.main_window.messages.show_warning("No project open")
@@ -195,6 +207,7 @@ class ToolsMenu:
         self.main_window = main_window
         #: Main menu instance
         self.main_menu = main_menu
+        self._log_viewer: LogViewerDialog
         self.populate()
 
     def populate(self) -> None:
@@ -238,13 +251,22 @@ class ToolsMenu:
         pos_presets_action.triggered.connect(show_dialog)
         self.tools_menu.addAction(pos_presets_action)
 
+    # ------------------------------------------------------------
+    # Event handlers
+    # ------------------------------------------------------------
+
     def _show_pos_presets_dialog(self) -> None:
-        """Show the POS presets management dialog."""
+        """
+        Event handler for POS presets management menu item: Show the POS presets
+        management dialog.
+        """
         dialog = AnnotationPresetManagementDialog()
         dialog.exec()
 
     def _show_log_viewer(self) -> None:
-        """Show the log viewer dialog."""
+        """
+        Event handler for log viewer menu item: Show the log viewer dialog.
+        """
         if not hasattr(self, "_log_viewer") or not self._log_viewer.isVisible():
             self._log_viewer = LogViewerDialog(self.main_window)
             self._log_viewer.show()

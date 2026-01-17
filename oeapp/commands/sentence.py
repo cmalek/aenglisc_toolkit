@@ -1,11 +1,13 @@
 """Sentence related commands."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from dataclasses import field as dataclass_field
 from typing import Any, Literal
 
 from sqlalchemy import select
 
 from oeapp.models.annotation import Annotation
+from oeapp.models.idiom import Idiom
 from oeapp.models.mixins import SessionMixin
 from oeapp.models.note import Note
 from oeapp.models.sentence import Sentence
@@ -27,7 +29,7 @@ class EditSentenceCommand(SessionMixin, Command):
     #: The after state of the sentence.
     after: str
     #: Messages from the update (e.g. deleted idioms)
-    messages: list[str] = field(default_factory=list)
+    messages: list[str] = dataclass_field(default_factory=list)
 
     def execute(self) -> bool:
         """
@@ -107,16 +109,18 @@ class MergeSentenceCommand(SessionMixin, Command):
     #: Before state: current sentence text_modern
     before_text_modern: str | None
     #: Before state: next sentence data for restoration
-    next_sentence_data: dict[str, Any] = field(default_factory=dict)
+    next_sentence_data: dict[str, Any] = dataclass_field(default_factory=dict)
     #: Before state: tokens from next sentence (token_id, sentence_id,
     #: order_index, surface)
-    next_sentence_tokens: list[dict[str, Any]] = field(default_factory=list)
+    next_sentence_tokens: list[dict[str, Any]] = dataclass_field(default_factory=list)
     #: Before state: notes from next sentence
-    next_sentence_notes: list[dict[str, Any]] = field(default_factory=list)
+    next_sentence_notes: list[dict[str, Any]] = dataclass_field(default_factory=list)
     #: Before state: idioms from next sentence
-    next_sentence_idioms: list[dict[str, Any]] = field(default_factory=list)
+    next_sentence_idioms: list[dict[str, Any]] = dataclass_field(default_factory=list)
     #: Before state: display order changes (sentence_id, old_order, new_order)
-    display_order_changes: list[tuple[int, int, int]] = field(default_factory=list)
+    display_order_changes: list[tuple[int, int, int]] = dataclass_field(
+        default_factory=list
+    )
 
     def execute(self) -> bool:
         """
@@ -270,7 +274,9 @@ class MergeSentenceCommand(SessionMixin, Command):
             project_id=self.next_sentence_data["project_id"],
             display_order=self.next_sentence_data["display_order"],
             paragraph_number=-1,
-            sentence_number_in_paragraph=-(self.next_sentence_data["display_order"] + 1000000),
+            sentence_number_in_paragraph=-(
+                self.next_sentence_data["display_order"] + 1000000
+            ),
             text_oe=self.next_sentence_data["text_oe"],
             text_modern=self.next_sentence_data["text_modern"],
         )
@@ -303,7 +309,7 @@ class MergeSentenceCommand(SessionMixin, Command):
                 note.save()
 
         # Restore idioms to next sentence
-        from oeapp.models.idiom import Idiom
+
         for idiom_data in self.next_sentence_idioms:
             idiom = Idiom.get(idiom_data["id"])
             if idiom:
@@ -351,7 +357,9 @@ class AddSentenceCommand(SessionMixin, Command):
     #: The new sentence ID (set after execution).
     new_sentence_id: int | None = None
     #: Display order changes (sentence_id, old_order, new_order).
-    display_order_changes: list[tuple[int, int, int]] = field(default_factory=list)
+    display_order_changes: list[tuple[int, int, int]] = dataclass_field(
+        default_factory=list
+    )
     #: Whether the reference sentence was a paragraph start before being moved.
     reference_was_paragraph_start: bool | None = None
 
@@ -428,7 +436,8 @@ class AddSentenceCommand(SessionMixin, Command):
             text_oe="",
             is_paragraph_start=new_is_paragraph_start,
             paragraph_number=-1,
-            # Use very large negative number to avoid conflicts with other temp sentences
+            # Use very large negative number to avoid conflicts with other temp
+            # sentences
             sentence_number_in_paragraph=-(target_order + 1000000),
         )
         self.new_sentence_id = new_sentence.id
@@ -462,7 +471,9 @@ class AddSentenceCommand(SessionMixin, Command):
         if self.reference_was_paragraph_start is not None:
             reference_sentence = Sentence.get(self.reference_sentence_id)
             if reference_sentence:
-                reference_sentence.is_paragraph_start = self.reference_was_paragraph_start
+                reference_sentence.is_paragraph_start = (
+                    self.reference_was_paragraph_start
+                )
                 session = self._get_session()
                 session.add(reference_sentence)
 
@@ -492,15 +503,17 @@ class DeleteSentenceCommand(SessionMixin, Command):
     #: The sentence ID to delete.
     sentence_id: int
     #: Before state: sentence data for restoration
-    sentence_data: dict[str, Any] = field(default_factory=dict)
+    sentence_data: dict[str, Any] = dataclass_field(default_factory=dict)
     #: Before state: tokens from sentence
-    sentence_tokens: list[dict[str, Any]] = field(default_factory=list)
+    sentence_tokens: list[dict[str, Any]] = dataclass_field(default_factory=list)
     #: Before state: notes from sentence
-    sentence_notes: list[dict[str, Any]] = field(default_factory=list)
+    sentence_notes: list[dict[str, Any]] = dataclass_field(default_factory=list)
     #: Before state: display order changes (sentence_id, old_order, new_order)
-    display_order_changes: list[tuple[int, int, int]] = field(default_factory=list)
+    display_order_changes: list[tuple[int, int, int]] = dataclass_field(
+        default_factory=list
+    )
     #: Before state: idioms from sentence
-    sentence_idioms: list[dict[str, Any]] = field(default_factory=list)
+    sentence_idioms: list[dict[str, Any]] = dataclass_field(default_factory=list)
 
     def execute(self) -> bool:
         """
@@ -510,7 +523,6 @@ class DeleteSentenceCommand(SessionMixin, Command):
             True if successful, False otherwise
 
         """
-        session = self._get_session()
         sentence = Sentence.get(self.sentence_id)
         if sentence is None:
             return False
@@ -565,11 +577,15 @@ class DeleteSentenceCommand(SessionMixin, Command):
         # Store idioms from sentence
         self.sentence_idioms = []
         for idiom in sentence.idioms:
-            self.sentence_idioms.append({
-                "start_token_order_index": idiom.start_token.order_index,
-                "end_token_order_index": idiom.end_token.order_index,
-                "annotation": idiom.annotation.to_json() if idiom.annotation else None,
-            })
+            self.sentence_idioms.append(
+                {
+                    "start_token_order_index": idiom.start_token.order_index,
+                    "end_token_order_index": idiom.end_token.order_index,
+                    "annotation": idiom.annotation.to_json()
+                    if idiom.annotation
+                    else None,
+                }
+            )
 
         # Store sentence's display_order before deletion
         deleted_display_order = sentence.display_order
@@ -606,7 +622,6 @@ class DeleteSentenceCommand(SessionMixin, Command):
             True if successful, False otherwise
 
         """
-        from oeapp.models.idiom import Idiom
         session = self._get_session()
         # CRITICAL: Restore display_order for subsequent sentences FIRST
         # This must happen before recreating the sentence to avoid
@@ -621,7 +636,9 @@ class DeleteSentenceCommand(SessionMixin, Command):
             project_id=self.sentence_data["project_id"],
             display_order=self.sentence_data["display_order"],
             paragraph_number=-1,
-            sentence_number_in_paragraph=-(self.sentence_data["display_order"] + 1000000),
+            sentence_number_in_paragraph=-(
+                self.sentence_data["display_order"] + 1000000
+            ),
             text_oe=self.sentence_data["text_oe"],
             text_modern=self.sentence_data["text_modern"],
         )
@@ -677,6 +694,8 @@ class DeleteSentenceCommand(SessionMixin, Command):
         for idiom_data in self.sentence_idioms:
             start_order = idiom_data.get("start_token_order_index")
             end_order = idiom_data.get("end_token_order_index")
+            if start_order is None or end_order is None:
+                continue
             start_token_id = order_index_to_token_id.get(start_order)
             end_token_id = order_index_to_token_id.get(end_order)
 
@@ -688,7 +707,9 @@ class DeleteSentenceCommand(SessionMixin, Command):
                 )
                 restored_idiom.save()
                 if idiom_data.get("annotation"):
-                    Annotation.from_json(None, idiom_data["annotation"], idiom_id=restored_idiom.id)
+                    Annotation.from_json(
+                        None, idiom_data["annotation"], idiom_id=restored_idiom.id
+                    )
 
         # Recalculate project structure after restoration
         Sentence.recalculate_project_structure(self.sentence_data["project_id"])
