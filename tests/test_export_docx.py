@@ -373,3 +373,135 @@ class TestDOCXExporter:
         assert "Source: Side Source" in full_text
         assert "Translator: Side Translator" in full_text
         assert "Project Notes: Side Project Notes" in full_text
+
+    def test_export_side_by_side_includes_footer(self, db_session, tmp_path):
+        """Test export_side_by_side() includes footer with metadata."""
+        project = create_test_project(
+            db_session,
+            name="Footer Project",
+            text="Sentence one.",
+            translator="Footer Translator",
+        )
+
+        exporter = DOCXExporter()
+        output_path = tmp_path / "footer_test.docx"
+
+        exporter.export_side_by_side(project.id, output_path)
+
+        doc = Document(str(output_path))
+        section = doc.sections[0]
+        footer = section.footer
+        footer_text = "".join(p.text for p in footer.paragraphs)
+
+        assert "Footer Project" in footer_text
+        assert "Footer Translator" in footer_text
+
+    def test_export_side_by_side_includes_horizontal_rule(self, db_session, tmp_path):
+        """Test export_side_by_side() includes horizontal rule."""
+        project = create_test_project(db_session, name="HR Project", text="One.")
+
+        exporter = DOCXExporter()
+        output_path = tmp_path / "hr_test.docx"
+
+        exporter.export_side_by_side(project.id, output_path)
+
+        doc = Document(str(output_path))
+        # Find paragraph with border
+        has_hr = False
+        from oeapp.services.export_docx import qn
+
+        for p in doc.paragraphs:
+            p_pr = p._p.pPr
+            if p_pr is not None:
+                p_bdr = p_pr.find(qn("w:pBdr"))
+                if p_bdr is not None and p_bdr.find(qn("w:bottom")) is not None:
+                    has_hr = True
+                    break
+        assert has_hr
+
+    def test_export_side_by_side_includes_vertical_rule(self, db_session, tmp_path):
+        """Test export_side_by_side() includes vertical rule in table."""
+        project = create_test_project(db_session, name="VR Project", text="One.")
+
+        exporter = DOCXExporter()
+        output_path = tmp_path / "vr_test.docx"
+
+        exporter.export_side_by_side(project.id, output_path)
+
+        doc = Document(str(output_path))
+        table = doc.tables[0]
+        # Check first cell's right border
+        oe_cell = table.rows[0].cells[0]
+        tc_pr = oe_cell._tc.tcPr
+        from oeapp.services.export_docx import qn
+
+        tc_borders = tc_pr.find(qn("w:tcBorders"))
+        assert tc_borders is not None
+        right_border = tc_borders.find(qn("w:right"))
+        assert right_border is not None
+        assert right_border.get(qn("w:color")) == "D3D3D3"
+
+    def test_export_side_by_side_includes_footnotes_structure(
+        self, db_session, tmp_path
+    ):
+        """Test export_side_by_side() creates manual hyperlinked endnotes."""
+        project = create_test_project(
+            db_session, name="Footnote Project", text="Se cyning."
+        )
+        sentence = project.sentences[0]
+        token = sentence.tokens[0]
+
+        from oeapp.models.note import Note
+
+        note = Note(
+            sentence_id=sentence.id,
+            start_token=token.id,
+            end_token=token.id,
+            note_text_md="Manual note text",
+        )
+        note.save()
+
+        exporter = DOCXExporter()
+        output_path = tmp_path / "manual_footnote_test.docx"
+
+        exporter.export_side_by_side(project.id, output_path)
+
+        doc = Document(str(output_path))
+        from oeapp.services.export_docx import qn
+
+        # Check for hyperlinks in the main document
+        table = doc.tables[0]
+        oe_cell = table.rows[0].cells[0]
+        xml_text = oe_cell._tc.xml
+        assert "w:hyperlink" in xml_text
+        assert 'w:anchor="note_1"' in xml_text
+
+        # Check for bookmarks in the endnotes section
+        full_xml = doc._element.xml
+        assert "w:bookmarkStart" in full_xml
+        assert 'w:name="note_1"' in full_xml
+        assert "Manual note text" in full_xml
+
+    def test_export_side_by_side_is_single_row(self, db_session, tmp_path):
+        """Test export_side_by_side() uses a single-row table for flow."""
+        project = create_test_project(
+            db_session, name="Flow Project", text="First para. Second para."
+        )
+        # Force second sentence to be a paragraph start
+        project.sentences[1].is_paragraph_start = True
+        db_session.commit()
+
+        exporter = DOCXExporter()
+        output_path = tmp_path / "single_row_test.docx"
+
+        exporter.export_side_by_side(project.id, output_path)
+
+        doc = Document(str(output_path))
+        table = doc.tables[0]
+        # Should have exactly one row despite having two paragraphs
+        assert len(table.rows) == 1
+
+        # Should have multiple paragraphs in the cell
+        oe_cell = table.rows[0].cells[0]
+        # At least 2 paragraphs (the two sentences)
+        assert len(oe_cell.paragraphs) >= 2

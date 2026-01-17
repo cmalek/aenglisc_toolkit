@@ -3,6 +3,7 @@
 from typing import TYPE_CHECKING, cast
 
 from docx import Document
+from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Inches, Pt, RGBColor
@@ -15,6 +16,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from docx.document import Document as DocumentObject
+    from docx.text.run import Run
 
     from oeapp.models.annotation import Annotation
     from oeapp.models.sentence import Sentence
@@ -33,6 +35,142 @@ class DOCXExporter(SessionMixin, AnnotationTextualMixin, TokenOccurrenceMixin):
 
         """
         self.session = self._get_session()
+
+    def _add_horizontal_rule(self, doc: DocumentObject) -> None:
+        """
+        Add a horizontal rule to the document.
+
+        Args:
+            doc: The document to add the rule to
+
+        """
+        p = doc.add_paragraph()
+        p_pr = p._p.get_or_add_pPr()
+        p_bdr = OxmlElement("w:pBdr")
+        bottom = OxmlElement("w:bottom")
+        bottom.set(qn("w:val"), "single")
+        bottom.set(qn("w:sz"), "6")
+        bottom.set(qn("w:space"), "1")
+        bottom.set(qn("w:color"), "auto")
+        p_bdr.append(bottom)
+        p_pr.append(p_bdr)
+
+    def _set_cell_border(self, cell, **kwargs) -> None:
+        """
+        Set cell borders.
+
+        Args:
+            cell: The cell to modify
+            **kwargs: Border settings (top, bottom, left, right, start, end)
+
+        """
+        tc = cell._tc
+        tc_pr = tc.get_or_add_tcPr()
+
+        tc_borders = tc_pr.find(qn("w:tcBorders"))
+        if tc_borders is None:
+            tc_borders = OxmlElement("w:tcBorders")
+            tc_pr.append(tc_borders)
+
+        for edge in ("top", "start", "bottom", "end", "left", "right"):
+            edge_data = kwargs.get(edge)
+            if edge_data:
+                tag = f"w:{edge}"
+                element = tc_borders.find(qn(tag))
+                if element is None:
+                    element = OxmlElement(tag)
+                    tc_borders.append(element)
+
+                for key in edge_data:
+                    element.set(qn(f"w:{key}"), str(edge_data[key]))
+
+    def _add_note_reference(self, paragraph, note_num: int) -> None:
+        """
+        Add a manual hyperlinked note reference to a paragraph.
+
+        Args:
+            paragraph: The paragraph to add the reference to
+            note_num: The number of the note
+
+        """
+        # Create hyperlink element
+        hyperlink = OxmlElement("w:hyperlink")
+        hyperlink.set(qn("w:anchor"), f"note_{note_num}")
+        hyperlink.set(qn("w:history"), "1")
+
+        # Create run for the number
+        new_run = OxmlElement("w:r")
+        r_pr = OxmlElement("w:rPr")
+        r_style = OxmlElement("w:rStyle")
+        r_style.set(qn("w:val"), "FootnoteReference")
+        r_pr.append(r_style)
+
+        # Also make it superscript explicitly
+        vert_align = OxmlElement("w:vertAlign")
+        vert_align.set(qn("w:val"), "superscript")
+        r_pr.append(vert_align)
+
+        new_run.append(r_pr)
+
+        text_el = OxmlElement("w:t")
+        text_el.text = str(note_num)
+        new_run.append(text_el)
+
+        hyperlink.append(new_run)
+        paragraph._p.append(hyperlink)
+
+    def _add_note_anchor(
+        self, doc: DocumentObject, note_num: int, note_text: str, bookmark_id: int
+    ) -> None:
+        """
+        Add a manual endnote entry with a bookmark anchor.
+
+        Args:
+            doc: The document to add the entry to
+            note_num: The number of the note
+            note_text: The text of the note
+            bookmark_id: Unique ID for the bookmark
+
+        """
+        p = doc.add_paragraph()
+
+        # Bookmark start
+        bm_start = OxmlElement("w:bookmarkStart")
+        bm_start.set(qn("w:id"), str(bookmark_id))
+        bm_start.set(qn("w:name"), f"note_{note_num}")
+        p._p.append(bm_start)
+
+        # Note content
+        run = p.add_run(f"{note_num}. ")
+        run.bold = True
+        p.add_run(note_text)
+
+        # Bookmark end
+        bm_end = OxmlElement("w:bookmarkEnd")
+        bm_end.set(qn("w:id"), str(bookmark_id))
+        p._p.append(bm_end)
+
+    def _add_page_number(self, run: Run) -> None:
+        """
+        Add a page number field to a run.
+
+        Args:
+            run: The run to add the page number to
+
+        """
+        fld_char1 = OxmlElement("w:fldChar")
+        fld_char1.set(qn("w:fldCharType"), "begin")
+
+        instr_text = OxmlElement("w:instrText")
+        instr_text.set(qn("xml:space"), "preserve")
+        instr_text.text = "PAGE"
+
+        fld_char2 = OxmlElement("w:fldChar")
+        fld_char2.set(qn("w:fldCharType"), "end")
+
+        run._r.append(fld_char1)
+        run._r.append(instr_text)
+        run._r.append(fld_char2)
 
     def export(self, project_id: int, output_path: Path) -> bool:
         """
@@ -119,7 +257,7 @@ class DOCXExporter(SessionMixin, AnnotationTextualMixin, TokenOccurrenceMixin):
         else:
             return True
 
-    def export_side_by_side(self, project_id: int, output_path: Path) -> bool:
+    def export_side_by_side(self, project_id: int, output_path: Path) -> bool:  # noqa: PLR0912, PLR0915
         """
         Export project to DOCX file in side-by-side landscape format.
 
@@ -140,7 +278,8 @@ class DOCXExporter(SessionMixin, AnnotationTextualMixin, TokenOccurrenceMixin):
         original_height = section.page_height
         section.page_width = original_height
         section.page_height = original_width
-        section.orientation = 1  # landscape
+        # landscape orientation is 1
+        section.orientation = 1  # type: ignore[assignment]
 
         # Standard margins
         section.top_margin = Inches(0.5)
@@ -160,10 +299,24 @@ class DOCXExporter(SessionMixin, AnnotationTextualMixin, TokenOccurrenceMixin):
         if project.notes:
             doc.add_paragraph(f"Project Notes: {project.notes}")
 
+        # Add horizontal rule
+        self._add_horizontal_rule(doc)
+
+        # Add footer
+        footer = section.footer
+        footer_p = footer.paragraphs[0]
+        footer_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        footer_p.add_run(f"{project.name} | ")
+        if project.translator:
+            footer_p.add_run(f"Translator: {project.translator} | ")
+        self._add_page_number(footer_p.add_run())
+
         # Collect and number all notes project-wide
         project_notes = []
         note_num = 1
-        note_map = {}  # (sentence_id, token_id) -> list of note numbers
+        note_map: dict[
+            tuple[int, int], list[int]
+        ] = {}  # (sentence_id, token_id) -> list of note numbers
         for sentence in project.sentences:
             for note in sentence.sorted_notes:
                 project_notes.append((note_num, note))
@@ -174,30 +327,39 @@ class DOCXExporter(SessionMixin, AnnotationTextualMixin, TokenOccurrenceMixin):
                     note_map[key].append(note_num)
                 note_num += 1
 
-        # Use a table for side-by-side alignment
-        table = doc.add_table(rows=0, cols=2)
+        # Use a table for side-by-side alignment - SINGLE ROW for independent flow
+        table = doc.add_table(rows=1, cols=2)
         table.autofit = False
 
         # Page width is 11 inches, margins 0.5 each -> 10 inches available
         col_width = Inches(5.0)
 
-        current_oe_p = None
-        current_mode_p = None
+        oe_cell = table.rows[0].cells[0]
+        mode_cell = table.rows[0].cells[1]
+        oe_cell.width = col_width
+        mode_cell.width = col_width
+
+        # Add vertical rule between columns (right border of OE cell)
+        self._set_cell_border(
+            oe_cell,
+            right={"sz": 4, "val": "single", "color": "D3D3D3", "space": "0"},
+        )
+
+        current_oe_p = oe_cell.paragraphs[0]
+        current_mode_p = mode_cell.paragraphs[0]
 
         for sentence in project.sentences:
-            if sentence.is_paragraph_start or current_oe_p is None:
-                row = table.add_row()
-                oe_cell = row.cells[0]
-                mode_cell = row.cells[1]
-                oe_cell.width = col_width
-                mode_cell.width = col_width
-                current_oe_p = oe_cell.paragraphs[0]
-                current_mode_p = mode_cell.paragraphs[0]
+            if sentence.is_paragraph_start:
+                # If not the first sentence, create new paragraphs in both cells
+                if sentence != project.sentences[0]:
+                    current_oe_p = oe_cell.add_paragraph()
+                    current_mode_p = mode_cell.add_paragraph()
             else:
+                # Add a space between sentences in the same paragraph
                 current_oe_p.add_run(" ")
                 current_mode_p.add_run(" ")
 
-            # Add OE text with superscripts for notes
+            # Add OE text with manual hyperlinked note references
             tokens, token_id_to_start = sentence.sorted_tokens
             text = sentence.text_oe
             last_pos = 0
@@ -208,12 +370,11 @@ class DOCXExporter(SessionMixin, AnnotationTextualMixin, TokenOccurrenceMixin):
 
                 current_oe_p.add_run(token.surface)
 
-                # Add note superscripts
+                # Add manual note references
                 key = (sentence.id, token.id)
                 if key in note_map:
                     for n_num in note_map[key]:
-                        n_run = current_oe_p.add_run(str(n_num))
-                        n_run.font.superscript = True
+                        self._add_note_reference(current_oe_p, n_num)
 
                 last_pos = token_start + len(token.surface)
 
@@ -225,21 +386,35 @@ class DOCXExporter(SessionMixin, AnnotationTextualMixin, TokenOccurrenceMixin):
             if not sentence.text_modern:
                 mode_run.font.italic = True
 
-        # Add notes at the end of the document
+        # Add notes at the end of the document (Endnotes Section)
         if project_notes:
             doc.add_page_break()
             doc.add_heading("Notes", level=2)
+
+            # Bookmark ID counter (start at a reasonable number)
+            bookmark_id = 1000
             for n_num, note in project_notes:
-                p = doc.add_paragraph()
-                p.add_run(f"{n_num}. ").bold = True
-                p.add_run(note.note_text_md)
+                # Get token text for the note
+                token_id_to_order = {t.id: t.order_index for t in note.sentence.tokens}
+                token_text = self._get_note_token_text(
+                    note, note.sentence, token_id_to_order
+                )
+
+                if token_text:
+                    note_text = f'"{token_text}" - {note.note_text_md}'
+                else:
+                    note_text = note.note_text_md
+
+                self._add_note_anchor(doc, n_num, note_text, bookmark_id)
+                bookmark_id += 1
 
         try:
             doc.save(str(output_path))
-            return True
-        except Exception as e:
+        except OSError as e:
             print(f"Export error: {e}")  # noqa: T201
             return False
+        else:
+            return True
 
     def _setup_document_styles(self, doc: DocumentObject) -> None:
         """

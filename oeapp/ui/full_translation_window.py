@@ -40,6 +40,7 @@ from oeapp.ui.highlighting import SearchHighlighter
 from oeapp.ui.mixins import ThemeMixin
 from oeapp.ui.oe_text_edit import OldEnglishTextEdit, OldEnglishTextSelector
 from oeapp.ui.token_details_sidebar import FullTranslationSidebar
+from oeapp.ui.widgets import HorizontalSeparatorWidget
 
 if TYPE_CHECKING:
     from oeapp.models import Idiom, Note
@@ -319,6 +320,8 @@ class FullProjectOldEnglishTextEdit(ThemeMixin, OldEnglishTextEdit):
             selection.format.setBackground(  # type: ignore[attr-defined]
                 QColor("#fff9c4")
             )  # Very light yellow
+            if self.is_dark_theme:
+                selection.format.setForeground(self.theme_base_color)  # type: ignore[attr-defined]
             selection.format.setProperty(SENTENCE_HIGHLIGHT_PROPERTY, True)  # type: ignore[attr-defined]  # noqa: FBT003
             selections.append(selection)
 
@@ -409,7 +412,9 @@ class FullProjectModernEnglishTextEdit(ThemeMixin, QTextEdit):
     Modern English text edit for the full project view with sentence mapping.
     """
 
+    #: Signal emitted when a sentence is selected
     sentence_selected = Signal(int)
+    #: Signal emitted when a sentence is deselected
     sentence_deselected = Signal()
 
     def __init__(self, project: Project, parent: QWidget | None = None):
@@ -827,7 +832,7 @@ class FullTranslationWindow(QMainWindow):
             # Notes row
             if self.project.notes:
                 notes_html = self.project.notes.replace("\n", "<br/>")
-                text = f"<b>Project Notes:</b><br/> <i>{notes_html}</i>"
+                text = f"<i>{notes_html}</i>"
                 self.notes_label = QLabel(text)
                 self.notes_label.setWordWrap(True)
                 self.notes_label.setMaximumWidth(800)
@@ -839,6 +844,7 @@ class FullTranslationWindow(QMainWindow):
                 self.source_layout.addWidget(self.notes_label)
 
             self.main_layout.addWidget(self.source_banner, 0)  # 0 stretch factor
+            self.main_layout.addWidget(HorizontalSeparatorWidget(), 0)
 
     def build_toolbar(self) -> None:
         """
@@ -887,6 +893,11 @@ class FullTranslationWindow(QMainWindow):
         """
         # Text Content Splitter (OE and ModE columns)
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.splitter.setContentsMargins(10, 10, 10, 10)
+        self.splitter.setStyleSheet(
+            "QSplitter::handle { border-top: 3px solid palette(border); "
+            "border-bottom: 3px solid palette(border);}"
+        )
         self.build_oe_edit()
         self.build_modern_english_edit()
         # Synchronized Scrolling
@@ -902,21 +913,15 @@ class FullTranslationWindow(QMainWindow):
         self.main_layout.addWidget(
             self.splitter, 1
         )  # 1 stretch factor - fills remaining space
-
-        # Add Notes Area underneath splitter
-        self.notes_area: FullProjectNotesArea = FullProjectNotesArea(
-            self.project_notes, self
-        )
-        self.notes_area.setMaximumHeight(200)  # Limit height of notes area
-        self.notes_area.note_clicked.connect(self._on_note_clicked)
-        self.main_layout.addWidget(self.notes_area, 0)
+        self.main_layout.addWidget(HorizontalSeparatorWidget(), 0)
+        self.build_notes_area()
 
     def build_oe_edit(self) -> None:
         """
         Build the OE edit.
         """
         self.oe_edit = FullProjectOldEnglishTextEdit(self.project, self)
-        self.oe_edit.setFont(QFont("Anvers", 16))
+        self.oe_edit.setFont(QFont("Helvetica", 16))
         self.oe_edit.sentence_selected.connect(self._on_oe_sentence_selected)
         self.oe_edit.token_selected.connect(self._on_token_selected)
         self.oe_edit.idiom_selection.connect(self._on_idiom_selected)
@@ -935,6 +940,15 @@ class FullTranslationWindow(QMainWindow):
         self.mode_edit.sentence_selected.connect(self._on_mode_sentence_selected)
         self.mode_edit.sentence_deselected.connect(self._on_mode_sentence_deselected)
 
+    def build_notes_area(self) -> None:
+        """
+        Build the notes area.
+        """
+        self.notes_area = FullProjectNotesArea(self.project_notes)
+        self.notes_area.setMaximumHeight(200)  # Limit height of notes area
+        self.notes_area.note_clicked.connect(self._on_note_clicked)
+        self.main_layout.addWidget(self.notes_area, 0)
+
     def build_sidebar(self) -> None:
         """
         Build the sidebar.
@@ -942,6 +956,15 @@ class FullTranslationWindow(QMainWindow):
         self.token_details_sidebar = FullTranslationSidebar(self)
         self.token_details_sidebar.setMaximumWidth(0)  # Initially closed
         self.window_layout.addWidget(self.token_details_sidebar, 0)  # 0 stretch factor
+
+    def deselect_all_notes(self) -> None:
+        """
+        Deselect all notes in the UI and clear highlights.
+        """
+        if hasattr(self, "notes_area"):
+            for widget in self.notes_area.note_widgets.values():
+                widget.set_selected(False)
+        self.oe_edit.clear_all_note_highlights()
 
     # ------------------------------------------------------------
     # Event handlers
@@ -986,13 +1009,16 @@ class FullTranslationWindow(QMainWindow):
         self.deselect_all_notes()
 
     def _on_mode_sentence_deselected(self) -> None:
-        """ModE sentence deselected -> clear OE highlighting."""
+        """
+        Event handler for :attr:`mode_edit.sentence_deselected` signal: Clear OE
+        highlighting.
+        """
         self.oe_edit.highlight_sentence(None)
 
     def _on_token_selected(self, token: Token) -> None:  # noqa: ARG002
         """
-        Event handler for token selected: Highlight the corresponding ModE sentence
-        and ensure sidebar is open.
+        Event handler for :attr:`oe_edit.token_selected` signal: Highlight the
+        corresponding ModE sentence and ensure sidebar is open.
 
         Args:
             token: Selected token (unused)
@@ -1003,15 +1029,6 @@ class FullTranslationWindow(QMainWindow):
         if not self.token_details_sidebar._is_sidebar_open:
             self._toggle_sidebar(True)  # noqa: FBT003
         self.deselect_all_notes()
-
-    def deselect_all_notes(self) -> None:
-        """
-        Deselect all notes in the UI and clear highlights.
-        """
-        if hasattr(self, "notes_area"):
-            for widget in self.notes_area.note_widgets.values():
-                widget.set_selected(False)
-        self.oe_edit.clear_all_note_highlights()
 
     def _on_idiom_selected(self, idiom: Idiom) -> None:  # noqa: ARG002
         """
@@ -1026,7 +1043,8 @@ class FullTranslationWindow(QMainWindow):
 
     def _on_token_hovered(self, token: Token | None) -> None:
         """
-        Light hover effect for aligned sentences.
+        Event handler for :attr:`oe_edit.token_hovered` signal: Light hover effect
+        for aligned sentences.
 
         Args:
             token: Token hovered (unused)
@@ -1042,8 +1060,8 @@ class FullTranslationWindow(QMainWindow):
 
     def _on_search_changed(self, text: str) -> None:
         """
-        Event handler for search changed: Highlight the search text in both
-        the OE and ModE columns, and the notes area.
+        Event handler for :attr:`search_input.textChanged` signal: Highlight the
+        search text in both the OE and ModE columns, and the notes area.
 
         Args:
             text: Search text
@@ -1055,7 +1073,12 @@ class FullTranslationWindow(QMainWindow):
 
     def _on_note_clicked(self, note_num: int) -> None:
         """
-        Handle clicking on a note in the notes area.
+        Event handler for :attr:`note_clicked` signal: Handle clicking on a note
+        in the notes area.
+
+        Args:
+            note_num: Number of the note to click
+
         """
         # Find the note
         note = next((n for num, n in self.project_notes if num == note_num), None)
@@ -1079,8 +1102,8 @@ class FullTranslationWindow(QMainWindow):
 
     def _toggle_sidebar(self, checked: bool) -> None:  # noqa: FBT001
         """
-        Event handler for sidebar toggle: Animate the sidebar width so
-        that it opens or closes smoothly.
+        Event handler for :attr:`toggle_sidebar_btn.clicked` signal: Animate the
+        sidebar width so that it opens or closes smoothly.
 
         Args:
             checked: Whether the sidebar is checked
@@ -1105,7 +1128,8 @@ class FullTranslationWindow(QMainWindow):
 
     def _navigate_to_main_sentence(self, sentence_id: int) -> None:
         """
-        Scroll main window to sentence and focus.
+        Event handler for :attr:`navigate_to_main_sentence` button: Scroll main
+        window to sentence and focus.
 
         Args:
             sentence_id: ID of the sentence to navigate to
@@ -1118,7 +1142,9 @@ class FullTranslationWindow(QMainWindow):
                 break
 
     def _export_docx(self) -> None:
-        """Export to landscape DOCX."""
+        """
+        Event handler for :attr:`export_btn.clicked` signal: Export to landscape DOCX.
+        """
         file_path, _ = QFileDialog.getSaveFileName(
             self,
             "Export Side-by-Side",
@@ -1134,15 +1160,28 @@ class FullTranslationWindow(QMainWindow):
 
 
 class FullProjectNoteWidget(ThemeMixin, QWidget):
-    """Widget for a single note in the notes area."""
+    """
+    Widget for a single note in the notes area.
+
+    Args:
+        note_num: Number of the note
+        note: Note object
+
+    Keyword Args:
+        parent: Parent widget
+
+    """
 
     #: Signal emitted when the note widget is clicked (emits note number)
     clicked = Signal(int)  # emits note_num
 
     def __init__(self, note_num: int, note: Note, parent: QWidget | None = None):
         super().__init__(parent)
+        #: Number of the note
         self.note_num = note_num
+        #: Note object
         self.note = note
+        #: Whether the note is selected
         self.is_selected = False
 
         layout = QHBoxLayout(self)
@@ -1207,7 +1246,7 @@ class FullProjectNotesArea(QScrollArea):
         self.container = QWidget()
         #: Main layout for the notes area
         self.main_layout = QVBoxLayout(self.container)
-        self.main_layout.setContentsMargins(0, 0, 0, 0)
+        self.main_layout.setContentsMargins(10, 10, 10, 10)
         self.main_layout.setSpacing(0)
         self.main_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         self.setWidget(self.container)
