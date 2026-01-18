@@ -1,0 +1,8 @@
+=======
+Credits
+=======
+
+Development Lead
+----------------
+
+* Chris Malek <cmalek@placodermi.org>
