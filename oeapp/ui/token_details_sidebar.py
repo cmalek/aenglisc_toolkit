@@ -79,7 +79,7 @@ class AbstractPartOfSpeechRenderer(AnnotationLookupsMixin):
         "color: palette(text-muted); font-family: Helvetica; font-size: 18px;"
     )
 
-    def __init__(self, annotation: Annotation | None) -> None:
+    def __init__(self, annotation: "Annotation | None") -> None:
         """
         Initialize the part of speech renderer.
 
@@ -462,7 +462,7 @@ class BaseTokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
             layout = self.content_layout
         clear_layout(cast("QLayout", layout))
 
-    def part_of_speech(self, annotation: Annotation) -> None:
+    def part_of_speech(self, annotation: "Annotation") -> None:
         """
         Display the part of speech field and its associated fields.
         If the annotation has no part of speech, display a label indicating that
@@ -488,13 +488,13 @@ class BaseTokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
         self.content_layout.addWidget(separator)
         self.content_layout.addSpacing(10)
 
-    def surface_form(self, token: Token) -> None:
+    def surface_form(self, token: "Token") -> None:
         """
         Display the surface form of the token.  This is the word plus
         annotations as superscript and subscript.
 
         Args:
-            token: Token to display
+            token: "Token" to display
 
         """
         annotation = cast("Annotation", token.annotation)
@@ -520,7 +520,7 @@ class BaseTokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
         self.content_layout.addWidget(token_label)
         self.content_layout.addSpacing(30)
 
-    def line_label(self, sentence: Sentence) -> None:
+    def line_label(self, sentence: "Sentence") -> None:
         """
         Display the line label for the given sentence.  The line label is
         displayed on its own line, and is used to identify the paragraph and
@@ -540,12 +540,12 @@ class BaseTokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
         number_label.setStyleSheet(self.LINE_LABEL_STYLE)
         self.content_layout.addWidget(number_label)
 
-    def root(self, annotation: Annotation) -> None:
+    def root(self, annotation: "Annotation") -> None:
         """
         Display the root field and its associated dictionary icon button.
 
         Args:
-            annotation: Annotation to display
+            annotation: "Annotation" to display
         field.
 
         """
@@ -579,7 +579,7 @@ class BaseTokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
                 "Root", root_widget, parent_layout=self.content_layout
             )
 
-    def modern_english_meaning(self, annotation: Annotation) -> None:
+    def modern_english_meaning(self, annotation: "Annotation") -> None:
         """
         Display the modern English meaning field.
 
@@ -638,7 +638,7 @@ class BaseTokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
             mod_e_value_label.setMinimumWidth(0)
             mod_e_value_label.setMaximumHeight(16777215)
 
-    def confidence(self, annotation: Annotation) -> None:
+    def confidence(self, annotation: "Annotation") -> None:
         """
         Display the confidence field.
 
@@ -654,7 +654,7 @@ class BaseTokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
             "Confidence", confidence_value, parent_layout=self.content_layout
         )
 
-    def render_token(self, token: Token, sentence: Sentence) -> None:
+    def render_token(self, token: "Token", sentence: "Sentence") -> None:
         """
         Update the sidebar with token details.
 
@@ -686,7 +686,7 @@ class BaseTokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
         self.modern_english_meaning(annotation)
         self.content_layout.addStretch()
 
-    def render_idiom(self, idiom: Idiom, sentence: Sentence) -> None:
+    def render_idiom(self, idiom: "Idiom", sentence: "Sentence") -> None:
         """
         Update the sidebar with idiom details.
 
@@ -773,13 +773,13 @@ class TokenDetailsSidebar(BaseTokenDetailsSidebar):
         """
         self.show_empty()
 
-    def _on_token_selected(self, token: Token) -> None:
+    def _on_token_selected(self, token: "Token") -> None:
         """
         Handle token selection.
         """
         self.render_token(token, token.sentence)
 
-    def _on_idiom_selected(self, idiom: Idiom) -> None:
+    def _on_idiom_selected(self, idiom: "Idiom") -> None:
         """
         Handle idiom selection.
         """
@@ -820,7 +820,7 @@ class FullTranslationSidebar(BaseTokenDetailsSidebar):
         if self._is_sidebar_open:
             self.show_empty()
 
-    def _on_token_selected(self, token: Token) -> None:
+    def _on_token_selected(self, token: "Token") -> None:
         """
         Handle token selection: Open the sidebar and render the token details.
 
@@ -831,7 +831,7 @@ class FullTranslationSidebar(BaseTokenDetailsSidebar):
         if self._is_sidebar_open:
             self.render_token(token, token.sentence)
 
-    def _on_idiom_selected(self, idiom: Idiom) -> None:
+    def _on_idiom_selected(self, idiom: "Idiom") -> None:
         """
         Handle idiom selection: Open the sidebar and render the idiom details.
 

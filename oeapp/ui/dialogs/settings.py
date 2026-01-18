@@ -32,7 +32,7 @@ class SettingsDialog:
         "light": "modern_light",
     }
 
-    def __init__(self, main_window: MainWindow) -> None:
+    def __init__(self, main_window: "MainWindow") -> None:
         """
         Initialize settings dialog.
         """

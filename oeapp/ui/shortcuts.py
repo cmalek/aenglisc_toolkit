@@ -16,10 +16,10 @@ class ShortcutsMixin:
     Mixin for keyboard shortcuts.
     """
 
-    def __init__(self, parent: QWidget):
+    def __init__(self, parent: "QWidget"):
         self.parent = parent
 
-    def add_shortcut(self, key: str, action: Callable[[], None]) -> None:
+    def add_shortcut(self, key: str, action: "Callable[[], None]") -> None:
         """
         Add a keyboard shortcut to the application.
         """
@@ -52,7 +52,7 @@ class GlobalShortcuts(ShortcutsMixin):
 
     """
 
-    def __init__(self, parent: MainWindow):
+    def __init__(self, parent: "MainWindow"):
         """Initialize the shortcuts."""
         super().__init__(parent)
         self.main_window = parent
@@ -78,7 +78,7 @@ class AnnotationModalShortcuts(ShortcutsMixin):
     Keyboard shortcuts for the annotation modal.
     """
 
-    def __init__(self, parent: AnnotationModal):
+    def __init__(self, parent: "AnnotationModal"):
         super().__init__(parent)
         self.annotation_modal = parent
 

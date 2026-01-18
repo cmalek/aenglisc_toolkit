@@ -44,11 +44,11 @@ class NoteDialog(QDialog):
 
     def __init__(  # noqa: PLR0913
         self,
-        sentence: Sentence,
+        sentence: "Sentence",
         start_token_id: int,
         end_token_id: int,
         note: Note | None = None,
-        session: Session | None = None,
+        session: "Session | None" = None,
         parent: QWidget | None = None,
     ) -> None:
         """

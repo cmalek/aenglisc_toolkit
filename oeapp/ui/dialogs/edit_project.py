@@ -36,7 +36,7 @@ class EditProjectDialog:
     #: Dialog height
     DIALOG_HEIGHT: Final[int] = 500
 
-    def __init__(self, main_window: MainWindow, project: Project) -> None:
+    def __init__(self, main_window: "MainWindow", project: Project) -> None:
         """
         Initialize edit project dialog.
         """

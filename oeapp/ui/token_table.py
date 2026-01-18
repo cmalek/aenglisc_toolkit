@@ -40,7 +40,7 @@ class AnnotationTableWidget(QTableWidget):
         super().__init__(parent)
         self._token_table_ref: TokenTable | None = None  # Will be set by TokenTable
 
-    def set_token_table_ref(self, token_table: TokenTable) -> None:
+    def set_token_table_ref(self, token_table: "TokenTable") -> None:
         """
         Set reference to parent :class:`TokenTable` for checking selected token.
 
@@ -50,7 +50,7 @@ class AnnotationTableWidget(QTableWidget):
         """
         self._token_table_ref = token_table
 
-    def _get_main_window(self) -> MainWindow | None:
+    def _get_main_window(self) -> "MainWindow | None":
         """
         Get the MainWindow by traversing the parent chain.
 
@@ -140,7 +140,9 @@ class TokenTable(QWidget):
         #: The tokens to display.
         self.tokens: list[Token] = []
         #: The annotations to display.
-        self.annotations: dict[int, Annotation] = {}  # token_id -> Annotation
+        self.annotations: dict[
+            int, "Annotation"  # noqa: UP037
+        ] = {}  # token_id -> Annotation
         self._setup_ui()
 
     def _setup_ui(self) -> None:
@@ -304,7 +306,7 @@ class TokenTable(QWidget):
                 for col in range(1, 12):
                     self.table.setItem(row, col, QTableWidgetItem("—"))
 
-    def update_annotation(self, annotation: Annotation) -> None:
+    def update_annotation(self, annotation: "Annotation") -> None:
         """
         Update annotation display for a token.
 

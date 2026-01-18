@@ -55,7 +55,7 @@ class Command(ABC):
 class CommandManager:
     """Manages undo/redo command stack."""
 
-    def __init__(self, session: Session, max_commands: int = 50) -> None:
+    def __init__(self, session: "Session", max_commands: int = 50) -> None:
         """
         Initialize command manager.
 

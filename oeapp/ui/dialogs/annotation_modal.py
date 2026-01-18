@@ -690,7 +690,7 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
 
     def __init__(
         self,
-        token: Token | None = None,
+        token: "Token | None" = None,
         idiom: Idiom | None = None,
         annotation: Annotation | None = None,
         parent: QWidget | None = None,
@@ -1342,7 +1342,7 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         self.part_of_speech_manager.load_from_preset(preset)
         self._update_status_label()
 
-    def _on_token_link_clicked(self, token: Token) -> None:
+    def _on_token_link_clicked(self, token: "Token") -> None:
         """
         Handle clicking a token link in an idiom modal.
 

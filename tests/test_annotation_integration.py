@@ -28,35 +28,35 @@ def sentence_card(db_session, qapp, mock_main_window):
 ])
 def test_all_pos_fields_save_via_modal(qtbot, sentence_card, db_session, pos_name, pos_code, field_values):
     """
-    Integration test to ensure that all fields for all parts of speech 
+    Integration test to ensure that all fields for all parts of speech
     are correctly saved when using the AnnotationModal within a SentenceCard.
     """
     token = sentence_card.sentence.tokens[0]
-    
+
     # 1. Open the modal
     modal = AnnotationModal(token=token, parent=sentence_card)
     modal.annotation_applied.connect(sentence_card._on_annotation_applied)
     qtbot.addWidget(modal)
     modal.show()
-    
+
     # 2. Select POS
     modal.pos_combo.setCurrentText(pos_name)
-    
+
     # 3. Set field values
     for field_name, index in field_values.items():
         assert field_name in modal.part_of_speech_manager.current.fields
         modal.part_of_speech_manager.current.fields[field_name].setCurrentIndex(index)
-    
+
     # 4. Click Apply
     with qtbot.waitSignal(modal.annotation_applied, timeout=2000):
         qtbot.mouseClick(modal.apply_button, Qt.LeftButton)
-    
+
     # 5. Verify database
     db_session.expire_all()
     ann = db_session.get(Annotation, token.id)
     assert ann is not None
     assert ann.pos == pos_code
-    
+
     # Verify each field
     # We need to map indices back to codes for verification
     fields_obj = modal.part_of_speech_manager.current

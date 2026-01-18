@@ -175,7 +175,7 @@ class BackupService(QObject):
             "projects": projects_data,
         }
 
-    def create_backup(self) -> Path:
+    def create_backup(self) -> "Path":
         """
         Create a backup of the database immediately.
 
@@ -351,7 +351,7 @@ class BackupService(QObject):
         backups.sort(key=lambda b: b["backup_timestamp"], reverse=True)
         return backups
 
-    def restore_backup(self, backup_path: Path) -> dict[str, Any] | None:
+    def restore_backup(self, backup_path: "Path") -> dict[str, Any] | None:
         """
         Restore a backup file over the current database.
 

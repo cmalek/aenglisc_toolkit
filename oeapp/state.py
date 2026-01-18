@@ -29,17 +29,17 @@ class ApplicationState(dict):
     state for the main window.
     """
 
-    _instance: ApplicationState | None = None
+    _instance: "ApplicationState | None" = None
     #: The SQLAlchemy session.
-    _session: Session | None = None
+    _session: "Session | None" = None
     #: Settings
     settings: QSettings
     #: Command manager
     command_manager: CommandManager
     #: Main window
-    main_window: MainWindow | None = None
+    main_window: "MainWindow | None" = None
 
-    def __new__(cls) -> ApplicationState:  # noqa: PYI034
+    def __new__(cls) -> "ApplicationState":
         """
         Create a new instance of the application state singleton.
 
@@ -60,7 +60,7 @@ class ApplicationState(dict):
         self.__class__._instance = None
 
     @property
-    def session(self) -> Session:
+    def session(self) -> "Session":
         """
         Get the SQLAlchemy session.
 
@@ -75,7 +75,7 @@ class ApplicationState(dict):
         return cast("Session", self._session)
 
     @session.setter
-    def session(self, session: Session) -> None:
+    def session(self, session: "Session") -> None:
         """
         Set the SQLAlchemy session.  This is used for our tests.
 
@@ -86,7 +86,7 @@ class ApplicationState(dict):
         self._session = session
         self.command_manager.session = session
 
-    def set_main_window(self, main_window: MainWindow) -> None:
+    def set_main_window(self, main_window: "MainWindow") -> None:
         """
         Set the main window.
 

@@ -28,7 +28,7 @@ class SentenceFilterDialog(AnnotationLookupsMixin, QDialog):
     #: Title of the dialog
     TITLE: ClassVar[str] = "Select Items to Highlight"
     #: Colors for the items
-    COLORS: ClassVar[dict[str | None, QColor]] = {}
+    COLORS: ClassVar[dict[str | None, "QColor"]] = {}
     #: Mapping of codes to names.  We use this to display the name of the item
     #: in the checkbox.
     CODE_TO_NAME_MAPPING: ClassVar[dict[str | None, str]] = {}
@@ -212,7 +212,7 @@ class PartOfSpeechFilterDialog(SentenceFilterDialog):
     #: Title of the dialog
     TITLE: ClassVar[str] = "Select Parts of Speech to Highlight"
     #: Colors for the parts of speech
-    COLORS: ClassVar[dict[str | None, QColor]] = AnnotationLookupsMixin.POS_COLORS
+    COLORS: ClassVar[dict[str | None, "QColor"]] = AnnotationLookupsMixin.POS_COLORS
     #: Mapping of codes to names.  We use this to display the name of the part of speech
     #: in the checkbox.
     CODE_TO_NAME_MAPPING: ClassVar[dict[str | None, str]] = (
@@ -228,7 +228,7 @@ class CaseFilterDialog(SentenceFilterDialog):
     #: Title of the dialog
     TITLE: ClassVar[str] = "Select Cases to Highlight"
     #: Colors for the cases
-    COLORS: ClassVar[dict[str | None, QColor]] = AnnotationLookupsMixin.CASE_COLORS
+    COLORS: ClassVar[dict[str | None, "QColor"]] = AnnotationLookupsMixin.CASE_COLORS
     #: Mapping of codes to names.  We use this to display the name of the case
     #: in the checkbox.
     CODE_TO_NAME_MAPPING: ClassVar[dict[str | None, str]] = (
@@ -244,7 +244,7 @@ class NumberFilterDialog(SentenceFilterDialog):
     #: Title of the dialog
     TITLE: ClassVar[str] = "Select Numbers to Highlight"
     #: Colors for the numbers
-    COLORS: ClassVar[dict[str | None, QColor]] = AnnotationLookupsMixin.NUMBER_COLORS
+    COLORS: ClassVar[dict[str | None, "QColor"]] = AnnotationLookupsMixin.NUMBER_COLORS
     #: Mapping of codes to names.  We use this to display the name of the number
     #: in the checkbox.
     CODE_TO_NAME_MAPPING: ClassVar[dict[str | None, str]] = (

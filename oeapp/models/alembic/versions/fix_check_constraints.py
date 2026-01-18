@@ -18,9 +18,9 @@ if TYPE_CHECKING:
 
 # revision identifiers, used by Alembic.
 revision: str = "fix_check_constraints"
-down_revision: str | Sequence[str] | None = "58e7d5ea71cd"
-branch_labels: str | Sequence[str] | None = None
-depends_on: str | Sequence[str] | None = None
+down_revision: "str | Sequence[str] | None" = "58e7d5ea71cd"
+branch_labels: "str | Sequence[str] | None" = None
+depends_on: "str | Sequence[str] | None" = None
 
 
 def upgrade() -> None:

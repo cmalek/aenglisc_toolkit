@@ -58,7 +58,7 @@ class Token(SaveDeleteMixin, Base):
     )
 
     # Relationships
-    sentence: Mapped[Sentence] = relationship("Sentence", back_populates="tokens")
+    sentence: Mapped["Sentence"] = relationship("Sentence", back_populates="tokens")
     annotation: Mapped[Annotation | None] = relationship(
         "Annotation",
         back_populates="token",
@@ -94,7 +94,7 @@ class Token(SaveDeleteMixin, Base):
         sentence_id: int,
         token_data: dict,
         commit: bool = True,  # noqa: FBT001, FBT002
-    ) -> Token:
+    ) -> "Token":
         """
         Create a token and annotation from JSON import data.
 
@@ -136,7 +136,7 @@ class Token(SaveDeleteMixin, Base):
         return token
 
     @classmethod
-    def get(cls, token_id: int) -> Token | None:
+    def get(cls, token_id: int) -> "Token | None":
         """
         Get a token by ID.
 
@@ -151,7 +151,7 @@ class Token(SaveDeleteMixin, Base):
         return session.get(cls, token_id)
 
     @classmethod
-    def list(cls, sentence_id: int) -> builtins.list[Token]:
+    def list(cls, sentence_id: int) -> builtins.list["Token"]:
         """
         Get all tokens by sentence ID, ordered by order index.
 
@@ -177,7 +177,7 @@ class Token(SaveDeleteMixin, Base):
         sentence_id: int,
         sentence_text: str,
         commit: bool = True,  # noqa: FBT001, FBT002
-    ) -> builtins.list[Token]:
+    ) -> builtins.list["Token"]:
         """
         Create new tokens for a sentence.
 
@@ -311,7 +311,7 @@ class Token(SaveDeleteMixin, Base):
         return messages
 
     @classmethod
-    def _move_to_temp_positions(cls, tokens: builtins.list[Token], session) -> None:
+    def _move_to_temp_positions(cls, tokens: builtins.list["Token"], session) -> None:
         """Move tokens to temporary negative positions."""
         for i, token in enumerate(tokens):
             token.order_index = -(i + 1)
@@ -404,7 +404,7 @@ class Token(SaveDeleteMixin, Base):
     @classmethod
     def _create_new_token(
         cls, index, surface, sentence_id, session, matched_positions
-    ) -> Token:
+    ) -> "Token":
         """Create a new token and its empty annotation."""
         token = cls(sentence_id=sentence_id, order_index=index, surface=surface)
         session.add(token)
@@ -427,8 +427,8 @@ class Token(SaveDeleteMixin, Base):
     def _update_notes_for_token_changes(
         cls,
         sentence_id: int,
-        old_tokens: builtins.list[Token],
-        new_token_positions: dict[int, Token],
+        old_tokens: builtins.list["Token"],
+        new_token_positions: dict[int, "Token"],
         matched_token_ids: set[int],
     ) -> None:
         """Update notes when tokens change."""
@@ -493,7 +493,7 @@ class Token(SaveDeleteMixin, Base):
     @classmethod
     def _find_replacement_tokens_for_note(
         cls, note, old_tokens, new_token_positions
-    ) -> tuple[Token | None, Token | None]:
+    ) -> tuple["Token | None", "Token | None"]:
         """Find replacement tokens for a note whose tokens were deleted."""
         old_start_token = next(
             (t for t in old_tokens if t.id == note.start_token), None
@@ -529,7 +529,7 @@ class Token(SaveDeleteMixin, Base):
     def _update_idioms_for_token_changes(
         cls,
         sentence_id: int,
-        old_tokens: builtins.list[Token],
+        old_tokens: builtins.list["Token"],
         matched_token_ids: set[int],
         original_orders: dict[int, int],
     ) -> builtins.list[str]:

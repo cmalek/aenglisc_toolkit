@@ -72,7 +72,9 @@ class FullProjectOldEnglishTextEdit(ThemeMixin, OldEnglishTextEdit):
     # Signal emitted when a sentence is selected (via token selection)
     sentence_selected = Signal(int)
 
-    def __init__(self, project: Project, parent: FullTranslationWindow | None = None):
+    def __init__(
+        self, project: "Project", parent: "FullTranslationWindow | None" = None
+    ):
         super().__init__(parent)
         self.project: Project = project
         self._full_window: FullTranslationWindow | None = parent
@@ -327,7 +329,7 @@ class FullProjectOldEnglishTextEdit(ThemeMixin, OldEnglishTextEdit):
 
         self.setExtraSelections(selections)
 
-    def highlight_note_tokens(self, note: Note, highlight: bool) -> None:  # noqa: FBT001
+    def highlight_note_tokens(self, note: "Note", highlight: bool) -> None:  # noqa: FBT001
         """
         Highlight the tokens covered by a note.
 
@@ -417,7 +419,7 @@ class FullProjectModernEnglishTextEdit(ThemeMixin, QTextEdit):
     #: Signal emitted when a sentence is deselected
     sentence_deselected = Signal()
 
-    def __init__(self, project: Project, parent: QWidget | None = None):
+    def __init__(self, project: "Project", parent: QWidget | None = None):
         super().__init__(parent)
         self.project = project
         self.setReadOnly(True)
@@ -723,7 +725,7 @@ class FullTranslationWindow(QMainWindow):
     #: Width of the sidebar in pixels
     SIDEBAR_WIDTH: Final[int] = 350
 
-    def __init__(self, project: Project, main_window: MainWindow):
+    def __init__(self, project: "Project", main_window: "MainWindow"):
         super().__init__(main_window)
         self.project = project
         self.main_window = main_window
@@ -1015,7 +1017,7 @@ class FullTranslationWindow(QMainWindow):
         """
         self.oe_edit.highlight_sentence(None)
 
-    def _on_token_selected(self, token: Token) -> None:  # noqa: ARG002
+    def _on_token_selected(self, token: "Token") -> None:  # noqa: ARG002
         """
         Event handler for :attr:`oe_edit.token_selected` signal: Highlight the
         corresponding ModE sentence and ensure sidebar is open.
@@ -1030,7 +1032,7 @@ class FullTranslationWindow(QMainWindow):
             self._toggle_sidebar(True)  # noqa: FBT003
         self.deselect_all_notes()
 
-    def _on_idiom_selected(self, idiom: Idiom) -> None:  # noqa: ARG002
+    def _on_idiom_selected(self, idiom: "Idiom") -> None:  # noqa: ARG002
         """
         Ensure sidebar is open for idiom details.
 
@@ -1041,7 +1043,7 @@ class FullTranslationWindow(QMainWindow):
         if not self.token_details_sidebar._is_sidebar_open:
             self._toggle_sidebar(True)  # noqa: FBT003
 
-    def _on_token_hovered(self, token: Token | None) -> None:
+    def _on_token_hovered(self, token: "Token | None") -> None:
         """
         Event handler for :attr:`oe_edit.token_hovered` signal: Light hover effect
         for aligned sentences.
@@ -1175,7 +1177,7 @@ class FullProjectNoteWidget(ThemeMixin, QWidget):
     #: Signal emitted when the note widget is clicked (emits note number)
     clicked = Signal(int)  # emits note_num
 
-    def __init__(self, note_num: int, note: Note, parent: QWidget | None = None):
+    def __init__(self, note_num: int, note: "Note", parent: QWidget | None = None):
         super().__init__(parent)
         #: Number of the note
         self.note_num = note_num
@@ -1238,7 +1240,7 @@ class FullProjectNotesArea(QScrollArea):
     note_clicked = Signal(int)
 
     def __init__(
-        self, project_notes: list[tuple[int, Note]], parent: QWidget | None = None
+        self, project_notes: list[tuple[int, "Note"]], parent: QWidget | None = None
     ):
         super().__init__(parent)
         self.setWidgetResizable(True)

@@ -199,7 +199,7 @@ class MainWindow(QMainWindow):
         self.search_input.returnPressed.connect(self.action_service.focus_first_match)
 
         # Intercept Escape key in search input
-        def on_key_pressed(event: QKeyEvent):
+        def on_key_pressed(event: "QKeyEvent"):
             if event.key() == Qt.Key.Key_Escape:
                 self._on_clear_search_clicked()
                 event.accept()
@@ -245,7 +245,7 @@ class MainWindow(QMainWindow):
         self.search_input.setFocus()
         self.search_input.setStyleSheet("")
 
-    def keyPressEvent(self, event: QKeyEvent) -> None:  # noqa: N802
+    def keyPressEvent(self, event: "QKeyEvent") -> None:  # noqa: N802
         """
         Handle global key presses, like Escape to clear search.
 
@@ -1543,7 +1543,7 @@ class ProjectUI:
         self.show_message("Sentence deleted", duration=2000)
 
     def _on_token_selected_for_details(
-        self, token: Token, sentence: Sentence, sentence_card: SentenceCard
+        self, token: "Token", sentence: "Sentence", sentence_card: SentenceCard
     ) -> None:
         """
         Handle token selection for details sidebar.
@@ -1574,7 +1574,7 @@ class ProjectUI:
             self.application_state[SELECTED_SENTENCE_CARD] = sentence_card
 
     def _on_idiom_selected_for_details(
-        self, idiom: Idiom, sentence: Sentence, sentence_card: SentenceCard
+        self, idiom: "Idiom", sentence: "Sentence", sentence_card: SentenceCard
     ) -> None:
         """
         Handle idiom selection for details sidebar.
@@ -1596,7 +1596,7 @@ class ProjectUI:
         # Store reference to currently selected sentence card
         self.application_state[SELECTED_SENTENCE_CARD] = sentence_card
 
-    def _on_annotation_applied(self, annotation: Annotation) -> None:
+    def _on_annotation_applied(self, annotation: "Annotation") -> None:
         """
         Handle annotation applied signal.
 

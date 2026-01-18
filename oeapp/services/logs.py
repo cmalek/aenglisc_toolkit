@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
-def get_log_dir() -> Path:
+def get_log_dir() -> "Path":
     """
     Get the path to the log directory.
 
@@ -27,7 +27,7 @@ def get_log_dir() -> Path:
     return log_dir
 
 
-def get_log_file_path() -> Path:
+def get_log_file_path() -> "Path":
     """
     Get the path to the current log file.
 

@@ -18,9 +18,9 @@ if TYPE_CHECKING:
 
 # revision identifiers, used by Alembic.
 revision: str = "57399ca978ee"
-down_revision: str | Sequence[str] | None = None
-branch_labels: str | Sequence[str] | None = None
-depends_on: str | Sequence[str] | None = None
+down_revision: "str | Sequence[str] | None" = None
+branch_labels: "str | Sequence[str] | None" = None
+depends_on: "str | Sequence[str] | None" = None
 
 
 def upgrade() -> None:  # noqa: PLR0915

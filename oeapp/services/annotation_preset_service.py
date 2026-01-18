@@ -104,7 +104,7 @@ class AnnotationPresetService:
 
     @staticmethod
     def apply_preset_to_annotation(  # noqa: PLR0912
-        preset: AnnotationPreset, annotation: Annotation
+        preset: AnnotationPreset, annotation: "Annotation"
     ) -> None:
         """
         Apply preset values to annotation object (only sets non-None values).

@@ -37,7 +37,7 @@ class MigrationFailureDialog:
 
     def __init__(
         self,
-        main_window: MainWindow,
+        main_window: "MainWindow",
         error: Exception,
         backup_app_version: str | None,
     ) -> None:

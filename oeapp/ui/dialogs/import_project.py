@@ -25,8 +25,8 @@ class ImportProjectDialog:
 
     def __init__(
         self,
-        main_window: MainWindow,
-        project: Project,
+        main_window: "MainWindow",
+        project: "Project",
         was_renamed: bool,  # noqa: FBT001
     ) -> None:
         """

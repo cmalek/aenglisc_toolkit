@@ -31,7 +31,7 @@ class RestoreDialog:
     #: Dialog height
     DIALOG_HEIGHT: Final[int] = 500
 
-    def __init__(self, main_window: MainWindow) -> None:
+    def __init__(self, main_window: "MainWindow") -> None:
         """
         Initialize restore dialog.
         """

@@ -332,7 +332,7 @@ class MigrationService(ProjectFoldersMixin):
     def __init__(
         self,
         backup_service: BackupService | None = None,
-        engine: Engine | None = None,
+        engine: "Engine | None" = None,
         migration_metadata_service: MigrationMetadataService | None = None,
     ) -> None:
         """

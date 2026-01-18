@@ -62,7 +62,7 @@ class Project(SaveDeleteMixin, Base):
         return session.scalar(select(cls).where(cls.name == name)) is not None
 
     @classmethod
-    def get(cls, project_id: int) -> Project | None:
+    def get(cls, project_id: int) -> "Project | None":
         """
         Get a project by name.
 
@@ -77,7 +77,7 @@ class Project(SaveDeleteMixin, Base):
         return session.get(cls, project_id)
 
     @classmethod
-    def first(cls) -> Project | None:
+    def first(cls) -> "Project | None":
         """
         Get the first project.
 
@@ -89,7 +89,7 @@ class Project(SaveDeleteMixin, Base):
         return session.scalar(select(cls).order_by(cls.id).limit(1))
 
     @classmethod
-    def list(cls) -> builtins.list[Project]:
+    def list(cls) -> builtins.list["Project"]:
         """
         Get all projects.
 
@@ -109,7 +109,7 @@ class Project(SaveDeleteMixin, Base):
         translator: str | None = None,
         notes: str | None = None,
         commit: bool = True,  # noqa: FBT001, FBT002
-    ) -> Project:
+    ) -> "Project":
         """
         Create a new project.
 
@@ -297,7 +297,7 @@ class Project(SaveDeleteMixin, Base):
         project_data: dict,
         resolved_name: str,
         commit: bool = True,  # noqa: FBT001, FBT002
-    ) -> Project:
+    ) -> "Project":
         """
         Create a project from JSON import data.
 

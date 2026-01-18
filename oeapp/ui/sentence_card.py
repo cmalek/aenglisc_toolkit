@@ -84,7 +84,7 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
         self,
         sentence: Sentence,
         command_manager: CommandManager | None = None,
-        main_window: MainWindow | None = None,
+        main_window: "MainWindow | None" = None,
         parent: QWidget | None = None,
     ):
         super().__init__(parent)
@@ -604,12 +604,12 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
         modal.annotation_applied.connect(self._on_idiom_annotation_applied)
         modal.exec()
 
-    def _open_token_modal(self, token: Token) -> None:
+    def _open_token_modal(self, token: "Token") -> None:
         """
         Open annotation modal for a single token.
 
         Args:
-            token: Token to open the annotation modal for
+            token: "Token" to open the annotation modal for
 
         """
         annotation = token.annotation
@@ -843,7 +843,7 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
     # Token table related event handlers
     # -------------------------------------------------------------------------
 
-    def _on_token_table_token_selected(self, token: Token) -> None:
+    def _on_token_table_token_selected(self, token: "Token") -> None:
         """
         Handle token selection from the token table.
 
@@ -931,7 +931,7 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
         """
         self.add_note_button.setEnabled(True)
 
-    def _on_token_selection(self, token: Token) -> None:
+    def _on_token_selection(self, token: "Token") -> None:
         """
         Event handler for single token selection.
 

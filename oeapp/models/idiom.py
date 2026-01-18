@@ -47,10 +47,10 @@ class Idiom(SaveDeleteMixin, Base):
     )
 
     # Relationships
-    sentence: Mapped[Sentence] = relationship("Sentence", back_populates="idioms")
-    start_token: Mapped[Token] = relationship("Token", foreign_keys=[start_token_id])
-    end_token: Mapped[Token] = relationship("Token", foreign_keys=[end_token_id])
-    annotation: Mapped[Annotation | None] = relationship(
+    sentence: Mapped["Sentence"] = relationship("Sentence", back_populates="idioms")
+    start_token: Mapped["Token"] = relationship("Token", foreign_keys=[start_token_id])
+    end_token: Mapped["Token"] = relationship("Token", foreign_keys=[end_token_id])
+    annotation: Mapped["Annotation | None"] = relationship(
         "Annotation",
         back_populates="idiom",
         uselist=False,
@@ -58,7 +58,7 @@ class Idiom(SaveDeleteMixin, Base):
     )
 
     @classmethod
-    def get(cls, idiom_id: int) -> Idiom | None:
+    def get(cls, idiom_id: int) -> "Idiom | None":
         """
         Get an idiom by ID.
 

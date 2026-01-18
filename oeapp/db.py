@@ -67,7 +67,7 @@ def create_engine_with_path(db_path: Path | None = None) -> Engine:
     # Enable foreign keys and WAL mode
     @event.listens_for(engine, "connect")
     def set_sqlite_pragma(
-        dbapi_conn: sqlite3.Connection | Any, _connection_record: Any
+        dbapi_conn: "sqlite3.Connection | Any", _connection_record: Any
     ) -> None:
         """Set SQLite pragmas on connection."""
         cursor = cast("sqlite3.Cursor", dbapi_conn.cursor())

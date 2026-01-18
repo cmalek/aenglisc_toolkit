@@ -66,7 +66,7 @@ class AnnotationPresetManagementDialog(AnnotationLookupsMixin, SessionMixin, QDi
     def __init__(
         self,
         save_mode: bool = False,  # noqa: FBT001, FBT002
-        initial_pos: PresetPos | None = None,
+        initial_pos: "PresetPos | None" = None,
         initial_field_values: dict | None = None,
         parent: QWidget | None = None,
     ) -> None:
@@ -180,7 +180,7 @@ class AnnotationPresetManagementDialog(AnnotationLookupsMixin, SessionMixin, QDi
         ).clicked.connect(self.accept)
         layout.addWidget(button_box)
 
-    def _create_pos_tab(self, pos: PresetPos) -> QWidget:  # noqa: PLR0915
+    def _create_pos_tab(self, pos: "PresetPos") -> QWidget:  # noqa: PLR0915
         """
         Create a tab for a specific POS.
 
@@ -266,7 +266,7 @@ class AnnotationPresetManagementDialog(AnnotationLookupsMixin, SessionMixin, QDi
         return widget
 
     def _populate_form_fields_for_tab(
-        self, pos: PresetPos, form_layout: QFormLayout
+        self, pos: "PresetPos", form_layout: QFormLayout
     ) -> None:
         """
         Populate form fields for a POS tab, for supported Parts of Speech.
@@ -306,7 +306,7 @@ class AnnotationPresetManagementDialog(AnnotationLookupsMixin, SessionMixin, QDi
         if original_layout:
             self.form_layout = original_layout
 
-    def _populate_form_fields(self, pos: PresetPos) -> None:
+    def _populate_form_fields(self, pos: "PresetPos") -> None:
         """
         Show relevant form fields for POS.
 
@@ -517,7 +517,7 @@ class AnnotationPresetManagementDialog(AnnotationLookupsMixin, SessionMixin, QDi
         self.form_layout.addRow(label, combo)
         return combo
 
-    def _load_presets_for_pos(self, pos: PresetPos) -> None:
+    def _load_presets_for_pos(self, pos: "PresetPos") -> None:
         """
         Load presets into list widget for a POS.
 
@@ -537,7 +537,7 @@ class AnnotationPresetManagementDialog(AnnotationLookupsMixin, SessionMixin, QDi
             if item:
                 item.setData(256, preset.id)  # Qt.ItemDataRole.UserRole
 
-    def _find_preset_list(self, pos: PresetPos) -> QListWidget | None:
+    def _find_preset_list(self, pos: "PresetPos") -> QListWidget | None:
         """
         Find the preset list widget for a POS.
 
@@ -555,7 +555,7 @@ class AnnotationPresetManagementDialog(AnnotationLookupsMixin, SessionMixin, QDi
             return None
         return tab.findChild(QListWidget, f"preset_list_{pos}")
 
-    def _on_new_preset(self, pos: PresetPos) -> None:
+    def _on_new_preset(self, pos: "PresetPos") -> None:
         """
         Clear form and prepare for new preset creation.
 
@@ -706,7 +706,7 @@ class AnnotationPresetManagementDialog(AnnotationLookupsMixin, SessionMixin, QDi
         }
         self._load_field_values(field_values)
 
-    def _find_name_edit(self, pos: PresetPos) -> QLineEdit | None:
+    def _find_name_edit(self, pos: "PresetPos") -> QLineEdit | None:
         """
         Find the name edit widget for a POS.
 
@@ -1200,7 +1200,7 @@ class AnnotationPresetManagementDialog(AnnotationLookupsMixin, SessionMixin, QDi
                     self.current_pos = cast("PresetPos", new_pos)
                     self._clear_form()
 
-    def _switch_to_pos_tab(self, pos: PresetPos) -> None:
+    def _switch_to_pos_tab(self, pos: "PresetPos") -> None:
         """
         Switch to the tab for the specified POS.
 
@@ -1491,7 +1491,7 @@ class AnnotationPresetManagementDialog(AnnotationLookupsMixin, SessionMixin, QDi
                 )
         return field_values
 
-    def _extract_field_values_for_tab(self, pos: PresetPos) -> dict[str, str | None]:  # noqa: PLR0912, PLR0915
+    def _extract_field_values_for_tab(self, pos: "PresetPos") -> dict[str, str | None]:  # noqa: PLR0912, PLR0915
         """
         Extract field values from form in full mode.
 

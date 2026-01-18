@@ -34,7 +34,7 @@ class OldEnglishTextSelector:
 
     """
 
-    def __init__(self, text_edit: OldEnglishTextEdit):
+    def __init__(self, text_edit: "OldEnglishTextEdit"):
         """
         Initialize the selector.
         """
@@ -86,7 +86,7 @@ class OldEnglishTextSelector:
         """
         return self.selected_token_range
 
-    def get_selected_tokens(self) -> tuple[Token, Token] | None:
+    def get_selected_tokens(self) -> tuple["Token", "Token"] | None:
         """
         Return the tokens that are the start and end tokens of the current
         selected range or token.
@@ -484,14 +484,14 @@ class OldEnglishTextEdit(QTextEdit):
         self.selector: OldEnglishTextSelector | None = None
 
     @property
-    def sentence_card(self) -> SentenceCard | None:
+    def sentence_card(self) -> "SentenceCard | None":
         """
         Sentence Card associated with this text edit.
         """
         return self._sentence_card
 
     @sentence_card.setter
-    def sentence_card(self, value: SentenceCard) -> None:
+    def sentence_card(self, value: "SentenceCard") -> None:
         """
         Set the sentence card associated with this text edit.
 
@@ -619,7 +619,7 @@ class OldEnglishTextEdit(QTextEdit):
         return self.toPlainText()
 
     @property
-    def selected_tokens(self) -> tuple[Token, Token] | None:
+    def selected_tokens(self) -> tuple["Token", "Token"] | None:
         """
         Get the selected tokens.
 
@@ -666,7 +666,7 @@ class OldEnglishTextEdit(QTextEdit):
                 start_token.order_index, end_token.order_index
             )
 
-    def highlight_note(self, note: Note) -> None:
+    def highlight_note(self, note: "Note") -> None:
         """
         Highlight a note by its ID.
 
@@ -881,7 +881,7 @@ class OldEnglishTextEdit(QTextEdit):
     def render_token(  # noqa: PLR0913
         self,
         cursor: QTextCursor,
-        token: Token,
+        token: "Token",
         token_start: int,
         token_end: int,
         idiom_token_ids: set[int],
@@ -973,14 +973,14 @@ class OldEnglishTextEdit(QTextEdit):
         }
         cast("WholeSentenceHighlighter", self.sentence_highlighter).highlight()
 
-    def get_token(self, order_index: int) -> Token | None:
+    def get_token(self, order_index: int) -> "Token | None":
         """
         Get a token by its order index.
         """
         assert self.tokens_by_index is not None, "Tokens by index is required"  # noqa: S101
         return self.tokens_by_index.get(order_index)
 
-    def get_selected_token(self) -> Token | None:
+    def get_selected_token(self) -> "Token | None":
         """
         Get the selected token.
         """

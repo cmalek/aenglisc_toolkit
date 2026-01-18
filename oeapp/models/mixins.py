@@ -8,7 +8,7 @@ class SessionMixin:
     """Mixin for models that need a session."""
 
     @classmethod
-    def _get_session(cls) -> Session:
+    def _get_session(cls) -> "Session":
         """
         Get the session from the application state.
 

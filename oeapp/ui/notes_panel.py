@@ -40,7 +40,7 @@ class ClickableNoteLabel(QLabel):
     #: Signal emitted when the note is double-clicked (emits Note)
     double_clicked = Signal(object)
 
-    def __init__(self, note: Note, parent: QWidget | None = None):
+    def __init__(self, note: "Note", parent: QWidget | None = None):
         super().__init__(parent)
         self.note = note
         self.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -103,7 +103,7 @@ class NotesPanel(QWidget):
 
     def __init__(
         self,
-        sentence: Sentence | None = None,
+        sentence: "Sentence | None" = None,
         parent: QWidget | None = None,
     ):
         super().__init__(parent)
@@ -129,7 +129,7 @@ class NotesPanel(QWidget):
         empty_label.setFont(QFont("Helvetica", 10))
         return empty_label
 
-    def note_line(self, note_index: int, note: Note) -> ClickableNoteLabel:
+    def note_line(self, note_index: int, note: "Note") -> ClickableNoteLabel:
         """
         Show a single note.
 
@@ -166,7 +166,7 @@ class NotesPanel(QWidget):
             return
         clear_layout(cast("QLayout", layout))
 
-    def update_notes(self, sentence: Sentence | None = None) -> None:
+    def update_notes(self, sentence: "Sentence | None" = None) -> None:
         """
         Update notes display.
 
@@ -278,7 +278,7 @@ class NotesPanel(QWidget):
 
         return total_matches
 
-    def build_note(self, note_number: int, note: Note) -> str:
+    def build_note(self, note_number: int, note: "Note") -> str:
         """
         Format note for display.
 
@@ -307,7 +307,7 @@ class NotesPanel(QWidget):
     # Event handlers
     # ========================================================================
 
-    def _on_note_clicked(self, note: Note) -> None:
+    def _on_note_clicked(self, note: "Note") -> None:
         """
         Handle note clicked.
 
@@ -317,7 +317,7 @@ class NotesPanel(QWidget):
         self.card.reset_selected_token()
         self.card.oe_text_edit.highlight_note(note)
 
-    def _on_note_double_clicked(self, note: Note) -> None:
+    def _on_note_double_clicked(self, note: "Note") -> None:
         """
         Handle note double-clicked.
 

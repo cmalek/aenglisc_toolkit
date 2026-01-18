@@ -37,7 +37,7 @@ class AppendTextDialog(TextInputMixin):
     #: Dialog height
     DIALOG_HEIGHT: Final[int] = 500
 
-    def __init__(self, main_window: MainWindow) -> None:
+    def __init__(self, main_window: "MainWindow") -> None:
         """
         Initialize append text dialog.
         """

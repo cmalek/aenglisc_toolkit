@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 def load_projects_into_table(
     project_table: QTableWidget,
-    main_window: MainWindow,
+    main_window: "MainWindow",
 ) -> list[Project]:
     """
     Load projects from database into a table widget.  The table widget is
@@ -93,7 +93,7 @@ class DateTimeTableWidgetItem(QTableWidgetItem):
     Custom QTableWidgetItem that sorts by datetime value instead of display text.
     """
 
-    def __init__(self, display_text: str, dt: datetime) -> None:
+    def __init__(self, display_text: str, dt: "datetime") -> None:
         """
         Initialize the datetime table item.
 

@@ -29,7 +29,7 @@ class BackupsViewDialog:
     #: Dialog height
     DIALOG_HEIGHT: Final[int] = 600
 
-    def __init__(self, main_window: MainWindow) -> None:
+    def __init__(self, main_window: "MainWindow") -> None:
         """
         Initialize backups view dialog.
         """

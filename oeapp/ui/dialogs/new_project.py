@@ -41,7 +41,7 @@ class NewProjectDialog(TextInputMixin):
     #: Dialog height
     DIALOG_HEIGHT: Final[int] = 700
 
-    def __init__(self, main_window: MainWindow) -> None:
+    def __init__(self, main_window: "MainWindow") -> None:
         """
         Initialize new project dialog.
         """

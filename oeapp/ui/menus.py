@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 class MainMenu:
     """Main application menu."""
 
-    def __init__(self, main_window: MainWindow) -> None:
+    def __init__(self, main_window: "MainWindow") -> None:
         """
         Initialize main menu.
 
@@ -72,7 +72,7 @@ class WindowMenu:
     A "Window" menu to be added to the main menu bar.
     """
 
-    def __init__(self, main_menu: MainMenu, main_window: MainWindow) -> None:
+    def __init__(self, main_menu: MainMenu, main_window: "MainWindow") -> None:
         self.main_window = main_window
         self.main_menu = main_menu
         self._full_window: FullTranslationWindow
@@ -133,7 +133,7 @@ class FileMenu:
 
     """
 
-    def __init__(self, main_menu: MainMenu, main_window: MainWindow) -> None:
+    def __init__(self, main_menu: MainMenu, main_window: "MainWindow") -> None:
         """
         Initialize file menu.
         """
@@ -202,7 +202,7 @@ class ToolsMenu:
     - Backups...
     """
 
-    def __init__(self, main_menu: MainMenu, main_window: MainWindow) -> None:
+    def __init__(self, main_menu: MainMenu, main_window: "MainWindow") -> None:
         #: Main window instance
         self.main_window = main_window
         #: Main menu instance
@@ -283,7 +283,7 @@ class PreferencesMenu:
     - Preferences...
     """
 
-    def __init__(self, main_menu: MainMenu, main_window: MainWindow) -> None:
+    def __init__(self, main_menu: MainMenu, main_window: "MainWindow") -> None:
         #: Main window instance
         self.main_window = main_window
         #: Main menu instance
@@ -336,7 +336,7 @@ class ProjectMenu:
     - Import...
     """
 
-    def __init__(self, main_menu: MainMenu, main_window: MainWindow) -> None:
+    def __init__(self, main_menu: MainMenu, main_window: "MainWindow") -> None:
         #: Main window instance
         self.main_window = main_window
         #: Main menu instance
@@ -389,7 +389,7 @@ class HelpMenu:
     - Help
     """
 
-    def __init__(self, main_menu: MainMenu, main_window: MainWindow) -> None:
+    def __init__(self, main_menu: MainMenu, main_window: "MainWindow") -> None:
         #: Main window instance
         self.main_window = main_window
         #: Main menu instance

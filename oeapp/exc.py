@@ -63,7 +63,7 @@ class MigrationSkipped(Exception):  # noqa: N818
 class BackupFailed(Exception):  # noqa: N818
     """Exception raised when a backup fails."""
 
-    def __init__(self, error: Exception, backup_path: Path):
+    def __init__(self, error: Exception, backup_path: "Path"):
         self.error = error
         self.backup_path = backup_path
         super().__init__(f"Backup failed: {error}")

@@ -4,9 +4,9 @@ import pytest
 import weakref
 from unittest.mock import MagicMock
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QFormLayout, QWidget, QVBoxLayout, QPushButton, QApplication
+from PySide6.QtWidgets import QFormLayout, QWidget, QVBoxLayout, QApplication
 
-from oeapp.models import Annotation, Token, Idiom
+from oeapp.models import Annotation, Idiom
 from oeapp.models.annotation_preset import AnnotationPreset
 from oeapp.ui.dialogs.annotation_modal import (
     PartOfSpeechFieldsBase,

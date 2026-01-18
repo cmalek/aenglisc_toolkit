@@ -182,7 +182,7 @@ def open_bosworth_toller(root_value: str) -> None:
     QDesktopServices.openUrl(url)
 
 
-def clear_layout(layout: QLayout) -> None:
+def clear_layout(layout: "QLayout") -> None:
     """
     Clear a layout of all widgets.  This is a recursive function that clears all
     widgets and child layouts that can contain widgets.

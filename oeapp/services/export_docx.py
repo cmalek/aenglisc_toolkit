@@ -36,7 +36,7 @@ class DOCXExporter(SessionMixin, AnnotationTextualMixin, TokenOccurrenceMixin):
         """
         self.session = self._get_session()
 
-    def _add_horizontal_rule(self, doc: DocumentObject) -> None:
+    def _add_horizontal_rule(self, doc: "DocumentObject") -> None:
         """
         Add a horizontal rule to the document.
 
@@ -120,7 +120,7 @@ class DOCXExporter(SessionMixin, AnnotationTextualMixin, TokenOccurrenceMixin):
         paragraph._p.append(hyperlink)
 
     def _add_note_anchor(
-        self, doc: DocumentObject, note_num: int, note_text: str, bookmark_id: int
+        self, doc: "DocumentObject", note_num: int, note_text: str, bookmark_id: int
     ) -> None:
         """
         Add a manual endnote entry with a bookmark anchor.
@@ -150,7 +150,7 @@ class DOCXExporter(SessionMixin, AnnotationTextualMixin, TokenOccurrenceMixin):
         bm_end.set(qn("w:id"), str(bookmark_id))
         p._p.append(bm_end)
 
-    def _add_page_number(self, run: Run) -> None:
+    def _add_page_number(self, run: "Run") -> None:
         """
         Add a page number field to a run.
 
@@ -172,7 +172,7 @@ class DOCXExporter(SessionMixin, AnnotationTextualMixin, TokenOccurrenceMixin):
         run._r.append(instr_text)
         run._r.append(fld_char2)
 
-    def export(self, project_id: int, output_path: Path) -> bool:
+    def export(self, project_id: int, output_path: "Path") -> bool:
         """
         Export project to DOCX file.
 
@@ -257,7 +257,7 @@ class DOCXExporter(SessionMixin, AnnotationTextualMixin, TokenOccurrenceMixin):
         else:
             return True
 
-    def export_side_by_side(self, project_id: int, output_path: Path) -> bool:  # noqa: PLR0912, PLR0915
+    def export_side_by_side(self, project_id: int, output_path: "Path") -> bool:  # noqa: PLR0912, PLR0915
         """
         Export project to DOCX file in side-by-side landscape format.
 
@@ -416,7 +416,7 @@ class DOCXExporter(SessionMixin, AnnotationTextualMixin, TokenOccurrenceMixin):
         else:
             return True
 
-    def _setup_document_styles(self, doc: DocumentObject) -> None:
+    def _setup_document_styles(self, doc: "DocumentObject") -> None:
         """
         Set up document styles.
 
@@ -465,8 +465,8 @@ class DOCXExporter(SessionMixin, AnnotationTextualMixin, TokenOccurrenceMixin):
 
     def _add_oe_sentence_with_annotations(
         self,
-        doc: DocumentObject,
-        sentence: Sentence,
+        doc: "DocumentObject",
+        sentence: "Sentence",
     ) -> None:
         """
         Add Old English sentence with superscript/subscript annotations.
@@ -566,7 +566,7 @@ class DOCXExporter(SessionMixin, AnnotationTextualMixin, TokenOccurrenceMixin):
         if last_pos < len(text):
             para.add_run(text[last_pos:])
 
-    def _add_notes(self, doc: DocumentObject, sentence: Sentence) -> None:
+    def _add_notes(self, doc: "DocumentObject", sentence: "Sentence") -> None:
         """
         Add notes for a sentence.
 
@@ -606,7 +606,7 @@ class DOCXExporter(SessionMixin, AnnotationTextualMixin, TokenOccurrenceMixin):
             note_run.font.size = Pt(10)
             note_run.font.color.rgb = RGBColor(0x80, 0x80, 0x80)
 
-    def _sort_notes_by_position(self, sentence: Sentence) -> list:
+    def _sort_notes_by_position(self, sentence: "Sentence") -> list:
         """
         Sort notes by their position in the sentence (by start token order_index).
 
@@ -639,7 +639,7 @@ class DOCXExporter(SessionMixin, AnnotationTextualMixin, TokenOccurrenceMixin):
     def _get_note_token_text(
         self,
         note,
-        sentence: Sentence,
+        sentence: "Sentence",
         token_id_to_order: dict[int, int],  # noqa: ARG002
     ) -> str:
         """

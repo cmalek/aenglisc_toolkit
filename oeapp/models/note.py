@@ -60,7 +60,7 @@ class Note(SaveDeleteMixin, Base):
     )
 
     # Relationships
-    sentence: Mapped[Sentence] = relationship("Sentence", back_populates="notes")
+    sentence: Mapped["Sentence"] = relationship("Sentence", back_populates="notes")
     start_token_rel: Mapped[Token | None] = relationship(
         "Token", foreign_keys=[start_token]
     )
@@ -83,7 +83,7 @@ class Note(SaveDeleteMixin, Base):
             self.end_token = None
 
     @classmethod
-    def get(cls, pk: int) -> Note | None:
+    def get(cls, pk: int) -> "Note | None":
         """
         Get a note by ID.
 
@@ -136,7 +136,7 @@ class Note(SaveDeleteMixin, Base):
         note_data: dict,
         token_map: dict[int, Token],
         commit: bool = True,  # noqa: FBT001, FBT002
-    ) -> Note:
+    ) -> "Note":
         """
         Create a note from JSON import data.
 

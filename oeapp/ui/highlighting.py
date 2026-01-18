@@ -27,7 +27,7 @@ class SelectTokensMixin(AnnotationLookupsMixin):
     Mixin for selecting tokens in the Old English text edit.
     """
 
-    def __init__(self, card: SentenceCard):
+    def __init__(self, card: "SentenceCard"):
         """
         Initialize the mixin.
         """
@@ -66,7 +66,7 @@ class SelectTokensMixin(AnnotationLookupsMixin):
         return token_positions
 
     def select_tokens(
-        self, token: Token, color: QColor
+        self, token: "Token", color: QColor
     ) -> QTextEdit.ExtraSelection | None:
         """
         Create an extra selection for highlighting a token's surface text.
@@ -160,9 +160,9 @@ class HighlighterCommandBase(SelectTokensMixin):
     # attributes : From :class:`~oeapp.mixins.AnnotationLookupsMixin`.
     CODE_TO_NAME_MAPPING: ClassVar[dict[str | None, str] | None] = None
     #: Dialog class for filtering tokens (if any)
-    FILTER_DIALOG_CLASS: ClassVar[type[SentenceFilterDialog] | None] = None
+    FILTER_DIALOG_CLASS: ClassVar[type["SentenceFilterDialog"] | None] = None
 
-    def __init__(self, highlighter: WholeSentenceHighlighter):
+    def __init__(self, highlighter: "WholeSentenceHighlighter"):
         super().__init__(cast("SentenceCard", highlighter.card))
         #: The highlighter
         self.highlighter = highlighter
@@ -254,7 +254,7 @@ class HighlighterCommandBase(SelectTokensMixin):
 
         self.highlighter.set_highlights(extra_selections)
 
-    def get_value(self, annotation: Annotation) -> str | None:
+    def get_value(self, annotation: "Annotation") -> str | None:
         """
         Get the value of the annotation for the command.
 
@@ -323,7 +323,7 @@ class POSHighlighterCommand(HighlighterCommandBase):
     )
     FILTER_DIALOG_CLASS = PartOfSpeechFilterDialog
 
-    def get_value(self, annotation: Annotation) -> str | None:
+    def get_value(self, annotation: "Annotation") -> str | None:
         """
         Get the value of the annotation for the command.
 
@@ -350,7 +350,7 @@ class CaseHighlighterCommand(HighlighterCommandBase):
     )
     FILTER_DIALOG_CLASS = CaseFilterDialog
 
-    def get_value(self, annotation: Annotation) -> str | None:
+    def get_value(self, annotation: "Annotation") -> str | None:
         """
         Get the value of the case for the token.
 
@@ -392,7 +392,7 @@ class NumberHighlighterCommand(HighlighterCommandBase):
     )
     FILTER_DIALOG_CLASS = NumberFilterDialog
 
-    def get_value(self, annotation: Annotation) -> str | None:
+    def get_value(self, annotation: "Annotation") -> str | None:
         """
         Get the value of the number for the token.
 
@@ -501,14 +501,14 @@ class WholeSentenceHighlighter:
         }
 
     @property
-    def sentence_card(self) -> SentenceCard | None:
+    def sentence_card(self) -> "SentenceCard | None":
         """
         Get the Old English text edit for the sentence card.
         """
         return self.card
 
     @sentence_card.setter
-    def sentence_card(self, value: SentenceCard) -> None:
+    def sentence_card(self, value: "SentenceCard") -> None:
         """
         Set the sentence card for the sentence highlighter.
         """
@@ -715,7 +715,7 @@ class SingleInstanceHighlighter(SelectTokensMixin):
     # Property ID for selection highlight in ExtraSelection
     HIGHLIGHT_PROPERTY: ClassVar[int] = 1001
 
-    def __init__(self, card: SentenceCard):
+    def __init__(self, card: "SentenceCard"):
         super().__init__(card)
         #: The main window
         self.main_window: MainWindow = cast("MainWindow", card.main_window)

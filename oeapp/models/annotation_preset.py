@@ -95,10 +95,10 @@ class AnnotationPreset(SaveDeleteMixin, Base):
     def create(
         cls,
         name: str,
-        pos: PresetPos,
+        pos: "PresetPos",
         commit: bool = True,  # noqa: FBT001, FBT002
         **kwargs,
-    ) -> AnnotationPreset:
+    ) -> "AnnotationPreset":
         """
         Create a new preset.
 
@@ -146,7 +146,7 @@ class AnnotationPreset(SaveDeleteMixin, Base):
         return preset
 
     @classmethod
-    def get(cls, preset_id: int) -> AnnotationPreset | None:
+    def get(cls, preset_id: int) -> "AnnotationPreset | None":
         """
         Get a preset by ID.
 
@@ -162,7 +162,7 @@ class AnnotationPreset(SaveDeleteMixin, Base):
         return session.get(cls, preset_id)
 
     @classmethod
-    def get_all_by_pos(cls, pos: str) -> list[AnnotationPreset]:
+    def get_all_by_pos(cls, pos: str) -> list["AnnotationPreset"]:
         """
         Get all presets for a POS, ordered by name.
 
@@ -185,7 +185,7 @@ class AnnotationPreset(SaveDeleteMixin, Base):
         preset_id: int,
         commit: bool = True,  # noqa: FBT001, FBT002
         **kwargs,
-    ) -> AnnotationPreset | None:
+    ) -> "AnnotationPreset | None":
         """
         Update a preset.
 

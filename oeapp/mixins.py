@@ -212,7 +212,7 @@ class AnnotationTextualMixin:
         "s": "sub",
     }
 
-    def format_pos(self, annotation: Annotation) -> str:  # noqa: PLR0911, PLR0912
+    def format_pos(self, annotation: "Annotation") -> str:  # noqa: PLR0911, PLR0912
         """
         Format part of speech abbreviation for display.  This is the bit
         that comes as a superscript before the token and gender.
@@ -287,7 +287,7 @@ class AnnotationTextualMixin:
             pass
         return pos_str
 
-    def format_gender(self, annotation: Annotation) -> str:
+    def format_gender(self, annotation: "Annotation") -> str:
         """
         Format gender abbreviation for display.  This is the bit
         that comes as a superscript before the token and after the POS.
@@ -309,7 +309,7 @@ class AnnotationTextualMixin:
             return self.GENDER_MAP[annotation.gender]
         return ""
 
-    def format_context(self, annotation: Annotation) -> str:  # noqa: PLR0911, PLR0912
+    def format_context(self, annotation: "Annotation") -> str:  # noqa: PLR0911, PLR0912
         """
         Format context abbreviation for display.  This is the bit
         tha comes as a subscript after the token.
@@ -373,7 +373,7 @@ class TokenOccurrenceMixin:
     """Mixin for finding token occurrences in text."""
 
     def _find_token_occurrence(
-        self, text: str, token: Token, tokens: list[Token]
+        self, text: str, token: "Token", tokens: list["Token"]
     ) -> int | None:
         """
         Find the occurrence position of a token's surface text in the sentence.
