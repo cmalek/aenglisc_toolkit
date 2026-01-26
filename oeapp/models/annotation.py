@@ -39,7 +39,7 @@ class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
             "\"case\" IN ('n','a','g','d','i')", name="ck_annotations_case"
         ),
         CheckConstraint(
-            "declension IN ('s','w','o','i','u','ja','jo','wa','wo','pu')",
+            "declension IN ('s','w','o','i','u','ja','jo','wa','wo','pu', 'r', 'i-mut', 'er', 'nd', 'th')",  # noqa: E501
             name="ck_annotations_declension",
         ),
         CheckConstraint(

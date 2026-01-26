@@ -76,6 +76,11 @@ class AnnotationTextualMixin:
         "wa": "wa",
         "wo": "wo",
         "pu": "-pu/-po",
+        "r": "r",
+        "i-mut": "i-mut",
+        "er": "er",
+        "nd": "nd",
+        "th": "þ",
     }
 
     # ===============================

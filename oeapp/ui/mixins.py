@@ -175,6 +175,11 @@ class AnnotationLookupsMixin(ThemeMixin):
         "wa": "wa-stem (wa)",
         "wo": "wo-stem (wo)",
         "pu": "abstract -pu/-po (pu)",
+        "r": "r-stem (r)",
+        "i-mut": "i-mutation (i-mut)",
+        "er": "er nouns (children) (er)",
+        "nd": "-nd nouns(nd)",
+        "th": "-þ endings (th)",
     }
     #: A Reverse lookup map for declension long form to code.  The key
     #: is the index of the long form in the DECLENSION_MAP, and the value
