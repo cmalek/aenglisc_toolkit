@@ -76,6 +76,7 @@ class WindowMenu:
         self.main_window = main_window
         self.main_menu = main_menu
         self._full_window: FullTranslationWindow
+        self._log_viewer: LogViewerDialog
         self.populate()
 
     def populate(self) -> None:
@@ -90,6 +91,10 @@ class WindowMenu:
         full_translation_action.setShortcut(QKeySequence("Ctrl+Shift+F"))
         full_translation_action.triggered.connect(self._show_full_translation)
         self.window_menu.addAction(full_translation_action)
+
+        view_logs_action = QAction("&View Logs", self.window_menu)
+        view_logs_action.triggered.connect(self._show_log_viewer)
+        self.window_menu.addAction(view_logs_action)
 
     # ------------------------------------------------------------
     # Event handlers
@@ -115,6 +120,17 @@ class WindowMenu:
         else:
             self._full_window.raise_()
             self._full_window.activateWindow()
+
+    def _show_log_viewer(self) -> None:
+        """
+        Event handler for log viewer menu item: Show the log viewer dialog.
+        """
+        if not hasattr(self, "_log_viewer") or not self._log_viewer.isVisible():
+            self._log_viewer = LogViewerDialog(self.main_window)
+            self._log_viewer.show()
+        else:
+            self._log_viewer.raise_()
+            self._log_viewer.activateWindow()
 
 
 class FileMenu:
@@ -207,7 +223,6 @@ class ToolsMenu:
         self.main_window = main_window
         #: Main menu instance
         self.main_menu = main_menu
-        self._log_viewer: LogViewerDialog
         self.populate()
 
     def populate(self) -> None:
@@ -235,10 +250,6 @@ class ToolsMenu:
         backups_view_action.triggered.connect(self.main_window.show_backups_dialog)
         self.tools_menu.addAction(backups_view_action)
 
-        view_logs_action = QAction("&View Logs", self.tools_menu)
-        view_logs_action.triggered.connect(self._show_log_viewer)
-        self.tools_menu.addAction(view_logs_action)
-
         self.tools_menu.addSeparator()
 
         pos_presets_action = QAction("POS &Presets...", self.tools_menu)
@@ -262,17 +273,6 @@ class ToolsMenu:
         """
         dialog = AnnotationPresetManagementDialog()
         dialog.exec()
-
-    def _show_log_viewer(self) -> None:
-        """
-        Event handler for log viewer menu item: Show the log viewer dialog.
-        """
-        if not hasattr(self, "_log_viewer") or not self._log_viewer.isVisible():
-            self._log_viewer = LogViewerDialog(self.main_window)
-            self._log_viewer.show()
-        else:
-            self._log_viewer.raise_()
-            self._log_viewer.activateWindow()
 
 
 class PreferencesMenu:
