@@ -157,7 +157,87 @@ class TestTokenDetailsSidebar:
         assert value_found is True
 
 
-class TestTokenDetailsSidebarLifecycle:
+    def test_verb_direct_object_case_rendering(self, db_session, qapp):
+        """Test that Verb Direct Object Case renders correctly."""
+        from oeapp.models.annotation import Annotation
+        project = create_test_project(db_session, name="Test", text="ricsode")
+        sentence = project.sentences[0]
+        token = sentence.tokens[0]
+
+        # Ensure token is refreshed and has no existing annotation
+        db_session.refresh(token)
+        if token.annotation:
+            token.annotation.delete()
+            db_session.refresh(token)
+
+        annotation = Annotation(token_id=token.id)
+        annotation.pos = "V"
+        annotation.verb_direct_object_case = "a"
+        annotation.save()
+        db_session.refresh(token)
+
+        sidebar = TokenDetailsSidebar(parent=None)
+        sidebar.render_token(token, sentence)
+
+        # Find the "Direct Object Case" label and its value
+        labels = []
+        def collect_labels(layout):
+            for i in range(layout.count()):
+                item = layout.itemAt(i)
+                if item.widget() and isinstance(item.widget(), QLabel):
+                    labels.append(item.widget())
+                elif item.layout():
+                    collect_labels(item.layout())
+
+        collect_labels(sidebar.content_layout)
+
+        found = False
+        for i, label in enumerate(labels):
+            if label.text() == "Direct Object Case: ":
+                found = True
+                assert labels[i+1].text() == "Accusative (a)"
+
+        assert found is True
+
+        # Test with "d"
+        annotation.verb_direct_object_case = "d"
+        annotation.save()
+        db_session.refresh(token)
+        sidebar.render_token(token, sentence)
+
+        labels = []
+        collect_labels(sidebar.content_layout)
+
+        found = False
+        for i, label in enumerate(labels):
+            if label.text() == "Direct Object Case: ":
+                found = True
+                assert labels[i+1].text() == "Dative (d)"
+
+        assert found is True
+
+        # Test with None
+        annotation.verb_direct_object_case = None
+        annotation.save()
+        db_session.refresh(token)
+        sidebar.render_token(token, sentence)
+
+        labels = []
+        for i in range(sidebar.content_layout.count()):
+            item = sidebar.content_layout.itemAt(i)
+            if item.layout():
+                for j in range(item.layout().count()):
+                    widget = item.layout().itemAt(j).widget()
+                    if isinstance(widget, QLabel):
+                        labels.append(widget)
+
+        found = False
+        for i, label in enumerate(labels):
+            if label.text() == "Direct Object Case: ":
+                found = True
+                assert labels[i+1].text() == "?"
+
+        assert found is True
     """Test cases for the lifecycle of TokenDetailsSidebar."""
 
     @pytest.fixture

@@ -210,7 +210,7 @@ class TestFullTranslationWindow:
         assert hasattr(window, "source_banner")
         assert window.source_label.text() == "<b>Source:</b> Test Source"
         assert window.translator_label.text() == "<b>Translator:</b> <i>Test Translator</i>"
-        assert window.notes_label.text() == f"<b>Project Notes:</b><br/> <i>{project.notes}</i>"
+        assert window.notes_label.text() == f"<i>{project.notes}</i>"
 
         # Verify width constraint and wrapping
         assert window.notes_label.wordWrap() is True
@@ -228,4 +228,4 @@ class TestFullTranslationWindow:
         assert hasattr(window, "source_banner")
         assert not hasattr(window, "source_label")
         assert not hasattr(window, "translator_label")
-        assert window.notes_label.text() == "<b>Project Notes:</b><br/> <i>Only notes here.</i>"
+        assert window.notes_label.text() == "<i>Only notes here.</i>"
