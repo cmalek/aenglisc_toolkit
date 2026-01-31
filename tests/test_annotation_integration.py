@@ -16,7 +16,7 @@ def sentence_card(db_session, qapp, mock_main_window):
 
 @pytest.mark.parametrize("pos_name, pos_code, field_values", [
     ("Noun (N)", "N", {"gender": 1, "number": 1, "case": 1, "declension": 1}),  # m, s, n, s
-    ("Verb (V)", "V", {"verb_class": 1, "verb_tense": 1, "verb_mood": 1, "verb_person": 1, "number": 1}),
+    ("Verb (V)", "V", {"verb_class": 1, "verb_tense": 1, "verb_mood": 1, "verb_person": 1, "number": 1, "verb_form": 1, "verb_direct_object_case": 1}),
     ("Adjective (A)", "A", {"adjective_degree": 1, "adjective_inflection": 1, "gender": 1, "number": 1, "case": 1}),
     ("Pronoun (R)", "R", {"pronoun_type": 1, "gender": 1, "pronoun_number": 1, "case": 1}),
     ("Determiner/Article (D)", "D", {"article_type": 1, "gender": 1, "number": 1, "case": 1}),

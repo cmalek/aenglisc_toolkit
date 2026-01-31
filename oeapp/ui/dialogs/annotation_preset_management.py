@@ -383,6 +383,11 @@ class AnnotationPresetManagementDialog(AnnotationLookupsMixin, SessionMixin, QDi
             cast("list[str]", list(self.VERB_FORM_MAP.values())),
             "verb_form_combo",
         )
+        self.verb_direct_object_case_combo = self._create_combo(
+            "Direct Object Case:",
+            cast("list[str]", list(self.VERB_DIRECT_OBJECT_CASE_MAP.values())),
+            "verb_direct_object_case_combo",
+        )
 
     def _add_adjective_fields_to_form(self) -> None:
         """Add adjective fields to form."""
@@ -701,6 +706,7 @@ class AnnotationPresetManagementDialog(AnnotationLookupsMixin, SessionMixin, QDi
             "verb_mood": preset.verb_mood,
             "verb_aspect": preset.verb_aspect,
             "verb_form": preset.verb_form,
+            "verb_direct_object_case": preset.verb_direct_object_case,
             "adjective_inflection": preset.adjective_inflection,
             "adjective_degree": preset.adjective_degree,
         }
@@ -807,6 +813,14 @@ class AnnotationPresetManagementDialog(AnnotationLookupsMixin, SessionMixin, QDi
                     self.verb_form_combo,
                     field_values["verb_form"],
                     self.VERB_FORM_REVERSE_MAP,
+                )
+            if "verb_direct_object_case" in field_values and hasattr(
+                self, "verb_direct_object_case_combo"
+            ):
+                self._set_combo_value(
+                    self.verb_direct_object_case_combo,
+                    field_values["verb_direct_object_case"],
+                    self.VERB_DIRECT_OBJECT_CASE_REVERSE_MAP,
                 )
         elif pos == "A":
             if "adjective_degree" in field_values and hasattr(self, "adj_degree_combo"):
@@ -982,6 +996,18 @@ class AnnotationPresetManagementDialog(AnnotationLookupsMixin, SessionMixin, QDi
                     verb_form_combo,
                     field_values["verb_form"],
                     self.VERB_FORM_REVERSE_MAP,
+                )
+            verb_direct_object_case_combo = form_widget.findChild(
+                QComboBox, "verb_direct_object_case_combo"
+            )
+            if (
+                verb_direct_object_case_combo
+                and "verb_direct_object_case" in field_values
+            ):
+                self._set_combo_value(
+                    verb_direct_object_case_combo,
+                    field_values["verb_direct_object_case"],
+                    self.VERB_DIRECT_OBJECT_CASE_REVERSE_MAP,
                 )
         elif pos == "A":
             adj_degree_combo = form_widget.findChild(QComboBox, "adj_degree_combo")
@@ -1421,6 +1447,11 @@ class AnnotationPresetManagementDialog(AnnotationLookupsMixin, SessionMixin, QDi
                 field_values["verb_form"] = self._extract_combo_value(
                     idx, self.VERB_FORM_REVERSE_MAP
                 )
+            if hasattr(self, "verb_direct_object_case_combo"):
+                idx = self.verb_direct_object_case_combo.currentIndex()
+                field_values["verb_direct_object_case"] = self._extract_combo_value(
+                    idx, self.VERB_DIRECT_OBJECT_CASE_REVERSE_MAP
+                )
         elif pos == "A":
             if hasattr(self, "adj_degree_combo"):
                 idx = self.adj_degree_combo.currentIndex()
@@ -1575,6 +1606,14 @@ class AnnotationPresetManagementDialog(AnnotationLookupsMixin, SessionMixin, QDi
                 idx = verb_form_combo.currentIndex()
                 field_values["verb_form"] = self._extract_combo_value(
                     idx, self.VERB_FORM_REVERSE_MAP
+                )
+            verb_direct_object_case_combo = form_widget.findChild(
+                QComboBox, "verb_direct_object_case_combo"
+            )
+            if verb_direct_object_case_combo:
+                idx = verb_direct_object_case_combo.currentIndex()
+                field_values["verb_direct_object_case"] = self._extract_combo_value(
+                    idx, self.VERB_DIRECT_OBJECT_CASE_REVERSE_MAP
                 )
         elif pos == "A":
             adj_degree_combo = form_widget.findChild(QComboBox, "adj_degree_combo")

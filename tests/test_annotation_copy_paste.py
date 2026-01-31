@@ -125,6 +125,7 @@ class TestCopyAnnotation:
         annotation.verb_mood = "i"
         annotation.verb_aspect = "p"
         annotation.verb_form = "f"
+        annotation.verb_direct_object_case = "a"
         annotation.prep_case = None
         annotation.adjective_inflection = None
         annotation.adjective_degree = None
@@ -160,6 +161,7 @@ class TestCopyAnnotation:
         assert copied["verb_mood"] == "i"
         assert copied["verb_aspect"] == "p"
         assert copied["verb_form"] == "f"
+        assert copied["verb_direct_object_case"] == "a"
         assert copied["modern_english_meaning"] == "to be"
         assert copied["root"] == "bēon"
 
@@ -220,6 +222,7 @@ class TestPasteAnnotation:
             "verb_mood": None,
             "verb_aspect": None,
             "verb_form": None,
+            "verb_direct_object_case": None,
             "prep_case": None,
             "adjective_inflection": None,
             "adjective_degree": None,
@@ -279,6 +282,7 @@ class TestPasteAnnotation:
             "verb_mood": None,
             "verb_aspect": None,
             "verb_form": None,
+            "verb_direct_object_case": None,
             "prep_case": None,
             "adjective_inflection": None,
             "adjective_degree": None,
@@ -341,6 +345,7 @@ class TestPasteAnnotation:
             "verb_mood": None,
             "verb_aspect": None,
             "verb_form": None,
+            "verb_direct_object_case": None,
             "prep_case": None,
             "adjective_inflection": None,
             "adjective_degree": None,

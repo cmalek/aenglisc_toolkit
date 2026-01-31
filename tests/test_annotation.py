@@ -40,6 +40,7 @@ class TestAnnotation:
             verb_person=3,
             verb_aspect="p",
             verb_form="f",
+            verb_direct_object_case="a",
             prep_case="d",
             adjective_inflection="s",
             adjective_degree="p",
@@ -53,13 +54,32 @@ class TestAnnotation:
             root="cyning",
         )
         annotation.save()
+        _annotation = Annotation.get(annotation.id)
 
-        assert annotation.token_id == token.id
-        assert annotation.pos == "N"
-        assert annotation.gender == "m"
-        assert annotation.number == "s"
-        assert annotation.case == "n"
-        assert annotation.confidence == 75
+        assert _annotation.token_id == token.id
+        assert _annotation.pos == "N"
+        assert _annotation.gender == "m"
+        assert _annotation.number == "s"
+        assert _annotation.case == "n"
+        assert _annotation.declension == "s"
+        assert _annotation.verb_class == "w1"
+        assert _annotation.verb_tense == "p"
+        assert _annotation.verb_person == "3"
+        assert _annotation.verb_mood == "i"
+        assert _annotation.verb_aspect == "p"
+        assert _annotation.verb_form == "f"
+        assert _annotation.verb_direct_object_case == "a"
+        assert _annotation.prep_case == "d"
+        assert _annotation.adjective_inflection == "s"
+        assert _annotation.adjective_degree == "p"
+        assert _annotation.adverb_degree == "p"
+        assert _annotation.conjunction_type == "c"
+        assert _annotation.pronoun_type == "p"
+        assert _annotation.pronoun_number == "s"
+        assert _annotation.article_type == "d"
+        assert _annotation.confidence == 75
+        assert _annotation.modern_english_meaning == "king"
+        assert _annotation.root == "cyning"
 
     def test_create_with_partial_fields(self, db_session):
         """Test model creation with partial fields (None values)."""
@@ -155,6 +175,7 @@ class TestAnnotation:
         annotation.verb_mood = "i"
         annotation.verb_aspect = "p"
         annotation.verb_form = "f"
+        annotation.verb_direct_object_case = "a"
         annotation.prep_case = "d"
         annotation.adjective_inflection = "s"
         annotation.adjective_degree = "p"
@@ -181,6 +202,7 @@ class TestAnnotation:
         assert data["verb_mood"] == "i"
         assert data["verb_aspect"] == "p"
         assert data["verb_form"] == "f"
+        assert data["verb_direct_object_case"] == "a"
         assert data["prep_case"] == "d"
         assert data["adjective_inflection"] == "s"
         assert data["adjective_degree"] == "p"
@@ -331,13 +353,13 @@ class TestAnnotation:
 
         assert annotation.pos == "N"
         assert annotation in db_session
-        
+
         # Verify it's in the DB (flushed)
         assert Annotation.get_by_token(token.id) is not None
 
         # Rollback the transaction - this should remove the flushed record
         db_session.rollback()
-        
+
         # Now it should be gone
         assert Annotation.get_by_token(token.id) is None
 
@@ -583,6 +605,7 @@ class TestAnnotationFromAnnotation:
             verb_mood="i",
             verb_aspect="p",
             verb_form="f",
+            verb_direct_object_case="a",
             prep_case="d",
             adjective_inflection="s",
             adjective_degree="p",
@@ -611,6 +634,7 @@ class TestAnnotationFromAnnotation:
         assert target.verb_mood == "i"
         assert target.verb_aspect == "p"
         assert target.verb_form == "f"
+        assert target.verb_direct_object_case == "a"
         assert target.prep_case == "d"
         assert target.adjective_inflection == "s"
         assert target.adjective_degree == "p"

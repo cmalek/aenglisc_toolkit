@@ -70,6 +70,10 @@ class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
             "verb_form IN ('f','i','p','ii')", name="ck_annotations_verb_form"
         ),
         CheckConstraint(
+            "verb_direct_object_case IN ('a','d','g','i')",
+            name="ck_annotations_verb_direct_object_case",
+        ),
+        CheckConstraint(
             "prep_case IN ('a','d','g','i')", name="ck_annotations_prep_case"
         ),
         CheckConstraint(
@@ -140,6 +144,10 @@ class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
     )  # p, f, prg, gn
     #: The verb form.
     verb_form: Mapped[str | None] = mapped_column(String, nullable=True)  # f, i, p
+    #: The direct object case for a verb
+    verb_direct_object_case: Mapped[str | None] = mapped_column(
+        String, nullable=True
+    )  # a, d, g, i
     #: The preposition case.
     prep_case: Mapped[str | None] = mapped_column(String, nullable=True)  # a, d, g
     #: The adjective inflection.
@@ -347,6 +355,7 @@ class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
         self.verb_mood = annotation.verb_mood
         self.verb_aspect = annotation.verb_aspect
         self.verb_form = annotation.verb_form
+        self.verb_direct_object_case = annotation.verb_direct_object_case
         self.prep_case = annotation.prep_case
         self.adjective_inflection = annotation.adjective_inflection
         self.adjective_degree = annotation.adjective_degree
@@ -468,6 +477,7 @@ class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
             "verb_mood": ann_data.get("verb_mood"),
             "verb_aspect": ann_data.get("verb_aspect"),
             "verb_form": ann_data.get("verb_form"),
+            "verb_direct_object_case": ann_data.get("verb_direct_object_case"),
             "prep_case": ann_data.get("prep_case"),
             "adjective_inflection": ann_data.get("adjective_inflection"),
             "adjective_degree": ann_data.get("adjective_degree"),

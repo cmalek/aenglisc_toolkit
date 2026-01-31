@@ -141,6 +141,7 @@ class TestPartOfSpeechSubclasses:
             "number": PartOfSpeechFieldsBase.NUMBER_MAP,
             "verb_aspect": PartOfSpeechFieldsBase.VERB_ASPECT_MAP,
             "verb_form": PartOfSpeechFieldsBase.VERB_FORM_MAP,
+            "verb_direct_object_case": PartOfSpeechFieldsBase.VERB_DIRECT_OBJECT_CASE_MAP,
         }),
         (PronounFields, {
             "pronoun_type": PartOfSpeechFieldsBase.PRONOUN_TYPE_MAP,

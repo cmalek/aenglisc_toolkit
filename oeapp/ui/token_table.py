@@ -297,6 +297,10 @@ class TokenTable(QWidget):
                 self.table.setItem(
                     row, 10, QTableWidgetItem(annotation.verb_form or "—")
                 )
+                # VerbDirectObjectCase
+                self.table.setItem(
+                    row, 11, QTableWidgetItem(annotation.verb_direct_object_case or "—")
+                )
                 # PrepObjCase
                 self.table.setItem(
                     row, 11, QTableWidgetItem(annotation.prep_case or "—")
@@ -351,9 +355,13 @@ class TokenTable(QWidget):
                 self.table.setItem(
                     row, 10, QTableWidgetItem(annotation.verb_form or "—")
                 )
+                # VerbDirectObjectCase
+                self.table.setItem(
+                    row, 11, QTableWidgetItem(annotation.verb_direct_object_case or "—")
+                )
                 # PrepObjCase
                 self.table.setItem(
-                    row, 11, QTableWidgetItem(annotation.prep_case or "—")
+                    row, 12, QTableWidgetItem(annotation.prep_case or "—")
                 )
                 break
 

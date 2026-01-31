@@ -647,6 +647,7 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
             "verb_mood": annotation.verb_mood,
             "verb_aspect": annotation.verb_aspect,
             "verb_form": annotation.verb_form,
+            "verb_direct_object_case": annotation.verb_direct_object_case,
             "prep_case": annotation.prep_case,
             "adverb_degree": annotation.adverb_degree,
             "adjective_inflection": annotation.adjective_inflection,

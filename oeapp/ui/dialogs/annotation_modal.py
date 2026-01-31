@@ -308,6 +308,7 @@ class VerbFields(PartOfSpeechFieldsBase):
         - Adds the verb number combo box
         - Adds the verb aspect combo box
         - Adds the verb form combo box
+        - Adds the verb direct object case combo box
         """
         self.add_combo("verb_class", "Class", self.VERB_CLASS_MAP)
         self.add_combo("verb_tense", "Tense", self.VERB_TENSE_MAP)
@@ -316,6 +317,11 @@ class VerbFields(PartOfSpeechFieldsBase):
         self.add_combo("number", "Number", self.NUMBER_MAP)
         self.add_combo("verb_aspect", "Aspect", self.VERB_ASPECT_MAP)
         self.add_combo("verb_form", "Form", self.VERB_FORM_MAP)
+        self.add_combo(
+            "verb_direct_object_case",
+            "Direct Object Case",
+            self.VERB_DIRECT_OBJECT_CASE_MAP,
+        )
 
 
 class PronounFields(PartOfSpeechFieldsBase):

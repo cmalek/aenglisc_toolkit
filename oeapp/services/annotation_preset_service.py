@@ -141,6 +141,8 @@ class AnnotationPresetService:
             annotation.verb_aspect = preset.verb_aspect
         if preset.verb_form is not None:
             annotation.verb_form = preset.verb_form
+        if preset.verb_direct_object_case is not None:
+            annotation.verb_direct_object_case = preset.verb_direct_object_case
         if preset.adjective_inflection is not None:
             annotation.adjective_inflection = preset.adjective_inflection
         if preset.adjective_degree is not None:

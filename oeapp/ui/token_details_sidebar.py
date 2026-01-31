@@ -165,6 +165,7 @@ class VerbRenderer(AbstractPartOfSpeechRenderer):
         - Number
         - Verb Aspect
         - Verb Form
+        - Direct Object Case
 
         Args:
             parent_layout: Parent layout to add the fields to
@@ -186,6 +187,14 @@ class VerbRenderer(AbstractPartOfSpeechRenderer):
         self.field_renderer.format_field("Aspect", aspect_value, parent_layout)
         form_value = self.VERB_FORM_MAP.get(annotation.verb_form, "?")
         self.field_renderer.format_field("Form", form_value, parent_layout)
+        direct_object_case_value = self.VERB_DIRECT_OBJECT_CASE_MAP.get(
+            annotation.verb_direct_object_case, "?"
+        )
+        if annotation.verb_direct_object_case is None:
+            direct_object_case_value = "?"
+        self.field_renderer.format_field(
+            "Direct Object Case", direct_object_case_value, parent_layout
+        )
 
 
 class AdjectiveRenderer(AbstractPartOfSpeechRenderer):

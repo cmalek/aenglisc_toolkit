@@ -74,6 +74,10 @@ class AnnotationPreset(SaveDeleteMixin, Base):
     )  # p, f, prg, gn
     #: The verb form.
     verb_form: Mapped[str | None] = mapped_column(String, nullable=True)  # f, i, p
+    #: The direct object case for a verb
+    verb_direct_object_case: Mapped[str | None] = mapped_column(
+        String, nullable=True
+    )  # a, d, g, i
     #: The adjective inflection.
     adjective_inflection: Mapped[str | None] = mapped_column(
         String, nullable=True
@@ -254,6 +258,7 @@ class AnnotationPreset(SaveDeleteMixin, Base):
             "verb_mood": self.verb_mood,
             "verb_aspect": self.verb_aspect,
             "verb_form": self.verb_form,
+            "verb_direct_object_case": self.verb_direct_object_case,
             "adjective_inflection": self.adjective_inflection,
             "adjective_degree": self.adjective_degree,
             "created_at": self.created_at.isoformat(),

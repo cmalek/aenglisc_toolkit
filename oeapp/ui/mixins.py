@@ -276,6 +276,19 @@ class AnnotationLookupsMixin(ThemeMixin):
         i: k for i, k in enumerate(VERB_FORM_MAP.keys()) if k is not None
     }
 
+    #: A lookup map for verb direct object case codes to their long form.
+    #: Default to accusative.
+    VERB_DIRECT_OBJECT_CASE_MAP: Final[dict[str | None, str]] = {
+        None: "",
+        "a": "Accusative (a)",
+        "d": "Dative (d)",
+        "g": "Genitive (g)",
+        "i": "Instrumental (i)",
+    }
+    VERB_DIRECT_OBJECT_CASE_REVERSE_MAP: Final[dict[int, str]] = {
+        i: k for i, k in enumerate(VERB_DIRECT_OBJECT_CASE_MAP.keys()) if k is not None
+    }
+
     # Pronoun
     # -------
 
