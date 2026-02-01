@@ -215,13 +215,27 @@ class DOCXExporter(SessionMixin, AnnotationTextualMixin, TokenOccurrenceMixin):
             text_modern = sentence.text_modern
 
             # Add paragraph break if this sentence starts a paragraph
-            if sentence.is_paragraph_start:
+            is_paragraph_start = False
+            if sentence.paragraph:
+                p_sentences = sorted(sentence.paragraph.sentences, key=lambda s: s.display_order)
+                if p_sentences and p_sentences[0].id == sentence.id:
+                    is_paragraph_start = True
+
+            if is_paragraph_start:
                 doc.add_paragraph()  # Extra blank line for paragraph break
 
             # Add sentence number with paragraph and sentence numbers
             sentence_num_para = doc.add_paragraph()
-            paragraph_num = sentence.paragraph_number
-            sentence_num = sentence.sentence_number_in_paragraph
+            paragraph_num = sentence.paragraph.order if sentence.paragraph else 0
+            # Calculate sentence number in paragraph
+            sentence_num = 1
+            if sentence.paragraph:
+                p_sentences = sorted(sentence.paragraph.sentences, key=lambda s: s.display_order)
+                for i, s in enumerate(p_sentences, 1):
+                    if s.id == sentence.id:
+                        sentence_num = i
+                        break
+
             sentence_num_run = sentence_num_para.add_run(
                 f"¶[{paragraph_num}] S[{sentence_num}] "
             )
@@ -349,15 +363,24 @@ class DOCXExporter(SessionMixin, AnnotationTextualMixin, TokenOccurrenceMixin):
         current_mode_p = mode_cell.paragraphs[0]
 
         for sentence in project.sentences:
-            if sentence.is_paragraph_start:
+            # Check if this sentence is the first in its paragraph
+            is_paragraph_start = False
+            if sentence.paragraph:
+                p_sentences = sorted(sentence.paragraph.sentences, key=lambda s: s.display_order)
+                if p_sentences and p_sentences[0].id == sentence.id:
+                    is_paragraph_start = True
+
+            if is_paragraph_start:
                 # If not the first sentence, create new paragraphs in both cells
                 if sentence != project.sentences[0]:
                     current_oe_p = oe_cell.add_paragraph()
                     current_mode_p = mode_cell.add_paragraph()
             else:
                 # Add a space between sentences in the same paragraph
-                current_oe_p.add_run(" ")
-                current_mode_p.add_run(" ")
+                # But only if it's not the very first sentence
+                if sentence != project.sentences[0]:
+                    current_oe_p.add_run(" ")
+                    current_mode_p.add_run(" ")
 
             # Add OE text with manual hyperlinked note references
             tokens, token_id_to_start = sentence.sorted_tokens

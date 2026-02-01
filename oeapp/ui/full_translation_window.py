@@ -115,7 +115,14 @@ class FullProjectOldEnglishTextEdit(ThemeMixin, OldEnglishTextEdit):
 
         for i, sentence in enumerate(self.project.sentences):
             sentence_id = cast("int", sentence.id)
-            if sentence.is_paragraph_start and i > 0:
+            # Check if this sentence is the first in its paragraph
+            is_paragraph_start = False
+            if sentence.paragraph:
+                p_sentences = sorted(sentence.paragraph.sentences, key=lambda s: s.display_order)
+                if p_sentences and p_sentences[0].id == sentence_id:
+                    is_paragraph_start = True
+
+            if is_paragraph_start and i > 0:
                 cursor.insertText("\n\n")
             elif i > 0:
                 cursor.insertText(" ")
@@ -436,7 +443,14 @@ class FullProjectModernEnglishTextEdit(ThemeMixin, QTextEdit):
 
         for i, sentence in enumerate(self.project.sentences):
             sentence_id = cast("int", sentence.id)
-            if sentence.is_paragraph_start and i > 0:
+            # Check if this sentence is the first in its paragraph
+            is_paragraph_start = False
+            if sentence.paragraph:
+                p_sentences = sorted(sentence.paragraph.sentences, key=lambda s: s.display_order)
+                if p_sentences and p_sentences[0].id == sentence_id:
+                    is_paragraph_start = True
+
+            if is_paragraph_start and i > 0:
                 cursor.insertText("\n\n")
             elif i > 0:
                 cursor.insertText(" ")

@@ -14,14 +14,15 @@ class TestSentence:
     def test_create_model(self, db_session):
         """Test model creation."""
         project = create_test_project(db_session)
+        
+        from oeapp.models.paragraph import Paragraph
+        paragraph = project.chapters[0].sections[0].paragraphs[0]
 
         sentence = Sentence(
             project_id=project.id,
             display_order=1,
-            paragraph_number=1,
-            sentence_number_in_paragraph=1,
+            paragraph_id=paragraph.id,
             text_oe="Se cyning",
-            is_paragraph_start=False,
         )
         sentence.save()
 
@@ -116,11 +117,10 @@ class TestSentence:
             project_id=project.id,
             display_order=1,
             text_oe="Se cyning",
-            is_paragraph_start=True,
         )
 
-        assert sentence.paragraph_number == 1
-        assert sentence.sentence_number_in_paragraph == 1
+        assert sentence.paragraph is not None
+        assert sentence.paragraph.order == 1
 
     def test_create_calculates_paragraph_numbers_continuing_paragraph(
         self, db_session
@@ -131,18 +131,16 @@ class TestSentence:
             project_id=project.id,
             display_order=1,
             text_oe="First",
-            is_paragraph_start=True,
         )
 
         sentence2 = Sentence.create(
             project_id=project.id,
             display_order=2,
             text_oe="Second",
-            is_paragraph_start=False,
+            paragraph_id=sentence1.paragraph_id,
         )
 
-        assert sentence2.paragraph_number == sentence1.paragraph_number
-        assert sentence2.sentence_number_in_paragraph == 2
+        assert sentence2.paragraph_id == sentence1.paragraph_id
 
     def test_create_calculates_paragraph_numbers_new_paragraph(self, db_session):
         """Test create() calculates paragraph numbers for new paragraph."""
@@ -151,46 +149,37 @@ class TestSentence:
             project_id=project.id,
             display_order=1,
             text_oe="First",
-            is_paragraph_start=True,
         )
+
+        from oeapp.models.paragraph import Paragraph
+        p2 = Paragraph(section_id=sentence1.paragraph.section_id, order=2)
+        db_session.add(p2)
+        db_session.flush()
 
         sentence2 = Sentence.create(
             project_id=project.id,
             display_order=2,
             text_oe="Second",
-            is_paragraph_start=True,
+            paragraph_id=p2.id,
         )
 
-        assert sentence2.paragraph_number == sentence1.paragraph_number + 1
-        assert sentence2.sentence_number_in_paragraph == 1
-
-    def test_calculate_paragraph_and_sentence_numbers_first_sentence(self, db_session):
-        """Test _calculate_paragraph_and_sentence_numbers() for first sentence."""
-        project = create_test_project(db_session)
-
-        result = Sentence._calculate_paragraph_and_sentence_numbers(
-            project.id, 1, True
-        )
-
-        assert result["paragraph_number"] == 1
-        assert result["sentence_number_in_paragraph"] == 1
+        assert sentence2.paragraph_id == p2.id
+        assert sentence2.paragraph.order == 2
 
     def test_calculate_paragraph_and_sentence_numbers_continuing(self, db_session):
-        """Test _calculate_paragraph_and_sentence_numbers() for continuing sentence."""
+        """Test recalculate_project_structure()."""
         project = create_test_project(db_session)
         sentence1 = Sentence.create(
             project_id=project.id,
             display_order=1,
             text_oe="First",
-            is_paragraph_start=True,
         )
 
-        result = Sentence._calculate_paragraph_and_sentence_numbers(
-            project.id, 2, False
-        )
-
-        assert result["paragraph_number"] == sentence1.paragraph_number
-        assert result["sentence_number_in_paragraph"] == 2
+        # This method now just updates order
+        Sentence.recalculate_project_structure(project.id)
+        
+        db_session.refresh(sentence1.paragraph)
+        assert sentence1.paragraph.order == 1
 
     def test_update_updates_sentence_text(self, db_session):
         """Test update() updates sentence text_oe and retokenizes."""
@@ -223,12 +212,13 @@ class TestSentence:
     def test_from_json_creates_sentence(self, db_session):
         """Test from_json() creates sentence from data."""
         project = create_test_project(db_session)
+        paragraph = project.chapters[0].sections[0].paragraphs[0]
 
         sentence_data = {
             "text_oe": "Se cyning",
             "text_modern": "The king",
             "display_order": 1,
-            "is_paragraph_start": False,
+            "paragraph_id": paragraph.id,
         }
         sentence = Sentence.from_json(project.id, sentence_data)
 

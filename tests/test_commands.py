@@ -7,7 +7,8 @@ from oeapp.commands import (
     AnnotateTokenCommand,
     UpdateNoteCommand,
     DeleteNoteCommand,
-    ToggleParagraphStartCommand,
+    SplitParagraphCommand,
+    MergeParagraphCommand,
 )
 from oeapp.models.annotation import Annotation
 from oeapp.models.note import Note
@@ -527,32 +528,69 @@ class TestDeleteNoteCommand:
         assert note.note_text_md == "Note to delete"
 
 
-class TestToggleParagraphStartCommand:
-    """Test cases for ToggleParagraphStartCommand."""
+class TestSplitParagraphCommand:
+    """Test cases for SplitParagraphCommand."""
 
-    def test_execute_toggles_flag(self, command_setup):
-        """Test execute() toggles is_paragraph_start flag."""
+    def test_execute_splits_paragraph(self, command_setup):
+        """Test execute() splits a paragraph."""
         sentence_id = command_setup["sentence_id"]
         session = command_setup["session"]
-
-        command = ToggleParagraphStartCommand(sentence_id=sentence_id)
+        
+        # Ensure we have a second sentence in the same paragraph to split
         sentence = Sentence.get(sentence_id)
-        original_value = sentence.is_paragraph_start
-
+        project_id = sentence.project_id
+        
+        # Create a second sentence in the same paragraph
+        s2 = Sentence.create(
+            project_id=project_id,
+            display_order=sentence.display_order + 1,
+            text_oe="Second sentence.",
+            paragraph_id=sentence.paragraph_id,
+            commit=True
+        )
+        s2_id = s2.id
+        
+        original_p_id = sentence.paragraph_id
+        command = SplitParagraphCommand(sentence_id=s2_id)
+        
         assert command.execute()
-        session.refresh(sentence)
-        assert sentence.is_paragraph_start != original_value
+        s2 = Sentence.get(s2_id)
+        assert s2.paragraph_id != original_p_id
+        assert s2.paragraph.order == 2
 
-    def test_undo_restores_flag(self, command_setup):
-        """Test undo() restores original is_paragraph_start flag."""
+    def test_undo_restores_paragraph(self, command_setup):
+        """Test undo() restores original paragraph."""
         sentence_id = command_setup["sentence_id"]
         session = command_setup["session"]
-
-        command = ToggleParagraphStartCommand(sentence_id=sentence_id)
+    
         sentence = Sentence.get(sentence_id)
-        original_value = sentence.is_paragraph_start
-
+        s2 = Sentence.create(
+            project_id=sentence.project_id,
+            display_order=sentence.display_order + 1,
+            text_oe="Second sentence.",
+            paragraph_id=sentence.paragraph_id,
+            commit=True
+        )
+        s2_id = s2.id
+        original_p_id = sentence.paragraph_id
+    
+        command = SplitParagraphCommand(sentence_id=s2_id)
         command.execute()
+    
+        # Verify it moved
+        s2_after_exec = session.get(Sentence, s2_id)
+        assert s2_after_exec.paragraph_id != original_p_id
+    
+        # Undo
         assert command.undo()
-        session.refresh(sentence)
-        assert sentence.is_paragraph_start == original_value
+    
+        # Use a fresh query from the session
+        # Use session.scalar(select(Sentence).where(Sentence.id == s2_id))
+        from sqlalchemy import select
+        s2_after_undo = session.scalar(select(Sentence).where(Sentence.id == s2_id))
+        if s2_after_undo is None:
+            # Try to see if it's in the project at all
+            all_s = session.scalars(select(Sentence).where(Sentence.project_id == sentence.project_id)).all()
+            print(f"DEBUG: all sentences in project: {[s.id for s in all_s]}")
+        assert s2_after_undo is not None, f"Sentence {s2_id} not found after undo"
+        assert s2_after_undo.paragraph_id == original_p_id

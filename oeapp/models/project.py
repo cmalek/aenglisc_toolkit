@@ -3,6 +3,7 @@
 import builtins
 import re
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, Integer, String, event, func, select
 from sqlalchemy.orm import Mapped, Session, mapped_column, relationship
@@ -14,6 +15,9 @@ from oeapp.utils import from_utc_iso, to_utc_iso
 from .mixins import SaveDeleteMixin
 from .sentence import Sentence
 from .token import Token
+
+if TYPE_CHECKING:
+    from oeapp.models.chapter import Chapter
 
 
 class Project(SaveDeleteMixin, Base):
@@ -46,6 +50,12 @@ class Project(SaveDeleteMixin, Base):
     )
 
     # Relationships
+    chapters: Mapped[builtins.list["Chapter"]] = relationship(
+        "Chapter",
+        back_populates="project",
+        cascade="all, delete-orphan",
+        order_by="Chapter.number",
+    )
     sentences: Mapped[builtins.list[Sentence]] = relationship(
         "Sentence",
         back_populates="project",
@@ -147,24 +157,34 @@ class Project(SaveDeleteMixin, Base):
         sentence_number_in_paragraph = 0
 
         for order, (sentence_text, is_paragraph_start) in enumerate(sentences_data, 1):
-            if is_paragraph_start and order > 1:
-                # Starting a new paragraph (but first sentence is always paragraph 1)
-                paragraph_number += 1
-                sentence_number_in_paragraph = 1
-            else:
-                # Continuing current paragraph
-                sentence_number_in_paragraph += 1
+            if is_paragraph_start or order == 1:
+                # Create a new paragraph
+                # For now, we assume a single chapter and section for new projects
+                # This will be refined when we add the UI for creating chapters/sections
                 if order == 1:
-                    # First sentence always starts paragraph 1
-                    paragraph_number = 1
+                    from oeapp.models.chapter import Chapter
+                    from oeapp.models.section import Section
+                    chapter = Chapter(project_id=project.id, number=1)
+                    session.add(chapter)
+                    session.flush()
+                    section = Section(chapter_id=chapter.id, number=1)
+                    session.add(section)
+                    session.flush()
+                    current_section_id = section.id
+                    paragraph_order = 0
+                
+                paragraph_order += 1
+                from oeapp.models.paragraph import Paragraph
+                paragraph = Paragraph(section_id=current_section_id, order=paragraph_order)
+                session.add(paragraph)
+                session.flush()
+                current_paragraph_id = paragraph.id
 
             Sentence.create(
                 project_id=project.id,
                 display_order=order,
                 text_oe=sentence_text,
-                is_paragraph_start=is_paragraph_start,
-                paragraph_number=paragraph_number,
-                sentence_number_in_paragraph=sentence_number_in_paragraph,
+                paragraph_id=current_paragraph_id,
                 commit=False,
             )
 
@@ -224,36 +244,55 @@ class Project(SaveDeleteMixin, Base):
             else None
         )
 
-        # Determine starting paragraph and sentence numbers
+        # Determine starting paragraph
         if last_sentence:
-            start_paragraph = last_sentence.paragraph_number
-            current_paragraph = start_paragraph
-            current_sentence_in_para = last_sentence.sentence_number_in_paragraph
+            current_paragraph_id = last_sentence.paragraph_id
+            # We'll need the section_id to create new paragraphs if needed
+            from oeapp.models.paragraph import Paragraph
+            last_paragraph = session.get(Paragraph, current_paragraph_id)
+            current_section_id = last_paragraph.section_id
+            paragraph_order = last_paragraph.order
         else:
-            start_paragraph = 0
-            current_paragraph = 0
-            current_sentence_in_para = 0
-
-        paragraph_number = current_paragraph
-        sentence_number_in_paragraph = current_sentence_in_para
+            # For empty project, ensure default hierarchy
+            from oeapp.models.chapter import Chapter
+            from oeapp.models.section import Section
+            from oeapp.models.paragraph import Paragraph
+            
+            if not self.chapters:
+                chapter = Chapter(project_id=self.id, number=1)
+                session.add(chapter)
+                session.flush()
+                section = Section(chapter_id=chapter.id, number=1)
+                session.add(section)
+                session.flush()
+                paragraph = Paragraph(section_id=section.id, order=1)
+                session.add(paragraph)
+                session.flush()
+                current_paragraph_id = paragraph.id
+                current_section_id = section.id
+                paragraph_order = 1
+            else:
+                current_section_id = self.chapters[0].sections[0].id
+                current_paragraph_id = self.chapters[0].sections[0].paragraphs[0].id
+                paragraph_order = self.chapters[0].sections[0].paragraphs[0].order
 
         # Create new sentences starting from max_order + 1
         for order_offset, (sentence_text, is_paragraph_start) in enumerate(
             sentences_data, 1
         ):
-            if is_paragraph_start:
-                paragraph_number += 1
-                sentence_number_in_paragraph = 1
-            else:
-                sentence_number_in_paragraph += 1
+            if is_paragraph_start and (max_order > 0 or order_offset > 1):
+                paragraph_order += 1
+                from oeapp.models.paragraph import Paragraph
+                paragraph = Paragraph(section_id=current_section_id, order=paragraph_order)
+                session.add(paragraph)
+                session.flush()
+                current_paragraph_id = paragraph.id
 
             Sentence.create(
                 project_id=self.id,
                 display_order=max_order + order_offset,
                 text_oe=sentence_text,
-                is_paragraph_start=is_paragraph_start,
-                paragraph_number=paragraph_number,
-                sentence_number_in_paragraph=sentence_number_in_paragraph,
+                paragraph_id=current_paragraph_id,
             )
 
         session.commit()
@@ -261,7 +300,6 @@ class Project(SaveDeleteMixin, Base):
             "project.append_oe_text",
             project_id=self.id,
             sentences_added=len(sentences_data),
-            paragraphs_added=paragraph_number - start_paragraph,
         )
 
     def to_json(self) -> dict:

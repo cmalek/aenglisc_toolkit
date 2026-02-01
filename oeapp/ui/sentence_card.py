@@ -24,7 +24,6 @@ from oeapp.commands import (
     DeleteSentenceCommand,
     EditSentenceCommand,
     MergeSentenceCommand,
-    ToggleParagraphStartCommand,
 )
 from oeapp.mixins import TokenOccurrenceMixin
 from oeapp.models import Annotation, Idiom
@@ -246,10 +245,18 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
             layout: Layout to add the paragraph header to
 
         """
-        paragraph_num = self.sentence.paragraph_number
-        sentence_num = self.sentence.sentence_number_in_paragraph
+        paragraph_order = self.sentence.paragraph.order if self.sentence.paragraph else 0
+        # Calculate sentence number in paragraph
+        sentence_num = 1
+        if self.sentence.paragraph:
+            sentences = sorted(self.sentence.paragraph.sentences, key=lambda s: s.display_order)
+            for i, s in enumerate(sentences, 1):
+                if s.id == self.sentence.id:
+                    sentence_num = i
+                    break
+
         self.sentence_number_label = QLabel(
-            f"[{self.sentence.display_order}] ¶:{paragraph_num} S:{sentence_num}"
+            f"[{self.sentence.display_order}] ¶:{paragraph_order} S:{sentence_num}"
         )
         self.sentence_number_label.setFont(QFont("Helvetica", 14, QFont.Weight.Bold))
         return self.sentence_number_label
@@ -864,12 +871,26 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
         """
         Update the toggle paragraph button text and visibility based on current state.
         """
-        # Hide button for first sentence (must always be paragraph start)
-        if self.sentence.display_order == 1:
+        # Hide button for first sentence of first paragraph of first section of first chapter
+        # Actually, let's just check if it's the first sentence of the section
+        is_first_in_section = False
+        if self.sentence.paragraph and self.sentence.paragraph.order == 1:
+            sentences = sorted(self.sentence.paragraph.sentences, key=lambda s: s.display_order)
+            if sentences and sentences[0].id == self.sentence.id:
+                is_first_in_section = True
+
+        if is_first_in_section:
             self.toggle_paragraph_button.setVisible(False)
         else:
             self.toggle_paragraph_button.setVisible(True)
-            if self.sentence.is_paragraph_start:
+            # Check if this sentence is the start of its paragraph
+            is_start = False
+            if self.sentence.paragraph:
+                sentences = sorted(self.sentence.paragraph.sentences, key=lambda s: s.display_order)
+                if sentences and sentences[0].id == self.sentence.id:
+                    is_start = True
+            
+            if is_start:
                 self.toggle_paragraph_button.setText("Remove Paragraph Start")
             else:
                 self.toggle_paragraph_button.setText("Mark as Paragraph Start")
@@ -881,27 +902,44 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
     def _on_toggle_paragraph_clicked(self) -> None:
         """
         Handle Toggle Paragraph Start button click.
-
-        Toggles the is_paragraph_start flag and recalculates paragraph numbers.
         """
         if not self.sentence.id or not self.command_manager:
             return
 
-        # Create and execute toggle command
-        command = ToggleParagraphStartCommand(
-            sentence_id=self.sentence.id,
-        )
+        # Check if this sentence is currently the start of its paragraph
+        is_start = False
+        if self.sentence.paragraph:
+            sentences = sorted(self.sentence.paragraph.sentences, key=lambda s: s.display_order)
+            if sentences and sentences[0].id == self.sentence.id:
+                is_start = True
+
+        if is_start:
+            # Merge with previous paragraph
+            from oeapp.commands.paragraph import MergeParagraphCommand
+            command = MergeParagraphCommand(sentence_id=self.sentence.id)
+        else:
+            # Split into new paragraph
+            from oeapp.commands.paragraph import SplitParagraphCommand
+            command = SplitParagraphCommand(sentence_id=self.sentence.id)
 
         if self.command_manager.execute(command):
             # Refresh sentence from database
             self.session.refresh(self.sentence)
             # Update UI
             self._update_paragraph_button_state()
-            paragraph_num = self.sentence.paragraph_number
-            sentence_num = self.sentence.sentence_number_in_paragraph
-            self.sentence_number_label.setText(f"¶.{paragraph_num} S.{sentence_num}")
+            
+            paragraph_order = self.sentence.paragraph.order if self.sentence.paragraph else 0
+            # Calculate sentence number in paragraph
+            sentence_num = 1
+            if self.sentence.paragraph:
+                sentences = sorted(self.sentence.paragraph.sentences, key=lambda s: s.display_order)
+                for i, s in enumerate(sentences, 1):
+                    if s.id == self.sentence.id:
+                        sentence_num = i
+                        break
+            self.sentence_number_label.setText(f"¶.{paragraph_order} S.{sentence_num}")
+            
             # Emit signal to refresh all cards (paragraph numbers may have changed)
-            # We'll use sentence_added signal as a refresh trigger
             if self.sentence.id:
                 self.sentence_added.emit(self.sentence.id)
         else:

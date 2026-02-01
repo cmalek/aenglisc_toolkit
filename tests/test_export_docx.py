@@ -78,13 +78,30 @@ class TestDOCXExporter:
     def test_export_includes_paragraph_breaks(self, db_session, tmp_path):
         """Test export() adds extra blank lines for paragraph starts."""
         project = create_test_project(db_session, name="Test", text="")
+        
+        from oeapp.models.chapter import Chapter
+        from oeapp.models.section import Section
+        from oeapp.models.paragraph import Paragraph
+        
+        chapter = Chapter(project_id=project.id, number=1)
+        db_session.add(chapter)
+        db_session.flush()
+        section = Section(chapter_id=chapter.id, number=1)
+        db_session.add(section)
+        db_session.flush()
+        
+        p1 = Paragraph(section_id=section.id, order=1)
+        p2 = Paragraph(section_id=section.id, order=2)
+        db_session.add(p1)
+        db_session.add(p2)
+        db_session.flush()
 
         # Create sentences with paragraph breaks
         sentence1 = create_test_sentence(
-            db_session, project_id=project.id, text="First paragraph.", display_order=1, is_paragraph_start=True
+            db_session, project_id=project.id, text="First paragraph.", display_order=1, paragraph_id=p1.id
         )
         sentence2 = create_test_sentence(
-            db_session, project_id=project.id, text="Second paragraph.", display_order=2, is_paragraph_start=True
+            db_session, project_id=project.id, text="Second paragraph.", display_order=2, paragraph_id=p2.id
         )
 
         exporter = DOCXExporter()
@@ -308,12 +325,25 @@ class TestDOCXExporter:
 
         # Create sentence manually without tokens
         from oeapp.models.sentence import Sentence
+        from oeapp.models.chapter import Chapter
+        from oeapp.models.section import Section
+        from oeapp.models.paragraph import Paragraph
+        
+        chapter = Chapter(project_id=project.id, number=1)
+        db_session.add(chapter)
+        db_session.flush()
+        section = Section(chapter_id=chapter.id, number=1)
+        db_session.add(section)
+        db_session.flush()
+        paragraph = Paragraph(section_id=section.id, order=1)
+        db_session.add(paragraph)
+        db_session.flush()
+
         sentence = Sentence(
             project_id=project.id,
             display_order=1,
             text_oe="Test sentence",
-            paragraph_number=1,
-            sentence_number_in_paragraph=1
+            paragraph_id=paragraph.id
         )
         db_session.add(sentence)
         db_session.commit()
@@ -487,8 +517,13 @@ class TestDOCXExporter:
         project = create_test_project(
             db_session, name="Flow Project", text="First para. Second para."
         )
-        # Force second sentence to be a paragraph start
-        project.sentences[1].is_paragraph_start = True
+        # Create a second paragraph and move the second sentence to it
+        from oeapp.models.paragraph import Paragraph
+        p2 = Paragraph(section_id=project.chapters[0].sections[0].id, order=2)
+        db_session.add(p2)
+        db_session.flush()
+        
+        project.sentences[1].paragraph_id = p2.id
         db_session.commit()
 
         exporter = DOCXExporter()

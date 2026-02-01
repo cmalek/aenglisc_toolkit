@@ -1,7 +1,7 @@
 from .abstract import Command, CommandManager
 from .annotation import AnnotateTokenCommand
 from .note import AddNoteCommand, DeleteNoteCommand, UpdateNoteCommand
-from .paragraph import ToggleParagraphStartCommand
+from .paragraph import SplitParagraphCommand, MergeParagraphCommand
 from .sentence import (
     AddSentenceCommand,
     DeleteSentenceCommand,
@@ -18,7 +18,8 @@ __all__ = [
     "DeleteNoteCommand",
     "DeleteSentenceCommand",
     "EditSentenceCommand",
+    "MergeParagraphCommand",
     "MergeSentenceCommand",
-    "ToggleParagraphStartCommand",
+    "SplitParagraphCommand",
     "UpdateNoteCommand",
 ]

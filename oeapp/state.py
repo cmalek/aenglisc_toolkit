@@ -18,6 +18,10 @@ COPIED_ANNOTATION = "annotation:copy"
 CURRENT_PROJECT_ID = "project:current:id"
 #: The key for the selected sentence card in the main window.
 SELECTED_SENTENCE_CARD = "sentence:card:selected"
+#: The key for the current chapter ID loaded in the application.
+CURRENT_CHAPTER_ID = "chapter:current:id"
+#: The key for the current section ID loaded in the application.
+CURRENT_SECTION_ID = "section:section:id"
 
 
 class ApplicationState(dict):

@@ -36,7 +36,9 @@ from oeapp.services import (
 )
 from oeapp.state import (
     COPIED_ANNOTATION,
+    CURRENT_CHAPTER_ID,
     CURRENT_PROJECT_ID,
+    CURRENT_SECTION_ID,
     SELECTED_SENTENCE_CARD,
     ApplicationState,
 )
@@ -164,6 +166,10 @@ class MainWindow(QMainWindow):
         # Build top toolbar
         self.toolbar = self.build_toolbar()
         self.main_content_layout.addWidget(self.toolbar)
+
+        # Build navigation toolbar
+        self.navigation_toolbar = self.build_navigation_toolbar()
+        self.main_content_layout.addWidget(self.navigation_toolbar)
         # Create the main content area.  This is a scroll area that contains the
         # sentence cards.
 
@@ -185,10 +191,10 @@ class MainWindow(QMainWindow):
         toolbar = QWidget()
         toolbar.setObjectName("main_toolbar")
         toolbar.setStyleSheet(
-            "#main_toolbar { border-bottom: 3px solid palette(highlight); }"
+            "#main_toolbar { border-bottom: 1px solid palette(mid); }"
         )
         layout = QHBoxLayout(toolbar)
-        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setContentsMargins(10, 5, 10, 5)
         layout.setSpacing(10)
 
         layout.addWidget(QLabel("Search:"))
@@ -244,6 +250,102 @@ class MainWindow(QMainWindow):
         self.search_input.clear()
         self.search_input.setFocus()
         self.search_input.setStyleSheet("")
+
+    def build_navigation_toolbar(self) -> QWidget:
+        """
+        Build the chapter and section navigation toolbar.
+
+        Returns:
+            QWidget: The navigation toolbar widget
+        """
+        toolbar = QWidget()
+        toolbar.setObjectName("navigation_toolbar")
+        toolbar.setStyleSheet(
+            "#navigation_toolbar { border-bottom: 3px solid palette(highlight); }"
+        )
+        layout = QHBoxLayout(toolbar)
+        layout.setContentsMargins(10, 5, 10, 5)
+        layout.setSpacing(10)
+
+        # Chapter navigation
+        layout.addWidget(QLabel("Chapter:"))
+        self.chapter_prev_button = QPushButton("<")
+        self.chapter_prev_button.setFixedWidth(30)
+        self.chapter_prev_button.clicked.connect(self._on_prev_chapter_clicked)
+        layout.addWidget(self.chapter_prev_button)
+
+        self.chapter_combo = QComboBox()
+        self.chapter_combo.setMinimumWidth(150)
+        self.chapter_combo.currentIndexChanged.connect(self._on_chapter_changed)
+        layout.addWidget(self.chapter_combo)
+
+        self.chapter_next_button = QPushButton(">")
+        self.chapter_next_button.setFixedWidth(30)
+        self.chapter_next_button.clicked.connect(self._on_next_chapter_clicked)
+        layout.addWidget(self.chapter_next_button)
+
+        layout.addSpacing(20)
+
+        # Section navigation
+        layout.addWidget(QLabel("Section:"))
+        self.section_prev_button = QPushButton("<")
+        self.section_prev_button.setFixedWidth(30)
+        self.section_prev_button.clicked.connect(self._on_prev_section_clicked)
+        layout.addWidget(self.section_prev_button)
+
+        self.section_combo = QComboBox()
+        self.section_combo.setMinimumWidth(150)
+        self.section_combo.currentIndexChanged.connect(self._on_section_changed)
+        layout.addWidget(self.section_combo)
+
+        self.section_next_button = QPushButton(">")
+        self.section_next_button.setFixedWidth(30)
+        self.section_next_button.clicked.connect(self._on_next_section_clicked)
+        layout.addWidget(self.section_next_button)
+
+        layout.addStretch()
+
+        return toolbar
+
+    def _on_prev_chapter_clicked(self) -> None:
+        """Handle previous chapter button click."""
+        idx = self.chapter_combo.currentIndex()
+        if idx > 0:
+            self.chapter_combo.setCurrentIndex(idx - 1)
+
+    def _on_next_chapter_clicked(self) -> None:
+        """Handle next chapter button click."""
+        idx = self.chapter_combo.currentIndex()
+        if idx < self.chapter_combo.count() - 1:
+            self.chapter_combo.setCurrentIndex(idx + 1)
+
+    def _on_chapter_changed(self, index: int) -> None:
+        """Handle chapter selection change."""
+        if index < 0:
+            return
+        chapter_id = self.chapter_combo.itemData(index)
+        self.application_state[CURRENT_CHAPTER_ID] = chapter_id
+        self.project_ui.update_sections_for_chapter(chapter_id)
+
+    def _on_prev_section_clicked(self) -> None:
+        """Handle previous section button click."""
+        idx = self.section_combo.currentIndex()
+        if idx > 0:
+            self.section_combo.setCurrentIndex(idx - 1)
+
+    def _on_next_section_clicked(self) -> None:
+        """Handle next section button click."""
+        idx = self.section_combo.currentIndex()
+        if idx < self.section_combo.count() - 1:
+            self.section_combo.setCurrentIndex(idx + 1)
+
+    def _on_section_changed(self, index: int) -> None:
+        """Handle section selection change."""
+        if index < 0:
+            return
+        section_id = self.section_combo.itemData(index)
+        self.application_state[CURRENT_SECTION_ID] = section_id
+        self.project_ui.load_section(section_id)
 
     def keyPressEvent(self, event: "QKeyEvent") -> None:  # noqa: N802
         """
@@ -1242,10 +1344,77 @@ class ProjectUI:
 
         self.application_state[CURRENT_PROJECT_ID] = project.id
 
+        # Update chapter dropdown
+        self.main_window.chapter_combo.blockSignals(True)
+        self.main_window.chapter_combo.clear()
+        for chapter in project.chapters:
+            self.main_window.chapter_combo.addItem(chapter.display_title, chapter.id)
+        self.main_window.chapter_combo.blockSignals(False)
+
+        # Select first chapter if available
+        if project.chapters:
+            self.main_window.chapter_combo.setCurrentIndex(0)
+            chapter_id = project.chapters[0].id
+            self.application_state[CURRENT_CHAPTER_ID] = chapter_id
+            self.update_sections_for_chapter(chapter_id)
+        else:
+            # Handle empty project (should not happen with new logic)
+            self.main_window.section_combo.clear()
+            self._clear_content()
+
         # Initialize autosave and command manager
         self.autosave_service = AutosaveService(self.action_service.autosave)
 
-        # Clear existing content
+    def update_sections_for_chapter(self, chapter_id: int) -> None:
+        """Update section dropdown for the given chapter."""
+        from oeapp.models.chapter import Chapter
+        chapter = Chapter.get(chapter_id)
+        if not chapter:
+            return
+
+        self.main_window.section_combo.blockSignals(True)
+        self.main_window.section_combo.clear()
+        for section in chapter.sections:
+            self.main_window.section_combo.addItem(section.display_title, section.id)
+        self.main_window.section_combo.blockSignals(False)
+
+        if chapter.sections:
+            self.main_window.section_combo.setCurrentIndex(0)
+            section_id = chapter.sections[0].id
+            self.application_state[CURRENT_SECTION_ID] = section_id
+            self.load_section(section_id)
+        else:
+            self._clear_content()
+
+    def load_section(self, section_id: int) -> None:
+        """Load sentences for the given section."""
+        from oeapp.models.section import Section
+        section = Section.get(section_id)
+        if not section:
+            return
+
+        self._clear_content()
+        self.sentence_cards = []
+        self.main_window.sentence_cards = []
+
+        for paragraph in section.paragraphs:
+            # Add paragraph separator if not the first paragraph in section
+            if paragraph.order > 1:
+                self._add_paragraph_separator()
+
+            for sentence in paragraph.sentences:
+                card = SentenceCard(
+                    sentence,
+                    command_manager=self.application_state.command_manager,
+                    main_window=self.main_window,
+                )
+                self.sentence_cards.append(card)
+                self.main_window.sentence_cards.append(card)
+                self.content_layout.addWidget(card)
+                self._connect_card_signals(card)
+
+    def _clear_content(self) -> None:
+        """Clear existing content from the layout."""
         for i in reversed(range(self.content_layout.count())):
             item = self.content_layout.itemAt(i)
             if item and item.widget():
@@ -1253,57 +1422,44 @@ class ProjectUI:
                 if widget:
                     widget.deleteLater()
 
-        self.sentence_cards = []
-        # Also clear the main window's reference
-        self.main_window.sentence_cards = []
+    def _add_paragraph_separator(self) -> None:
+        """Add a paragraph separator to the layout."""
+        separator = QWidget()
+        separator.setFixedHeight(20)
+        palette = separator.palette()
+        mid = palette.color(QPalette.ColorRole.Mid)
+        h, s, v, a = mid.getHsv()
+        v = min(v, 255)
+        v = int((v + 255 + 20) % 255)
+        background = QColor.fromHsv(h, s, v, a)
+        h, s, v, a = mid.getHsv()
+        v = min(v, 0)
+        v = int((v + 255 + 20) % 255)
+        border = QColor.fromHsv(h, s, v, a)
+        separator.setStyleSheet(
+            f"background-color: {background.name()}; "
+            f"border-top: 2px solid {border.name()};"
+            f"border-bottom: 2px solid {border.name()};"
+        )
+        self.content_layout.addWidget(separator)
 
-        for sentence in project.sentences:
-            # Add paragraph separator if this sentence starts a paragraph
-            if sentence.is_paragraph_start and len(self.sentence_cards) > 0:
-                separator = QWidget()
-                separator.setFixedHeight(20)
-                palette = separator.palette()
-                mid = palette.color(QPalette.ColorRole.Mid)
-                # lighten mid to a lighter gray
-                h, s, v, a = mid.getHsv()  # type: ignore[misc]
-                v = min(v, 255)  # type: ignore[has-type]
-                v = int((v + 255 + 20) % 255)  # shift toward lighter gray
-                background = QColor.fromHsv(h, s, v, a)  # type: ignore[has-type]
-                # lighten again to a much lighter gray
-                h, s, v, a = mid.getHsv()  # type: ignore[misc]
-                v = min(v, 0)  # type: ignore[has-type]
-                v = int((v + 255 + 20) % 255)  # shift toward lighter gray
-                border = QColor.fromHsv(h, s, v, a)  # type: ignore[has-type]
-                separator.setStyleSheet(
-                    f"background-color: {background.name()}; "
-                    f"border-top: 2px solid {border.name()};"
-                    f"border-bottom: 2px solid {border.name()};"
-                )
-                self.content_layout.addWidget(separator)
-
-            card = SentenceCard(
-                sentence,
-                command_manager=self.application_state.command_manager,
-                main_window=self.main_window,
-            )
-            self.sentence_cards.append(card)
-            self.main_window.sentence_cards.append(card)
-            self.content_layout.addWidget(card)
-            card.translation_edit.textChanged.connect(self._on_translation_changed)
-            card.oe_text_edit.textChanged.connect(self._on_sentence_text_changed)
-            card.sentence_merged.connect(self._on_sentence_merged)
-            card.sentence_added.connect(self._on_sentence_added)
-            card.sentence_deleted.connect(self._on_sentence_deleted)
-            card.token_selected_for_details.connect(self._on_token_selected_for_details)
-            card.idiom_selected_for_details.connect(self._on_idiom_selected_for_details)
-            card.annotation_applied.connect(self._on_annotation_applied)
-            card.edit_mode_started.connect(
-                lambda: self.main_window.update_search_ui_state(True)  # noqa: FBT003
-            )
-            card.edit_mode_finished.connect(
-                lambda: self.main_window.update_search_ui_state(False)  # noqa: FBT003
-            )
-            card.edit_mode_started.connect(self.main_window._on_clear_search_clicked)
+    def _connect_card_signals(self, card: SentenceCard) -> None:
+        """Connect signals for a sentence card."""
+        card.translation_edit.textChanged.connect(self._on_translation_changed)
+        card.oe_text_edit.textChanged.connect(self._on_sentence_text_changed)
+        card.sentence_merged.connect(self._on_sentence_merged)
+        card.sentence_added.connect(self._on_sentence_added)
+        card.sentence_deleted.connect(self._on_sentence_deleted)
+        card.token_selected_for_details.connect(self._on_token_selected_for_details)
+        card.idiom_selected_for_details.connect(self._on_idiom_selected_for_details)
+        card.annotation_applied.connect(self._on_annotation_applied)
+        card.edit_mode_started.connect(
+            lambda: self.main_window.update_search_ui_state(True)
+        )
+        card.edit_mode_finished.connect(
+            lambda: self.main_window.update_search_ui_state(False)
+        )
+        card.edit_mode_started.connect(self.main_window._on_clear_search_clicked)
 
     def reload(self) -> None:
         """

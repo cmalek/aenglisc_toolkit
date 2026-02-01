@@ -253,13 +253,33 @@ def create_test_project(
     """
     if name is None:
         name = f"Test Project {id(session)}"
-    return Project.create(
+    
+    # If text is empty, Project.create won't create any chapters/sections/paragraphs
+    # We need to ensure they exist even for empty projects
+    project = Project.create(
         text=text, name=name, source=source, translator=translator, notes=notes
     )
+    
+    if not text:
+        from oeapp.models.chapter import Chapter
+        from oeapp.models.section import Section
+        from oeapp.models.paragraph import Paragraph
+        
+        chapter = Chapter(project_id=project.id, number=1)
+        session.add(chapter)
+        session.flush()
+        section = Section(chapter_id=chapter.id, number=1)
+        session.add(section)
+        session.flush()
+        paragraph = Paragraph(section_id=section.id, order=1)
+        session.add(paragraph)
+        session.flush()
+        
+    return project
 
 
 def create_test_sentence(
-    session, project_id=None, text="Se cyning", display_order=1, is_paragraph_start=False
+    session, project_id=None, text="Se cyning", display_order=1, paragraph_id=None
 ):
     """
     Helper to create a sentence with defaults.
@@ -269,7 +289,7 @@ def create_test_sentence(
         project_id: Project ID (if None, creates a new project)
         text: Old English text
         display_order: Display order (will be incremented if conflict exists)
-        is_paragraph_start: Whether sentence starts a paragraph
+        paragraph_id: Paragraph ID
 
     Returns:
         Created Sentence instance
@@ -294,11 +314,32 @@ def create_test_sentence(
         else:
             display_order = 1
 
+    # Ensure we have a paragraph if not provided
+    if paragraph_id is None:
+        from oeapp.models.chapter import Chapter
+        from oeapp.models.section import Section
+        from oeapp.models.paragraph import Paragraph
+        
+        project = session.get(Project, project_id)
+        if not project.chapters:
+            chapter = Chapter(project_id=project_id, number=1)
+            session.add(chapter)
+            session.flush()
+            section = Section(chapter_id=chapter.id, number=1)
+            session.add(section)
+            session.flush()
+            paragraph = Paragraph(section_id=section.id, order=1)
+            session.add(paragraph)
+            session.flush()
+            paragraph_id = paragraph.id
+        else:
+            paragraph_id = project.chapters[0].sections[0].paragraphs[0].id
+
     return Sentence.create(
         project_id=project_id,
         display_order=display_order,
         text_oe=text,
-        is_paragraph_start=is_paragraph_start,
+        paragraph_id=paragraph_id,
     )
 
 

@@ -189,7 +189,7 @@ class VerbRenderer(AbstractPartOfSpeechRenderer):
             annotation.verb_direct_object_case, "?"
         )
         if annotation.verb_direct_object_case is None:
-            direct_object_case_value = ""
+            direct_object_case_value = "?"
         self.field_renderer.format_field(
             "Direct Object Case", direct_object_case_value, parent_layout
         )
@@ -541,8 +541,18 @@ class BaseTokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
             sentence: Sentence to display given sentence.
 
         """
+        paragraph_order = sentence.paragraph.order if sentence.paragraph else 0
+        # Calculate sentence number in paragraph
+        sentence_num = 1
+        if sentence.paragraph:
+            p_sentences = sorted(sentence.paragraph.sentences, key=lambda s: s.display_order)
+            for i, s in enumerate(p_sentences, 1):
+                if s.id == sentence.id:
+                    sentence_num = i
+                    break
+
         number_label = QLabel(
-            f"[{sentence.display_order}] ¶:{sentence.paragraph_number} S:{sentence.sentence_number_in_paragraph}",  # noqa: E501
+            f"[{sentence.display_order}] ¶:{paragraph_order} S:{sentence_num}",  # noqa: E501
             self.content_widget,
         )
         number_label.setFont(self.LINE_LABEL_FONT)

@@ -67,12 +67,12 @@ class TestSentenceCard:
 
         sentence = create_test_sentence(
             db_session, project_id=project.id, text="First paragraph.",
-            display_order=1, is_paragraph_start=True
+            display_order=1
         )
 
         card = SentenceCard(sentence, main_window=mock_main_window, parent=None)
 
-        assert card.sentence.is_paragraph_start is True
+        assert card.sentence.paragraph.order == 1
 
     def test_token_navigation_next_prev(self, db_session, qapp, qtbot, mock_main_window):
         """Test token navigation using arrow keys."""

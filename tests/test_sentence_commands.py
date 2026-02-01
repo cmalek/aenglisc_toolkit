@@ -13,8 +13,8 @@ def test_add_sentence_before_first_sentence_succeeds(db_session):
     db_session.commit()
     first_sentence = project.sentences[0]
     assert first_sentence.display_order == 1
-    assert first_sentence.paragraph_number == 1
-    assert first_sentence.sentence_number_in_paragraph == 1
+    assert first_sentence.paragraph is not None
+    assert first_sentence.paragraph.order == 1
 
     # 2. Add a sentence BEFORE the first sentence
     command = AddSentenceCommand(
@@ -29,19 +29,15 @@ def test_add_sentence_before_first_sentence_succeeds(db_session):
     sentences = Sentence.list(project.id)
     assert len(sentences) == 2
 
-    # New sentence should be first and inherit paragraph start
+    # New sentence should be first and inherit paragraph
     new_s = sentences[0]
     old_s = sentences[1]
 
     assert new_s.display_order == 1
-    assert new_s.paragraph_number == 1
-    assert new_s.sentence_number_in_paragraph == 1
-    assert new_s.is_paragraph_start is True
+    assert new_s.paragraph_id == first_sentence.paragraph_id
 
     assert old_s.display_order == 2
-    assert old_s.paragraph_number == 1
-    assert old_s.sentence_number_in_paragraph == 2
-    assert old_s.is_paragraph_start is False
+    assert old_s.paragraph_id == first_sentence.paragraph_id
 
     # 4. Undo and verify
     assert command.undo()
@@ -49,9 +45,7 @@ def test_add_sentence_before_first_sentence_succeeds(db_session):
     assert len(sentences) == 1
     assert sentences[0].id == first_sentence.id
     assert sentences[0].display_order == 1
-    assert sentences[0].paragraph_number == 1
-    assert sentences[0].sentence_number_in_paragraph == 1
-    assert sentences[0].is_paragraph_start is True
+    assert sentences[0].paragraph_id == first_sentence.paragraph_id
 
 def test_add_sentence_after_first_sentence_succeeds(db_session):
     """
@@ -80,16 +74,13 @@ def test_add_sentence_after_first_sentence_succeeds(db_session):
     new_s = sentences[1]
 
     assert old_s.display_order == 1
-    assert old_s.paragraph_number == 1
-    assert old_s.sentence_number_in_paragraph == 1
+    assert old_s.paragraph_id == first_sentence.paragraph_id
 
     assert new_s.display_order == 2
-    assert new_s.paragraph_number == 1
-    assert new_s.sentence_number_in_paragraph == 2
-    assert new_s.is_paragraph_start is False
+    assert new_s.paragraph_id == first_sentence.paragraph_id
 
 def test_delete_sentence_recalculates(db_session):
-    """Test that deleting a sentence recalculates paragraph/sentence numbers."""
+    """Test that deleting a sentence updates display orders."""
     project = create_test_project(db_session, text="S1. S2. S3.")
     db_session.commit()
     sentences = Sentence.list(project.id)
@@ -102,16 +93,14 @@ def test_delete_sentence_recalculates(db_session):
     assert len(remaining) == 2
     assert remaining[0].display_order == 1
     assert remaining[1].display_order == 2
-    assert remaining[1].sentence_number_in_paragraph == 2
 
     assert command.undo()
     restored = Sentence.list(project.id)
     assert len(restored) == 3
     assert restored[1].display_order == 2
-    assert restored[1].sentence_number_in_paragraph == 2
 
 def test_merge_sentences_recalculates(db_session):
-    """Test that merging sentences recalculates paragraph/sentence numbers."""
+    """Test that merging sentences updates display orders."""
     project = create_test_project(db_session, text="S1. S2. S3.")
     db_session.commit()
     sentences = Sentence.list(project.id)
@@ -130,13 +119,10 @@ def test_merge_sentences_recalculates(db_session):
     assert len(remaining) == 2
     assert remaining[0].display_order == 1
     assert remaining[1].display_order == 2
-    assert remaining[1].sentence_number_in_paragraph == 2
 
     assert command.undo()
     restored = Sentence.list(project.id)
     assert len(restored) == 3
     assert restored[1].display_order == 2
-    assert restored[1].sentence_number_in_paragraph == 2
     assert restored[2].display_order == 3
-    assert restored[2].sentence_number_in_paragraph == 3
 

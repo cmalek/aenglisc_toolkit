@@ -24,9 +24,9 @@ from oeapp.models.token import Token
 from oeapp.utils import from_utc_iso, to_utc_iso
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
-
+    from oeapp.models.chapter import Chapter
     from oeapp.models.idiom import Idiom
+    from oeapp.models.paragraph import Paragraph
     from oeapp.models.project import Project
 
 
@@ -36,19 +36,18 @@ class Sentence(SaveDeleteMixin, Base):
 
     A sentences has these characteristics:
 
-    - A paragraph number
-    - A sentence number within the paragraph
+    - A paragraph ID
     - A project ID
     - A display order
     - An Old English text
     - A Modern English translation (optional)
     - A list of tokens
     - A list of notes
-    - Whether this sentence starts a paragraph
     - The date and time the sentence was created
     - The date and time the sentence was last updated
 
     A sentence is related to a project by the project ID.
+    A sentence is related to a paragraph by the paragraph ID.
     A sentence is related to a list of tokens by the token ID.
     A sentence is related to a list of notes by the note ID.
     """
@@ -58,12 +57,6 @@ class Sentence(SaveDeleteMixin, Base):
         UniqueConstraint(
             "project_id", "display_order", name="uq_sentences_project_order"
         ),
-        UniqueConstraint(
-            "project_id",
-            "paragraph_number",
-            "sentence_number_in_paragraph",
-            name="uq_sentences_paragraph_sentence",
-        ),
     )
 
     #: The sentence ID.
@@ -72,20 +65,16 @@ class Sentence(SaveDeleteMixin, Base):
     project_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False
     )
+    #: The paragraph ID.
+    paragraph_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("paragraphs.id", ondelete="CASCADE"), nullable=True
+    )
     #: The display order of the sentence in the project.
     display_order: Mapped[int] = mapped_column(Integer, nullable=False)
-    #: The paragraph number (1-based).
-    paragraph_number: Mapped[int] = mapped_column(Integer, nullable=False)
-    #: The sentence number within the paragraph (1-based).
-    sentence_number_in_paragraph: Mapped[int] = mapped_column(Integer, nullable=False)
     #: The Old English text.
     text_oe: Mapped[str] = mapped_column(String, nullable=False)
     #: The Modern English translation.
     text_modern: Mapped[str | None] = mapped_column(String, nullable=True)
-    #: Whether this sentence starts a paragraph.
-    is_paragraph_start: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=False
-    )
     #: The date and time the sentence was created.
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None), nullable=False
@@ -100,6 +89,7 @@ class Sentence(SaveDeleteMixin, Base):
 
     # Relationships
     project: Mapped[Project] = relationship("Project", back_populates="sentences")
+    paragraph: Mapped["Paragraph"] = relationship("Paragraph", back_populates="sentences")
     tokens: Mapped[builtins.list[Token]] = relationship(
         "Token",
         back_populates="sentence",
@@ -225,9 +215,7 @@ class Sentence(SaveDeleteMixin, Base):
         project_id: int,
         display_order: int,
         text_oe: str,
-        is_paragraph_start: bool = False,  # noqa: FBT001, FBT002
-        paragraph_number: int | None = None,
-        sentence_number_in_paragraph: int | None = None,
+        paragraph_id: int | None = None,
         commit: bool = True,  # noqa: FBT001, FBT002
     ) -> Sentence:
         """
@@ -241,10 +229,7 @@ class Sentence(SaveDeleteMixin, Base):
             project_id: Project ID
             display_order: Display order
             text_oe: Old English text
-            is_paragraph_start: Whether this sentence starts a paragraph
-            paragraph_number: Paragraph number (calculated if not provided)
-            sentence_number_in_paragraph: Sentence number in paragraph
-              (calculated if not provided)
+            paragraph_id: Paragraph ID
 
         Keyword Args:
             commit: Whether to commit the changes to the database
@@ -259,21 +244,36 @@ class Sentence(SaveDeleteMixin, Base):
         logger = get_logger(cls.__name__)
 
         session = cls._get_session()
-        # Calculate paragraph_number and sentence_number_in_paragraph if not provided
-        if paragraph_number is None or sentence_number_in_paragraph is None:
-            calculated = cls._calculate_paragraph_and_sentence_numbers(
-                project_id, display_order, is_paragraph_start
-            )
-            paragraph_number = calculated["paragraph_number"]
-            sentence_number_in_paragraph = calculated["sentence_number_in_paragraph"]
+
+        # If paragraph_id is not provided, ensure we have a default hierarchy
+        if paragraph_id is None:
+            from oeapp.models.project import Project
+            from oeapp.models.chapter import Chapter
+            from oeapp.models.section import Section
+            from oeapp.models.paragraph import Paragraph
+            
+            project = session.get(Project, project_id)
+            if project:
+                if not project.chapters:
+                    chapter = Chapter(project_id=project_id, number=1)
+                    session.add(chapter)
+                    session.flush()
+                    section = Section(chapter_id=chapter.id, number=1)
+                    session.add(section)
+                    session.flush()
+                    paragraph = Paragraph(section_id=section.id, order=1)
+                    session.add(paragraph)
+                    session.flush()
+                    paragraph_id = paragraph.id
+                else:
+                    # Use existing first paragraph
+                    paragraph_id = project.chapters[0].sections[0].paragraphs[0].id
 
         sentence = cls(
             project_id=project_id,
             display_order=display_order,
-            paragraph_number=paragraph_number,
-            sentence_number_in_paragraph=sentence_number_in_paragraph,
+            paragraph_id=paragraph_id,
             text_oe=text_oe,
-            is_paragraph_start=is_paragraph_start,
         )
         sentence.save(commit=False)
 
@@ -432,49 +432,20 @@ class Sentence(SaveDeleteMixin, Base):
     @classmethod
     def recalculate_project_structure(cls, project_id: int) -> None:
         """
-        Recalculate paragraph_number and sentence_number_in_paragraph for all
-        sentences in a project.
-
-        This method safely updates these numbers using a two-phase approach to
-        avoid unique constraint violations on (project_id, paragraph_number,
-        sentence_number_in_paragraph).
-
-        Args:
-            project_id: Project ID
-
+        Recalculate paragraph order for all paragraphs in a project.
         """
         session = cls._get_session()
-        sentences = cls.list(project_id)
-        if not sentences:
+        from oeapp.models.project import Project
+        project = Project.get(project_id)
+        if not project:
             return
 
-        # Phase 1: Move all to temporary negative positions
-        temp_offset = -1
-        for sentence in sentences:
-            sentence.paragraph_number = -1
-            sentence.sentence_number_in_paragraph = temp_offset
-            temp_offset -= 1
-            session.add(sentence)
-        session.flush()
-
-        # Phase 2: Assign correct numbers based on display_order
-        current_paragraph = 1
-        current_sentence_in_paragraph = 0
-
-        for sentence in sentences:
-            if sentence.is_paragraph_start:
-                if current_sentence_in_paragraph > 0:
-                    # New paragraph (not the first sentence)
-                    current_paragraph += 1
-                current_sentence_in_paragraph = 1
-            else:
-                # Continuing current paragraph
-                current_sentence_in_paragraph += 1
-
-            sentence.paragraph_number = current_paragraph
-            sentence.sentence_number_in_paragraph = current_sentence_in_paragraph
-            session.add(sentence)
-
+        for chapter in project.chapters:
+            for section in chapter.sections:
+                for i, paragraph in enumerate(section.paragraphs, 1):
+                    paragraph.order = i
+                    session.add(paragraph)
+        
         session.commit()
         session.flush()
 
@@ -491,11 +462,9 @@ class Sentence(SaveDeleteMixin, Base):
         """
         sentence_data: dict = {
             "display_order": self.display_order,
-            "paragraph_number": self.paragraph_number,
-            "sentence_number_in_paragraph": self.sentence_number_in_paragraph,
+            "paragraph_id": self.paragraph_id,
             "text_oe": self.text_oe,
             "text_modern": self.text_modern,
-            "is_paragraph_start": self.is_paragraph_start,
             "created_at": to_utc_iso(self.created_at),
             "updated_at": to_utc_iso(self.updated_at),
             "tokens": [],
@@ -534,13 +503,9 @@ class Sentence(SaveDeleteMixin, Base):
         sentence = cls(
             project_id=project_id,
             display_order=sentence_data["display_order"],
-            paragraph_number=sentence_data.get("paragraph_number", 1),
-            sentence_number_in_paragraph=sentence_data.get(
-                "sentence_number_in_paragraph", 1
-            ),
+            paragraph_id=sentence_data.get("paragraph_id"),
             text_oe=sentence_data["text_oe"],
             text_modern=sentence_data.get("text_modern"),
-            is_paragraph_start=sentence_data.get("is_paragraph_start", False),
         )
         created_at = from_utc_iso(sentence_data.get("created_at"))
         if created_at:
@@ -569,7 +534,6 @@ class Sentence(SaveDeleteMixin, Base):
             sentence_number=sentence.display_order,
             text_oe=sentence.text_oe,
             text_modern=sentence.text_modern,
-            is_paragraph_start=sentence.is_paragraph_start,
         )
         return sentence
 
@@ -607,7 +571,6 @@ class Sentence(SaveDeleteMixin, Base):
             sentence_number=self.display_order,
             text_oe=self.text_oe,
             text_modern=self.text_modern,
-            is_paragraph_start=self.is_paragraph_start,
         )
         return messages
 
@@ -629,7 +592,6 @@ class Sentence(SaveDeleteMixin, Base):
             sentence_number=self.display_order,
             text_oe=self.text_oe,
             text_modern=self.text_modern,
-            is_paragraph_start=self.is_paragraph_start,
         )
 
     def delete(self, commit: bool = True) -> None:  # noqa: FBT001, FBT002
@@ -649,7 +611,6 @@ class Sentence(SaveDeleteMixin, Base):
             sentence_number=self.display_order,
             text_oe=self.text_oe,
             text_modern=self.text_modern,
-            is_paragraph_start=self.is_paragraph_start,
         )
 
     def _sort_notes_by_position(
