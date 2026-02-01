@@ -316,12 +316,12 @@ class VerbFields(PartOfSpeechFieldsBase):
         self.add_combo("verb_person", "Person", self.VERB_PERSON_MAP)
         self.add_combo("number", "Number", self.NUMBER_MAP)
         self.add_combo("verb_aspect", "Aspect", self.VERB_ASPECT_MAP)
-        self.add_combo("verb_form", "Form", self.VERB_FORM_MAP)
         self.add_combo(
             "verb_direct_object_case",
             "Direct Object Case",
             self.VERB_DIRECT_OBJECT_CASE_MAP,
         )
+        self.add_combo("verb_form", "Form", self.VERB_FORM_MAP)
 
 
 class PronounFields(PartOfSpeechFieldsBase):
