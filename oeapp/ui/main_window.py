@@ -517,6 +517,7 @@ class MainWindow(QMainWindow):
 
         """
         self.project_ui.load(project)
+        self.token_details_sidebar.show_empty()
 
     def reload_project(self) -> None:
         """
