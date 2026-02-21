@@ -194,19 +194,17 @@ class MergeSentenceCommand(SessionMixin, Command):
         for idx, token in enumerate(next_tokens):
             token.sentence_id = current_sentence.id
             token.order_index = current_token_count + idx
-            session.add(token)
-
-        session.flush()
+            token.save(commit=False)
 
         # Move all notes from next sentence to current sentence
         for note in next_notes:
             note.sentence_id = current_sentence.id
-            session.add(note)
+            note.save(commit=False)
 
         # Move all idioms from next sentence to current sentence
         for idiom in next_sentence.idioms:
             idiom.sentence_id = current_sentence.id
-            session.add(idiom)
+            idiom.save(commit=False)
 
         # Merge texts
         merged_text_oe = current_sentence.text_oe + " " + next_sentence.text_oe
@@ -217,7 +215,7 @@ class MergeSentenceCommand(SessionMixin, Command):
         # Update current sentence text (this will re-tokenize and match existing tokens)
         current_sentence.update(merged_text_oe)
         current_sentence.text_modern = merged_text_modern
-        session.add(current_sentence)
+        current_sentence.save(commit=False)
 
         # Store next sentence's display_order before deletion
         next_display_order = next_sentence.display_order
@@ -238,7 +236,7 @@ class MergeSentenceCommand(SessionMixin, Command):
             self.display_order_changes.append(
                 (sentence.id, old_order, sentence.display_order)
             )
-            session.add(sentence)
+            sentence.save(commit=False)
 
         session.commit()
 
@@ -273,8 +271,7 @@ class MergeSentenceCommand(SessionMixin, Command):
             text_oe=self.next_sentence_data["text_oe"],
             text_modern=self.next_sentence_data["text_modern"],
         )
-        session.add(next_sentence)
-        session.flush()  # Get the new ID
+        next_sentence.save(commit=False)
 
         # Restore tokens to next sentence with original order_index
         # CRITICAL: Do this BEFORE updating current sentence text
@@ -283,16 +280,14 @@ class MergeSentenceCommand(SessionMixin, Command):
             if token:
                 token.sentence_id = next_sentence.id  # Use the new sentence ID
                 token.order_index = token_data["order_index"]
-                session.add(token)
-
-        session.flush()  # Ensure tokens are moved before updating current sentence
+                token.save(commit=False)
 
         # Now restore current sentence texts and update (re-tokenize)
         # This will only affect tokens that belong to current sentence
         current_sentence.text_oe = self.before_text_oe
         current_sentence.text_modern = self.before_text_modern
         current_sentence.update(self.before_text_oe)
-        session.add(current_sentence)
+        current_sentence.save(commit=False)
 
         # Restore notes to next sentence
         for note_data in self.next_sentence_notes:
@@ -309,6 +304,7 @@ class MergeSentenceCommand(SessionMixin, Command):
                 idiom.sentence_id = next_sentence.id
                 idiom.save()
 
+        session.commit()
         return True
 
     def get_description(self) -> str:

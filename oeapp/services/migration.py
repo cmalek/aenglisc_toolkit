@@ -2,6 +2,7 @@
 
 import ast
 import json
+import os
 import re
 import shutil
 import sys
@@ -68,6 +69,38 @@ class MigrationMetadataService(ProjectFoldersMixin):
 
     """
 
+    @staticmethod
+    def _is_truthy(value: str | None) -> bool:
+        """Return True when an environment variable value is truthy."""
+        if value is None:
+            return False
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+
+    def _guard_repo_metadata_write_under_pytest(self) -> None:
+        """
+        Prevent pytest from mutating repo-tracked migration metadata by default.
+
+        Tests should inject a mock/in-memory metadata service or patch
+        MIGRATION_VERSIONS_PATH to a temporary file.
+        """
+        if "PYTEST_CURRENT_TEST" not in os.environ:
+            return
+        if self._is_truthy(os.environ.get("AENGLISC_ALLOW_REPO_METADATA_WRITE")):
+            return
+
+        target = self.MIGRATION_VERSIONS_PATH.resolve()
+        canonical = (self.PROJECT_ROOT / "oeapp" / "etc" / "migration_versions.json").resolve()
+        if target != canonical:
+            return
+
+        msg = (
+            "Refusing to write repo migration metadata during pytest: "
+            f"{target}. Use an injected metadata service, patch "
+            "MIGRATION_VERSIONS_PATH to a temp file, or set "
+            "AENGLISC_ALLOW_REPO_METADATA_WRITE=1 to override."
+        )
+        raise RuntimeError(msg)
+
     @property
     def versions(self) -> dict[str, Any] | None:
         """
@@ -95,6 +128,7 @@ class MigrationMetadataService(ProjectFoldersMixin):
             metadata: Migration versions metadata dictionary
 
         """
+        self._guard_repo_metadata_write_under_pytest()
         self.MIGRATION_VERSIONS_PATH.parent.mkdir(parents=True, exist_ok=True)
         with self.MIGRATION_VERSIONS_PATH.open("w", encoding="utf-8") as f:
             json.dump(metadata, f, indent=2)

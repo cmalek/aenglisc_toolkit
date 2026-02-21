@@ -44,14 +44,13 @@ class AddNoteCommand(SessionMixin, Command):
             self.start_token_id if self.start_token_id is not None else None
         )
         end_token_id = self.end_token_id if self.end_token_id is not None else None
-        note = Note(
+        note = Note.create(
             sentence_id=self.sentence_id,
-            start_token=start_token_id,
-            end_token=end_token_id,
+            start_token_id=start_token_id,
+            end_token_id=end_token_id,
             note_text_md=self.note_text,
             note_type="span",
         )
-        note.save()
         self.note_id = note.id
         return True
 
@@ -312,14 +311,13 @@ class DeleteNoteCommand(SessionMixin, Command):
             return False
 
         # Recreate note
-        note = Note(
+        note = Note.create(
             sentence_id=self.sentence_id,
-            start_token=self.start_token_id,
-            end_token=self.end_token_id,
+            start_token_id=self.start_token_id,
+            end_token_id=self.end_token_id,
             note_text_md=self.note_text,
             note_type="span",
         )
-        note.save()
         self.note_id = note.id
         return True
 

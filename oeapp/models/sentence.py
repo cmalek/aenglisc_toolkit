@@ -7,7 +7,6 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, cast
 
 from sqlalchemy import (
-    Boolean,
     DateTime,
     ForeignKey,
     Integer,
@@ -24,7 +23,8 @@ from oeapp.models.token import Token
 from oeapp.utils import from_utc_iso, to_utc_iso
 
 if TYPE_CHECKING:
-    from oeapp.models.chapter import Chapter
+    from collections.abc import Callable, Sequence
+
     from oeapp.models.idiom import Idiom
     from oeapp.models.paragraph import Paragraph
     from oeapp.models.project import Project
@@ -89,7 +89,7 @@ class Sentence(SaveDeleteMixin, Base):
 
     # Relationships
     project: Mapped[Project] = relationship("Project", back_populates="sentences")
-    paragraph: Mapped["Paragraph"] = relationship("Paragraph", back_populates="sentences")
+    paragraph: Mapped[Paragraph] = relationship("Paragraph", back_populates="sentences")
     tokens: Mapped[builtins.list[Token]] = relationship(
         "Token",
         back_populates="sentence",
@@ -145,14 +145,14 @@ class Sentence(SaveDeleteMixin, Base):
 
         if is_paragraph_start:
             # Starting a new paragraph
-            paragraph_number = last_sentence.paragraph_number + 1
+            paragraph_number = last_sentence.paragraph.order + 1
             sentence_number_in_paragraph = 1
         else:
             # Continuing the same paragraph
-            paragraph_number = last_sentence.paragraph_number
+            paragraph_number = last_sentence.paragraph.order
             # Count sentences in this paragraph
             sentences_in_paragraph = [
-                s for s in previous_sentences if s.paragraph_number == paragraph_number
+                s for s in previous_sentences if s.paragraph.order == paragraph_number
             ]
             sentence_number_in_paragraph = len(sentences_in_paragraph) + 1
 
@@ -210,7 +210,7 @@ class Sentence(SaveDeleteMixin, Base):
         return session.scalar(stmt)
 
     @classmethod
-    def create(  # noqa: PLR0913
+    def create(
         cls,
         project_id: int,
         display_order: int,
@@ -239,6 +239,10 @@ class Sentence(SaveDeleteMixin, Base):
 
         """
         # Import here to avoid circular import
+        from oeapp.models.chapter import Chapter  # noqa: PLC0415
+        from oeapp.models.paragraph import Paragraph  # noqa: PLC0415
+        from oeapp.models.project import Project  # noqa: PLC0415
+        from oeapp.models.section import Section  # noqa: PLC0415
         from oeapp.services.logs import get_logger  # noqa: PLC0415
 
         logger = get_logger(cls.__name__)
@@ -247,11 +251,6 @@ class Sentence(SaveDeleteMixin, Base):
 
         # If paragraph_id is not provided, ensure we have a default hierarchy
         if paragraph_id is None:
-            from oeapp.models.project import Project
-            from oeapp.models.chapter import Chapter
-            from oeapp.models.section import Section
-            from oeapp.models.paragraph import Paragraph
-            
             project = session.get(Project, project_id)
             if project:
                 if not project.chapters:
@@ -298,7 +297,7 @@ class Sentence(SaveDeleteMixin, Base):
     @classmethod
     def subsequent_sentences(
         cls, project_id: int, display_order: int
-    ) -> builtins.list[Sentence]:
+    ) -> Sequence[Sentence]:
         """
         Get the subsequent sentences by project ID and display order.
 
@@ -434,8 +433,11 @@ class Sentence(SaveDeleteMixin, Base):
         """
         Recalculate paragraph order for all paragraphs in a project.
         """
+        # Import here to avoid circular import
+        from oeapp.models.project import Project  # noqa: PLC0415
+
         session = cls._get_session()
-        from oeapp.models.project import Project
+
         project = Project.get(project_id)
         if not project:
             return
@@ -445,7 +447,7 @@ class Sentence(SaveDeleteMixin, Base):
                 for i, paragraph in enumerate(section.paragraphs, 1):
                     paragraph.order = i
                     session.add(paragraph)
-        
+
         session.commit()
         session.flush()
 

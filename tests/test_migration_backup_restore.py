@@ -1,6 +1,7 @@
 """Unit tests for migration backup and restore functionality."""
 
 import logging
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -8,7 +9,27 @@ from sqlalchemy import create_engine, text
 
 from oeapp.db import Base
 from oeapp.exc import BackupFailed, MigrationFailed
-from oeapp.services.migration import MigrationService
+from oeapp.services.migration import MigrationMetadataService, MigrationService
+
+
+class InMemoryMigrationMetadataService:
+    """Test double that stores migration metadata in memory."""
+
+    def __init__(self) -> None:
+        self._versions: dict[str, str] | None = {}
+
+    @property
+    def versions(self) -> dict[str, str] | None:
+        return self._versions
+
+    @versions.setter
+    def versions(self, metadata: dict[str, str]) -> None:
+        self._versions = metadata
+
+    def get_min_version_for_migration(self, migration_version: str) -> str | None:
+        if self._versions is None:
+            return None
+        return self._versions.get(migration_version)
 
 @pytest.fixture
 def temp_db_path(tmp_path):
@@ -54,7 +75,8 @@ def migration_service_with_temp_db(temp_db_path, monkeypatch):
         engine = create_engine(f"sqlite:///{temp_db_path}")
         mock_create.return_value = engine
 
-        service = MigrationService()
+        metadata_service = InMemoryMigrationMetadataService()
+        service = MigrationService(migration_metadata_service=metadata_service)
         service.engine = engine
         yield service
 
@@ -316,6 +338,40 @@ class TestMigrationFlow:
 
                     log_messages = [record.message for record in caplog.records]
                     assert any("migration.no-pending-migrations" in msg for msg in log_messages)
+
+
+class TestMigrationMetadataWriteGuards:
+    """Guardrails preventing repo metadata mutation during pytest."""
+
+    def test_versions_setter_raises_for_repo_path_under_pytest(self, monkeypatch):
+        """Writing the canonical migration_versions.json should fail under pytest."""
+        service = MigrationMetadataService()
+        canonical_path = (
+            Path(__file__).resolve().parents[1]
+            / "oeapp"
+            / "etc"
+            / "migration_versions.json"
+        )
+        monkeypatch.setattr(
+            MigrationMetadataService, "MIGRATION_VERSIONS_PATH", canonical_path
+        )
+        monkeypatch.setenv("PYTEST_CURRENT_TEST", "test_guard")
+        monkeypatch.delenv("AENGLISC_ALLOW_REPO_METADATA_WRITE", raising=False)
+
+        with pytest.raises(RuntimeError, match="Refusing to write repo migration metadata"):
+            service.versions = {"deadbeef": "0.1.0"}
+
+    def test_versions_setter_writes_when_path_is_temp(self, tmp_path, monkeypatch):
+        """Writing to a temp metadata path should succeed under pytest."""
+        service = MigrationMetadataService()
+        temp_path = tmp_path / "migration_versions.json"
+        monkeypatch.setattr(MigrationMetadataService, "MIGRATION_VERSIONS_PATH", temp_path)
+        monkeypatch.setenv("PYTEST_CURRENT_TEST", "test_guard")
+        monkeypatch.delenv("AENGLISC_ALLOW_REPO_METADATA_WRITE", raising=False)
+
+        service.versions = {"abc123": "0.1.0"}
+        assert temp_path.exists()
+        assert service.versions == {"abc123": "0.1.0"}
 
 
 class TestMigrationFailureDialog:

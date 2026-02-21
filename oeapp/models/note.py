@@ -98,6 +98,41 @@ class Note(SaveDeleteMixin, Base):
         session = cls._get_session()
         return session.get(cls, pk)
 
+    @classmethod
+    def create(  # noqa: PLR0913
+        cls,
+        sentence_id: int,
+        start_token_id: int | None = None,
+        end_token_id: int | None = None,
+        note_text_md: str = "",
+        note_type: str = "token",
+        commit: bool = True,  # noqa: FBT001, FBT002
+    ) -> "Note":
+        """
+        Create a new note.
+
+        Args:
+            sentence_id: Sentence ID
+            start_token_id: Start token ID
+            end_token_id: End token ID
+            note_text_md: Note text in Markdown format
+            note_type: Note type
+            commit: Whether to commit the changes to the database
+
+        """
+        session = cls._get_session()
+        note = cls(
+            sentence_id=sentence_id,
+            start_token=start_token_id,
+            end_token=end_token_id,
+            note_text_md=note_text_md,
+            note_type=note_type,
+        )
+        session.add(note)
+        if commit:
+            session.commit()
+        return note
+
     def to_json(self) -> dict:
         """
         Serialize note to JSON-compatible dictionary (without PKs).

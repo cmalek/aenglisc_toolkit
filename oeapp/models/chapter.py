@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+import builtins  # noqa: TC003
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, Integer, String
+from sqlalchemy import ForeignKey, Integer, String, func, select
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from oeapp.db import Base
 from oeapp.models.mixins import SaveDeleteMixin
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from oeapp.models.project import Project
     from oeapp.models.section import Section
 
@@ -35,7 +38,7 @@ class Chapter(SaveDeleteMixin, Base):
 
     # Relationships
     project: Mapped[Project] = relationship("Project", back_populates="chapters")
-    sections: Mapped[list[Section]] = relationship(
+    sections: Mapped[builtins.list[Section]] = relationship(
         "Section",
         back_populates="chapter",
         cascade="all, delete-orphan",
@@ -46,9 +49,132 @@ class Chapter(SaveDeleteMixin, Base):
     def get(cls, chapter_id: int) -> Chapter | None:
         """
         Get a chapter by ID.
+
+        Args:
+            chapter_id: The chapter ID
+
+        Returns:
+            The chapter or None if not found
+
         """
         session = cls._get_session()
         return session.get(cls, chapter_id)
+
+    @classmethod
+    def create(
+        cls,
+        project_id: int,
+        number: int,
+        title: str | None = None,
+        sections: list[Section] | None = None,
+        commit: bool = True,  # noqa: FBT001, FBT002
+    ) -> Chapter:
+        """
+        Create a new chapter.
+
+        Args:
+            project_id: The project ID
+            number: The chapter number
+            title: The chapter title
+
+        Keyword Args:
+            sections: The sections to add to the chapter
+            commit: Whether to commit the changes to the database
+
+        Returns:
+            The new :class:`~oeapp.models.chapter.Chapter` object
+
+        """
+        session = cls._get_session()
+        chapter = cls(project_id=project_id, number=number, title=title)
+        if sections:
+            chapter.sections = sections
+        session.add(chapter)
+        if commit:
+            session.commit()
+        session.refresh(chapter)
+        return chapter
+
+    @classmethod
+    def list(cls, project_id: int | None = None) -> Sequence[Chapter]:
+        """
+        Get all chapters.  If ``project_id`` is provided, return chapters in the
+        project.
+
+        Keyword Args:
+            project_id: Project ID to filter by, if not provided, return all chapters
+
+        Returns:
+            List of :class:`~oeapp.models.chapter.Chapter` objects
+
+        """
+        session = cls._get_session()
+        if project_id:
+            stmt = select(cls).where(cls.project_id == project_id)
+        else:
+            stmt = select(cls)
+        return session.scalars(stmt.order_by(cls.number)).all()
+
+    @classmethod
+    def get_chapters_after(
+        cls, project_id: int, number: int, exclude_chapter_id: int | None = None
+    ) -> Sequence[Chapter]:
+        """
+        Get the subsequent chapters by project ID and number.
+
+        Args:
+            project_id: Project ID
+            number: Chapter number
+
+        Keyword Args:
+            exclude_chapter_id: Chapter ID to exclude
+
+        Returns:
+            List of subsequent chapters
+
+        """
+        session = cls._get_session()
+        if exclude_chapter_id:
+            stmt = select(cls).where(
+                cls.project_id == project_id,
+                cls.number > number,
+                cls.id != exclude_chapter_id,
+            )
+        else:
+            stmt = select(cls).where(cls.project_id == project_id, cls.number > number)
+        return session.scalars(stmt.order_by(cls.number)).all()
+
+    @classmethod
+    def previous_chapter(cls, project_id: int, number: int) -> Chapter | None:
+        """
+        Get the chapter with the given number - 1 in the same project.
+        """
+        session = cls._get_session()
+        return session.scalar(
+            select(cls)
+            .where(cls.project_id == project_id, cls.number == number - 1)
+            .order_by(cls.number.desc())
+            .limit(1)
+        )
+
+    def last_section_number(self) -> int:
+        """
+        Get the last section number in the chapter (1-based).
+
+        Returns:
+            The last section number in the project (1-based)
+
+        """
+        # Import here to avoid circular import
+        from oeapp.models.section import Section  # noqa: PLC0415
+
+        session = self._get_session()
+        return (
+            session.scalar(
+                select(func.max(Section.number)).where(Section.chapter_id == self.id)
+            )
+            or 0
+        )
 
     @property
     def display_title(self) -> str:

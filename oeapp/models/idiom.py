@@ -72,6 +72,39 @@ class Idiom(SaveDeleteMixin, Base):
         session = cls._get_session()
         return session.get(cls, idiom_id)
 
+    @classmethod
+    def create(
+        cls,
+        sentence_id: int,
+        start_token_id: int,
+        end_token_id: int,
+        commit: bool = True,  # noqa: FBT001, FBT002
+    ) -> "Idiom":
+        """
+        Create a new idiom.
+
+        Args:
+            sentence_id: Sentence ID
+            start_token_id: Start token ID
+            end_token_id: End token ID
+            commit: Whether to commit the changes to the database
+
+        Returns:
+            The new :class:`~oeapp.models.idiom.Idiom` object
+
+        """
+        session = cls._get_session()
+        idiom = cls(
+            sentence_id=sentence_id,
+            start_token_id=start_token_id,
+            end_token_id=end_token_id,
+        )
+        session.add(idiom)
+        if commit:
+            session.commit()
+        session.refresh(idiom)
+        return idiom
+
     def save(self, commit: bool = True) -> None:  # noqa: FBT001, FBT002
         """
         Save the idiom.

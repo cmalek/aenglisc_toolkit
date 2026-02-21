@@ -2,15 +2,19 @@
 
 from __future__ import annotations
 
+import builtins
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, Integer, String
+from sqlalchemy import ForeignKey, Integer, String, select
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.sql import func
 
 from oeapp.db import Base
 from oeapp.models.mixins import SaveDeleteMixin
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from oeapp.models.chapter import Chapter
     from oeapp.models.paragraph import Paragraph
 
@@ -35,7 +39,7 @@ class Section(SaveDeleteMixin, Base):
 
     # Relationships
     chapter: Mapped[Chapter] = relationship("Chapter", back_populates="sections")
-    paragraphs: Mapped[list[Paragraph]] = relationship(
+    paragraphs: Mapped[builtins.list[Paragraph]] = relationship(
         "Paragraph",
         back_populates="section",
         cascade="all, delete-orphan",
@@ -49,6 +53,162 @@ class Section(SaveDeleteMixin, Base):
         """
         session = cls._get_session()
         return session.get(cls, section_id)
+
+    @classmethod
+    def create(
+        cls,
+        chapter_id: int,
+        number: int,
+        title: str | None = None,
+        paragraphs: list[Paragraph] | None = None,
+        commit: bool = True,  # noqa: FBT001, FBT002
+    ) -> Section:
+        """
+        Create a new section.
+
+        Args:
+            chapter_id: The chapter ID
+            number: The section number
+            title: The section title
+
+        Keyword Args:
+            paragraphs: The paragraphs to add to the section
+            commit: Whether to commit the changes to the database
+
+        Returns:
+            The new :class:`~oeapp.models.section.Section` object
+
+        """
+        session = cls._get_session()
+        section = cls(chapter_id=chapter_id, number=number, title=title)
+        if paragraphs:
+            section.paragraphs = paragraphs
+        session.add(section)
+        if commit:
+            session.commit()
+        session.refresh(section)
+        return section
+
+    @classmethod
+    def list(cls, chapter_id: int | None = None) -> Sequence[Section]:
+        """
+        Get all sections.  If ``chapter_id`` is provided, return sections in the
+        chapter.
+
+        Args:
+            chapter_id: Chapter ID
+
+        Returns:
+            List of sections ordered by (Chapter.number, Section.number)
+
+        """
+        # Import here to avoid circular import
+        from oeapp.models.chapter import Chapter  # noqa: PLC0415
+
+        session = cls._get_session()
+        if chapter_id:
+            stmt = select(cls).where(cls.chapter_id == chapter_id)
+        else:
+            stmt = select(cls)
+        return session.scalars(stmt.order_by(Chapter.number, cls.number)).all()
+
+    @classmethod
+    def get_sections_after(
+        cls, chapter_id: int, number: int, exclude_section_id: int | None = None
+    ) -> Sequence[Section]:
+        """
+        Get the subsequent sections by chapter ID and number.
+
+        Args:
+            chapter_id: Chapter ID
+            number: Section number
+
+        Keyword Args:
+            exclude_section_id: Section ID to exclude
+
+        Returns:
+            List of subsequent sections
+
+        """
+        session = cls._get_session()
+        if exclude_section_id:
+            stmt = select(cls).where(
+                cls.chapter_id == chapter_id,
+                cls.number > number,
+                cls.id != exclude_section_id,
+            )
+        else:
+            stmt = select(cls).where(cls.chapter_id == chapter_id, cls.number > number)
+        return session.scalars(stmt.order_by(cls.number)).all()
+
+    @classmethod
+    def previous_section(cls, chapter_id: int, number: int) -> Section | None:
+        """
+        Get the section with the given number - 1 in the same chapter.
+
+        Args:
+            chapter_id: Chapter ID
+            number: Section number
+
+        Returns:
+            The previous section or None if not found
+
+        """
+        session = cls._get_session()
+        return session.scalar(
+            select(cls)
+            .where(cls.chapter_id == chapter_id, cls.number == number - 1)
+            .order_by(cls.number.desc())
+            .limit(1)
+        )
+
+    def last_paragraph_number(self) -> int:
+        """
+        Get the last paragraph number in the section (1-based).
+        """
+        # Import here to avoid circular import
+        from oeapp.models.paragraph import Paragraph  # noqa: PLC0415
+
+        session = self._get_session()
+        return (
+            session.scalar(
+                select(func.max(Paragraph.order)).where(Paragraph.section_id == self.id)
+            )
+            or 0
+        )
+
+    def get_paragraphs_after(
+        self, order: int, exclude_paragraph_id: int | None = None
+    ) -> Sequence[Paragraph]:
+        """
+        Get all paragraphs in the section, with ``order``
+        greater than the given order, excluding the given paragraph ID
+
+        Args:
+            order: Paragraph order
+
+        Keyword Args:
+            exclude_paragraph_id: Paragraph ID to exclude
+
+        Returns:
+            List of subsequent paragraphs
+
+        """
+        # Import here to avoid circular import
+        from oeapp.models.paragraph import Paragraph  # noqa: PLC0415
+
+        session = self._get_session()
+        if exclude_paragraph_id:
+            stmt = select(Paragraph).where(
+                Paragraph.section_id == self.id,
+                Paragraph.order > order,
+                Paragraph.id != exclude_paragraph_id,
+            )
+        else:
+            stmt = select(Paragraph).where(
+                Paragraph.section_id == self.id, Paragraph.order > order
+            )
+        return builtins.list(session.scalars(stmt.order_by(Paragraph.order)).all())
 
     @property
     def display_title(self) -> str:

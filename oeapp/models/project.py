@@ -138,6 +138,9 @@ class Project(SaveDeleteMixin, Base):
 
         """
         # Import here to avoid circular import
+        from oeapp.models.chapter import Chapter  # noqa: PLC0415
+        from oeapp.models.paragraph import Paragraph  # noqa: PLC0415
+        from oeapp.models.section import Section  # noqa: PLC0415
         from oeapp.services.logs import get_logger  # noqa: PLC0415
 
         logger = get_logger(cls.__name__)
@@ -153,8 +156,6 @@ class Project(SaveDeleteMixin, Base):
         session.flush()  # Get the ID
 
         sentences_data = cls.split_sentences(text)
-        paragraph_number = 1
-        sentence_number_in_paragraph = 0
 
         for order, (sentence_text, is_paragraph_start) in enumerate(sentences_data, 1):
             if is_paragraph_start or order == 1:
@@ -162,8 +163,6 @@ class Project(SaveDeleteMixin, Base):
                 # For now, we assume a single chapter and section for new projects
                 # This will be refined when we add the UI for creating chapters/sections
                 if order == 1:
-                    from oeapp.models.chapter import Chapter
-                    from oeapp.models.section import Section
                     chapter = Chapter(project_id=project.id, number=1)
                     session.add(chapter)
                     session.flush()
@@ -172,10 +171,11 @@ class Project(SaveDeleteMixin, Base):
                     session.flush()
                     current_section_id = section.id
                     paragraph_order = 0
-                
+
                 paragraph_order += 1
-                from oeapp.models.paragraph import Paragraph
-                paragraph = Paragraph(section_id=current_section_id, order=paragraph_order)
+                paragraph = Paragraph(
+                    section_id=current_section_id, order=paragraph_order
+                )
                 session.add(paragraph)
                 session.flush()
                 current_paragraph_id = paragraph.id
@@ -212,8 +212,14 @@ class Project(SaveDeleteMixin, Base):
         Args:
             text: Old English text to process and append to the project
 
+        Raises:
+            KeyError: If the last paragraph is not found.  This should never happen.
+
         """
         # Import here to avoid circular import
+        from oeapp.models.chapter import Chapter  # noqa: PLC0415
+        from oeapp.models.paragraph import Paragraph  # noqa: PLC0415
+        from oeapp.models.section import Section  # noqa: PLC0415
         from oeapp.services.logs import get_logger  # noqa: PLC0415
 
         logger = get_logger(self.__class__.__name__)
@@ -248,33 +254,31 @@ class Project(SaveDeleteMixin, Base):
         if last_sentence:
             current_paragraph_id = last_sentence.paragraph_id
             # We'll need the section_id to create new paragraphs if needed
-            from oeapp.models.paragraph import Paragraph
+
             last_paragraph = session.get(Paragraph, current_paragraph_id)
+            if not last_paragraph:
+                msg = "Last paragraph not found"
+                raise KeyError(msg)
             current_section_id = last_paragraph.section_id
             paragraph_order = last_paragraph.order
-        else:
+        elif not self.chapters:
             # For empty project, ensure default hierarchy
-            from oeapp.models.chapter import Chapter
-            from oeapp.models.section import Section
-            from oeapp.models.paragraph import Paragraph
-            
-            if not self.chapters:
-                chapter = Chapter(project_id=self.id, number=1)
-                session.add(chapter)
-                session.flush()
-                section = Section(chapter_id=chapter.id, number=1)
-                session.add(section)
-                session.flush()
-                paragraph = Paragraph(section_id=section.id, order=1)
-                session.add(paragraph)
-                session.flush()
-                current_paragraph_id = paragraph.id
-                current_section_id = section.id
-                paragraph_order = 1
-            else:
-                current_section_id = self.chapters[0].sections[0].id
-                current_paragraph_id = self.chapters[0].sections[0].paragraphs[0].id
-                paragraph_order = self.chapters[0].sections[0].paragraphs[0].order
+            chapter = Chapter(project_id=self.id, number=1)
+            session.add(chapter)
+            session.flush()
+            section = Section(chapter_id=chapter.id, number=1)
+            session.add(section)
+            session.flush()
+            paragraph = Paragraph(section_id=section.id, order=1)
+            session.add(paragraph)
+            session.flush()
+            current_paragraph_id = paragraph.id
+            current_section_id = section.id
+            paragraph_order = 1
+        else:
+            current_section_id = self.chapters[0].sections[0].id
+            current_paragraph_id = self.chapters[0].sections[0].paragraphs[0].id
+            paragraph_order = self.chapters[0].sections[0].paragraphs[0].order
 
         # Create new sentences starting from max_order + 1
         for order_offset, (sentence_text, is_paragraph_start) in enumerate(
@@ -282,8 +286,10 @@ class Project(SaveDeleteMixin, Base):
         ):
             if is_paragraph_start and (max_order > 0 or order_offset > 1):
                 paragraph_order += 1
-                from oeapp.models.paragraph import Paragraph
-                paragraph = Paragraph(section_id=current_section_id, order=paragraph_order)
+
+                paragraph = Paragraph(
+                    section_id=current_section_id, order=paragraph_order
+                )
                 session.add(paragraph)
                 session.flush()
                 current_paragraph_id = paragraph.id
@@ -300,6 +306,23 @@ class Project(SaveDeleteMixin, Base):
             "project.append_oe_text",
             project_id=self.id,
             sentences_added=len(sentences_data),
+        )
+
+    def last_chapter_number(self) -> int | None:
+        """
+        Get the last chapter number in the project (1-based).
+
+        Returns:
+            The last chapter number in the project (1-based) or None if there
+            are no chapters
+
+        """
+        # Import here to avoid circular import
+        from oeapp.models.chapter import Chapter  # noqa: PLC0415
+
+        session = self._get_session()
+        return session.scalar(
+            select(func.max(Chapter.number)).where(Chapter.project_id == self.id)
         )
 
     def to_json(self) -> dict:

@@ -25,6 +25,13 @@ from oeapp.commands import (
     EditSentenceCommand,
     MergeSentenceCommand,
 )
+from oeapp.commands.hierarchy import (
+    MergeChapterCommand,
+    MergeSectionCommand,
+    SplitChapterCommand,
+    SplitSectionCommand,
+)
+from oeapp.commands.paragraph import MergeParagraphCommand, SplitParagraphCommand
 from oeapp.mixins import TokenOccurrenceMixin
 from oeapp.models import Annotation, Idiom
 from oeapp.models.mixins import SessionMixin
@@ -245,11 +252,15 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
             layout: Layout to add the paragraph header to
 
         """
-        paragraph_order = self.sentence.paragraph.order if self.sentence.paragraph else 0
+        paragraph_order = (
+            self.sentence.paragraph.order if self.sentence.paragraph else 0
+        )
         # Calculate sentence number in paragraph
         sentence_num = 1
         if self.sentence.paragraph:
-            sentences = sorted(self.sentence.paragraph.sentences, key=lambda s: s.display_order)
+            sentences = sorted(
+                self.sentence.paragraph.sentences, key=lambda s: s.display_order
+            )
             for i, s in enumerate(sentences, 1):
                 if s.id == self.sentence.id:
                     sentence_num = i
@@ -284,8 +295,9 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
         after_action = add_sentence_menu.addAction("After")
         after_action.triggered.connect(self._on_add_sentence_after_clicked)
         self.add_sentence_button.setMenu(add_sentence_menu)
-        self.toggle_paragraph_button = QPushButton("Toggle Paragraph Start")
-        self.toggle_paragraph_button.clicked.connect(self._on_toggle_paragraph_clicked)
+        self.toggle_paragraph_button = QPushButton("Mark as ...")
+        self.paragraph_menu = QMenu(self)
+        self.toggle_paragraph_button.setMenu(self.paragraph_menu)
         self._update_paragraph_button_state()
         # Hide toggle button for first sentence (must always be paragraph start)
         if self.sentence.display_order == 1:
@@ -871,82 +883,151 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
         """
         Update the toggle paragraph button text and visibility based on current state.
         """
-        # Hide button for first sentence of first paragraph of first section of first chapter
-        # Actually, let's just check if it's the first sentence of the section
-        is_first_in_section = False
-        if self.sentence.paragraph and self.sentence.paragraph.order == 1:
-            sentences = sorted(self.sentence.paragraph.sentences, key=lambda s: s.display_order)
-            if sentences and sentences[0].id == self.sentence.id:
-                is_first_in_section = True
-
-        if is_first_in_section:
+        if not self.sentence.paragraph:
             self.toggle_paragraph_button.setVisible(False)
+            return
+
+        # Clear existing menu
+        self.paragraph_menu.clear()
+
+        # Check hierarchy state
+        sentences = sorted(
+            self.sentence.paragraph.sentences, key=lambda s: s.display_order
+        )
+        is_paragraph_start: bool = sentences and sentences[0].id == self.sentence.id  # type: ignore[assignment]
+
+        is_section_start = False
+        if is_paragraph_start:
+            paragraphs = sorted(
+                self.sentence.paragraph.section.paragraphs, key=lambda p: p.order
+            )
+            is_section_start = (
+                paragraphs and paragraphs[0].id == self.sentence.paragraph.id  # type: ignore[assignment]
+            )
+
+        is_chapter_start = False
+        if is_section_start:
+            sections = sorted(
+                self.sentence.paragraph.section.chapter.sections, key=lambda s: s.number
+            )
+            is_chapter_start = (
+                sections and sections[0].id == self.sentence.paragraph.section.id  # type: ignore[assignment]
+            )
+
+        # Hide button for first sentence of project
+        if self.sentence.display_order == 1:
+            self.toggle_paragraph_button.setVisible(False)
+            return
+
+        self.toggle_paragraph_button.setVisible(True)
+
+        if not is_paragraph_start:
+            # Case A: Middle of paragraph
+            action = self.paragraph_menu.addAction("Paragraph Start")
+            action.triggered.connect(self._on_split_paragraph_clicked)
+        elif not is_section_start:
+            # Case B: Paragraph start, but not section start
+            action_not_p = self.paragraph_menu.addAction("Not Paragraph Start")
+            action_not_p.triggered.connect(self._on_merge_paragraph_clicked)
+            action_section = self.paragraph_menu.addAction("Section Start")
+            action_section.triggered.connect(self._on_split_section_clicked)
+        elif not is_chapter_start:
+            # Case C: Section start, but not chapter start
+            action_not_p = self.paragraph_menu.addAction("Not Paragraph Start")
+            action_not_p.triggered.connect(self._on_merge_paragraph_clicked)
+            action_not_s = self.paragraph_menu.addAction("Not Section Start")
+            action_not_s.triggered.connect(self._on_merge_section_clicked)
+            action_chapter = self.paragraph_menu.addAction("Chapter Start")
+            action_chapter.triggered.connect(self._on_split_chapter_clicked)
         else:
-            self.toggle_paragraph_button.setVisible(True)
-            # Check if this sentence is the start of its paragraph
-            is_start = False
-            if self.sentence.paragraph:
-                sentences = sorted(self.sentence.paragraph.sentences, key=lambda s: s.display_order)
-                if sentences and sentences[0].id == self.sentence.id:
-                    is_start = True
-            
-            if is_start:
-                self.toggle_paragraph_button.setText("Remove Paragraph Start")
-            else:
-                self.toggle_paragraph_button.setText("Mark as Paragraph Start")
+            # Case D: Chapter start
+            action_not_p = self.paragraph_menu.addAction("Not Paragraph Start")
+            action_not_p.triggered.connect(self._on_merge_paragraph_clicked)
+            action_not_s = self.paragraph_menu.addAction("Not Section Start")
+            action_not_s.triggered.connect(self._on_merge_section_clicked)
+            action_not_c = self.paragraph_menu.addAction("Not Chapter Start")
+            action_not_c.triggered.connect(self._on_merge_chapter_clicked)
 
     # -------------------------------------------------------------------------
     # Paragraph related event handlers
     # -------------------------------------------------------------------------
 
-    def _on_toggle_paragraph_clicked(self) -> None:
-        """
-        Handle Toggle Paragraph Start button click.
-        """
-        if not self.sentence.id or not self.command_manager:
-            return
+    def _on_split_paragraph_clicked(self) -> None:
+        """Handle Split Paragraph action."""
+        self._execute_hierarchy_command(
+            SplitParagraphCommand(sentence_id=self.sentence.id)
+        )
 
-        # Check if this sentence is currently the start of its paragraph
-        is_start = False
+    def _on_merge_paragraph_clicked(self) -> None:
+        """Handle Merge Paragraph action."""
+        self._execute_hierarchy_command(
+            MergeParagraphCommand(sentence_id=self.sentence.id)
+        )
+
+    def _on_split_section_clicked(self) -> None:
+        """Handle Split Section action."""
         if self.sentence.paragraph:
-            sentences = sorted(self.sentence.paragraph.sentences, key=lambda s: s.display_order)
-            if sentences and sentences[0].id == self.sentence.id:
-                is_start = True
+            self._execute_hierarchy_command(
+                SplitSectionCommand(paragraph_id=self.sentence.paragraph.id)
+            )
 
-        if is_start:
-            # Merge with previous paragraph
-            from oeapp.commands.paragraph import MergeParagraphCommand
-            command = MergeParagraphCommand(sentence_id=self.sentence.id)
-        else:
-            # Split into new paragraph
-            from oeapp.commands.paragraph import SplitParagraphCommand
-            command = SplitParagraphCommand(sentence_id=self.sentence.id)
+    def _on_merge_section_clicked(self) -> None:
+        """Handle Merge Section action."""
+        if self.sentence.paragraph:
+            self._execute_hierarchy_command(
+                MergeSectionCommand(paragraph_id=self.sentence.paragraph.id)
+            )
+
+    def _on_split_chapter_clicked(self) -> None:
+        """Handle Split Chapter action."""
+        if self.sentence.paragraph and self.sentence.paragraph.section:
+            self._execute_hierarchy_command(
+                SplitChapterCommand(section_id=self.sentence.paragraph.section.id)
+            )
+
+    def _on_merge_chapter_clicked(self) -> None:
+        """Handle Merge Chapter action."""
+        if self.sentence.paragraph and self.sentence.paragraph.section:
+            self._execute_hierarchy_command(
+                MergeChapterCommand(section_id=self.sentence.paragraph.section.id)
+            )
+
+    def _execute_hierarchy_command(self, command) -> None:
+        """Execute a hierarchy command and update UI."""
+        if not self.command_manager:
+            return
 
         if self.command_manager.execute(command):
             # Refresh sentence from database
             self.session.refresh(self.sentence)
             # Update UI
             self._update_paragraph_button_state()
-            
-            paragraph_order = self.sentence.paragraph.order if self.sentence.paragraph else 0
+
+            paragraph_order = (
+                self.sentence.paragraph.order if self.sentence.paragraph else 0
+            )
             # Calculate sentence number in paragraph
             sentence_num = 1
             if self.sentence.paragraph:
-                sentences = sorted(self.sentence.paragraph.sentences, key=lambda s: s.display_order)
+                sentences = sorted(
+                    self.sentence.paragraph.sentences, key=lambda s: s.display_order
+                )
                 for i, s in enumerate(sentences, 1):
                     if s.id == self.sentence.id:
                         sentence_num = i
                         break
-            self.sentence_number_label.setText(f"¶.{paragraph_order} S.{sentence_num}")
-            
-            # Emit signal to refresh all cards (paragraph numbers may have changed)
+            self.sentence_number_label.setText(
+                f"[{self.sentence.display_order}] ¶:{paragraph_order} S:{sentence_num}"
+            )
+
+            # Emit signal to refresh all cards
             if self.sentence.id:
                 self.sentence_added.emit(self.sentence.id)
         else:
             QMessageBox.warning(
                 self,
-                "Toggle Failed",
-                "Failed to toggle paragraph start. Please try again.",
+                "Action Failed",
+                "Failed to perform hierarchy action. Please try again.",
             )
 
     # ========================================================================
