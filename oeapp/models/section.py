@@ -217,3 +217,61 @@ class Section(SaveDeleteMixin, Base):
         if self.title:
             return self.title
         return f"Section {self.number}"
+
+    def to_json(self) -> dict:
+        """
+        Serialize section to JSON-compatible dictionary (without PKs).
+
+        Returns:
+            Dictionary containing section data
+
+        """
+        return {
+            "number": self.number,
+            "title": self.title,
+            "paragraphs": [
+                paragraph.to_json()
+                for paragraph in sorted(self.paragraphs, key=lambda p: p.order)
+            ],
+        }
+
+    @classmethod
+    def from_json(
+        cls,
+        chapter_id: int,
+        section_data: dict,
+        commit: bool = True,  # noqa: FBT001, FBT002
+    ) -> Section:
+        """
+        Create section (and nested paragraphs) from JSON import data.
+
+        Args:
+            chapter_id: Chapter ID
+            section_data: Section data dictionary from JSON
+
+        Keyword Args:
+            commit: Whether to commit changes
+
+        Returns:
+            Created section
+
+        """
+        # Import here to avoid circular import
+        from oeapp.models.paragraph import Paragraph  # noqa: PLC0415
+
+        session = cls._get_session()
+        section = cls(
+            chapter_id=chapter_id,
+            number=section_data["number"],
+            title=section_data.get("title"),
+        )
+        session.add(section)
+        session.flush()
+
+        for paragraph_data in section_data.get("paragraphs", []):
+            Paragraph.from_json(section.id, paragraph_data, commit=False)
+
+        if commit:
+            session.commit()
+
+        return section

@@ -85,7 +85,32 @@ def test_paragraph_methods_cover_ordering_navigation_and_json(db_session):
     ]
     assert paragraph2.last_sentence_number() == sentence.display_order
     assert paragraph2.to_json() == {
-        "id": paragraph2.id,
-        "section_id": section.id,
         "order": 2,
     }
+
+
+def test_hierarchy_from_json_methods_create_nested_entities(db_session):
+    project = Project(name="Import Hierarchy")
+    db_session.add(project)
+    db_session.flush()
+
+    chapter_data = {
+        "number": 1,
+        "title": "Intro",
+        "sections": [
+            {
+                "number": 1,
+                "title": "S1",
+                "paragraphs": [{"order": 1}, {"order": 2}],
+            }
+        ],
+    }
+
+    chapter = Chapter.from_json(project.id, chapter_data)
+    db_session.refresh(chapter)
+    assert chapter.number == 1
+    assert len(chapter.sections) == 1
+    assert chapter.sections[0].number == 1
+    assert len(chapter.sections[0].paragraphs) == 2
+    assert chapter.sections[0].paragraphs[0].order == 1
+    assert chapter.sections[0].paragraphs[1].order == 2

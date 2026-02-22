@@ -242,7 +242,6 @@ class AnnotationPreset(SaveDeleteMixin, Base):
 
         """
         return {
-            "id": self.id,
             "name": self.name,
             "pos": self.pos,
             "gender": self.gender,
@@ -264,3 +263,49 @@ class AnnotationPreset(SaveDeleteMixin, Base):
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
         }
+
+    @classmethod
+    def from_json(
+        cls,
+        preset_data: dict,
+        commit: bool = True,  # noqa: FBT001, FBT002
+    ) -> "AnnotationPreset":
+        """
+        Create preset from JSON import data.
+
+        Args:
+            preset_data: Preset data dictionary from JSON
+
+        Keyword Args:
+            commit: Whether to commit changes
+
+        Returns:
+            Created preset
+
+        """
+        session = cls._get_session()
+        preset = cls(
+            name=preset_data["name"],
+            pos=preset_data["pos"],
+            gender=preset_data.get("gender"),
+            number=preset_data.get("number"),
+            case=preset_data.get("case"),
+            declension=preset_data.get("declension"),
+            article_type=preset_data.get("article_type"),
+            pronoun_type=preset_data.get("pronoun_type"),
+            pronoun_number=preset_data.get("pronoun_number"),
+            verb_class=preset_data.get("verb_class"),
+            verb_tense=preset_data.get("verb_tense"),
+            verb_person=preset_data.get("verb_person"),
+            verb_mood=preset_data.get("verb_mood"),
+            verb_aspect=preset_data.get("verb_aspect"),
+            verb_form=preset_data.get("verb_form"),
+            verb_direct_object_case=preset_data.get("verb_direct_object_case"),
+            adjective_inflection=preset_data.get("adjective_inflection"),
+            adjective_degree=preset_data.get("adjective_degree"),
+        )
+        session.add(preset)
+        session.flush()
+        if commit:
+            session.commit()
+        return preset

@@ -155,13 +155,31 @@ class TestAnnotationPreset:
         )
 
         data = preset.to_json()
-        assert data["id"] == preset.id
         assert data["name"] == "Dict Test"
         assert data["pos"] == "R"
         assert data["pronoun_type"] == "p"
         assert data["gender"] == "m"
         assert "created_at" in data
         assert "updated_at" in data
+        assert "id" not in data
+
+    def test_from_json_method(self, db_session):
+        """Test from_json() creates a preset."""
+        preset_data = {
+            "name": "Imported Preset",
+            "pos": "N",
+            "gender": "m",
+            "number": "s",
+            "case": "n",
+        }
+
+        preset = AnnotationPreset.from_json(preset_data)
+        assert preset.id is not None
+        assert preset.name == "Imported Preset"
+        assert preset.pos == "N"
+        assert preset.gender == "m"
+        assert preset.number == "s"
+        assert preset.case == "n"
 
     def test_check_constraint_rejects_invalid_pos(self, db_session):
         """Test check constraint rejects invalid POS values."""

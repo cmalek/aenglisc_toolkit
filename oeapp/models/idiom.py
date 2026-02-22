@@ -7,6 +7,7 @@ from sqlalchemy import DateTime, ForeignKey, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from oeapp.db import Base
+from oeapp.utils import from_utc_iso, to_utc_iso
 
 from .mixins import SaveDeleteMixin
 
@@ -148,3 +149,92 @@ class Idiom(SaveDeleteMixin, Base):
                     self.end_token.id,
                 ),
             )
+
+    def to_json(self) -> dict:
+        """
+        Serialize idiom to JSON-compatible dictionary (without PKs).
+
+        Returns:
+            Dictionary containing idiom data
+
+        """
+        idiom_data: dict = {
+            "start_token_order_index": self.start_token.order_index,
+            "end_token_order_index": self.end_token.order_index,
+            "created_at": to_utc_iso(self.created_at),
+            "updated_at": to_utc_iso(self.updated_at),
+        }
+        if self.annotation:
+            idiom_data["annotation"] = self.annotation.to_json()
+        return idiom_data
+
+    @classmethod
+    def from_json(
+        cls,
+        sentence_id: int,
+        idiom_data: dict,
+        token_map: dict[int, "Token"],
+        commit: bool = True,  # noqa: FBT001, FBT002
+    ) -> "Idiom":
+        """
+        Create idiom from JSON import data.
+
+        Args:
+            sentence_id: Sentence ID to attach idiom to
+            idiom_data: Idiom data dictionary from JSON
+            token_map: Map of order_index to Token entities
+
+        Keyword Args:
+            commit: Whether to commit the changes
+
+        Returns:
+            Created idiom
+
+        """
+        # Import here to avoid circular import
+        from oeapp.models.annotation import Annotation  # noqa: PLC0415
+
+        start_order = idiom_data["start_token_order_index"]
+        end_order = idiom_data["end_token_order_index"]
+        start_token = token_map.get(start_order)
+        end_token = token_map.get(end_order)
+        if start_token is None or end_token is None:
+            msg = (
+                "Unable to resolve idiom token references for order indices "
+                f"{start_order}..{end_order}"
+            )
+            raise ValueError(msg)
+        if start_token.id is None or end_token.id is None:
+            msg = "Idiom token references do not have database IDs"
+            raise ValueError(msg)
+
+        session = cls._get_session()
+        idiom = cls(
+            sentence_id=sentence_id,
+            start_token_id=start_token.id,
+            end_token_id=end_token.id,
+        )
+        created_at = from_utc_iso(idiom_data.get("created_at"))
+        if created_at:
+            idiom.created_at = created_at
+        updated_at = from_utc_iso(idiom_data.get("updated_at"))
+        if updated_at:
+            idiom.updated_at = updated_at
+
+        session.add(idiom)
+        session.flush()
+
+        if "annotation" in idiom_data:
+            Annotation.from_json(
+                None,
+                idiom_data["annotation"],
+                idiom_id=idiom.id,
+                commit=False,
+            )
+
+        if commit:
+            session.commit()
+        else:
+            session.flush()
+
+        return idiom

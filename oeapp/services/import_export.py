@@ -4,10 +4,15 @@ import json
 from pathlib import Path
 from typing import Any
 
+from pydantic import ValidationError
+
+from oeapp.models.chapter import Chapter
 from oeapp.models.mixins import SessionMixin
 from oeapp.models.project import Project
 from oeapp.models.sentence import Sentence
+from oeapp.utils import from_utc_iso
 
+from .import_export_schema import ProjectExportPayload
 from .migration import MigrationMetadataService, MigrationService
 
 
@@ -82,7 +87,7 @@ class ProjectExporter(SessionMixin):
 
         # Serialize project without PKs
         project_data: dict[str, Any] = {
-            "export_version": "1.0",
+            "export_version": "2.0",
             "migration_version": migration_version,
             "project": project.to_json(),
             "sentences": [],
@@ -95,10 +100,17 @@ class ProjectExporter(SessionMixin):
             sentence_data = sentence.to_json()
             project_data["sentences"].append(sentence_data)
 
+        try:
+            payload = ProjectExportPayload.model_validate(project_data)
+            serialized_data = payload.model_dump()
+        except ValidationError as e:
+            msg = f"Failed to validate export data:\n{e!s}"
+            raise ValueError(msg) from e
+
         # Write JSON to file
         try:
             with Path(filename).open("w", encoding="utf-8") as f:
-                json.dump(project_data, f, indent=2, ensure_ascii=False)
+                json.dump(serialized_data, f, indent=2, ensure_ascii=False)
         except (OSError, PermissionError) as e:
             msg = f"Failed to write export file:\n{e!s}"
             raise ValueError(msg) from e
@@ -345,19 +357,81 @@ class ProjectImporter(SessionMixin):
 
         """
         resolved_name, was_renamed = self._resolve_project_name(project_data["name"])
-        project = Project.from_json(project_data, resolved_name)
+        project = Project.from_json(project_data, resolved_name, commit=False)
         return project, was_renamed
 
-    def _create_sentence(self, project_id: int, sentence_data: dict[str, Any]) -> None:
+    def _create_hierarchy(self, project_id: int, project_data: dict[str, Any]) -> None:
+        """
+        Create project hierarchy (chapters, sections, paragraphs) from JSON data.
+
+        Args:
+            project_id: Project ID to attach hierarchy to
+            project_data: Project data dictionary
+
+        """
+        for chapter_data in project_data.get("chapters", []):
+            Chapter.from_json(project_id, chapter_data, commit=False)
+
+    @staticmethod
+    def _paragraph_lookup_key(
+        chapter_number: int, section_number: int, paragraph_order: int
+    ) -> tuple[int, int, int]:
+        """Build canonical tuple key for paragraph lookup."""
+        return chapter_number, section_number, paragraph_order
+
+    def _build_paragraph_lookup(
+        self, project_id: int
+    ) -> dict[tuple[int, int, int], int]:
+        """
+        Build map from paragraph hierarchy coordinates to paragraph IDs.
+
+        Args:
+            project_id: Project ID
+
+        Returns:
+            Dict of (chapter_number, section_number, paragraph_order) to paragraph ID
+
+        """
+        project = Project.get(project_id)
+        if project is None:
+            msg = f"Project with ID {project_id} not found"
+            raise ValueError(msg)
+
+        lookup: dict[tuple[int, int, int], int] = {}
+        for chapter in project.chapters:
+            for section in chapter.sections:
+                for paragraph in section.paragraphs:
+                    lookup[
+                        self._paragraph_lookup_key(
+                            chapter.number,
+                            section.number,
+                            paragraph.order,
+                        )
+                    ] = paragraph.id
+
+        return lookup
+
+    def _create_sentence(
+        self,
+        project_id: int,
+        sentence_data: dict[str, Any],
+        paragraph_lookup: dict[tuple[int, int, int], int],
+    ) -> None:
         """
         Create sentence and all related entities (tokens, annotations, notes).
 
         Args:
             project_id: Project ID to attach sentence to
             sentence_data: Sentence data dictionary
+            paragraph_lookup: Map of hierarchy refs to paragraph IDs
 
         """
-        Sentence.from_json(project_id, sentence_data)
+        Sentence.from_json(
+            project_id,
+            sentence_data,
+            paragraph_lookup=paragraph_lookup,
+            commit=False,
+        )
 
     def import_project_json(self, filename: str) -> tuple[Project, bool]:
         """
@@ -392,11 +466,39 @@ class ProjectImporter(SessionMixin):
         # Transform data if needed
         data = self._transform_data(data, export_version or "")
 
+        # Validate strict payload schema
+        try:
+            payload = ProjectExportPayload.model_validate(data)
+        except ValidationError as e:
+            msg = f"Invalid project export format:\n{e!s}"
+            raise ValueError(msg) from e
+
         # Create project
-        project, was_renamed = self._create_project(data["project"])
+        project_data = payload.project.model_dump()
+        project, was_renamed = self._create_project(project_data)
+
+        # Create hierarchy first (chapters -> sections -> paragraphs)
+        self._create_hierarchy(project.id, project_data)
+        self.session.flush()
+        paragraph_lookup = self._build_paragraph_lookup(project.id)
 
         # Create sentences and all related entities
-        for sentence_data in data["sentences"]:
-            self._create_sentence(project.id, sentence_data)
+        for sentence in payload.sentences:
+            self._create_sentence(
+                project.id,
+                sentence.model_dump(),
+                paragraph_lookup=paragraph_lookup,
+            )
 
+        # Sentence/annotation writes can touch project timestamps. Re-apply
+        # exported project timestamps as the final import state.
+        imported_created_at = from_utc_iso(project_data.get("created_at"))
+        if imported_created_at is not None:
+            project.created_at = imported_created_at
+        imported_updated_at = from_utc_iso(project_data.get("updated_at"))
+        if imported_updated_at is not None:
+            project.updated_at = imported_updated_at
+        self.session.add(project)
+
+        self.session.commit()
         return project, was_renamed

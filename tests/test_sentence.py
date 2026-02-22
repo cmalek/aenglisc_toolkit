@@ -207,20 +207,36 @@ class TestSentence:
         assert data["text_modern"] == "The king"
         assert "tokens" in data
         assert "notes" in data
+        assert "idioms" in data
+        assert "paragraph_ref" in data
         assert "created_at" in data
 
     def test_from_json_creates_sentence(self, db_session):
         """Test from_json() creates sentence from data."""
         project = create_test_project(db_session)
         paragraph = project.chapters[0].sections[0].paragraphs[0]
+        paragraph_lookup = {
+            (
+                project.chapters[0].number,
+                project.chapters[0].sections[0].number,
+                paragraph.order,
+            ): paragraph.id
+        }
 
         sentence_data = {
             "text_oe": "Se cyning",
             "text_modern": "The king",
             "display_order": 1,
-            "paragraph_id": paragraph.id,
+            "paragraph_ref": {
+                "chapter_number": project.chapters[0].number,
+                "section_number": project.chapters[0].sections[0].number,
+                "paragraph_order": paragraph.order,
+            },
+            "tokens": [],
+            "notes": [],
+            "idioms": [],
         }
-        sentence = Sentence.from_json(project.id, sentence_data)
+        sentence = Sentence.from_json(project.id, sentence_data, paragraph_lookup)
 
         assert sentence.project_id == project.id
         assert sentence.text_oe == "Se cyning"

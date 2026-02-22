@@ -1,13 +1,80 @@
 """Unit tests for ProjectExporter and ProjectImporter."""
 
 import json
-from unittest.mock import MagicMock, patch
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 
+from oeapp.models.annotation import Annotation
+from oeapp.models.idiom import Idiom
+from oeapp.models.note import Note
+from oeapp.models.project import Project
 from oeapp.services.import_export import ProjectExporter, ProjectImporter
 from tests.conftest import create_test_project
+
+FORBIDDEN_ID_KEYS = {
+    "id",
+    "project_id",
+    "sentence_id",
+    "token_id",
+    "idiom_id",
+    "chapter_id",
+    "section_id",
+    "paragraph_id",
+    "start_token_id",
+    "end_token_id",
+}
+
+
+def _assert_no_row_ids(data):
+    """Assert recursively that no row ID fields are present."""
+    if isinstance(data, dict):
+        for key, value in data.items():
+            assert key not in FORBIDDEN_ID_KEYS
+            _assert_no_row_ids(value)
+    elif isinstance(data, list):
+        for item in data:
+            _assert_no_row_ids(item)
+
+
+def _build_full_project(db_session) -> Project:
+    """Create a project with structure, notes, token and idiom annotations."""
+    project = create_test_project(
+        db_session,
+        text="Se cyning. Þæt scip.",
+        name="Full Export Test",
+        source="Source",
+        translator="Translator",
+        notes="Notes",
+    )
+    sentence = project.sentences[0]
+    tokens = sorted(sentence.tokens, key=lambda t: t.order_index)
+    token_annotation = Annotation.get_by_token(tokens[0].id)
+    assert token_annotation is not None
+    token_annotation.pos = "N"
+    token_annotation.gender = "m"
+    token_annotation.save()
+
+    note = Note(
+        sentence_id=sentence.id,
+        start_token=tokens[0].id,
+        end_token=tokens[1].id,
+        note_text_md="Token note",
+        note_type="span",
+    )
+    note.save()
+
+    idiom = Idiom(
+        sentence_id=sentence.id,
+        start_token_id=tokens[0].id,
+        end_token_id=tokens[1].id,
+    )
+    idiom.save()
+    idiom_annotation = Annotation(idiom_id=idiom.id, pos="R")
+    idiom_annotation.save()
+    db_session.commit()
+    return project
 
 
 class TestProjectExporter:
@@ -33,15 +100,8 @@ class TestProjectExporter:
             exporter.get_project(99999)
 
     def test_export_project_json(self, db_session, tmp_path):
-        """Test export_project_json() creates JSON file with correct data."""
-        project = create_test_project(
-            db_session,
-            text="Se cyning. Þæt scip.",
-            name="Export Test",
-            source="Source",
-            translator="Translator",
-            notes="Notes",
-        )
+        """Test export_project_json() creates JSON file with strict v2 schema."""
+        project = _build_full_project(db_session)
 
         mock_migration = MagicMock()
         mock_migration.db_migration_version.return_value = "v123"
@@ -54,12 +114,16 @@ class TestProjectExporter:
         with export_file.open("r", encoding="utf-8") as f:
             data = json.load(f)
 
-        assert data["export_version"] == "1.0"
+        assert data["export_version"] == "2.0"
         assert data["migration_version"] == "v123"
-        assert data["project"]["name"] == "Export Test"
+        assert data["project"]["name"] == "Full Export Test"
+        assert "chapters" in data["project"]
+        assert data["project"]["chapters"][0]["sections"][0]["paragraphs"][0]["order"] == 1
         assert len(data["sentences"]) == 2
         assert data["sentences"][0]["text_oe"] == "Se cyning."
-        assert data["sentences"][1]["text_oe"] == "Þæt scip."
+        assert "paragraph_ref" in data["sentences"][0]
+        assert "idioms" in data["sentences"][0]
+        _assert_no_row_ids(data)
 
     def test_export_project_json_adds_extension(self, db_session, tmp_path):
         """Test export_project_json() adds .json extension if missing."""
@@ -80,7 +144,6 @@ class TestProjectExporter:
         mock_migration.db_migration_version.return_value = "v1"
         exporter = ProjectExporter(migration_service=mock_migration)
 
-        # Mock json.dump to raise TypeError
         with patch("json.dump", side_effect=TypeError("Not serializable")):
             with pytest.raises(ValueError, match="Failed to serialize project data"):
                 exporter.export_project_json(project.id, str(tmp_path / "error.json"))
@@ -95,10 +158,8 @@ class TestProjectImporter:
         mock_migration.code_migration_version.return_value = "v1"
         importer = ProjectImporter(migration_service=mock_migration)
 
-        # Matching version
         importer._validate_migration_version("v1")
 
-        # No current version (e.g. no migrations yet)
         mock_migration.code_migration_version.return_value = None
         importer._validate_migration_version("any")
 
@@ -112,12 +173,15 @@ class TestProjectImporter:
         """Test validation raises if no revision chain found."""
         mock_migration = MagicMock()
         mock_migration.code_migration_version.return_value = "new_v"
-        mock_migration.revision_chain.return_value = [] # No chain found
+        mock_migration.revision_chain.return_value = []
 
         mock_metadata = MagicMock()
         mock_metadata.get_min_version_for_migration.return_value = None
 
-        importer = ProjectImporter(migration_service=mock_migration, migration_metadata_service=mock_metadata)
+        importer = ProjectImporter(
+            migration_service=mock_migration,
+            migration_metadata_service=mock_metadata,
+        )
 
         with pytest.raises(ValueError, match="is not compatible"):
             importer._validate_migration_version("old_v")
@@ -131,39 +195,13 @@ class TestProjectImporter:
         mock_metadata = MagicMock()
         mock_metadata.get_min_version_for_migration.return_value = "0.5.0"
 
-        importer = ProjectImporter(migration_service=mock_migration, migration_metadata_service=mock_metadata)
+        importer = ProjectImporter(
+            migration_service=mock_migration,
+            migration_metadata_service=mock_metadata,
+        )
 
         with pytest.raises(ValueError, match="requires at least version 0.5.0"):
             importer._validate_migration_version("v1")
-
-    def test_validate_migration_version_generic_exception(self):
-        """Test validation handles generic exceptions from migration service."""
-        mock_migration = MagicMock()
-        mock_migration.code_migration_version.return_value = "v2"
-        mock_migration.revision_chain.side_effect = Exception("Internal Error")
-
-        mock_metadata = MagicMock()
-        mock_metadata.get_min_version_for_migration.return_value = "0.6.0"
-
-        importer = ProjectImporter(migration_service=mock_migration, migration_metadata_service=mock_metadata)
-
-        # Should catch Exception and check min_version
-        with pytest.raises(ValueError, match="requires at least version 0.6.0"):
-            importer._validate_migration_version("v1")
-
-        # Should catch Exception and raise generic incompatibility if no min_version
-        mock_metadata.get_min_version_for_migration.return_value = None
-        with pytest.raises(ValueError, match="is not compatible with the current application version"):
-            importer._validate_migration_version("v1")
-
-    def test_transform_data_no_change(self):
-        """Test data is returned unchanged if versions match."""
-        mock_migration = MagicMock()
-        mock_migration.code_migration_version.return_value = "v1"
-        importer = ProjectImporter(migration_service=mock_migration)
-
-        data = {"key": "value"}
-        assert importer._transform_data(data, "v1") == data
 
     def test_transform_data_with_mappings(self):
         """Test data transformation applies field mappings."""
@@ -172,105 +210,115 @@ class TestProjectImporter:
         mock_migration.revision_chain.return_value = ["rev1"]
 
         importer = ProjectImporter(migration_service=mock_migration)
-
-        data = {
-            "project": {"old_name": "Project"},
-            "sentences": [{"old_text": "OE Text"}]
-        }
-
-        mappings = {
-            "rev1": {
-                "Project": {"old_name": "new_name"},
-                "Sentence": {"old_text": "new_text"}
-            }
-        }
+        data = {"project": {"old_name": "Project"}}
+        mappings = {"rev1": {"Project": {"old_name": "new_name"}}}
 
         with patch.object(importer, "_load_field_mappings", return_value=mappings):
             transformed = importer._transform_data(data, "v1")
 
         assert transformed["project"]["new_name"] == "Project"
         assert "old_name" not in transformed["project"]
-        assert transformed["sentences"][0]["new_text"] == "OE Text"
 
-    def test_apply_mappings_recursive(self):
-        """Test recursive mapping application on nested dicts and lists."""
-        importer = ProjectImporter(MagicMock())
-        data = {
-            "a": {"old": 1},
-            "b": [{"old": 2}, {"other": 3}]
-        }
-        mappings = {"Model": {"old": "new"}}
+    def test_import_project_json_full_round_trip(self, db_session, tmp_path):
+        """Test full export -> import -> export round-trip preserves project data."""
+        project = _build_full_project(db_session)
+        mock_migration = MagicMock()
+        mock_migration.db_migration_version.return_value = "v1"
+        mock_migration.code_migration_version.return_value = "v1"
 
-        importer._apply_mappings_recursive(data, mappings)
+        exporter = ProjectExporter(migration_service=mock_migration)
+        importer = ProjectImporter(migration_service=mock_migration)
 
-        assert data["a"]["new"] == 1
-        assert data["b"][0]["new"] == 2
-        assert data["b"][1]["other"] == 3
+        export_file = tmp_path / "roundtrip_export.json"
+        exporter.export_project_json(project.id, str(export_file))
+        original_data = json.loads(export_file.read_text(encoding="utf-8"))
 
-    def test_apply_field_mappings_skips_missing_sha(self):
-        """Test _apply_field_mappings skips migrations without mappings."""
-        importer = ProjectImporter(MagicMock())
-        data = {"key": "val"}
+        project.delete()
+        db_session.commit()
 
-        with patch.object(importer, "_load_field_mappings", return_value={}):
-            result = importer._apply_field_mappings(data, ["missing_sha"])
-            assert result == data
-
-    def test_resolve_project_name(self, db_session):
-        """Test project name collision resolution."""
-        create_test_project(db_session, name="Existing")
-        importer = ProjectImporter(MagicMock())
-
-        # No collision
-        name, renamed = importer._resolve_project_name("Unique")
-        assert name == "Unique"
+        imported_project, renamed = importer.import_project_json(str(export_file))
+        assert imported_project.name == "Full Export Test"
         assert not renamed
 
-        # Collision
-        name, renamed = importer._resolve_project_name("Existing")
-        assert name == "Existing (1)"
-        assert renamed
+        reexport_file = tmp_path / "roundtrip_reexport.json"
+        exporter.export_project_json(imported_project.id, str(reexport_file))
+        reexport_data = json.loads(reexport_file.read_text(encoding="utf-8"))
 
-        # Multi-collision
-        create_test_project(db_session, name="Existing (1)")
-        name, renamed = importer._resolve_project_name("Existing")
-        assert name == "Existing (2)"
+        assert reexport_data == original_data
+        _assert_no_row_ids(reexport_data)
 
-    def test_import_project_json_full(self, db_session, tmp_path):
-        """Test the full import process from a JSON file."""
+    def test_import_project_json_rejects_legacy_flat_format(self, db_session, tmp_path):
+        """Test import rejects legacy sentence payload with paragraph_id."""
         mock_migration = MagicMock()
         mock_migration.code_migration_version.return_value = "v1"
         importer = ProjectImporter(migration_service=mock_migration)
 
-        project_data = {
+        legacy_payload = {
+            "export_version": "2.0",
             "migration_version": "v1",
             "project": {
-            "name": "Imported Project",
-                "notes": "Test notes"
+                "name": "Legacy",
+                "source": None,
+                "translator": None,
+                "notes": None,
+                "created_at": None,
+                "updated_at": None,
+                "chapters": [],
             },
             "sentences": [
                 {
                     "display_order": 1,
-                    "text_oe": "Se cyning.",
-                    "tokens": [
-                        {"order_index": 0, "surface": "Se"},
-                        {"order_index": 1, "surface": "cyning"}
-                    ],
-                    "notes": []
+                    "paragraph_id": 123,
+                    "text_oe": "legacy",
+                    "tokens": [],
+                    "notes": [],
                 }
-            ]
+            ],
         }
+        import_file = tmp_path / "legacy.json"
+        import_file.write_text(json.dumps(legacy_payload), encoding="utf-8")
 
-        import_file = tmp_path / "import.json"
-        import_file.write_text(json.dumps(project_data))
+        with pytest.raises(ValueError, match="Invalid project export format"):
+            importer.import_project_json(str(import_file))
 
-        project, renamed = importer.import_project_json(str(import_file))
+    def test_import_project_json_rejects_extra_keys(self, db_session, tmp_path):
+        """Test strict schema rejects unknown keys in payload."""
+        mock_migration = MagicMock()
+        mock_migration.code_migration_version.return_value = "v1"
+        importer = ProjectImporter(migration_service=mock_migration)
 
-        assert project.name == "Imported Project"
-        assert not renamed
-        assert len(project.sentences) == 1
-        assert project.sentences[0].text_oe == "Se cyning."
-        assert len(project.sentences[0].tokens) == 2
+        payload = {
+            "export_version": "2.0",
+            "migration_version": "v1",
+            "project": {
+                "name": "Imported Project",
+                "source": None,
+                "translator": None,
+                "notes": "Test notes",
+                "created_at": None,
+                "updated_at": None,
+                "chapters": [
+                    {
+                        "number": 1,
+                        "title": None,
+                        "paragraphs": [],  # invalid extra key for chapter
+                        "sections": [
+                            {
+                                "number": 1,
+                                "title": None,
+                                "paragraphs": [{"order": 1}],
+                            }
+                        ],
+                    }
+                ],
+            },
+            "sentences": [],
+        }
+        import_file = tmp_path / "invalid_extra.json"
+        import_file.write_text(json.dumps(payload), encoding="utf-8")
+
+        with pytest.raises(ValueError, match="Invalid project export format"):
+            importer.import_project_json(str(import_file))
 
     def test_import_project_json_invalid_file(self):
         """Test import raises error for missing or invalid files."""
@@ -287,12 +335,13 @@ class TestProjectImporter:
     def test_load_field_mappings_io_error(self):
         """Test _load_field_mappings handles errors gracefully."""
         importer = ProjectImporter(MagicMock())
-        # OSError/PermissionError
         with patch("pathlib.Path.exists", return_value=True):
             with patch("pathlib.Path.open", side_effect=OSError):
                 assert importer._load_field_mappings() == {}
 
-        # JSONDecodeError
         with patch("pathlib.Path.exists", return_value=True):
-            with patch("pathlib.Path.open", side_effect=json.JSONDecodeError("msg", "doc", 0)):
+            with patch(
+                "pathlib.Path.open",
+                side_effect=json.JSONDecodeError("msg", "doc", 0),
+            ):
                 assert importer._load_field_mappings() == {}

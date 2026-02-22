@@ -462,15 +462,31 @@ class Sentence(SaveDeleteMixin, Base):
             Dictionary containing sentence data with tokens and notes
 
         """
+        if (
+            self.paragraph is None
+            or self.paragraph.section is None
+            or self.paragraph.section.chapter is None
+        ):
+            msg = (
+                f"Sentence {self.id} is missing paragraph hierarchy required for "
+                "JSON export"
+            )
+            raise ValueError(msg)
+
         sentence_data: dict = {
             "display_order": self.display_order,
-            "paragraph_id": self.paragraph_id,
             "text_oe": self.text_oe,
             "text_modern": self.text_modern,
             "created_at": to_utc_iso(self.created_at),
             "updated_at": to_utc_iso(self.updated_at),
+            "paragraph_ref": {
+                "chapter_number": self.paragraph.section.chapter.number,
+                "section_number": self.paragraph.section.number,
+                "paragraph_order": self.paragraph.order,
+            },
             "tokens": [],
             "notes": [],
+            "idioms": [],
         }
         # Sort tokens by order_index
         tokens = sorted(self.tokens, key=lambda t: t.order_index)
@@ -482,30 +498,61 @@ class Sentence(SaveDeleteMixin, Base):
             note_data = note.to_json()
             sentence_data["notes"].append(note_data)
 
+        # Add idioms
+        for idiom in self.idioms:
+            idiom_data = idiom.to_json()
+            sentence_data["idioms"].append(idiom_data)
+
         return sentence_data
 
     @classmethod
-    def from_json(cls, project_id: int, sentence_data: dict) -> Sentence:
+    def from_json(
+        cls,
+        project_id: int,
+        sentence_data: dict,
+        paragraph_lookup: dict[tuple[int, int, int], int],
+        commit: bool = True,  # noqa: FBT001, FBT002
+    ) -> Sentence:
         """
         Create a sentence and all related entities from JSON import data.
 
         Args:
             project_id: Project ID to attach sentence to
             sentence_data: Sentence data dictionary from JSON
+            paragraph_lookup: Map of hierarchy refs to paragraph IDs
+
+        Keyword Args:
+            commit: Whether to commit changes
 
         Returns:
             Created Sentence entity
 
         """
         # Import here to avoid circular import
+        from oeapp.models.idiom import Idiom  # noqa: PLC0415
         from oeapp.services.logs import get_logger  # noqa: PLC0415
 
         logger = get_logger(cls.__name__)
 
+        paragraph_ref = sentence_data.get("paragraph_ref", {})
+        paragraph_key = (
+            paragraph_ref.get("chapter_number"),
+            paragraph_ref.get("section_number"),
+            paragraph_ref.get("paragraph_order"),
+        )
+        paragraph_id = paragraph_lookup.get(paragraph_key)
+        if paragraph_id is None:
+            msg = (
+                "Unable to resolve sentence paragraph reference "
+                f"{paragraph_key!s} for display order "
+                f"{sentence_data.get('display_order')}"
+            )
+            raise ValueError(msg)
+
         sentence = cls(
             project_id=project_id,
             display_order=sentence_data["display_order"],
-            paragraph_id=sentence_data.get("paragraph_id"),
+            paragraph_id=paragraph_id,
             text_oe=sentence_data["text_oe"],
             text_modern=sentence_data.get("text_modern"),
         )
@@ -516,17 +563,26 @@ class Sentence(SaveDeleteMixin, Base):
         if updated_at:
             sentence.updated_at = updated_at
 
-        sentence.save()
+        sentence.save(commit=False)
 
         # Create tokens and build token map
         token_map: dict[int, Token] = {}
         for token_data in sentence_data.get("tokens", []):
-            token = Token.from_json(sentence.id, token_data)
+            token = Token.from_json(sentence.id, token_data, commit=False)
             token_map[token.order_index] = token
 
         # Create notes
         for note_data in sentence_data.get("notes", []):
-            Note.from_json(sentence.id, note_data, token_map)
+            Note.from_json(sentence.id, note_data, token_map, commit=False)
+
+        # Create idioms
+        for idiom_data in sentence_data.get("idioms", []):
+            Idiom.from_json(sentence.id, idiom_data, token_map, commit=False)
+
+        if commit:
+            cls._get_session().commit()
+        else:
+            cls._get_session().flush()
 
         logger.info(
             "sentence.from_json",

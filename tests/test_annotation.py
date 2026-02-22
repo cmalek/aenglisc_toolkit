@@ -214,6 +214,9 @@ class TestAnnotation:
         assert data["last_inferred_json"] == '{"some": "data"}'
         assert "updated_at" in data
         assert isinstance(data["updated_at"], str)
+        assert "id" not in data
+        assert "token_id" not in data
+        assert "idiom_id" not in data
 
     def test_from_json_creates_annotation(self, db_session):
         """Test from_json() creates annotation from data."""
@@ -685,4 +688,3 @@ class TestAnnotationFromAnnotation:
         retrieved = Annotation.get_by_token(token.id)
         assert retrieved is not None
         assert retrieved.pos == "N"
-

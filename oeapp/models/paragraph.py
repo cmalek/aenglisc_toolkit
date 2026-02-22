@@ -188,7 +188,38 @@ class Paragraph(SaveDeleteMixin, Base):
 
         """
         return {
-            "id": self.id,
-            "section_id": self.section_id,
             "order": self.order,
         }
+
+    @classmethod
+    def from_json(
+        cls,
+        section_id: int,
+        paragraph_data: dict,
+        commit: bool = True,  # noqa: FBT001, FBT002
+    ) -> Paragraph:
+        """
+        Create paragraph from JSON import data.
+
+        Args:
+            section_id: Section ID
+            paragraph_data: Paragraph data dictionary from JSON
+
+        Keyword Args:
+            commit: Whether to commit changes
+
+        Returns:
+            Created paragraph
+
+        """
+        session = cls._get_session()
+        paragraph = cls(
+            section_id=section_id,
+            order=paragraph_data["order"],
+        )
+        session.add(paragraph)
+        if commit:
+            session.commit()
+        else:
+            session.flush()
+        return paragraph

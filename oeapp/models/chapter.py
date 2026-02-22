@@ -186,3 +186,61 @@ class Chapter(SaveDeleteMixin, Base):
         if self.title:
             return self.title
         return f"Chapter {self.number}"
+
+    def to_json(self) -> dict:
+        """
+        Serialize chapter to JSON-compatible dictionary (without PKs).
+
+        Returns:
+            Dictionary containing chapter data
+
+        """
+        return {
+            "number": self.number,
+            "title": self.title,
+            "sections": [
+                section.to_json()
+                for section in sorted(self.sections, key=lambda s: s.number)
+            ],
+        }
+
+    @classmethod
+    def from_json(
+        cls,
+        project_id: int,
+        chapter_data: dict,
+        commit: bool = True,  # noqa: FBT001, FBT002
+    ) -> Chapter:
+        """
+        Create chapter (and nested sections/paragraphs) from JSON import data.
+
+        Args:
+            project_id: Project ID
+            chapter_data: Chapter data dictionary from JSON
+
+        Keyword Args:
+            commit: Whether to commit changes
+
+        Returns:
+            Created chapter
+
+        """
+        # Import here to avoid circular import
+        from oeapp.models.section import Section  # noqa: PLC0415
+
+        session = cls._get_session()
+        chapter = cls(
+            project_id=project_id,
+            number=chapter_data["number"],
+            title=chapter_data.get("title"),
+        )
+        session.add(chapter)
+        session.flush()
+
+        for section_data in chapter_data.get("sections", []):
+            Section.from_json(chapter.id, section_data, commit=False)
+
+        if commit:
+            session.commit()
+
+        return chapter

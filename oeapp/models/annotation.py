@@ -215,10 +215,34 @@ class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
 
     def to_json(self) -> dict:
         """Serialize annotation to JSON-compatible dictionary."""
-        data = {
-            column.name: getattr(self, column.name)
-            for column in self.__class__.__table__.columns
-        }
+        data = self._extract_base_fields_from_json(
+            {
+                "pos": self.pos,
+                "gender": self.gender,
+                "number": self.number,
+                "case": self.case,
+                "declension": self.declension,
+                "article_type": self.article_type,
+                "pronoun_type": self.pronoun_type,
+                "pronoun_number": self.pronoun_number,
+                "verb_class": self.verb_class,
+                "verb_tense": self.verb_tense,
+                "verb_person": self.verb_person,
+                "verb_mood": self.verb_mood,
+                "verb_aspect": self.verb_aspect,
+                "verb_form": self.verb_form,
+                "verb_direct_object_case": self.verb_direct_object_case,
+                "prep_case": self.prep_case,
+                "adjective_inflection": self.adjective_inflection,
+                "adjective_degree": self.adjective_degree,
+                "conjunction_type": self.conjunction_type,
+                "adverb_degree": self.adverb_degree,
+                "confidence": self.confidence,
+                "last_inferred_json": self.last_inferred_json,
+                "modern_english_meaning": self.modern_english_meaning,
+                "root": self.root,
+            }
+        )
         data["updated_at"] = to_utc_iso(self.updated_at)
         return data
 

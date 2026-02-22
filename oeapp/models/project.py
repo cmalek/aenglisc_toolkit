@@ -350,6 +350,10 @@ class Project(SaveDeleteMixin, Base):
             "notes": self.notes,
             "created_at": to_utc_iso(self.created_at),
             "updated_at": to_utc_iso(self.updated_at),
+            "chapters": [
+                chapter.to_json()
+                for chapter in sorted(self.chapters, key=lambda c: c.number)
+            ],
         }
 
     @classmethod

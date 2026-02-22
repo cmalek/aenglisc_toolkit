@@ -116,6 +116,43 @@ def test_idiom_preservation_on_insertion_in_middle(db_session, sentence):
     tokens_in_range = [t for t in sentence.tokens if start_order <= t.order_index <= end_order]
     assert len(tokens_in_range) == 4
 
+
+def test_idiom_to_json_from_json(db_session, sentence):
+    """Test idiom JSON serialization/deserialization by token order index."""
+    sentence = db_session.merge(sentence)
+    tokens = list(sentence.tokens)
+    idiom = Idiom(
+        sentence_id=sentence.id,
+        start_token_id=tokens[0].id,
+        end_token_id=tokens[2].id,
+    )
+    idiom.save()
+    Annotation(idiom_id=idiom.id, pos="R").save()
+    db_session.commit()
+    db_session.refresh(sentence)
+
+    idiom_data = sentence.idioms[0].to_json()
+    assert idiom_data["start_token_order_index"] == 0
+    assert idiom_data["end_token_order_index"] == 2
+    assert idiom_data["annotation"]["pos"] == "R"
+    assert "id" not in idiom_data
+    assert "sentence_id" not in idiom_data
+    assert "start_token_id" not in idiom_data
+    assert "end_token_id" not in idiom_data
+
+    sentence.idioms[0].delete()
+    db_session.commit()
+    db_session.refresh(sentence)
+    assert len(sentence.idioms) == 0
+
+    token_map = {token.order_index: token for token in sentence.tokens}
+    restored = Idiom.from_json(sentence.id, idiom_data, token_map)
+    db_session.refresh(restored)
+    assert restored.start_token.order_index == 0
+    assert restored.end_token.order_index == 2
+    assert restored.annotation is not None
+    assert restored.annotation.pos == "R"
+
 @pytest.mark.qt_no_exception_capture
 def test_idiom_selection_ui(qtbot, db_session, sentence, mock_main_window):
     """Test idiom selection in SentenceCard."""
