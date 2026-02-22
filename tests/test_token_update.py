@@ -1,6 +1,7 @@
 """Unit tests for Token.update_from_sentence and related methods."""
 
 import pytest
+from sqlalchemy import select
 
 from oeapp.models.token import Token
 
@@ -440,3 +441,95 @@ class TestUpdateFromSentence:
         assert len(tokens) == 1
         assert tokens[0].order_index == 0
 
+    def test_split_does_not_shift_following_token_annotation(self, db_session, project_and_sentence):
+        """
+        Splitting one token must not shift annotations from following tokens.
+        """
+        _, sentence_id = project_and_sentence
+
+        # Reset fixture tokens and create a controlled sequence
+        existing_tokens = Token.list(sentence_id)
+        for token in existing_tokens:
+            token.delete(commit=False)
+        db_session.commit()
+
+        token0 = Token(sentence_id=sentence_id, order_index=0, surface="godcundre")
+        token0.save(commit=False)
+        token1 = Token(sentence_id=sentence_id, order_index=1, surface="ġife")
+        token1.save(commit=False)
+        token2 = Token(sentence_id=sentence_id, order_index=2, surface="ġemǣred")
+        token2.save()
+
+        from oeapp.models.annotation import Annotation
+
+        ann0 = Annotation(token_id=token0.id, pos="A")
+        ann0.save(commit=False)
+        ann1 = Annotation(token_id=token1.id, pos="N")
+        ann1.save(commit=False)
+        ann2 = Annotation(token_id=token2.id, pos="V")
+        ann2.save()
+
+        Token.update_from_sentence("god cundre ġife ġemǣred", sentence_id)
+
+        tokens = Token.list(sentence_id)
+        surfaces = [t.surface for t in tokens]
+        assert surfaces == ["god", "cundre", "ġife", "ġemǣred"]
+
+        token_by_surface = {t.surface: t for t in tokens}
+        # Following tokens keep their own annotation identities.
+        assert token_by_surface["ġife"].id == token1.id
+        assert token_by_surface["ġemǣred"].id == token2.id
+
+        gi_ann = Annotation.get_by_token(token_by_surface["ġife"].id)
+        ge_ann = Annotation.get_by_token(token_by_surface["ġemǣred"].id)
+        assert gi_ann is not None and gi_ann.pos == "N"
+        assert ge_ann is not None and ge_ann.pos == "V"
+
+    def test_merge_deletes_old_token_annotations_without_orphans(
+        self, db_session, project_and_sentence
+    ):
+        """
+        Merging tokens removes annotations of deleted tokens from the DB.
+        """
+        from oeapp.models.annotation import Annotation
+
+        _, sentence_id = project_and_sentence
+
+        # Reset fixture tokens and create controlled token sequence.
+        existing_tokens = Token.list(sentence_id)
+        for token in existing_tokens:
+            token.delete(commit=False)
+        db_session.commit()
+
+        token0 = Token(sentence_id=sentence_id, order_index=0, surface="god")
+        token0.save(commit=False)
+        token1 = Token(sentence_id=sentence_id, order_index=1, surface="cundre")
+        token1.save()
+
+        ann0 = Annotation(token_id=token0.id, pos="A")
+        ann0.save(commit=False)
+        ann1 = Annotation(token_id=token1.id, pos="N")
+        ann1.save()
+        old_ann_ids = {ann0.id, ann1.id}
+        old_token_ids = {token0.id, token1.id}
+
+        # Merge two tokens into one.
+        Token.update_from_sentence("godcundre", sentence_id)
+
+        tokens = Token.list(sentence_id)
+        assert len(tokens) == 1
+        assert tokens[0].surface == "godcundre"
+
+        # Old token-attached annotations must be removed.
+        for old_ann_id in old_ann_ids:
+            assert Annotation.get(old_ann_id) is None
+
+        # No annotation row should point to a non-existent token.
+        token_ids = {t.id for t in tokens if t.id}
+        all_token_annotations = db_session.scalars(
+            select(Annotation).where(Annotation.token_id.is_not(None))
+        ).all()
+        assert all(a.token_id in token_ids for a in all_token_annotations)
+
+        # Sanity: old token IDs are gone.
+        assert all(tid not in token_ids for tid in old_token_ids)

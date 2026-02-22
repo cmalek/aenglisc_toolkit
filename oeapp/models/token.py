@@ -32,6 +32,8 @@ class Token(SaveDeleteMixin, Base):
     #: The value of the order index that indicates a token is no longer in the
     #: sentence.
     NO_ORDER_INDEX: ClassVar[int] = -1
+    #: Similarity threshold for reusing an existing token in replace blocks.
+    REUSE_SIMILARITY_THRESHOLD: ClassVar[float] = 0.75
 
     #: The token ID.
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -381,15 +383,69 @@ class Token(SaveDeleteMixin, Base):
     ) -> None:
         """Handle 'replace' opcode."""
         if (i2 - i1) == (j2 - j1):
-            # Typo fix preservation
-            for k in range(i2 - i1):
-                token = existing_tokens[i1 + k]
-                new_idx = j1 + k
-                token.surface = token_strings[new_idx]
-                token.order_index = new_idx
-                session.add(token)
-                matched_positions[new_idx] = token
-                matched_token_ids.add(token.id)
+            old_window = existing_tokens[i1:i2]
+            new_window = token_strings[j1:j2]
+
+            # First, anchor exact matches by surface (in old order).
+            # This prevents annotation drift when a shifted exact token exists.
+            assignments: dict[int, int] = {}
+            used_old_rel: set[int] = set()
+            surface_to_old_rels: dict[str, builtins.list[int]] = {}
+            for old_rel, old_token in enumerate(old_window):
+                surface_to_old_rels.setdefault(old_token.surface, []).append(old_rel)
+
+            for new_rel, new_surface in enumerate(new_window):
+                candidates = surface_to_old_rels.get(new_surface, [])
+                for old_rel in candidates:
+                    if old_rel not in used_old_rel:
+                        assignments[new_rel] = old_rel
+                        used_old_rel.add(old_rel)
+                        break
+
+            # Fallback to positional reuse for pure typo blocks (no exact anchors).
+            if not assignments:
+                for k in range(i2 - i1):
+                    token = old_window[k]
+                    new_idx = j1 + k
+                    token.surface = token_strings[new_idx]
+                    token.order_index = new_idx
+                    session.add(token)
+                    matched_positions[new_idx] = token
+                    matched_token_ids.add(token.id)
+                return
+
+            # For remaining slots, only reuse same-position tokens when they are
+            # highly similar. Otherwise create new tokens to avoid shifted reuse.
+            for new_rel, new_surface in enumerate(new_window):
+                if new_rel in assignments:
+                    continue
+                if new_rel in used_old_rel:
+                    continue
+                old_token = old_window[new_rel]
+                similarity = difflib.SequenceMatcher(
+                    None, old_token.surface, new_surface
+                ).ratio()
+                if similarity >= cls.REUSE_SIMILARITY_THRESHOLD:
+                    assignments[new_rel] = new_rel
+                    used_old_rel.add(new_rel)
+
+            for new_rel, new_surface in enumerate(new_window):
+                new_idx = j1 + new_rel
+                if new_rel in assignments:
+                    token = old_window[assignments[new_rel]]
+                    token.surface = new_surface
+                    token.order_index = new_idx
+                    session.add(token)
+                    matched_positions[new_idx] = token
+                    matched_token_ids.add(token.id)
+                else:
+                    cls._create_new_token(
+                        new_idx,
+                        new_surface,
+                        sentence_id,
+                        session,
+                        matched_positions,
+                    )
         else:
             # Treat as delete + insert
             for k in range(j2 - j1):

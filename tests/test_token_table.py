@@ -91,6 +91,21 @@ class TestTokenTable:
 
         assert selected is None
 
+    def test_token_table_get_selected_token_returns_none_with_tokens_but_no_selection(
+        self, db_session, qapp
+    ):
+        """No selection should not default to an arbitrary token row."""
+        project = create_test_project(db_session, name="Test", text="Se cyning")
+        sentence = project.sentences[0]
+        tokens = list(sentence.tokens)
+
+        table = TokenTable(parent=None)
+        table.set_tokens(tokens)
+        table.table.clearSelection()
+
+        selected = table.get_selected_token()
+        assert selected is None
+
     def test_token_table_emits_token_selected_signal(self, db_session, qapp):
         """Test TokenTable emits token_selected signal."""
         project = create_test_project(db_session, name="Test", text="Se cyning")
@@ -150,4 +165,3 @@ class TestAnnotationTableWidget:
         widget.set_token_table_ref(table)
 
         assert widget._token_table_ref == table
-

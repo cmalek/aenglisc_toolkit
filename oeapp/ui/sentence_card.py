@@ -556,10 +556,10 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
             return
 
         # 2. If the selection is a single token:
-        token: Token | None = self.token_table.get_selected_token()
+        token: Token | None = self.oe_text_edit.get_selected_token()
         selected_token_index = self.oe_text_edit.current_token_index()
-        if not token and selected_token_index is not None:
-            token = self.oe_text_edit.get_selected_token()
+        if not token:
+            token = self.token_table.get_selected_token()
 
         if not token:
             # Select first token if none selected
@@ -871,9 +871,14 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
             token: Selected token
 
         """
-        # Cancel any pending deselection timer
-        self.oe_text_edit.set_selected_token_index(token.order_index, emit=False)
-        self.token_selected_for_details.emit(token, self.sentence, self)
+        # Resolve against live token mappings in case token table row still
+        # references a stale token instance from before retokenization.
+        current = self.oe_text_edit.tokens_by_id.get(token.id) if token.id else None
+        selected = current or token
+        if selected.order_index < 0:
+            return
+        self.oe_text_edit.set_selected_token_index(selected.order_index, emit=False)
+        self.token_selected_for_details.emit(selected, self.sentence, self)
 
     # ========================================================================
     # Paragraph related methods
@@ -1059,7 +1064,7 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
             token: Token that was selected
 
         """
-        self.token_table.select_token(token.order_index)
+        self.token_table.select_token_by_id(token.id)
         self.add_note_button.setEnabled(False)
 
     # -------------------------------------------------------------------------
@@ -1142,7 +1147,7 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
 
                 # Refresh tokens after retokenization
                 self.session.refresh(self.sentence)
-                self.oe_text_edit.set_tokens()
+                self.set_tokens()
                 # Update notes display
                 self.notes_panel.update_notes()
 

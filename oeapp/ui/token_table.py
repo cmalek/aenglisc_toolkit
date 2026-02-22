@@ -219,8 +219,6 @@ class TokenTable(QWidget):
         Get the current row of the token table.
         """
         current_row = self.table.currentRow()
-        if current_row == -1:
-            return 1
         return current_row
 
     def focus(self) -> None:
@@ -399,6 +397,21 @@ class TokenTable(QWidget):
             if item:
                 self.table.scrollToItem(item)
 
+    def select_token_by_id(self, token_id: int | None) -> None:
+        """
+        Select a token by token ID.
+
+        Args:
+            token_id: Token ID to select
+
+        """
+        if token_id is None:
+            return
+        for row, token in enumerate(self.tokens):
+            if token.id == token_id:
+                self.select_token(row)
+                return
+
     def refresh(self) -> None:
         """
         Refresh the table display from stored tokens.
@@ -439,7 +452,7 @@ class TokenTable(QWidget):
             token: Token to select
 
         """
-        self.select_token(token.order_index)
+        self.select_token_by_id(token.id)
 
     def _on_token_deselected(self) -> None:
         """

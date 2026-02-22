@@ -6,8 +6,10 @@ from PySide6.QtGui import QKeyEvent
 from PySide6.QtWidgets import QComboBox, QWidget
 from unittest.mock import MagicMock
 
+from oeapp.commands import CommandManager
 from oeapp.models import Annotation
 from oeapp.models.idiom import Idiom
+from oeapp.models.token import Token
 from oeapp.ui.sentence_card import SentenceCard
 from oeapp.ui.oe_text_edit import OldEnglishTextEdit
 from tests.conftest import create_test_project, create_test_sentence
@@ -318,6 +320,111 @@ class TestSentenceCard:
         assert card.oe_text_edit.textCursor().position() == 14
         # Token selection should not have changed from None
         assert card.oe_text_edit.current_token_index() is None
+
+    def test_split_save_then_annotate_new_token_does_not_crash(
+        self, db_session, qapp, monkeypatch, mock_main_window
+    ):
+        """
+        Regression test for split/save then annotation selection crash.
+        """
+        project = create_test_project(db_session, name="Test", text="Se cyning")
+        sentence = project.sentences[0]
+        card = SentenceCard(
+            sentence,
+            command_manager=CommandManager(db_session),
+            main_window=mock_main_window,
+            parent=None,
+        )
+        text_edit = card.oe_text_edit
+
+        # Split one token into two and save.
+        card._on_edit_oe_clicked()
+        text_edit.setPlainText("Se cyn ing")
+        card._on_save_oe_clicked()
+
+        # Verify mappings were rebound to the live text edit state.
+        selector = text_edit.selector
+        assert selector is not None
+        assert selector.tokens_by_index is text_edit.tokens_by_index
+        assert selector.order_to_list_index is text_edit.order_to_list_index
+        assert text_edit.span_highlighter is not None
+        assert text_edit.span_highlighter.tokens_by_index is text_edit.tokens_by_index
+
+        # Ensure we target a newly split token index.
+        assert 2 in text_edit.tokens_by_index
+        new_order_index = 2
+
+        open_modal = MagicMock()
+        monkeypatch.setattr(card, "_open_annotation_modal", open_modal)
+        monkeypatch.setattr(
+            text_edit,
+            "find_token_at_position",
+            lambda _cursor_pos: new_order_index,
+        )
+
+        # Must not raise assertion errors from stale token order indices.
+        text_edit.annotate_token(QPoint(0, 0))
+
+        assert open_modal.called
+        assert text_edit.current_token_index() == new_order_index
+        assert text_edit.current_token_index() is not None
+        assert text_edit.current_token_index() >= 0
+
+    def test_open_annotation_modal_uses_oe_selected_token_when_table_unselected(
+        self, db_session, qapp, monkeypatch, mock_main_window
+    ):
+        """
+        Ensure modal token resolution follows OE selection, not table fallback.
+        """
+        project = create_test_project(db_session, name="Test", text="Se cyn ing")
+        sentence = project.sentences[0]
+        card = SentenceCard(
+            sentence,
+            command_manager=CommandManager(db_session),
+            main_window=mock_main_window,
+            parent=None,
+        )
+        text_edit = card.oe_text_edit
+
+        # Pick token "cyn" (order index 1 in this controlled sentence).
+        assert 1 in text_edit.tokens_by_index
+        selected = text_edit.tokens_by_index[1]
+        text_edit.set_selected_token_index(1, emit=False)
+        card.token_table.table.clearSelection()
+
+        opened_tokens = []
+        monkeypatch.setattr(card, "_open_idiom_modal", lambda idiom: None)
+        monkeypatch.setattr(card, "_open_token_modal", lambda token: opened_tokens.append(token))
+
+        card._open_annotation_modal()
+
+        assert len(opened_tokens) == 1
+        assert opened_tokens[0].id == selected.id
+
+    def test_token_table_selection_handler_remaps_stale_token_by_id(
+        self, db_session, qapp, mock_main_window
+    ):
+        """
+        If a stale token object is emitted, remap via token ID to live token.
+        """
+        project = create_test_project(db_session, name="Test", text="Se cyn ing")
+        sentence = project.sentences[0]
+        card = SentenceCard(
+            sentence,
+            command_manager=CommandManager(db_session),
+            main_window=mock_main_window,
+            parent=None,
+        )
+        live_token = card.oe_text_edit.tokens_by_index[1]
+
+        # Simulate stale pre-retokenization object shape.
+        stale = Token(sentence_id=sentence.id, order_index=-1, surface="stale")
+        stale.id = live_token.id
+
+        card._on_token_table_token_selected(stale)
+
+        assert card.oe_text_edit.current_token_index() == live_token.order_index
+        assert card.oe_text_edit.current_token_index() >= 0
 
     def test_sentence_card_has_highlighter(self, db_session, qapp, mock_main_window):
         """Test that SentenceCard has a SentenceHighlighter."""

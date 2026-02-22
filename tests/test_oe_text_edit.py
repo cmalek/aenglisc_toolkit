@@ -4,6 +4,7 @@ import pytest
 from PySide6.QtCore import QPoint, Qt
 from PySide6.QtGui import QKeyEvent, QMouseEvent
 
+from oeapp.commands import CommandManager
 from oeapp.ui.sentence_card import SentenceCard
 from tests.conftest import create_test_project
 
@@ -164,3 +165,25 @@ class TestOldEnglishTextEdit:
 
         assert len(clicked_args) == 1
         assert clicked_args[0][0] == QPoint(5, 5)
+
+    def test_set_tokens_refreshes_selector_and_highlighter_mappings(
+        self, db_session, qapp, mock_main_window
+    ):
+        project = create_test_project(db_session, name="Test", text="Se cyning")
+        sentence = project.sentences[0]
+        card = SentenceCard(
+            sentence,
+            command_manager=CommandManager(db_session),
+            main_window=mock_main_window,
+        )
+        text_edit = card.oe_text_edit
+
+        card._on_edit_oe_clicked()
+        text_edit.setPlainText("Se cyn ing")
+        card._on_save_oe_clicked()
+
+        assert text_edit.selector is not None
+        assert text_edit.selector.tokens_by_index is text_edit.tokens_by_index
+        assert text_edit.selector.order_to_list_index is text_edit.order_to_list_index
+        assert text_edit.span_highlighter is not None
+        assert text_edit.span_highlighter.tokens_by_index is text_edit.tokens_by_index

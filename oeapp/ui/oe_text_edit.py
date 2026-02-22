@@ -72,6 +72,14 @@ class OldEnglishTextSelector:
         #: The selected token range
         self.selected_token_range: tuple[int, int] | None = None
 
+    def refresh_token_views(self) -> None:
+        """
+        Refresh token mappings from the live text edit state.
+        """
+        self.tokens = self.text_edit.tokens
+        self.tokens_by_index = self.text_edit.tokens_by_index
+        self.order_to_list_index = self.text_edit.order_to_list_index
+
     def stop_deselect_timer(self) -> None:
         """
         Stop the deselection timer.
@@ -179,6 +187,7 @@ class OldEnglishTextSelector:
         """
         if not self.sentence_card:
             return
+        self.refresh_token_views()
         # If in edit mode, don't handle clicks for selection
         if self.text_edit.in_edit_mode:
             return
@@ -315,6 +324,7 @@ class OldEnglishTextSelector:
         """
         if not self.sentence_card:
             return
+        self.refresh_token_views()
         # 1. If click is within existing range selection, don't clear it yet.
         # This allows double-click to work on the selection.
         if self.selected_token_range:
@@ -355,7 +365,7 @@ class OldEnglishTextSelector:
             self.selected_token_index = order_index
             token = self.tokens_by_index.get(order_index)
             if token:
-                self.span_highlighter.highlight(token.order_index)
+                self.span_highlighter.highlight(order_index)
                 self.sentence_card.token_selected_for_details.emit(
                     token, self.sentence, self.sentence_card
                 )
@@ -378,6 +388,7 @@ class OldEnglishTextSelector:
         """
         if not self.sentence_card:
             return
+        self.refresh_token_views()
         if self._pending_deselect_token_index is not None:
             order_index = self._pending_deselect_token_index
             # Only deselect if the token index still matches or click was in range
@@ -971,7 +982,16 @@ class OldEnglishTextEdit(QTextEdit):
         self.annotations = {
             cast("int", token.id): token.annotation for token in self.tokens if token.id
         }
-        cast("WholeSentenceHighlighter", self.sentence_highlighter).highlight()
+        if self.selector:
+            self.selector.refresh_token_views()
+        if self.span_highlighter:
+            self.span_highlighter.refresh_token_views()
+        if self.sentence_highlighter:
+            sentence_highlighter = cast(
+                "WholeSentenceHighlighter", self.sentence_highlighter
+            )
+            sentence_highlighter.refresh_token_views()
+            sentence_highlighter.highlight()
 
     def get_token(self, order_index: int) -> "Token | None":
         """

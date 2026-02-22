@@ -33,16 +33,23 @@ class SelectTokensMixin(AnnotationLookupsMixin):
         """
         #: The sentence card
         self.card = card
-        #: The tokens in the sentence
-        self.tokens: list[Token] = card.oe_text_edit.tokens
         #: The Old English text edit
         self.oe_text_edit: QTextEdit = card.oe_text_edit
+        #: The tokens in the sentence
+        self.tokens: list[Token] = []
         #: The token positions in the sentence
-        self.token_positions: dict[int, tuple[int, int]] = (
-            card.oe_text_edit.token_to_position
-        )
+        self.token_positions: dict[int, tuple[int, int]] = {}
         #: The tokens by index
-        self.tokens_by_index: dict[int, Token] = card.oe_text_edit.tokens_by_index
+        self.tokens_by_index: dict[int, Token] = {}
+        self.refresh_token_views()
+
+    def refresh_token_views(self) -> None:
+        """
+        Refresh token mappings from the live text edit state.
+        """
+        self.tokens = self.card.oe_text_edit.tokens
+        self.token_positions = self.card.oe_text_edit.token_to_position
+        self.tokens_by_index = self.card.oe_text_edit.tokens_by_index
 
     def get_token_positions(
         self, start_order: int, end_order: int
@@ -173,6 +180,14 @@ class HighlighterCommandBase(SelectTokensMixin):
         #: The dialog instance for filtering tokens
         self.dialog: SentenceFilterDialog | None = None
 
+    def refresh_command_views(self) -> None:
+        """
+        Refresh cached references from the current highlighter state.
+        """
+        self.refresh_token_views()
+        self.idioms = self.highlighter.idioms
+        self.annotations = self.highlighter.annotations
+
     @property
     def filter_selection(self) -> set[str]:
         """
@@ -220,6 +235,7 @@ class HighlighterCommandBase(SelectTokensMixin):
         """
         Apply the highlighting for the command.
         """
+        self.refresh_command_views()
         colors: QColor | dict[str | None, QColor]
         if isinstance(self.COLORS, QColor):
             colors = cast("QColor", self.COLORS)
@@ -517,9 +533,19 @@ class WholeSentenceHighlighter:
         Set the sentence card for the sentence highlighter.
         """
         self.card = value
-        self.tokens = value.oe_text_edit.tokens
-        self.idioms = value.oe_text_edit.idioms
-        self.annotations = value.oe_text_edit.annotations
+        self.refresh_token_views()
+
+    def refresh_token_views(self) -> None:
+        """
+        Refresh cached token/idiom/annotation references from the text edit.
+        """
+        if not self.card:
+            return
+        self.tokens = self.card.oe_text_edit.tokens
+        self.idioms = self.card.oe_text_edit.idioms
+        self.annotations = self.card.oe_text_edit.annotations
+        if self.active_command:
+            self.active_command.refresh_command_views()
 
     def hide_filter_dialog(self) -> None:
         """
