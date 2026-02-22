@@ -1,12 +1,19 @@
 """Unit tests for MainWindow."""
 
-import pytest
 from unittest.mock import MagicMock, patch
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QStatusBar
+
+import pytest
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QCloseEvent
+from PySide6.QtWidgets import QLabel, QStatusBar, QVBoxLayout, QWidget
 
 from oeapp.ui.main_window import MainWindow, MainWindowActions, Messages
-from oeapp.state import ApplicationState, CURRENT_PROJECT_ID, COPIED_ANNOTATION, SELECTED_SENTENCE_CARD
+from oeapp.state import (
+    ApplicationState,
+    COPIED_ANNOTATION,
+    CURRENT_PROJECT_ID,
+    SELECTED_SENTENCE_CARD,
+)
 from oeapp.models.project import Project
 
 @pytest.fixture
@@ -220,3 +227,31 @@ class TestMainWindowStartupDialogs:
         mock_new_dlg.assert_called_once_with(main_window)
         mock_new_dlg.return_value.execute.assert_called_once()
         mock_open_dlg.assert_not_called()
+
+
+class TestMainWindowOptimizeHooks:
+    """Test startup and shutdown optimize hooks."""
+
+    def test_startup_runs_pragma_optimize(self, db_session, mock_services):
+        """MainWindow should run PRAGMA optimize after migration handling."""
+        state = ApplicationState()
+        state.reset()
+        state.session = db_session
+
+        with patch("oeapp.ui.main_window.run_pragma_optimize") as mock_optimize:
+            _ = MainWindow()
+            assert mock_optimize.call_count == 1
+
+    def test_close_event_swallows_optimize_errors(self, db_session, mock_services):
+        """Close should not fail even if optimize unexpectedly raises."""
+        state = ApplicationState()
+        state.reset()
+        state.session = db_session
+
+        with patch(
+            "oeapp.ui.main_window.run_pragma_optimize",
+            side_effect=[True, RuntimeError("boom")],
+        ):
+            window = MainWindow()
+            event = QCloseEvent()
+            window.closeEvent(event)

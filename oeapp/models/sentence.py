@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, cast
 from sqlalchemy import (
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     String,
     UniqueConstraint,
@@ -57,6 +58,7 @@ class Sentence(SaveDeleteMixin, Base):
         UniqueConstraint(
             "project_id", "display_order", name="uq_sentences_project_order"
         ),
+        Index("idx_sentences_paragraph_order", "paragraph_id", "display_order"),
     )
 
     #: The sentence ID.

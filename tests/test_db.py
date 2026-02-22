@@ -5,12 +5,14 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from sqlalchemy import text
 
 from oeapp.db import (
     Base,
     SessionLocal,
     create_engine_with_path,
     get_project_db_path,
+    run_pragma_optimize,
     table_to_model_name,
 )
 
@@ -115,6 +117,91 @@ class TestCreateEngineWithPath:
         assert db_path.exists()
 
 
+class TestSQLitePragmas:
+    """Validate SQLite PRAGMA defaults and override behavior."""
+
+    def test_default_sqlite_pragmas(self, tmp_path, monkeypatch):
+        """Default performance pragmas should be applied on connection."""
+        monkeypatch.delenv("OE_SQLITE_SYNCHRONOUS", raising=False)
+        monkeypatch.delenv("OE_SQLITE_CACHE_SIZE_KIB", raising=False)
+        monkeypatch.delenv("OE_SQLITE_MMAP_SIZE_MB", raising=False)
+        monkeypatch.delenv("OE_SQLITE_BUSY_TIMEOUT_MS", raising=False)
+        monkeypatch.delenv("OE_SQLITE_TEMP_STORE", raising=False)
+        monkeypatch.delenv("OE_SQLITE_WAL_AUTOCHECKPOINT_PAGES", raising=False)
+
+        db_path = tmp_path / "default_pragmas.db"
+        engine = create_engine_with_path(db_path)
+        with engine.connect() as conn:
+            assert conn.execute(text("PRAGMA foreign_keys")).scalar() == 1
+            assert conn.execute(text("PRAGMA journal_mode")).scalar() == "wal"
+            assert conn.execute(text("PRAGMA synchronous")).scalar() == 1
+            assert conn.execute(text("PRAGMA cache_size")).scalar() == -16384
+            assert conn.execute(text("PRAGMA mmap_size")).scalar() == 134217728
+            assert conn.execute(text("PRAGMA busy_timeout")).scalar() == 10000
+            assert conn.execute(text("PRAGMA temp_store")).scalar() == 2
+            assert conn.execute(text("PRAGMA wal_autocheckpoint")).scalar() == 2000
+        engine.dispose()
+
+    def test_sqlite_pragma_env_overrides(self, tmp_path, monkeypatch):
+        """Environment variables should override default PRAGMA values."""
+        monkeypatch.setenv("OE_SQLITE_SYNCHRONOUS", "FULL")
+        monkeypatch.setenv("OE_SQLITE_CACHE_SIZE_KIB", "32768")
+        monkeypatch.setenv("OE_SQLITE_MMAP_SIZE_MB", "64")
+        monkeypatch.setenv("OE_SQLITE_BUSY_TIMEOUT_MS", "15000")
+        monkeypatch.setenv("OE_SQLITE_TEMP_STORE", "FILE")
+        monkeypatch.setenv("OE_SQLITE_WAL_AUTOCHECKPOINT_PAGES", "4096")
+
+        db_path = tmp_path / "override_pragmas.db"
+        engine = create_engine_with_path(db_path)
+        with engine.connect() as conn:
+            assert conn.execute(text("PRAGMA synchronous")).scalar() == 2
+            assert conn.execute(text("PRAGMA cache_size")).scalar() == -32768
+            assert conn.execute(text("PRAGMA mmap_size")).scalar() == 67108864
+            assert conn.execute(text("PRAGMA busy_timeout")).scalar() == 15000
+            assert conn.execute(text("PRAGMA temp_store")).scalar() == 1
+            assert conn.execute(text("PRAGMA wal_autocheckpoint")).scalar() == 4096
+        engine.dispose()
+
+    def test_invalid_sqlite_pragma_env_falls_back_to_defaults(
+        self, tmp_path, monkeypatch
+    ):
+        """Invalid PRAGMA env values should safely fall back to defaults."""
+        monkeypatch.setenv("OE_SQLITE_SYNCHRONOUS", "INVALID")
+        monkeypatch.setenv("OE_SQLITE_CACHE_SIZE_KIB", "oops")
+        monkeypatch.setenv("OE_SQLITE_MMAP_SIZE_MB", "-7")
+        monkeypatch.setenv("OE_SQLITE_BUSY_TIMEOUT_MS", "bad")
+        monkeypatch.setenv("OE_SQLITE_TEMP_STORE", "BANANA")
+        monkeypatch.setenv("OE_SQLITE_WAL_AUTOCHECKPOINT_PAGES", "0")
+
+        db_path = tmp_path / "fallback_pragmas.db"
+        engine = create_engine_with_path(db_path)
+        with engine.connect() as conn:
+            assert conn.execute(text("PRAGMA synchronous")).scalar() == 1
+            assert conn.execute(text("PRAGMA cache_size")).scalar() == -16384
+            assert conn.execute(text("PRAGMA mmap_size")).scalar() == 134217728
+            assert conn.execute(text("PRAGMA busy_timeout")).scalar() == 10000
+            assert conn.execute(text("PRAGMA temp_store")).scalar() == 2
+            assert conn.execute(text("PRAGMA wal_autocheckpoint")).scalar() == 2000
+        engine.dispose()
+
+    def test_run_pragma_optimize_success(self, tmp_path):
+        """PRAGMA optimize should return True when it succeeds."""
+        db_path = tmp_path / "optimize_ok.db"
+        engine = create_engine_with_path(db_path)
+        assert run_pragma_optimize(engine) is True
+        engine.dispose()
+
+    def test_run_pragma_optimize_failure(self):
+        """PRAGMA optimize should return False on engine/connection failures."""
+
+        class BadEngine:
+            def connect(self):
+                msg = "connection failed"
+                raise RuntimeError(msg)
+
+        assert run_pragma_optimize(BadEngine()) is False
+
+
 class TestSessionLocal:
     """Test cases for SessionLocal."""
 
@@ -152,4 +239,3 @@ class TestTableToModelName:
         """Test handles single character."""
         result = table_to_model_name("s")
         assert result == ""
-

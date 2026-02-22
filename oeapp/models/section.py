@@ -5,7 +5,7 @@ from __future__ import annotations
 import builtins
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, Integer, String, select
+from sqlalchemy import ForeignKey, Index, Integer, String, select
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
@@ -25,6 +25,9 @@ class Section(SaveDeleteMixin, Base):
     """
 
     __tablename__ = "sections"
+    __table_args__ = (
+        Index("idx_sections_chapter_number", "chapter_id", "number"),
+    )
 
     #: The section ID.
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)

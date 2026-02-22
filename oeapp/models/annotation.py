@@ -7,6 +7,7 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     String,
     select,
@@ -92,6 +93,8 @@ class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
         CheckConstraint(
             "adverb_degree IN ('p','c','s')", name="ck_annotations_adverb_degree"
         ),
+        Index("idx_annotations_token_id", "token_id"),
+        Index("idx_annotations_idiom_id", "idiom_id"),
     )
 
     #: The annotation ID (primary key).

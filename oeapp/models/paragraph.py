@@ -5,7 +5,7 @@ from __future__ import annotations
 import builtins
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, Integer, func, select
+from sqlalchemy import ForeignKey, Index, Integer, func, select
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from oeapp.db import Base
@@ -24,6 +24,9 @@ class Paragraph(SaveDeleteMixin, Base):
     """
 
     __tablename__ = "paragraphs"
+    __table_args__ = (
+        Index("idx_paragraphs_section_order", "section_id", "order"),
+    )
 
     #: The paragraph ID.
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)

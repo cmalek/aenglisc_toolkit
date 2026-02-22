@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, String
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, reconstructor, relationship
 
 from oeapp.db import Base
@@ -25,6 +25,7 @@ class Note(SaveDeleteMixin, Base):
         CheckConstraint(
             "note_type IN ('token','span','sentence')", name="ck_notes_note_type"
         ),
+        Index("idx_notes_sentence", "sentence_id"),
     )
 
     #: The note ID.

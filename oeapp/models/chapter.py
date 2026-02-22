@@ -5,7 +5,7 @@ from __future__ import annotations
 import builtins  # noqa: TC003
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, Integer, String, func, select
+from sqlalchemy import ForeignKey, Index, Integer, String, func, select
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from oeapp.db import Base
@@ -24,6 +24,9 @@ class Chapter(SaveDeleteMixin, Base):
     """
 
     __tablename__ = "chapters"
+    __table_args__ = (
+        Index("idx_chapters_project_number", "project_id", "number"),
+    )
 
     #: The chapter ID.
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)

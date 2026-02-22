@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, Integer
+from sqlalchemy import DateTime, ForeignKey, Index, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from oeapp.db import Base
@@ -21,6 +21,14 @@ class Idiom(SaveDeleteMixin, Base):
     """Represents a multi-token group (idiom) in a sentence."""
 
     __tablename__ = "idioms"
+    __table_args__ = (
+        Index(
+            "idx_idioms_sentence_token_span",
+            "sentence_id",
+            "start_token_id",
+            "end_token_id",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     #: The sentence ID.

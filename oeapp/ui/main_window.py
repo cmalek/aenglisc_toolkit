@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
 from oeapp.commands import (
     AnnotateTokenCommand,
 )
+from oeapp.db import run_pragma_optimize
 from oeapp.exc import MigrationFailed
 from oeapp.models.project import Project
 from oeapp.services import (
@@ -95,6 +96,11 @@ class MainWindow(QMainWindow):
         # Handle migrations with backup/restore on failure
         # Note: session is created after migrations to avoid issues
         self._handle_migrations()
+        # Best-effort planner/statistics maintenance after DB is ready.
+        try:
+            run_pragma_optimize()
+        except Exception:  # noqa: BLE001
+            pass
 
         #: Sentence cards
         self.sentence_cards: list[SentenceCard] = []
@@ -470,6 +476,11 @@ class MainWindow(QMainWindow):
         # Stop autosave service
         if self.autosave_service:
             self.autosave_service.cancel()
+        # Keep this non-blocking on shutdown.
+        try:
+            run_pragma_optimize()
+        except Exception:  # noqa: BLE001
+            pass
         super().closeEvent(event)
 
     def reload_main_window(self) -> None:
