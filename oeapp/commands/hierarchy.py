@@ -91,9 +91,9 @@ class SplitSectionCommand(SessionMixin, Command):
             s.save(commit=False)
 
         # Move paragraphs to new section and reset their order
-        for p in paragraphs_to_move:
+        for i, p in enumerate(paragraphs_to_move, 1):
             p.section_id = new_section.id
-            p.order = p.order + 1
+            p.order = i
             p.save(commit=False)
 
         session.commit()
@@ -221,9 +221,8 @@ class MergeSectionCommand(SessionMixin, Command):
             p.order = last_order + i
             p.save(commit=False)
 
-        # CRITICAL: Clear the relationship to prevent cascade delete
-        current_section.paragraphs = []
-        current_section.save(commit=False)
+        session.flush()
+        session.refresh(current_section, attribute_names=["paragraphs"])
 
         # Delete current section
         current_section.delete(commit=False)
@@ -403,9 +402,8 @@ class SplitChapterCommand(SessionMixin, Command):
             s.number = last_number + i
             session.add(s)
 
-        # CRITICAL: Clear the relationship to prevent cascade delete
-        new_chapter.sections = []
-        new_chapter.save(commit=False)
+        session.flush()
+        session.refresh(new_chapter, attribute_names=["sections"])
 
         project_id = new_chapter.project_id
         number_to_remove = new_chapter.number
@@ -484,9 +482,8 @@ class MergeChapterCommand(SessionMixin, Command):
             s.number = last_number + i
             s.save(commit=False)
 
-        # CRITICAL: Clear the relationship to prevent cascade delete
-        current_chapter.sections = []
-        current_chapter.save(commit=False)
+        session.flush()
+        session.refresh(current_chapter, attribute_names=["sections"])
 
         # Delete current chapter
         current_chapter.delete(commit=False)

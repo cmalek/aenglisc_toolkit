@@ -86,6 +86,8 @@ class Section(SaveDeleteMixin, Base):
         session.add(section)
         if commit:
             session.commit()
+        else:
+            session.flush()
         session.refresh(section)
         return section
 
@@ -102,15 +104,12 @@ class Section(SaveDeleteMixin, Base):
             List of sections ordered by (Chapter.number, Section.number)
 
         """
-        # Import here to avoid circular import
-        from oeapp.models.chapter import Chapter  # noqa: PLC0415
-
         session = cls._get_session()
         if chapter_id:
-            stmt = select(cls).where(cls.chapter_id == chapter_id)
+            stmt = select(cls).where(cls.chapter_id == chapter_id).order_by(cls.number)
         else:
-            stmt = select(cls)
-        return session.scalars(stmt.order_by(Chapter.number, cls.number)).all()
+            stmt = select(cls).order_by(cls.chapter_id, cls.number)
+        return session.scalars(stmt).all()
 
     @classmethod
     def get_sections_after(

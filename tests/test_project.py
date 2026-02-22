@@ -4,8 +4,11 @@ from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session as SASession
 
 from oeapp.exc import AlreadyExists
+from oeapp.models.chapter import Chapter
+from oeapp.models.paragraph import Paragraph
 from oeapp.models.project import Project
 from oeapp.models.sentence import Sentence
 
@@ -262,3 +265,48 @@ class TestProject:
         assert len(project.sentences) > 0
         assert all(s.project_id == project.id for s in project.sentences)
 
+    def test_last_chapter_number_returns_none_without_chapters(self, db_session):
+        project = Project(name="No Chapters")
+        project.save()
+        assert project.last_chapter_number() is None
+
+    def test_last_chapter_number_returns_max_chapter(self, db_session):
+        project = Project(name="Has Chapters")
+        project.save()
+        db_session.add_all(
+            [
+                Chapter(project_id=project.id, number=1),
+                Chapter(project_id=project.id, number=3),
+                Chapter(project_id=project.id, number=2),
+            ]
+        )
+        db_session.commit()
+        assert project.last_chapter_number() == 3
+
+    def test_append_oe_text_to_empty_project_bootstraps_hierarchy(self, db_session):
+        project = Project(name="Hierarchy Bootstrap")
+        project.save()
+
+        project.append_oe_text("Se cyning.")
+        db_session.refresh(project)
+
+        assert len(project.chapters) == 1
+        assert len(project.chapters[0].sections) == 1
+        assert len(project.chapters[0].sections[0].paragraphs) == 1
+        assert project.sentences[0].paragraph_id == project.chapters[0].sections[0].paragraphs[0].id
+
+    def test_append_oe_text_raises_key_error_when_last_paragraph_missing(
+        self, db_session, monkeypatch
+    ):
+        project = Project.create(text="First sentence.", name="Missing Paragraph")
+        last_paragraph_id = project.sentences[-1].paragraph_id
+        original_get = SASession.get
+
+        def fake_get(session, entity, ident, *args, **kwargs):
+            if entity is Paragraph and ident == last_paragraph_id:
+                return None
+            return original_get(session, entity, ident, *args, **kwargs)
+
+        monkeypatch.setattr(SASession, "get", fake_get)
+        with pytest.raises(KeyError, match="Last paragraph not found"):
+            project.append_oe_text("Second sentence.")

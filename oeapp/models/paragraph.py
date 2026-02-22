@@ -101,17 +101,12 @@ class Paragraph(SaveDeleteMixin, Base):
             List of paragraphs ordered by (Section.number, Paragraph.order)
 
         """
-        # Import here to avoid circular import
-        from oeapp.models.section import Section  # noqa: PLC0415
-
         session = cls._get_session()
         if section_id:
-            stmt = select(cls).where(cls.section_id == section_id)
+            stmt = select(cls).where(cls.section_id == section_id).order_by(cls.order)
         else:
-            stmt = select(cls)
-        return builtins.list(
-            session.scalars(stmt.order_by(Section.number, cls.order)).all()
-        )
+            stmt = select(cls).order_by(cls.section_id, cls.order)
+        return builtins.list(session.scalars(stmt).all())
 
     @classmethod
     def get_paragraphs_after(

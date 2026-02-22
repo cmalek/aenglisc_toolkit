@@ -92,6 +92,8 @@ class Chapter(SaveDeleteMixin, Base):
         session.add(chapter)
         if commit:
             session.commit()
+        else:
+            session.flush()
         session.refresh(chapter)
         return chapter
 

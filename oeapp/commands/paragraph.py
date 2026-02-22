@@ -163,6 +163,14 @@ class MergeParagraphCommand(SessionMixin, Command):
             # Cannot merge first paragraph of section
             return False
 
+        first_sentence = min(
+            current_paragraph.sentences,
+            key=lambda current_sentence: current_sentence.display_order,
+            default=None,
+        )
+        if first_sentence is None or first_sentence.id != sentence.id:
+            return False
+
         self.removed_paragraph_id = current_paragraph.id
         self.original_order = current_paragraph.order
         section_id = current_paragraph.section_id
@@ -182,6 +190,9 @@ class MergeParagraphCommand(SessionMixin, Command):
         for s in sentences_to_move:
             s.paragraph_id = prev_paragraph.id
             s.save(commit=False)
+
+        session.flush()
+        session.refresh(current_paragraph, attribute_names=["sentences"])
 
         # Delete current paragraph
         current_paragraph.delete(commit=False)

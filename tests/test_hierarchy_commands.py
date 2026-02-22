@@ -1,146 +1,201 @@
-import pytest
-from sqlalchemy import select
-from oeapp.models.project import Project
-from oeapp.models.chapter import Chapter
-from oeapp.models.section import Section
-from oeapp.models.paragraph import Paragraph
+"""Tests for chapter/section hierarchy command behavior."""
+
 from oeapp.commands.hierarchy import (
-    SplitSectionCommand, MergeSectionCommand,
-    SplitChapterCommand, MergeChapterCommand
+    MergeChapterCommand,
+    MergeSectionCommand,
+    SplitChapterCommand,
+    SplitSectionCommand,
 )
+from oeapp.models.chapter import Chapter
+from oeapp.models.paragraph import Paragraph
+from oeapp.models.project import Project
+from oeapp.models.section import Section
 
-def test_split_section_command(db_session):
-    project = Project(name="Test Project")
-    db_session.add(project)
-    db_session.commit()
 
-    chapter = Chapter(project_id=project.id, number=1)
-    db_session.add(chapter)
-    db_session.commit()
-
-    section = Section(chapter_id=chapter.id, number=1)
+def _build_section_with_paragraphs(db_session, *, chapter_id: int, section_number: int, count: int):
+    section = Section(chapter_id=chapter_id, number=section_number)
     db_session.add(section)
-    db_session.commit()
+    db_session.flush()
+    paragraphs = []
+    for order in range(1, count + 1):
+        paragraph = Paragraph(section_id=section.id, order=order)
+        db_session.add(paragraph)
+        paragraphs.append(paragraph)
+    db_session.flush()
+    return section, paragraphs
 
-    p1 = Paragraph(section_id=section.id, order=1)
-    p2 = Paragraph(section_id=section.id, order=2)
-    p3 = Paragraph(section_id=section.id, order=3)
-    db_session.add_all([p1, p2, p3])
-    db_session.commit()
 
-    # Split at p2
-    cmd = SplitSectionCommand(paragraph_id=p2.id)
-    assert cmd.execute()
-    db_session.commit()
-
-    db_session.expire_all()
-    section = db_session.get(Section, section.id)
-    assert len(section.paragraphs) == 1
-    assert section.paragraphs[0].id == p1.id
-
-    new_section = db_session.get(Section, cmd.new_section_id)
-    assert new_section.number == 2
-    assert len(new_section.paragraphs) == 2
-    assert new_section.paragraphs[0].id == p2.id
-    assert new_section.paragraphs[1].id == p3.id
-    assert p2.order == 1
-    assert p3.order == 2
-
-    # Undo split
-    assert cmd.undo()
-    db_session.commit()
-    db_session.expire_all()
-
-    section = db_session.get(Section, section.id)
-    assert len(section.paragraphs) == 3
-
-def test_merge_section_command(db_session):
-    project = Project(name="Test Project")
+def test_split_section_command_execute_and_undo(db_session):
+    project = Project(name="Hierarchy Project")
     db_session.add(project)
-    db_session.commit()
-
+    db_session.flush()
     chapter = Chapter(project_id=project.id, number=1)
     db_session.add(chapter)
-    db_session.commit()
+    db_session.flush()
+    section, paragraphs = _build_section_with_paragraphs(
+        db_session, chapter_id=chapter.id, section_number=1, count=3
+    )
+    split_paragraph = paragraphs[1]
 
-    section1 = Section(chapter_id=chapter.id, number=1)
-    db_session.add(section)
-    db_session.commit()
-
-    section2 = Section(chapter_id=chapter.id, number=2)
-    db_session.add(section2)
-    db_session.commit()
-
-    p1 = Paragraph(section_id=section1.id, order=1)
-    p2 = Paragraph(section_id=section2.id, order=2)
-    p3 = Paragraph(section_id=section2.id, order=3)
-    db_session.add_all([p1, p2, p3])
-    db_session.commit()
-
-    # Merge at p2
-    cmd = MergeSectionCommand(paragraph_id=p2.id)
-    assert cmd.execute()
-    db_session.commit()
+    cmd = SplitSectionCommand(paragraph_id=split_paragraph.id)
+    assert cmd.execute() is True
 
     db_session.expire_all()
-    section = db_session.get(Section, section.id)
-    assert len(section.paragraphs) == 2
-def test_split_merge_chapter(db_session):
-    project = Project(name="Test Project")
-    db_session.add(project)
-    db_session.commit()
+    original_section = Section.get(section.id)
+    new_section = Section.get(cmd.new_section_id)
+    assert original_section is not None
+    assert new_section is not None
+    assert [p.id for p in original_section.paragraphs] == [paragraphs[0].id]
+    assert [p.id for p in new_section.paragraphs] == [paragraphs[1].id, paragraphs[2].id]
+    assert [p.order for p in new_section.paragraphs] == [1, 2]
 
+    assert cmd.undo() is True
+    db_session.expire_all()
+    restored_section = Section.get(section.id)
+    assert restored_section is not None
+    assert [p.id for p in restored_section.paragraphs] == [p.id for p in paragraphs]
+    assert [p.order for p in restored_section.paragraphs] == [1, 2, 3]
+    assert Section.get(cmd.new_section_id) is None
+
+
+def test_split_section_command_fails_for_first_paragraph(db_session):
+    project = Project(name="Hierarchy Project")
+    db_session.add(project)
+    db_session.flush()
     chapter = Chapter(project_id=project.id, number=1)
     db_session.add(chapter)
-    db_session.commit()
+    db_session.flush()
+    _section, paragraphs = _build_section_with_paragraphs(
+        db_session, chapter_id=chapter.id, section_number=1, count=2
+    )
 
-    s1 = Section(chapter_id=chapter.id, number=1)
-    s2 = Section(chapter_id=chapter.id, number=2)
-    s3 = Section(chapter_id=chapter.id, number=3)
-    db_session.add_all([s1, s2, s3])
-    db_session.commit()
+    cmd = SplitSectionCommand(paragraph_id=paragraphs[0].id)
+    assert cmd.execute() is False
 
-    # Split at s2
-    cmd = SplitChapterCommand(section_id=s2.id)
-    assert cmd.execute()
-    db_session.commit()
+
+def test_merge_section_command_execute_and_undo(db_session):
+    project = Project(name="Hierarchy Project")
+    db_session.add(project)
+    db_session.flush()
+    chapter = Chapter(project_id=project.id, number=1)
+    db_session.add(chapter)
+    db_session.flush()
+    section1, section1_paragraphs = _build_section_with_paragraphs(
+        db_session, chapter_id=chapter.id, section_number=1, count=1
+    )
+    section2, section2_paragraphs = _build_section_with_paragraphs(
+        db_session, chapter_id=chapter.id, section_number=2, count=2
+    )
+
+    merge_start = section2_paragraphs[0]
+    cmd = MergeSectionCommand(paragraph_id=merge_start.id)
+    assert cmd.execute() is True
 
     db_session.expire_all()
-    chapter = db_session.get(Chapter, chapter.id)
-    assert len(chapter.sections) == 1
+    merged_section = Section.get(section1.id)
+    assert merged_section is not None
+    assert [p.id for p in merged_section.paragraphs] == [
+        section1_paragraphs[0].id,
+        section2_paragraphs[0].id,
+        section2_paragraphs[1].id,
+    ]
+    assert Section.get(section2.id) is None
 
-    new_chapter = db_session.get(Chapter, cmd.new_chapter_id)
-    assert new_chapter.number == 2
-    assert len(new_chapter.sections) == 2
-    assert s2.chapter_id == new_chapter.id
-    assert s2.number == 1
-
-    # Undo split
-    assert cmd.undo()
-    db_session.commit()
+    assert cmd.undo() is True
     db_session.expire_all()
+    restored_section1 = Section.get(section1.id)
+    restored_section2 = Section.get(cmd.removed_section_id)
+    assert restored_section1 is not None
+    assert restored_section2 is not None
+    assert [p.id for p in restored_section1.paragraphs] == [section1_paragraphs[0].id]
+    assert [p.id for p in restored_section2.paragraphs] == [
+        section2_paragraphs[0].id,
+        section2_paragraphs[1].id,
+    ]
 
-    all_s = db_session.query(Section).all()
-    assert len(all_s) == 3
-    for s in all_s:
-        assert s.chapter_id == chapter.id
 
-    # Merge chapter (redo split first)
-    cmd.execute()
-    db_session.commit()
-    merge_cmd = MergeChapterCommand(section_id=s2.id)
-    assert merge_cmd.execute()
-    db_session.commit()
+def test_merge_section_command_fails_when_paragraph_not_section_start(db_session):
+    project = Project(name="Hierarchy Project")
+    db_session.add(project)
+    db_session.flush()
+    chapter = Chapter(project_id=project.id, number=1)
+    db_session.add(chapter)
+    db_session.flush()
+    _section1, _ = _build_section_with_paragraphs(
+        db_session, chapter_id=chapter.id, section_number=1, count=1
+    )
+    _section2, section2_paragraphs = _build_section_with_paragraphs(
+        db_session, chapter_id=chapter.id, section_number=2, count=2
+    )
+
+    cmd = MergeSectionCommand(paragraph_id=section2_paragraphs[1].id)
+    assert cmd.execute() is False
+
+
+def test_split_and_merge_chapter_commands_execute_and_undo(db_session):
+    project = Project(name="Hierarchy Project")
+    db_session.add(project)
+    db_session.flush()
+    chapter = Chapter(project_id=project.id, number=1)
+    db_session.add(chapter)
+    db_session.flush()
+    sections = []
+    for number in (1, 2, 3):
+        section = Section(chapter_id=chapter.id, number=number)
+        db_session.add(section)
+        sections.append(section)
+    db_session.flush()
+
+    split_cmd = SplitChapterCommand(section_id=sections[1].id)
+    assert split_cmd.execute() is True
+
     db_session.expire_all()
-    chapter = db_session.get(Chapter, chapter.id)
-    assert len(chapter.sections) == 3
-
-    # Undo merge
-    assert merge_cmd.undo()
-    db_session.commit()
-    db_session.expire_all()
-    chapter = db_session.get(Chapter, chapter.id)
-    assert len(chapter.sections) == 1
-    new_chapter = db_session.get(Chapter, merge_cmd.removed_chapter_id)
+    original_chapter = Chapter.get(chapter.id)
+    new_chapter = Chapter.get(split_cmd.new_chapter_id)
+    assert original_chapter is not None
     assert new_chapter is not None
-    assert len(new_chapter.sections) == 2
+    assert [section.number for section in original_chapter.sections] == [1]
+    assert [section.number for section in new_chapter.sections] == [1, 2]
+    assert [section.id for section in new_chapter.sections] == [sections[1].id, sections[2].id]
+
+    assert split_cmd.undo() is True
+    db_session.expire_all()
+    restored_chapter = Chapter.get(chapter.id)
+    assert restored_chapter is not None
+    assert [section.id for section in restored_chapter.sections] == [s.id for s in sections]
+
+    assert split_cmd.execute() is True
+    db_session.expire_all()
+    moved_section = Section.get(sections[1].id)
+    assert moved_section is not None
+
+    merge_cmd = MergeChapterCommand(section_id=moved_section.id)
+    assert merge_cmd.execute() is True
+    db_session.expire_all()
+    merged_chapter = Chapter.get(chapter.id)
+    assert merged_chapter is not None
+    assert len(merged_chapter.sections) == 3
+
+    assert merge_cmd.undo() is True
+    db_session.expire_all()
+    chapter_after_undo = Chapter.get(chapter.id)
+    recreated_chapter = Chapter.get(merge_cmd.removed_chapter_id)
+    assert chapter_after_undo is not None
+    assert recreated_chapter is not None
+    assert len(chapter_after_undo.sections) == 1
+    assert len(recreated_chapter.sections) == 2
+
+
+def test_split_chapter_command_fails_for_first_section(db_session):
+    project = Project(name="Hierarchy Project")
+    db_session.add(project)
+    db_session.flush()
+    chapter = Chapter(project_id=project.id, number=1)
+    db_session.add(chapter)
+    db_session.flush()
+    first_section = Section(chapter_id=chapter.id, number=1)
+    db_session.add(first_section)
+    db_session.flush()
+
+    cmd = SplitChapterCommand(section_id=first_section.id)
+    assert cmd.execute() is False

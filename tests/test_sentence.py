@@ -286,6 +286,46 @@ class TestSentence:
         with pytest.raises(ValueError, match="Either order_mapping or order_function"):
             Sentence.renumber_sentences([sentence])
 
+    def test_restore_display_orders_restores_original_values(self, db_session):
+        project = create_test_project(db_session)
+        sentence1 = Sentence.create(project_id=project.id, display_order=1, text_oe="First")
+        sentence2 = Sentence.create(project_id=project.id, display_order=2, text_oe="Second")
+        sentence3 = Sentence.create(project_id=project.id, display_order=3, text_oe="Third")
+
+        changes = Sentence.renumber_sentences(
+            [sentence1, sentence2, sentence3],
+            order_mapping={sentence1.id: 3, sentence2.id: 1, sentence3.id: 2},
+        )
+        Sentence.restore_display_orders(changes)
+
+        db_session.refresh(sentence1)
+        db_session.refresh(sentence2)
+        db_session.refresh(sentence3)
+        assert (sentence1.display_order, sentence2.display_order, sentence3.display_order) == (1, 2, 3)
+
+    def test_restore_display_orders_with_empty_changes_is_noop(self, db_session):
+        project = create_test_project(db_session)
+        sentence = Sentence.create(project_id=project.id, display_order=1, text_oe="First")
+        Sentence.restore_display_orders([])
+        db_session.refresh(sentence)
+        assert sentence.display_order == 1
+
+    def test_recalculate_project_structure_reorders_paragraphs_in_each_section(self, db_session):
+        project = create_test_project(db_session, text="")
+        from oeapp.models.paragraph import Paragraph
+
+        section = project.chapters[0].sections[0]
+        p1 = Paragraph(section_id=section.id, order=5)
+        p2 = Paragraph(section_id=section.id, order=9)
+        db_session.add_all([p1, p2])
+        db_session.commit()
+
+        Sentence.recalculate_project_structure(project.id)
+        db_session.refresh(section)
+        db_session.refresh(p1)
+        db_session.refresh(p2)
+        assert [paragraph.order for paragraph in section.paragraphs] == [1, 2, 3]
+
     def test_created_at_set_on_creation(self, db_session):
         """Test created_at is set on creation."""
         project = create_test_project(db_session)
@@ -335,4 +375,3 @@ class TestSentence:
 
         assert len(sentence.tokens) > 0
         assert all(token.sentence_id == sentence.id for token in sentence.tokens)
-
