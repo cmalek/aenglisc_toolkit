@@ -58,3 +58,11 @@
 5. In the annotation modal, use single-letter shortcuts (N, V, A, etc.) to quickly select Part of Speech
 6. Press **Enter** to apply annotations and return to editing
 7. Use **T** to quickly jump to the translation field for the current sentence
+
+## Undo Support
+
+> **Undo support:** Many in-editor operations are undoable with `Ctrl+Z` (and redo with `Ctrl+R` / `Ctrl+Shift+R`), but project-level destructive actions are not always undoable. When in doubt, create a backup or JSON export first.
+
+## Back to Start Here
+
+- [Start Here](start-here.html)

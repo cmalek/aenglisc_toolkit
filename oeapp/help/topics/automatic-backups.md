@@ -103,3 +103,11 @@ If you need to restore your project from a backup:
 3. **Don't disable backups** - they're your safety net
 4. **Check backup folder periodically** to ensure backups are being created
 5. **Keep backups when upgrading** - the system creates backups before migrations automatically
+
+## Undo Support
+
+> **Undo support:** Many in-editor operations are undoable with `Ctrl+Z` (and redo with `Ctrl+R` / `Ctrl+Shift+R`), but project-level destructive actions are not always undoable. When in doubt, create a backup or JSON export first.
+
+## Back to Start Here
+
+- [Start Here](start-here.html)

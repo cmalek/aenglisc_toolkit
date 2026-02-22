@@ -406,5 +406,5 @@ class HelpMenu:
 
         help_action = QAction("&Help", self.help_menu)
         help_action.setShortcut(QKeySequence("F1"))
-        help_action.triggered.connect(lambda: self.main_window.show_help())
+        help_action.triggered.connect(lambda: self.main_window.show_help())  # noqa: PLW0108
         self.help_menu.addAction(help_action)

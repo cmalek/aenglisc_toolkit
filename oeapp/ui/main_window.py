@@ -54,7 +54,8 @@ from oeapp.ui.dialogs import (
     RestoreDialog,
     SettingsDialog,
 )
-from oeapp.ui.dialogs.help_dialog import HelpDialog
+from oeapp.help.help_engine import HelpEngineError
+from oeapp.ui.dialogs.help_center_dialog import HelpCenterDialog
 from oeapp.ui.menus import MainMenu
 from oeapp.ui.mixins import ThemeMixin
 from oeapp.ui.sentence_card import SentenceCard
@@ -115,6 +116,8 @@ class MainWindow(QMainWindow):
 
         #: Count of sentence cards in edit mode
         self._edit_mode_count = 0
+        #: Non-modal help center dialog.
+        self._help_dialog: HelpCenterDialog | None = None
         self.content_layout: QVBoxLayout | None = None
         # Build the main window
         self.build()
@@ -582,8 +585,19 @@ class MainWindow(QMainWindow):
             topic: Optional topic to display initially
 
         """
-        dialog = HelpDialog(topic=topic, parent=self)
-        dialog.show()
+        if self._help_dialog and self._help_dialog.isVisible():
+            self._help_dialog.show_topic(topic)
+            self._help_dialog.raise_()
+            self._help_dialog.activateWindow()
+            return
+
+        try:
+            self._help_dialog = HelpCenterDialog(topic=topic, parent=self)
+        except (FileNotFoundError, HelpEngineError) as error:
+            self.messages.show_error(str(error), title="Help Unavailable")
+            return
+
+        self._help_dialog.show()
 
     def show_settings_dialog(self) -> None:
         """

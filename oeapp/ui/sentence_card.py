@@ -557,7 +557,7 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
 
         # 2. If the selection is a single token:
         token: Token | None = self.oe_text_edit.get_selected_token()
-        selected_token_index = self.oe_text_edit.current_token_index()
+        self.oe_text_edit.current_token_index()
         if not token:
             token = self.token_table.get_selected_token()
 

@@ -545,14 +545,16 @@ class BaseTokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
         # Calculate sentence number in paragraph
         sentence_num = 1
         if sentence.paragraph:
-            p_sentences = sorted(sentence.paragraph.sentences, key=lambda s: s.display_order)
+            p_sentences = sorted(
+                sentence.paragraph.sentences, key=lambda s: s.display_order
+            )
             for i, s in enumerate(p_sentences, 1):
                 if s.id == sentence.id:
                     sentence_num = i
                     break
 
         number_label = QLabel(
-            f"[{sentence.display_order}] ¶:{paragraph_order} S:{sentence_num}",  # noqa: E501
+            f"[{sentence.display_order}] ¶:{paragraph_order} S:{sentence_num}",
             self.content_widget,
         )
         number_label.setFont(self.LINE_LABEL_FONT)
@@ -568,7 +570,7 @@ class BaseTokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
         field.
 
         """
-        root_value = annotation.root if annotation.root else "?"
+        root_value = annotation.root or "?"
         if root_value == "?":
             self.field_renderer.format_field(
                 "Root", root_value, parent_layout=self.content_layout
@@ -627,11 +629,7 @@ class BaseTokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
         self.content_layout.addWidget(mod_e_label)
 
         # Modern English Meaning Value
-        mod_e_value_text = (
-            annotation.modern_english_meaning
-            if annotation.modern_english_meaning
-            else "?"
-        )
+        mod_e_value_text = annotation.modern_english_meaning or "?"
         mod_e_value_label = QLabel(mod_e_value_text, self.content_widget)
         mod_e_value_label.setWordWrap(True)
         self.content_layout.addWidget(mod_e_value_label)

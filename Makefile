@@ -20,7 +20,14 @@ dist:: clean
 build::
 	./build_macos.sh
 
-dev::
+help-assets:: ## Build QtHelp assets from markdown help topics.
+	@if [ -x .venv/bin/python ]; then \
+		.venv/bin/python scripts/build_help.py; \
+	else \
+		python scripts/build_help.py; \
+	fi
+
+dev:: help-assets
 	exec -a "Ænglisc Toolkit" python -m oeapp.main
 
 destroy-db::

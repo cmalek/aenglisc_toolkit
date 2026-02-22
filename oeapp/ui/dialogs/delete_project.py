@@ -286,7 +286,7 @@ class DeleteProjectDialog:
         # Add "Delete" button
         self.delete_button = QPushButton("Delete")
         self.delete_button.setEnabled(False)  # Disabled until selection
-        self.delete_button.clicked.connect(lambda: self._delete_project())
+        self.delete_button.clicked.connect(lambda: self._delete_project())  # noqa: PLW0108
         button_layout.addWidget(self.delete_button)
 
         self.layout.addLayout(button_layout)

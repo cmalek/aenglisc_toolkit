@@ -1,0 +1,199 @@
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <title>Notes Guide</title>
+          <style>
+            body {
+              margin: 0 auto;
+              max-width: 960px;
+              padding: 1.2rem 1.4rem 2.2rem;
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+              line-height: 1.6;
+            }
+            h1 {
+              border-bottom: 1px solid;
+              padding-bottom: 0.3rem;
+            }
+            table {
+              border-collapse: collapse;
+              width: 100%;
+              margin: 1rem 0;
+            }
+            th, td {
+              border: 1px solid;
+              padding-top: 8px;
+              padding-right: 8px;
+              padding-bottom: 8px;
+              padding-left: 8px;
+              text-align: left;
+              vertical-align: top;
+            }
+            th {
+              font-weight: 600;
+            }
+            code {
+              border-radius: 4px;
+              padding: 0.1rem 0.3rem;
+            }
+            pre {
+              border-radius: 6px;
+              overflow-x: auto;
+              padding: 0.75rem;
+            }
+          </style>
+        </head>
+        <body>
+          <h1>Notes Guide</h1>
+<h2>Overview</h2>
+<p>The Notes system allows you to attach explanatory notes to ranges of tokens in your Old English text. Notes are displayed with superscript numbers in the text and listed in the Notes section of each sentence card.</p>
+<h2>Adding a Note</h2>
+<h3>Selecting Token Ranges</h3>
+<ol>
+<li><strong>Single Token Selection</strong>: Click on a token in the Old English text area to select it</li>
+<li>
+<p><strong>Range Selection</strong>:</p>
+</li>
+<li>
+<p>Click on the first token you want to include</p>
+</li>
+<li>Hold down <strong>Shift</strong> and click on the last token</li>
+<li>All tokens between the two points will be selected and highlighted</li>
+</ol>
+<h3>Creating the Note</h3>
+<ol>
+<li>After selecting your token range, click the <strong>Add Note</strong> button (located to the left of the "Edit OE" button)</li>
+<li>
+<p>A note dialog opens with:</p>
+</li>
+<li>
+<p>The selected token range (shown in italics and quoted)</p>
+</li>
+<li>
+<p>A text area where you type the note body</p>
+</li>
+<li>
+<p>Enter your note text in the text area</p>
+</li>
+<li>Click <strong>Save</strong> to add the note, or <strong>Cancel</strong> to discard it</li>
+</ol>
+<h3>Note Numbering</h3>
+<ul>
+<li>Notes are automatically numbered starting from 1</li>
+<li>Numbers increase sequentially based on the note's position in the sentence</li>
+<li>Notes that appear earlier in the sentence have lower numbers</li>
+<li>After saving, the note number appears as a superscript after the last token in the selected range</li>
+</ul>
+<h2>Viewing Notes</h2>
+<h3>In the Text Area</h3>
+<ul>
+<li>Note numbers appear as superscripts after the last token in each note's range</li>
+<li>Example: <code>Hwæt&lt;sup&gt;1&lt;/sup&gt; we&lt;sup&gt;2&lt;/sup&gt; Gar-Dena</code></li>
+<li>Superscripts are only visible when not in edit mode</li>
+</ul>
+<h3>In the Notes Section</h3>
+<ul>
+<li>All notes for a sentence are displayed in the Notes section below the translation field</li>
+<li>Each note is prefixed with its number</li>
+<li>The highlighted tokens appear in italics and quoted at the start of the note</li>
+<li>Example: <code>1. "Hwæt" - This is an interjection meaning "Lo!" or "Listen!"</code></li>
+<li>Notes are displayed in 10 point Helvetica font</li>
+</ul>
+<h2>Editing Notes</h2>
+<ol>
+<li><strong>Double-click</strong> on a note in the Notes section</li>
+<li>The note dialog will open with the current note text</li>
+<li>Modify the text as needed</li>
+<li>Click <strong>Save</strong> to update the note, or <strong>Cancel</strong> to discard changes</li>
+</ol>
+<h2>Deleting Notes</h2>
+<ol>
+<li><strong>Double-click</strong> on a note in the Notes section</li>
+<li>In the note dialog, click the <strong>Delete</strong> button</li>
+<li>The note will be removed and remaining notes will be automatically renumbered</li>
+</ol>
+<h2>Highlighting Token Ranges</h2>
+<ul>
+<li><strong>Click</strong> on a note in the Notes section to highlight its associated tokens in the Old English text area</li>
+<li>This helps you quickly locate which tokens a note refers to</li>
+</ul>
+<h2>Editing Mode Behavior</h2>
+<h3>When Editing Old English Text</h3>
+<ul>
+<li>Note superscripts are <strong>not</strong> displayed in the editable text area</li>
+<li>This keeps the text clean and easy to edit</li>
+<li>When you save or cancel editing, superscripts are restored</li>
+</ul>
+<h3>Token Changes During Editing</h3>
+<p>The system automatically handles note associations when tokens change:</p>
+<ul>
+<li><strong>Adding tokens</strong>: If you add tokens within a note's token range, they are automatically included in the note</li>
+<li><strong>Removing tokens</strong>: If you remove tokens from a note's range, they are automatically removed from the note</li>
+<li><strong>Empty ranges</strong>: If a note's token range becomes empty (all tokens deleted), the note is automatically deleted</li>
+</ul>
+<h2>Best Practices</h2>
+<ol>
+<li><strong>Be specific</strong>: Select the exact token range that your note refers to</li>
+<li><strong>Use clear language</strong>: Write notes that will be helpful when reviewing the text later</li>
+<li><strong>Organize by position</strong>: Notes are numbered by their position in the sentence, making it easy to follow along</li>
+<li><strong>Review regularly</strong>: Click on notes to highlight their tokens and verify they still refer to the correct text</li>
+</ol>
+<h2>Keyboard Shortcuts</h2>
+<table>
+<thead>
+<tr>
+<th>Action</th>
+<th>Shortcut</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Select token range</td>
+<td>Click first token, then <strong>Shift+Click</strong> last token</td>
+</tr>
+<tr>
+<td>Add note</td>
+<td>Click <strong>Add Note</strong> button (after selecting tokens)</td>
+</tr>
+<tr>
+<td>Edit note</td>
+<td><strong>Double-click</strong> note in Notes section</td>
+</tr>
+<tr>
+<td>Highlight note tokens</td>
+<td><strong>Click</strong> note in Notes section</td>
+</tr>
+</tbody>
+</table>
+<h2>Workflow Tips</h2>
+<ol>
+<li>Read through a sentence first to identify areas that need notes</li>
+<li>Select token ranges carefully - you can always edit the note later if needed</li>
+<li>
+<p>Use notes to explain:</p>
+</li>
+<li>
+<p>Unusual grammatical constructions</p>
+</li>
+<li>Historical or cultural context</li>
+<li>Translation choices</li>
+<li>Ambiguous interpretations</li>
+<li>
+<p>Cross-references to other parts of the text</p>
+</li>
+<li>
+<p>Click on notes while reading to quickly see which tokens they refer to</p>
+</li>
+<li>Notes persist across sessions and are included in project exports</li>
+</ol>
+<h2>Undo Support</h2>
+<blockquote>
+<p><strong>Undo support:</strong> Many in-editor operations are undoable with <code>Ctrl+Z</code> (and redo with <code>Ctrl+R</code> / <code>Ctrl+Shift+R</code>), but project-level destructive actions are not always undoable. When in doubt, create a backup or JSON export first.</p>
+</blockquote>
+<h2>Back to Start Here</h2>
+<ul>
+<li><a href="start-here.html">Start Here</a></li>
+</ul>
+        </body>
+        </html>

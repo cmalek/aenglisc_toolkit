@@ -218,8 +218,7 @@ class TokenTable(QWidget):
         """
         Get the current row of the token table.
         """
-        current_row = self.table.currentRow()
-        return current_row
+        return self.table.currentRow()
 
     def focus(self) -> None:
         """

@@ -135,3 +135,11 @@ If you encounter bugs or issues:
 3. **Work incrementally**: Don't try to annotate everything perfectly on first pass
 4. **Use confidence level**: Indicate your level of certainty with the confidence slider rather than guessing
 5. **Review exports**: Regularly export and review DOCX files to catch annotation errors
+
+## Undo Support
+
+> **Undo support:** Many in-editor operations are undoable with `Ctrl+Z` (and redo with `Ctrl+R` / `Ctrl+Shift+R`), but project-level destructive actions are not always undoable. When in doubt, create a backup or JSON export first.
+
+## Back to Start Here
+
+- [Start Here](start-here.html)

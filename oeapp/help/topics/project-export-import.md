@@ -161,3 +161,11 @@ While automatic backups protect your database, you can also create manual projec
 4. **Storage**: Store exported JSON files in multiple locations for safety
 5. **Test Imports**: Periodically test importing your exports to ensure they work correctly
 
+
+## Undo Support
+
+> **Undo support:** Many in-editor operations are undoable with `Ctrl+Z` (and redo with `Ctrl+R` / `Ctrl+Shift+R`), but project-level destructive actions are not always undoable. When in doubt, create a backup or JSON export first.
+
+## Back to Start Here
+
+- [Start Here](start-here.html)

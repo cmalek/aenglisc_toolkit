@@ -43,7 +43,7 @@ class ApplicationState(dict):
     #: Main window
     main_window: "MainWindow | None" = None
 
-    def __new__(cls) -> "ApplicationState":
+    def __new__(cls) -> "ApplicationState":  # noqa: PYI034
         """
         Create a new instance of the application state singleton.
 

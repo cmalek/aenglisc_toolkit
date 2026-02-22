@@ -12,15 +12,16 @@ This guide explains how to package the Ænglisc Toolkit application for distribu
 
 The following resources are automatically included in the packaged application:
 
-- `help/` - Help documentation markdown files
+- `oeapp/help/assets/` - QtHelp assets (`.qch/.qhc/.qhp/.qhcp` + rendered HTML)
 - `src/oeapp/themes/` - Application themes (if any)
 
 ## Building for macOS
 
 1. Ensure you're in the project root directory
 2. Activate your virtual environment: `source .venv/bin/activate`
-3. Run the build script: `./build_macos.sh`
-4. The application will be created in `dist/Ænglisc Toolkit.app`
+3. Build help assets: `python scripts/build_help.py`
+4. Run the build script: `./build_macos.sh`
+5. The application will be created in `dist/Ænglisc Toolkit.app`
 
 ### Creating a DMG (Optional)
 
@@ -53,7 +54,7 @@ create-dmg --volname "Ænglisc Toolkit" \
 
 ### Modifying the Spec File
 
-The `aenglisc_toolkit.spec` file controls the build process. You can:
+The `oe_annotator.spec` file controls the build process. You can:
 
 - Add an icon: Set `icon='path/to/icon.ico'` (Windows) or `icon='path/to/icon.icns'` (macOS)
 - Enable console output: Set `console=True` for debugging
@@ -65,7 +66,7 @@ The `aenglisc_toolkit.spec` file controls the build process. You can:
 After modifying the spec file, rebuild with:
 
 ```bash
-pyinstaller aenglisc_toolkit.spec --clean
+pyinstaller oe_annotator.spec --clean
 ```
 
 ## Troubleshooting

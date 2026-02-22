@@ -195,6 +195,34 @@ class TestMainWindowActions:
         # In PySide6, we can check the message directly
         assert main_window.statusBar().currentMessage() == "Test Message"
 
+
+class TestMainWindowHelp:
+    """Test help-center wiring on the main window."""
+
+    @patch("oeapp.ui.main_window.HelpCenterDialog")
+    def test_show_help_opens_help_center_dialog(self, mock_help_dialog, main_window):
+        """show_help should instantiate and show the QtHelp dialog."""
+        main_window.show_help(topic="Keybindings")
+
+        mock_help_dialog.assert_called_once_with(topic="Keybindings", parent=main_window)
+        mock_help_dialog.return_value.show.assert_called_once()
+
+    @patch("oeapp.ui.main_window.HelpCenterDialog")
+    def test_show_help_reuses_existing_visible_dialog(
+        self, mock_help_dialog, main_window
+    ):
+        """show_help should reuse and focus existing non-modal dialog."""
+        existing_dialog = MagicMock()
+        existing_dialog.isVisible.return_value = True
+        main_window._help_dialog = existing_dialog
+
+        main_window.show_help(topic="Keybindings")
+
+        mock_help_dialog.assert_not_called()
+        existing_dialog.show_topic.assert_called_once_with("Keybindings")
+        existing_dialog.raise_.assert_called_once()
+        existing_dialog.activateWindow.assert_called_once()
+
 class TestMainWindowStartupDialogs:
     """Test cases for startup dialog logic."""
 

@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+    <QtHelpProject version="1.0">
+      <namespace>org.placodermi.aenglisc_toolkit</namespace>
+      <virtualFolder>doc</virtualFolder>
+      <customFilter name="Aenglisc Toolkit">
+        <filterAttribute>aenglisc</filterAttribute>
+      </customFilter>
+      <filterSection>
+        <filterAttribute>aenglisc</filterAttribute>
+        <toc>
+          <section title="Aenglisc Toolkit Help" ref="start-here.html">
+                <section title="Start Here" ref="start-here.html" />
+    <section title="Settings" ref="settings.html" />
+    <section title="Keybindings" ref="keybindings.html" />
+    <section title="Annotation Guide" ref="annotation-guide.html" />
+    <section title="Idioms Guide" ref="idioms-guide.html" />
+    <section title="Incremental Annotation" ref="incremental-annotation.html" />
+    <section title="Notes Guide" ref="notes-guide.html" />
+    <section title="Export Formatting" ref="export-formatting.html" />
+    <section title="Project Export/Import" ref="project-export-import.html" />
+    <section title="Automatic Backups" ref="automatic-backups.html" />
+    <section title="Morphological Reference" ref="morphological-reference.html" />
+    <section title="Troubleshooting" ref="troubleshooting.html" />
+          </section>
+        </toc>
+        <keywords>
+          <keyword name="Aenglisc Toolkit Help" id="home" ref="start-here.html" />
+            <keyword name="Start Here" id="start-here" ref="start-here.html" />
+<keyword name="Settings" id="settings" ref="settings.html" />
+<keyword name="Keybindings" id="keybindings" ref="keybindings.html" />
+<keyword name="Annotation Guide" id="annotation-guide" ref="annotation-guide.html" />
+<keyword name="Idioms Guide" id="idioms-guide" ref="idioms-guide.html" />
+<keyword name="Incremental Annotation" id="incremental-annotation" ref="incremental-annotation.html" />
+<keyword name="Notes Guide" id="notes-guide" ref="notes-guide.html" />
+<keyword name="Export Formatting" id="export-formatting" ref="export-formatting.html" />
+<keyword name="Project Export/Import" id="project-export-import" ref="project-export-import.html" />
+<keyword name="Automatic Backups" id="automatic-backups" ref="automatic-backups.html" />
+<keyword name="Morphological Reference" id="morphological-reference" ref="morphological-reference.html" />
+<keyword name="Troubleshooting" id="troubleshooting" ref="troubleshooting.html" />
+        </keywords>
+        <files>
+          <file>index.html</file>
+            <file>start-here.html</file>
+<file>settings.html</file>
+<file>keybindings.html</file>
+<file>annotation-guide.html</file>
+<file>idioms-guide.html</file>
+<file>incremental-annotation.html</file>
+<file>notes-guide.html</file>
+<file>export-formatting.html</file>
+<file>project-export-import.html</file>
+<file>automatic-backups.html</file>
+<file>morphological-reference.html</file>
+<file>troubleshooting.html</file>
+        </files>
+      </filterSection>
+    </QtHelpProject>

@@ -96,3 +96,11 @@ You can customize these styles in Word after export if needed.
 1. **Review before export**: Check your annotations are complete
 2. **Use notes**: Add clarifying notes for complex constructions
 3. **Consistent formatting**: The export maintains consistent formatting across all sentences
+
+## Undo Support
+
+> **Undo support:** Many in-editor operations are undoable with `Ctrl+Z` (and redo with `Ctrl+R` / `Ctrl+Shift+R`), but project-level destructive actions are not always undoable. When in doubt, create a backup or JSON export first.
+
+## Back to Start Here
+
+- [Start Here](start-here.html)

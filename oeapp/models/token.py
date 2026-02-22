@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, ClassVar, cast
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String, UniqueConstraint, select
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, Session, mapped_column, relationship
 
 from oeapp.db import Base
 from oeapp.models.annotation import Annotation
@@ -313,8 +313,22 @@ class Token(SaveDeleteMixin, Base):
         return messages
 
     @classmethod
-    def _move_to_temp_positions(cls, tokens: builtins.list["Token"], session) -> None:
-        """Move tokens to temporary negative positions."""
+    def _move_to_temp_positions(
+        cls, tokens: builtins.list["Token"], session: Session
+    ) -> None:
+        """
+        Move tokens to temporary negative positions. We do this because we have
+        a unique constraint on the order index, so in order to re-order tokens that are
+        in a sentence, we need to move them to temporary negative positions, then
+        finally re-order them to the correct positions.  Otherwise we can easily
+        get into a situation where we have two tokens with the same order index,
+        which violates the unique constraint.
+
+        Args:
+            tokens: List of :class:`~oeapp.models.token.Token` objects
+            session: SQLAlchemy session
+
+        """
         for i, token in enumerate(tokens):
             token.order_index = -(i + 1)
             session.add(token)
@@ -368,20 +382,42 @@ class Token(SaveDeleteMixin, Base):
                 )
 
     @classmethod
-    def _handle_replace_opcode(  # noqa: PLR0913
+    def _handle_replace_opcode(  # noqa: PLR0912, PLR0913
         cls,
-        i1,
-        i2,
-        j1,
-        j2,
-        existing_tokens,
-        token_strings,
-        sentence_id,
-        session,
-        matched_positions,
-        matched_token_ids,
+        i1: int,
+        i2: int,
+        j1: int,
+        j2: int,
+        existing_tokens: "builtins.list[Token]",
+        token_strings: builtins.list[str],
+        sentence_id: int,
+        session: Session,
+        matched_positions: dict[int, "Token"],
+        matched_token_ids: set[int],
     ) -> None:
-        """Handle 'replace' opcode."""
+        """
+        Handle 'replace' opcode.  This means:
+
+        - The number of old tokens is equal to the number of new tokens
+        - The old tokens are replaced by the new tokens
+        - The order of the old tokens is preserved
+        - The order of the new tokens is preserved
+
+        Args:
+            i1: Starting index of the old tokens
+            i2: Ending index of the old tokens
+            j1: Starting index of the new tokens
+            j2: Ending index of the new tokens
+            existing_tokens: List of existing tokens, in the order of the
+                existing tokens
+            token_strings: List of new token strings, in the order of the new tokens
+            sentence_id: Sentence ID
+            session: SQLAlchemy session
+            matched_positions: Dictionary of matched positions, mapping new token
+                positions to :class:`~oeapp.models.token.Token` objects
+            matched_token_ids: Set of matched token IDs, used to delete unmatched tokens
+
+        """
         if (i2 - i1) == (j2 - j1):
             old_window = existing_tokens[i1:i2]
             new_window = token_strings[j1:j2]

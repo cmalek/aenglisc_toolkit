@@ -30,7 +30,7 @@ Quick reference guide for Old English morphological tags used in annotations.
 ## Noun Declensions
 
 | Code | Name | Description |
-|------|------|
+|------|------|-------------|
 | `s` | Strong | Regular strong declension |
 | `w` | Weak | Weak declension (n-stem) |
 | `o` | Other | Other declension types |
@@ -46,7 +46,7 @@ Quick reference guide for Old English morphological tags used in annotations.
 ### Weak Verbs
 
 | Code | Name | Description |
-|------|------|
+|------|------|-------------|
 | `w1` | Weak Class I | Verbs like `nerian` (to save) |
 | `w2` | Weak Class II | Verbs like `lufian` (to love) |
 | `w3` | Weak Class III | Verbs like `habban` (to have) |
@@ -54,7 +54,7 @@ Quick reference guide for Old English morphological tags used in annotations.
 ### Strong Verbs
 
 | Code | Name | Description |
-|------|------|
+|------|------|-------------|
 | `s1` | Strong Class I | Verbs like `rīdan` (to ride) |
 | `s2` | Strong Class II | Verbs like `cēosan` (to choose) |
 | `s3` | Strong Class III | Verbs like `drincan` (to drink) |
@@ -73,7 +73,7 @@ Quick reference guide for Old English morphological tags used in annotations.
 ## Verb Moods
 
 | Code | Name | Description |
-|------|------|
+|------|------|-------------|
 | `i` | Indicative | Statements of fact |
 | `s` | Subjunctive | Hypothetical, wishes, commands |
 | `imp` | Imperative | Direct commands |
@@ -89,7 +89,7 @@ Quick reference guide for Old English morphological tags used in annotations.
 ## Verb Aspects
 
 | Code | Name | Description |
-|------|------|
+|------|------|-------------|
 | `p` | Perfect | Completed action |
 | `f` | Future | Future tense |
 | `prg` | Progressive | Ongoing action |
@@ -98,7 +98,7 @@ Quick reference guide for Old English morphological tags used in annotations.
 ## Verb Forms
 
 | Code | Name | Description |
-|------|------|
+|------|------|-------------|
 | `f` | Finite | Conjugated verb |
 | `i` | Infinitive | Base form |
 | `p` | Participle | Verbal adjective |
@@ -106,7 +106,7 @@ Quick reference guide for Old English morphological tags used in annotations.
 ## Pronoun Types
 
 | Code | Name | Description |
-|------|------|
+|------|------|-------------|
 | `p` | Personal | Personal pronouns (ic, þū, hē, etc.) |
 | `r` | Relative | Relative pronouns (þe, se, etc.) |
 | `d` | Demonstrative | Demonstrative pronouns (þes, þæt, etc.) |
@@ -123,14 +123,14 @@ Quick reference guide for Old English morphological tags used in annotations.
 ## Adjective Inflection
 
 | Code | Name | Description |
-|------|------|
+|------|------|-------------|
 | `s` | Strong | Strong inflection (indefinite) |
 | `w` | Weak | Weak inflection (definite) |
 
 ## Preposition Cases
 
 | Code | Name | Description |
-|------|------|
+|------|------|-------------|
 | `a` | Accusative | Preposition governs accusative |
 | `d` | Dative | Preposition governs dative |
 | `g` | Genitive | Preposition governs genitive |

@@ -1,0 +1,95 @@
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <title>Idioms Guide</title>
+          <style>
+            body {
+              margin: 0 auto;
+              max-width: 960px;
+              padding: 1.2rem 1.4rem 2.2rem;
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+              line-height: 1.6;
+            }
+            h1 {
+              border-bottom: 1px solid;
+              padding-bottom: 0.3rem;
+            }
+            table {
+              border-collapse: collapse;
+              width: 100%;
+              margin: 1rem 0;
+            }
+            th, td {
+              border: 1px solid;
+              padding-top: 8px;
+              padding-right: 8px;
+              padding-bottom: 8px;
+              padding-left: 8px;
+              text-align: left;
+              vertical-align: top;
+            }
+            th {
+              font-weight: 600;
+            }
+            code {
+              border-radius: 4px;
+              padding: 0.1rem 0.3rem;
+            }
+            pre {
+              border-radius: 6px;
+              overflow-x: auto;
+              padding: 0.75rem;
+            }
+          </style>
+        </head>
+        <body>
+          <h1>Idioms Guide</h1>
+<h2>What Idioms Are</h2>
+<p>In Ænglisc Toolkit, an idiom is a multi-token span that you treat as one annotation unit.</p>
+<ul>
+<li>The idiom keeps its own annotation record (separate from single-token annotations).</li>
+<li>Idiom tokens are visually grouped in the Old English text.</li>
+<li>Idioms are useful when meaning or grammatical function is carried by the phrase as a whole, not by one token alone.</li>
+</ul>
+<h2>How to Make Idioms</h2>
+<ol>
+<li>In the Old English text area (not edit mode), start idiom range selection with <strong>Cmd/Ctrl+Click</strong> on a token.</li>
+<li>Extend the idiom range with additional <strong>Cmd/Ctrl+Click</strong> actions until the full span is selected.</li>
+<li>Press <strong>A</strong> to open the annotation modal for that span.</li>
+<li>Set Part of Speech and other fields for the idiom.</li>
+<li>Click <strong>Apply</strong> (or press <strong>Enter</strong>) to save.</li>
+</ol>
+<p>Notes:</p>
+<ul>
+<li>If the selected range already matches an existing idiom, pressing <strong>A</strong> opens that idiom for editing.</li>
+<li>Clicking a token that belongs to a saved idiom selects the whole idiom span.</li>
+</ul>
+<h2>How to Access Underlying Tokens After an Idiom Exists</h2>
+<h3>From the Idiom Annotation Modal</h3>
+<p>At the top of the idiom modal, the idiom tokens are shown as clickable token labels. Click any token label to open that token's annotation modal directly.</p>
+<h3>From the Token Table and Sidebar</h3>
+<ul>
+<li>Open the token table and select a token row to inspect token-level details in the sidebar.</li>
+<li>This is useful for checking token morphology even when the phrase is also captured as an idiom.</li>
+</ul>
+<h2>Advice for Choosing Part of Speech for an Idiom</h2>
+<p>Use POS for the role of the full phrase in context, not just the head token.</p>
+<p>Practical approach:</p>
+<ol>
+<li>Identify what the whole expression is doing in the sentence (noun-like, adverb-like, conjunction-like, etc.).</li>
+<li>Choose the POS that best matches that phrase-level function.</li>
+<li>If the expression is ambiguous, use <strong>Alternatives</strong>, lower <strong>Confidence</strong>, and mark <strong>TODO</strong> for later review.</li>
+<li>Keep token-level annotations for internal morphology; use idiom annotation for phrase-level behavior.</li>
+</ol>
+<h2>Undo Support</h2>
+<blockquote>
+<p><strong>Undo support:</strong> Many in-editor operations are undoable with <code>Ctrl+Z</code> (and redo with <code>Ctrl+R</code> / <code>Ctrl+Shift+R</code>), but project-level destructive actions are not always undoable. When in doubt, create a backup or JSON export first.</p>
+</blockquote>
+<h2>Back to Start Here</h2>
+<ul>
+<li><a href="start-here.html">Start Here</a></li>
+</ul>
+        </body>
+        </html>

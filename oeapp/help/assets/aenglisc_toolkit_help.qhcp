@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<QHelpCollectionProject version="1.0">
+  <assistant>
+    <title>Aenglisc Toolkit Help</title>
+    <homePage>qthelp://org.placodermi.aenglisc_toolkit/doc/start-here.html</homePage>
+    <startPage>qthelp://org.placodermi.aenglisc_toolkit/doc/start-here.html</startPage>
+    <currentFilter>Aenglisc Toolkit</currentFilter>
+  </assistant>
+  <docFiles>
+    <generate>
+      <file>
+        <input>aenglisc_toolkit_help.qhp</input>
+        <output>aenglisc_toolkit_help.qch</output>
+      </file>
+    </generate>
+    <register>
+      <file>aenglisc_toolkit_help.qch</file>
+    </register>
+  </docFiles>
+</QHelpCollectionProject>

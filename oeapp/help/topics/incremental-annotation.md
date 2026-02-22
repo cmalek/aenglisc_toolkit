@@ -82,3 +82,11 @@ The annotation modal remembers your last-used values for each POS type:
 - Press **Enter** to apply quickly
 
 This makes annotating similar tokens much faster!
+
+## Undo Support
+
+> **Undo support:** Many in-editor operations are undoable with `Ctrl+Z` (and redo with `Ctrl+R` / `Ctrl+Shift+R`), but project-level destructive actions are not always undoable. When in doubt, create a backup or JSON export first.
+
+## Back to Start Here
+
+- [Start Here](start-here.html)

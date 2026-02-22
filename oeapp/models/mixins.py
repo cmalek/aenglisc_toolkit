@@ -37,9 +37,10 @@ class SaveDeleteMixin(SessionMixin):
         """
         session = self._get_session()
         session.add(self)
-        session.flush()
         if commit:
             session.commit()
+        else:
+            session.flush()
         session.refresh(self)
 
     def delete(self, commit: bool = True) -> None:  # noqa: FBT001, FBT002

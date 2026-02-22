@@ -6,6 +6,8 @@ The Ænglisc Toolkit allows you to add detailed morphological annotations
 to tokens in your text. Annotations include Part of Speech (POS), grammatical
 features, and metadata.
 
+For multi-token phrase annotation, see [Idioms Guide](idioms-guide.html).
+
 ## Starting an Annotation
 
 1. Select a token in the token table (use arrow keys or click)
@@ -21,6 +23,10 @@ features, and metadata.
    - **C** - Conjunction
    - **E** - Preposition
    - **I** - Interjection
+
+## Multi-token Idioms
+
+When a phrase should be treated as one unit, annotate it as an idiom instead of only as separate token annotations. For the full idiom workflow, see [Idioms Guide](idioms-guide.html).
 
 ## Annotation Fields by POS
 
@@ -98,3 +104,11 @@ You don't need to fill in all fields at once! You can:
 3. Refine annotations as you work through the text
 
 The system remembers your last-used values for each POS type, making it faster to annotate similar tokens.
+
+## Undo Support
+
+> **Undo support:** Many in-editor operations are undoable with `Ctrl+Z` (and redo with `Ctrl+R` / `Ctrl+Shift+R`), but project-level destructive actions are not always undoable. When in doubt, create a backup or JSON export first.
+
+## Back to Start Here
+
+- [Start Here](start-here.html)

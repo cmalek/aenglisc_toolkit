@@ -1,0 +1,156 @@
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <title>Annotation Guide</title>
+          <style>
+            body {
+              margin: 0 auto;
+              max-width: 960px;
+              padding: 1.2rem 1.4rem 2.2rem;
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+              line-height: 1.6;
+            }
+            h1 {
+              border-bottom: 1px solid;
+              padding-bottom: 0.3rem;
+            }
+            table {
+              border-collapse: collapse;
+              width: 100%;
+              margin: 1rem 0;
+            }
+            th, td {
+              border: 1px solid;
+              padding-top: 8px;
+              padding-right: 8px;
+              padding-bottom: 8px;
+              padding-left: 8px;
+              text-align: left;
+              vertical-align: top;
+            }
+            th {
+              font-weight: 600;
+            }
+            code {
+              border-radius: 4px;
+              padding: 0.1rem 0.3rem;
+            }
+            pre {
+              border-radius: 6px;
+              overflow-x: auto;
+              padding: 0.75rem;
+            }
+          </style>
+        </head>
+        <body>
+          <h1>Annotation Guide</h1>
+<h2>Overview</h2>
+<p>The Ænglisc Toolkit allows you to add detailed morphological annotations
+to tokens in your text. Annotations include Part of Speech (POS), grammatical
+features, and metadata.</p>
+<p>For multi-token phrase annotation, see <a href="idioms-guide.html">Idioms Guide</a>.</p>
+<h2>Starting an Annotation</h2>
+<ol>
+<li>Select a token in the token table (use arrow keys or click)</li>
+<li>Press <strong>A</strong> to open the annotation modal</li>
+<li>
+<p>Select the Part of Speech from the dropdown or use keyboard shortcuts:</p>
+</li>
+<li>
+<p><strong>N</strong> - Noun</p>
+</li>
+<li><strong>V</strong> - Verb</li>
+<li><strong>A</strong> - Adjective</li>
+<li><strong>R</strong> - Pronoun</li>
+<li><strong>D</strong> - Determiner/Article</li>
+<li><strong>B</strong> - Adverb</li>
+<li><strong>C</strong> - Conjunction</li>
+<li><strong>E</strong> - Preposition</li>
+<li><strong>I</strong> - Interjection</li>
+</ol>
+<h2>Multi-token Idioms</h2>
+<p>When a phrase should be treated as one unit, annotate it as an idiom instead of only as separate token annotations. For the full idiom workflow, see <a href="idioms-guide.html">Idioms Guide</a>.</p>
+<h2>Annotation Fields by POS</h2>
+<h3>Nouns</h3>
+<ul>
+<li><strong>Gender</strong>: Masculine (m), Feminine (f), Neuter (n)</li>
+<li><strong>Number</strong>: Singular (s), Plural (p)</li>
+<li><strong>Case</strong>: Nominative (n), Accusative (a), Genitive (g), Dative (d), Instrumental (i)</li>
+<li><strong>Declension</strong>: Strong (s), Weak (w), Other (o), i-stem (i), u-stem (u), ja-stem (ja), jo-stem (jo), wa-stem (wa), wo-stem (wo)</li>
+</ul>
+<h3>Verbs</h3>
+<ul>
+<li><strong>Verb Class</strong>: Anomolous (a), Weak Class I (w1), Weak Class II (w2), Weak Class III (w3), Strong Class I-VII (s1-s7)</li>
+<li><strong>Tense</strong>: Past (p), Present (n)</li>
+<li><strong>Mood</strong>: Indicative (i), Subjunctive (s), Imperative (imp)</li>
+<li><strong>Person</strong>: First (1), Second (2), Third (3)</li>
+<li><strong>Number</strong>: Singular (s), Plural (p)</li>
+<li><strong>Aspect</strong>: Perfect (p), Progressive (prg), Gnomic (gn)</li>
+<li><strong>Form</strong>: Finite (f), Infinitive (i), Participle (p)</li>
+</ul>
+<h3>Adjectives</h3>
+<ul>
+<li><strong>Gender</strong>: Masculine (m), Feminine (f), Neuter (n)</li>
+<li><strong>Number</strong>: Singular (s), Plural (p)</li>
+<li><strong>Case</strong>: Nominative (n), Accusative (a), Genitive (g), Dative (d), Instrumental (i)</li>
+<li><strong>Degree</strong>: Positive (p), Comparative (c), Superlative (s)</li>
+<li><strong>Inflection</strong>: Strong (s), Weak (w)</li>
+</ul>
+<h3>Pronouns</h3>
+<ul>
+<li><strong>Pronoun Type</strong>: Personal (p), Relative (r), Demonstrative (d), Interrogative (i)</li>
+<li><strong>Gender</strong>: Masculine (m), Feminine (f), Neuter (n)</li>
+<li><strong>Number</strong>: Singular (s), Plural (p)</li>
+<li><strong>Case</strong>: Nominative (n), Accusative (a), Genitive (g), Dative (d), Instrumental (i)</li>
+</ul>
+<h3>Determiners/Articles</h3>
+<ul>
+<li><strong>Type</strong>: Definite (d), Indefinite (i), Possessive (p), Demonstrative (D)</li>
+<li><strong>Gender</strong>: Masculine (m), Feminine (f), Neuter (n)</li>
+<li><strong>Number</strong>: Singular (s), Plural (p)</li>
+<li><strong>Case</strong>: Nominative (n), Accusative (a), Genitive (g), Dative (d), Instrumental (i)</li>
+</ul>
+<h3>Prepositions</h3>
+<ul>
+<li><strong>Object Case</strong>: Accusative (a), Dative (d), Genitive (g)</li>
+</ul>
+<h3>Adverbs</h3>
+<ul>
+<li>Adverbs have minimal grammatical fields in the current system.</li>
+</ul>
+<h2>Metadata Fields</h2>
+<p>The following fields are available for all POS types in the Metadata section:</p>
+<ul>
+<li><strong>Alternatives</strong>: Enter alternative interpretations (e.g., "w2 / s3")</li>
+<li><strong>Confidence</strong>: Set confidence level from 0-100% using the slider</li>
+<li><strong>TODO</strong>: Mark annotation as needing review</li>
+<li><strong>Modern English Meaning</strong>: Enter the modern English translation/meaning of the word (e.g., "time, season")</li>
+<li><strong>Root</strong>: Enter the root form of the word (e.g., "sumor")</li>
+</ul>
+<p>These metadata fields are displayed in the token table as "ModE" and "Root" columns.</p>
+<h2>Applying Annotations</h2>
+<ul>
+<li>Click <strong>Apply</strong> or press <strong>Enter</strong> to save your annotation</li>
+<li>Click <strong>Clear</strong> to remove all fields and start over</li>
+<li>Click <strong>Cancel</strong> or press <strong>Escape</strong> to discard changes</li>
+</ul>
+<h2>Incremental Annotation</h2>
+<p>You don't need to fill in all fields at once! You can:</p>
+<ol>
+<li>Start with just the Part of Speech</li>
+<li>Add grammatical features later</li>
+<li>Refine annotations as you work through the text</li>
+</ol>
+<p>The system remembers your last-used values for each POS type, making it faster to annotate similar tokens.</p>
+<h2>Undo Support</h2>
+<blockquote>
+<p><strong>Undo support:</strong> Many in-editor operations are undoable with <code>Ctrl+Z</code> (and redo with <code>Ctrl+R</code> / <code>Ctrl+Shift+R</code>), but project-level destructive actions are not always undoable. When in doubt, create a backup or JSON export first.</p>
+</blockquote>
+<h2>Back to Start Here</h2>
+<ul>
+<li><a href="start-here.html">Start Here</a></li>
+</ul>
+        </body>
+        </html>

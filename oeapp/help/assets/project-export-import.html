@@ -1,0 +1,207 @@
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <title>Project Export/Import</title>
+          <style>
+            body {
+              margin: 0 auto;
+              max-width: 960px;
+              padding: 1.2rem 1.4rem 2.2rem;
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+              line-height: 1.6;
+            }
+            h1 {
+              border-bottom: 1px solid;
+              padding-bottom: 0.3rem;
+            }
+            table {
+              border-collapse: collapse;
+              width: 100%;
+              margin: 1rem 0;
+            }
+            th, td {
+              border: 1px solid;
+              padding-top: 8px;
+              padding-right: 8px;
+              padding-bottom: 8px;
+              padding-left: 8px;
+              text-align: left;
+              vertical-align: top;
+            }
+            th {
+              font-weight: 600;
+            }
+            code {
+              border-radius: 4px;
+              padding: 0.1rem 0.3rem;
+            }
+            pre {
+              border-radius: 6px;
+              overflow-x: auto;
+              padding: 0.75rem;
+            }
+          </style>
+        </head>
+        <body>
+          <h1>Project Export/Import</h1>
+<h2>Overview</h2>
+<p>The Ænglisc Toolkit allows you to export and import entire projects in JSON format. This is useful for:</p>
+<ul>
+<li>Sharing projects with others</li>
+<li>Creating backups of your work</li>
+<li>Moving projects between computers</li>
+<li>Archiving completed projects</li>
+</ul>
+<h2>Two Types of Export</h2>
+<p>The application offers two different export options:</p>
+<h3>DOCX Export (File Menu)</h3>
+<ul>
+<li><strong>Location</strong>: File → Export... (or <strong>Ctrl+E</strong>)</li>
+<li><strong>Format</strong>: Microsoft Word document (.docx)</li>
+<li><strong>Purpose</strong>: Creating formatted documents for reading, printing, or sharing</li>
+<li><strong>Content</strong>: Formatted text with annotations displayed as superscripts/subscripts</li>
+<li><strong>Use when</strong>: You want a readable document with your annotations</li>
+</ul>
+<h3>JSON Export (Project Menu)</h3>
+<ul>
+<li><strong>Location</strong>: Project → Export...</li>
+<li><strong>Format</strong>: JSON file (.json)</li>
+<li><strong>Purpose</strong>: Complete project backup, sharing, or migration</li>
+<li><strong>Content</strong>: All project data including sentences, tokens, annotations, and notes</li>
+<li><strong>Use when</strong>: You want to backup, share, or move the entire project</li>
+</ul>
+<h2>Exporting a Project</h2>
+<h3>Step-by-Step Instructions</h3>
+<ol>
+<li>Open the project you want to export</li>
+<li>Go to <strong>Project → Export...</strong></li>
+<li>Choose a location to save the file</li>
+<li>The default filename is based on your project name (e.g., <code>my_project.json</code>)</li>
+<li>Click <strong>Save</strong></li>
+</ol>
+<p>The export includes:</p>
+<ul>
+<li>Project name and metadata</li>
+<li>All sentences in order</li>
+<li>All tokens for each sentence</li>
+<li>All annotations (POS, grammatical features, metadata)</li>
+<li>All notes attached to sentences</li>
+<li>Migration version information</li>
+</ul>
+<h3>Export File Format</h3>
+<p>The exported JSON file contains:</p>
+<ul>
+<li><strong>export_version</strong>: Version of the export format</li>
+<li><strong>migration_version</strong>: Database schema version</li>
+<li><strong>project</strong>: Project information (name, dates, etc.)</li>
+<li><strong>sentences</strong>: Array of all sentences with their tokens and annotations</li>
+</ul>
+<h2>Importing a Project</h2>
+<h3>Step-by-Step Instructions</h3>
+<ol>
+<li>Go to <strong>Project → Import...</strong></li>
+<li>Select the JSON file you want to import</li>
+<li>Click <strong>Open</strong></li>
+<li>The project will be imported into your database</li>
+</ol>
+<h3>What Happens During Import</h3>
+<ol>
+<li><strong>Version Check</strong>: The application checks if the export file is compatible with the current version</li>
+<li><strong>Data Transformation</strong>: If needed, field names are updated to match the current database structure</li>
+<li><strong>Project Creation</strong>: A new project is created with the imported data</li>
+<li><strong>Name Resolution</strong>: If a project with the same name already exists, the imported project is renamed with a number suffix (e.g., "My Project (1)")</li>
+</ol>
+<h3>After Import</h3>
+<p>After importing, you'll see a dialog asking if you want to:</p>
+<ul>
+<li><strong>Open the imported project</strong>: Switch to viewing the newly imported project</li>
+<li><strong>Keep current project open</strong>: Continue working on your current project</li>
+</ul>
+<p>The imported project is now available in your project list and can be opened anytime.</p>
+<h2>Version Compatibility</h2>
+<p>The import system handles version differences automatically:</p>
+<ul>
+<li><strong>Same version</strong>: Import works immediately</li>
+<li><strong>Older version</strong>: Field mappings are applied to update the data structure</li>
+<li><strong>Incompatible version</strong>: You'll see an error message explaining what version is required</li>
+</ul>
+<p>If you see a compatibility error, you may need to:</p>
+<ul>
+<li>Upgrade the application to a newer version</li>
+<li>Export from the original application using a newer version</li>
+<li>Contact support if the versions are too far apart</li>
+</ul>
+<h2>Use Cases</h2>
+<h3>Sharing Projects</h3>
+<ol>
+<li>Export your project to JSON</li>
+<li>Share the JSON file with another person</li>
+<li>They import it using Project → Import...</li>
+<li>Both of you now have identical copies</li>
+</ol>
+<h3>Creating Manual Backups</h3>
+<p>While automatic backups protect your database, you can also create manual project backups:</p>
+<ol>
+<li>Export important projects to JSON</li>
+<li>Store the JSON files in a safe location (cloud storage, external drive, etc.)</li>
+<li>Import them later if needed</li>
+</ol>
+<h3>Moving Between Computers</h3>
+<ol>
+<li>Export your projects on the old computer</li>
+<li>Copy the JSON files to the new computer</li>
+<li>Import the projects on the new computer</li>
+<li>All your annotations and notes are preserved</li>
+</ol>
+<h3>Archiving Completed Projects</h3>
+<ol>
+<li>Export finished projects to JSON</li>
+<li>Store the JSON files in an archive folder</li>
+<li>You can delete the projects from the application to save space</li>
+<li>Re-import them later if you need to review or modify them</li>
+</ol>
+<h2>Important Notes</h2>
+<ul>
+<li><strong>Complete Export</strong>: JSON export includes everything - you can't export just part of a project</li>
+<li><strong>File Size</strong>: Large projects may create large JSON files (several MB for extensive texts)</li>
+<li><strong>No Data Loss</strong>: All annotations, notes, and metadata are preserved in the export</li>
+<li><strong>One Project Per File</strong>: Each JSON file contains exactly one project</li>
+<li><strong>Readable Format</strong>: JSON files are text-based and can be opened in any text editor (though editing is not recommended)</li>
+</ul>
+<h2>Troubleshooting</h2>
+<p><strong>Problem</strong>: Import fails with "migration version incompatible" error</p>
+<ul>
+<li><strong>Solution</strong>: Upgrade the application to the required version, or export from a newer version of the application</li>
+</ul>
+<p><strong>Problem</strong>: Imported project has a different name than expected</p>
+<ul>
+<li><strong>Solution</strong>: This happens when a project with that name already exists. The system automatically renames it with a number suffix. You can rename it later if needed.</li>
+</ul>
+<p><strong>Problem</strong>: Can't find the export file</p>
+<ul>
+<li><strong>Solution</strong>: Check the location where you saved it. The default location is usually your Documents folder or the last location you used.</li>
+</ul>
+<p><strong>Problem</strong>: Import seems to work but project is empty</p>
+<ul>
+<li><strong>Solution</strong>: This shouldn't happen - contact support. The export includes all data, so if the import succeeds, all data should be present.</li>
+</ul>
+<h2>Best Practices</h2>
+<ol>
+<li><strong>Regular Exports</strong>: Export important projects periodically as additional backups</li>
+<li><strong>Version Control</strong>: Keep track of which application version created each export</li>
+<li><strong>File Naming</strong>: Use descriptive names when exporting (e.g., <code>beowulf_complete_2024-01-15.json</code>)</li>
+<li><strong>Storage</strong>: Store exported JSON files in multiple locations for safety</li>
+<li><strong>Test Imports</strong>: Periodically test importing your exports to ensure they work correctly</li>
+</ol>
+<h2>Undo Support</h2>
+<blockquote>
+<p><strong>Undo support:</strong> Many in-editor operations are undoable with <code>Ctrl+Z</code> (and redo with <code>Ctrl+R</code> / <code>Ctrl+Shift+R</code>), but project-level destructive actions are not always undoable. When in doubt, create a backup or JSON export first.</p>
+</blockquote>
+<h2>Back to Start Here</h2>
+<ul>
+<li><a href="start-here.html">Start Here</a></li>
+</ul>
+        </body>
+        </html>

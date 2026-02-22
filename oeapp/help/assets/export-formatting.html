@@ -1,0 +1,150 @@
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <title>Export Formatting</title>
+          <style>
+            body {
+              margin: 0 auto;
+              max-width: 960px;
+              padding: 1.2rem 1.4rem 2.2rem;
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+              line-height: 1.6;
+            }
+            h1 {
+              border-bottom: 1px solid;
+              padding-bottom: 0.3rem;
+            }
+            table {
+              border-collapse: collapse;
+              width: 100%;
+              margin: 1rem 0;
+            }
+            th, td {
+              border: 1px solid;
+              padding-top: 8px;
+              padding-right: 8px;
+              padding-bottom: 8px;
+              padding-left: 8px;
+              text-align: left;
+              vertical-align: top;
+            }
+            th {
+              font-weight: 600;
+            }
+            code {
+              border-radius: 4px;
+              padding: 0.1rem 0.3rem;
+            }
+            pre {
+              border-radius: 6px;
+              overflow-x: auto;
+              padding: 0.75rem;
+            }
+          </style>
+        </head>
+        <body>
+          <h1>Export Formatting</h1>
+<h2>DOCX Export</h2>
+<p>The application exports annotated Old English texts to Microsoft Word (.docx) format. The export preserves both grammatical annotations and clarifying notes.</p>
+<h2>Accessing Export</h2>
+<ol>
+<li>Press <strong>Ctrl+E</strong> or go to File → Export</li>
+<li>Choose a save location</li>
+<li>The document is generated automatically</li>
+</ol>
+<h2>Document Structure</h2>
+<h3>Title</h3>
+<ul>
+<li>Project name appears as the document title</li>
+</ul>
+<h3>For Each Sentence</h3>
+<h4>Sentence Number</h4>
+<ul>
+<li>Format: <code>[N]</code> where N is the sentence number</li>
+<li>Bold text</li>
+</ul>
+<h4>Old English Text</h4>
+<ul>
+<li>Italic formatting</li>
+<li>
+<p>Annotations appear directly on words:</p>
+<ul>
+<li><strong>Superscripts</strong>: POS abbreviations, case, number, gender codes</li>
+<li><strong>Subscripts</strong>: Detailed morphological information (declension, verb class, etc.)</li>
+</ul>
+</li>
+</ul>
+<h4>Modern English Translation</h4>
+<ul>
+<li>Regular text (not italic)</li>
+<li>Appears below the Old English text</li>
+</ul>
+<h4>Blank Line</h4>
+<ul>
+<li>Separates sentences for readability</li>
+</ul>
+<h4>Notes (if any)</h4>
+<ul>
+<li>Clarifying notes listed separately</li>
+<li>Not part of the grammatical annotations</li>
+</ul>
+<h2>Annotation Format</h2>
+<h3>Superscripts</h3>
+<ul>
+<li><strong>POS abbreviations</strong>: <code>pron:rel</code>, <code>n:</code>, <code>v:</code>, <code>adj:</code>, etc.</li>
+<li><strong>Case codes</strong>: <code>nom</code>, <code>acc</code>, <code>dat</code>, <code>gen</code>, <code>inst</code></li>
+<li><strong>Number codes</strong>: <code>sg</code>, <code>pl</code></li>
+<li><strong>Gender codes</strong>: <code>m</code>, <code>f</code>, <code>n</code></li>
+</ul>
+<h3>Subscripts</h3>
+<ul>
+<li><strong>Declension details</strong>: <code>dat1</code> (dative singular), <code>acc1</code> (accusative singular)</li>
+<li><strong>Verb class</strong>: <code>w1</code>, <code>w2</code>, <code>s3</code>, etc.</li>
+<li><strong>Compact morphological tags</strong>: Detailed information in abbreviated form</li>
+</ul>
+<h3>Example Format</h3>
+<p>The word "hē" might appear as:</p>
+<ul>
+<li>Base: <code>hē</code> (italic)</li>
+<li>Superscript: <code>pron:m.sg.nom</code></li>
+<li>Subscript: <code>pers</code></li>
+</ul>
+<h2>Handling Missing Data</h2>
+<ul>
+<li>Missing annotations: Displayed as "—" or omitted</li>
+<li>Alternatives: Displayed as <code>/</code> separated values (e.g., <code>w2 / s3</code>)</li>
+</ul>
+<h2>Font Sizes</h2>
+<ul>
+<li>Old English text: Normal size, italic</li>
+<li>Superscripts: 8pt</li>
+<li>Subscripts: 8pt</li>
+<li>Translation: Normal size</li>
+<li>Notes: Normal size</li>
+</ul>
+<h2>Style Reference</h2>
+<p>The exported DOCX uses standard Word styles:</p>
+<ul>
+<li><strong>Title</strong>: For project name</li>
+<li><strong>Body</strong>: For sentence content</li>
+<li><strong>Default</strong>: Base paragraph style</li>
+</ul>
+<p>You can customize these styles in Word after export if needed.</p>
+<h2>Tips</h2>
+<ol>
+<li><strong>Review before export</strong>: Check your annotations are complete</li>
+<li><strong>Use notes</strong>: Add clarifying notes for complex constructions</li>
+<li><strong>Consistent formatting</strong>: The export maintains consistent formatting across all sentences</li>
+</ol>
+<h2>Undo Support</h2>
+<blockquote>
+<p><strong>Undo support:</strong> Many in-editor operations are undoable with <code>Ctrl+Z</code> (and redo with <code>Ctrl+R</code> / <code>Ctrl+Shift+R</code>), but project-level destructive actions are not always undoable. When in doubt, create a backup or JSON export first.</p>
+</blockquote>
+<h2>Back to Start Here</h2>
+<ul>
+<li><a href="start-here.html">Start Here</a></li>
+</ul>
+        </body>
+        </html>

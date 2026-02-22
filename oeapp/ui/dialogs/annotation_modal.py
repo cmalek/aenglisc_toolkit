@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLayout,
+    QLayoutItem,
     QLineEdit,
     QMessageBox,
     QPushButton,
@@ -532,7 +533,7 @@ class PartOfSpeechFormManager:
 
         # 1. Clean up old items from the container layout
         while self.container_layout.count():
-            item = self.container_layout.takeAt(0)
+            item = cast("QLayoutItem", self.container_layout.takeAt(0))
             if item.widget():
                 widget = cast("QWidget", item.widget())
                 widget.hide()
@@ -561,7 +562,7 @@ class PartOfSpeechFormManager:
 
         """
         while layout.count():
-            item = layout.takeAt(0)
+            item = cast("QLayoutItem", layout.takeAt(0))
             if item.widget():
                 widget = cast("QWidget", item.widget())
                 widget.hide()
@@ -883,7 +884,7 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
 
         # We need access to all tokens in the sentence
         # Assuming parent is SentenceCard
-        parent = self.parent()
+        parent = cast("QObject", self.parent())
         if hasattr(parent, "oe_text_edit"):
             for token in parent.oe_text_edit.tokens:
                 if start_order <= token.order_index <= end_order:
@@ -1358,7 +1359,7 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         """
         # Close current modal and open a new one for the token
         self.accept()
-        parent = self.parent()
+        parent = cast("QObject", self.parent())
         if hasattr(parent, "_open_token_modal"):
             parent._open_token_modal(token)
 

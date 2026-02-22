@@ -18,10 +18,10 @@ The Notes system allows you to attach explanatory notes to ranges of tokens in y
 ### Creating the Note
 
 1. After selecting your token range, click the **Add Note** button (located to the left of the "Edit OE" button)
-2. A dialog will appear showing:
+2. A note dialog opens with:
 
-   - The selected token range (displayed in italics and quoted)
-   - A text area for entering your note
+   - The selected token range (shown in italics and quoted)
+   - A text area where you type the note body
 
 3. Enter your note text in the text area
 4. Click **Save** to add the note, or **Cancel** to discard it
@@ -113,3 +113,11 @@ The system automatically handles note associations when tokens change:
 
 4. Click on notes while reading to quickly see which tokens they refer to
 5. Notes persist across sessions and are included in project exports
+
+## Undo Support
+
+> **Undo support:** Many in-editor operations are undoable with `Ctrl+Z` (and redo with `Ctrl+R` / `Ctrl+Shift+R`), but project-level destructive actions are not always undoable. When in doubt, create a backup or JSON export first.
+
+## Back to Start Here
+
+- [Start Here](start-here.html)

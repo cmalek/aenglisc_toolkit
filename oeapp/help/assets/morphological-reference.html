@@ -1,0 +1,519 @@
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <title>Morphological Tag Reference</title>
+          <style>
+            body {
+              margin: 0 auto;
+              max-width: 960px;
+              padding: 1.2rem 1.4rem 2.2rem;
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+              line-height: 1.6;
+            }
+            h1 {
+              border-bottom: 1px solid;
+              padding-bottom: 0.3rem;
+            }
+            table {
+              border-collapse: collapse;
+              width: 100%;
+              margin: 1rem 0;
+            }
+            th, td {
+              border: 1px solid;
+              padding-top: 8px;
+              padding-right: 8px;
+              padding-bottom: 8px;
+              padding-left: 8px;
+              text-align: left;
+              vertical-align: top;
+            }
+            th {
+              font-weight: 600;
+            }
+            code {
+              border-radius: 4px;
+              padding: 0.1rem 0.3rem;
+            }
+            pre {
+              border-radius: 6px;
+              overflow-x: auto;
+              padding: 0.75rem;
+            }
+          </style>
+        </head>
+        <body>
+          <h1>Morphological Tag Reference</h1>
+<p>Quick reference guide for Old English morphological tags used in annotations.</p>
+<h2>Cases</h2>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Name</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>n</code></td>
+<td>Nominative</td>
+<td>Subject case</td>
+</tr>
+<tr>
+<td><code>a</code></td>
+<td>Accusative</td>
+<td>Direct object case</td>
+</tr>
+<tr>
+<td><code>g</code></td>
+<td>Genitive</td>
+<td>Possessive case</td>
+</tr>
+<tr>
+<td><code>d</code></td>
+<td>Dative</td>
+<td>Indirect object case</td>
+</tr>
+<tr>
+<td><code>i</code></td>
+<td>Instrumental</td>
+<td>Instrument/manner case</td>
+</tr>
+</tbody>
+</table>
+<h2>Numbers</h2>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Name</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>s</code></td>
+<td>Singular</td>
+</tr>
+<tr>
+<td><code>p</code></td>
+<td>Plural</td>
+</tr>
+</tbody>
+</table>
+<h2>Genders</h2>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Name</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>m</code></td>
+<td>Masculine</td>
+</tr>
+<tr>
+<td><code>f</code></td>
+<td>Feminine</td>
+</tr>
+<tr>
+<td><code>n</code></td>
+<td>Neuter</td>
+</tr>
+</tbody>
+</table>
+<h2>Noun Declensions</h2>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Name</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>s</code></td>
+<td>Strong</td>
+<td>Regular strong declension</td>
+</tr>
+<tr>
+<td><code>w</code></td>
+<td>Weak</td>
+<td>Weak declension (n-stem)</td>
+</tr>
+<tr>
+<td><code>o</code></td>
+<td>Other</td>
+<td>Other declension types</td>
+</tr>
+<tr>
+<td><code>i</code></td>
+<td>i-stem</td>
+<td>i-stem nouns</td>
+</tr>
+<tr>
+<td><code>u</code></td>
+<td>u-stem</td>
+<td>u-stem nouns</td>
+</tr>
+<tr>
+<td><code>ja</code></td>
+<td>ja-stem</td>
+<td>ja-stem nouns</td>
+</tr>
+<tr>
+<td><code>jo</code></td>
+<td>jo-stem</td>
+<td>jo-stem nouns</td>
+</tr>
+<tr>
+<td><code>wa</code></td>
+<td>wa-stem</td>
+<td>wa-stem nouns</td>
+</tr>
+<tr>
+<td><code>wo</code></td>
+<td>wo-stem</td>
+<td>wo-stem nouns</td>
+</tr>
+</tbody>
+</table>
+<h2>Verb Classes</h2>
+<h3>Weak Verbs</h3>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Name</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>w1</code></td>
+<td>Weak Class I</td>
+<td>Verbs like <code>nerian</code> (to save)</td>
+</tr>
+<tr>
+<td><code>w2</code></td>
+<td>Weak Class II</td>
+<td>Verbs like <code>lufian</code> (to love)</td>
+</tr>
+<tr>
+<td><code>w3</code></td>
+<td>Weak Class III</td>
+<td>Verbs like <code>habban</code> (to have)</td>
+</tr>
+</tbody>
+</table>
+<h3>Strong Verbs</h3>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Name</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>s1</code></td>
+<td>Strong Class I</td>
+<td>Verbs like <code>rīdan</code> (to ride)</td>
+</tr>
+<tr>
+<td><code>s2</code></td>
+<td>Strong Class II</td>
+<td>Verbs like <code>cēosan</code> (to choose)</td>
+</tr>
+<tr>
+<td><code>s3</code></td>
+<td>Strong Class III</td>
+<td>Verbs like <code>drincan</code> (to drink)</td>
+</tr>
+<tr>
+<td><code>s4</code></td>
+<td>Strong Class IV</td>
+<td>Verbs like <code>beran</code> (to bear)</td>
+</tr>
+<tr>
+<td><code>s5</code></td>
+<td>Strong Class V</td>
+<td>Verbs like <code>sprecan</code> (to speak)</td>
+</tr>
+<tr>
+<td><code>s6</code></td>
+<td>Strong Class VI</td>
+<td>Verbs like <code>faran</code> (to go)</td>
+</tr>
+<tr>
+<td><code>s7</code></td>
+<td>Strong Class VII</td>
+<td>Verbs like <code>hātan</code> (to be called)</td>
+</tr>
+</tbody>
+</table>
+<h2>Verb Tenses</h2>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Name</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>p</code></td>
+<td>Past</td>
+</tr>
+<tr>
+<td><code>n</code></td>
+<td>Present</td>
+</tr>
+</tbody>
+</table>
+<h2>Verb Moods</h2>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Name</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>i</code></td>
+<td>Indicative</td>
+<td>Statements of fact</td>
+</tr>
+<tr>
+<td><code>s</code></td>
+<td>Subjunctive</td>
+<td>Hypothetical, wishes, commands</td>
+</tr>
+<tr>
+<td><code>imp</code></td>
+<td>Imperative</td>
+<td>Direct commands</td>
+</tr>
+</tbody>
+</table>
+<h2>Verb Persons</h2>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Name</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>1</code></td>
+<td>First Person</td>
+</tr>
+<tr>
+<td><code>2</code></td>
+<td>Second Person</td>
+</tr>
+<tr>
+<td><code>3</code></td>
+<td>Third Person</td>
+</tr>
+</tbody>
+</table>
+<h2>Verb Aspects</h2>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Name</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>p</code></td>
+<td>Perfect</td>
+<td>Completed action</td>
+</tr>
+<tr>
+<td><code>f</code></td>
+<td>Future</td>
+<td>Future tense</td>
+</tr>
+<tr>
+<td><code>prg</code></td>
+<td>Progressive</td>
+<td>Ongoing action</td>
+</tr>
+<tr>
+<td><code>gn</code></td>
+<td>Gnomic</td>
+<td>General truth</td>
+</tr>
+</tbody>
+</table>
+<h2>Verb Forms</h2>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Name</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>f</code></td>
+<td>Finite</td>
+<td>Conjugated verb</td>
+</tr>
+<tr>
+<td><code>i</code></td>
+<td>Infinitive</td>
+<td>Base form</td>
+</tr>
+<tr>
+<td><code>p</code></td>
+<td>Participle</td>
+<td>Verbal adjective</td>
+</tr>
+</tbody>
+</table>
+<h2>Pronoun Types</h2>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Name</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>p</code></td>
+<td>Personal</td>
+<td>Personal pronouns (ic, þū, hē, etc.)</td>
+</tr>
+<tr>
+<td><code>r</code></td>
+<td>Relative</td>
+<td>Relative pronouns (þe, se, etc.)</td>
+</tr>
+<tr>
+<td><code>d</code></td>
+<td>Demonstrative</td>
+<td>Demonstrative pronouns (þes, þæt, etc.)</td>
+</tr>
+<tr>
+<td><code>i</code></td>
+<td>Interrogative</td>
+<td>Interrogative pronouns (hwā, hwæt, etc.)</td>
+</tr>
+</tbody>
+</table>
+<h2>Adjective Degrees</h2>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Name</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>p</code></td>
+<td>Positive</td>
+</tr>
+<tr>
+<td><code>c</code></td>
+<td>Comparative</td>
+</tr>
+<tr>
+<td><code>s</code></td>
+<td>Superlative</td>
+</tr>
+</tbody>
+</table>
+<h2>Adjective Inflection</h2>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Name</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>s</code></td>
+<td>Strong</td>
+<td>Strong inflection (indefinite)</td>
+</tr>
+<tr>
+<td><code>w</code></td>
+<td>Weak</td>
+<td>Weak inflection (definite)</td>
+</tr>
+</tbody>
+</table>
+<h2>Preposition Cases</h2>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Name</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>a</code></td>
+<td>Accusative</td>
+<td>Preposition governs accusative</td>
+</tr>
+<tr>
+<td><code>d</code></td>
+<td>Dative</td>
+<td>Preposition governs dative</td>
+</tr>
+<tr>
+<td><code>g</code></td>
+<td>Genitive</td>
+<td>Preposition governs genitive</td>
+</tr>
+</tbody>
+</table>
+<h2>Common Abbreviations</h2>
+<p>These abbreviations appear in exports:</p>
+<ul>
+<li><code>pron:rel</code> - Relative pronoun</li>
+<li><code>pron:pers</code> - Personal pronoun</li>
+<li><code>pron:dem</code> - Demonstrative pronoun</li>
+<li><code>nom</code> - Nominative</li>
+<li><code>acc</code> - Accusative</li>
+<li><code>dat</code> - Dative</li>
+<li><code>gen</code> - Genitive</li>
+<li><code>sg</code> - Singular</li>
+<li><code>pl</code> - Plural</li>
+<li><code>m</code> - Masculine</li>
+<li><code>f</code> - Feminine</li>
+<li><code>n</code> - Neuter</li>
+</ul>
+<h2>Compact Export Format</h2>
+<p>In DOCX exports, annotations use compact formats:</p>
+<ul>
+<li><code>dat1</code> = Dative singular</li>
+<li><code>acc1</code> = Accusative singular</li>
+<li><code>nom.pl</code> = Nominative plural</li>
+<li><code>w2</code> = Weak Class II</li>
+<li><code>s3</code> = Strong Class III</li>
+</ul>
+        </body>
+        </html>

@@ -5,7 +5,7 @@ import re
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 from urllib.parse import quote
 
 from PySide6.QtCore import Qt, QUrl
@@ -13,7 +13,7 @@ from PySide6.QtGui import QDesktopServices, QIcon, QPainter, QPixmap
 from PySide6.QtSvg import QSvgRenderer
 
 if TYPE_CHECKING:
-    from PySide6.QtWidgets import QLayout
+    from PySide6.QtWidgets import QLayout, QLayoutItem
 
 
 def get_app_data_path() -> Path:
@@ -192,7 +192,7 @@ def clear_layout(layout: "QLayout") -> None:
 
     """
     while layout.count():
-        item = layout.takeAt(0)
+        item = cast("QLayoutItem", layout.takeAt(0))
 
         widget = item.widget()
         if widget is not None:

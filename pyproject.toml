@@ -82,6 +82,9 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 where = ["."]
 
+[tool.setuptools.package-data]
+"oeapp.help" = ["assets/*", "topics/*.md"]
+
 [tool.coverage.report]
 show_missing = false
 skip_covered = true

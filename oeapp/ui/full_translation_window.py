@@ -102,7 +102,7 @@ class FullProjectOldEnglishTextEdit(ThemeMixin, OldEnglishTextEdit):
             self.token_deselected.connect(sidebar._on_token_deselected)
             self.idiom_selection.connect(sidebar._on_idiom_selected)
 
-    def render_readonly_text(self) -> None:
+    def render_readonly_text(self) -> None:  # noqa: PLR0912, PLR0915
         """
         Render the entire project's OE text.
         """
@@ -118,7 +118,9 @@ class FullProjectOldEnglishTextEdit(ThemeMixin, OldEnglishTextEdit):
             # Check if this sentence is the first in its paragraph
             is_paragraph_start = False
             if sentence.paragraph:
-                p_sentences = sorted(sentence.paragraph.sentences, key=lambda s: s.display_order)
+                p_sentences = sorted(
+                    sentence.paragraph.sentences, key=lambda s: s.display_order
+                )
                 if p_sentences and p_sentences[0].id == sentence_id:
                     is_paragraph_start = True
 
@@ -446,7 +448,9 @@ class FullProjectModernEnglishTextEdit(ThemeMixin, QTextEdit):
             # Check if this sentence is the first in its paragraph
             is_paragraph_start = False
             if sentence.paragraph:
-                p_sentences = sorted(sentence.paragraph.sentences, key=lambda s: s.display_order)
+                p_sentences = sorted(
+                    sentence.paragraph.sentences, key=lambda s: s.display_order
+                )
                 if p_sentences and p_sentences[0].id == sentence_id:
                     is_paragraph_start = True
 

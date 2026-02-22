@@ -19,11 +19,15 @@ fi
 
 # Clean previous builds
 echo "Cleaning previous builds..."
-rm -rf build dist *.spec 2>/dev/null || true
+rm -rf build dist 2>/dev/null || true
+
+# Build QtHelp artifacts from markdown sources
+echo "Building help assets..."
+python scripts/build_help.py
 
 # Build the application
 echo "Building application..."
-pyinstaller aenglisc_toolkit.spec
+pyinstaller oe_annotator.spec
 
 # Create macOS app bundle
 if [ -d "dist/Ænglisc Toolkit.app" ]; then
@@ -37,4 +41,3 @@ else
     echo "Build failed - Ænglisc Toolkit.app not found"
     exit 1
 fi
-
