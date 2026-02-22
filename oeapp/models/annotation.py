@@ -70,7 +70,7 @@ class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
             "verb_form IN ('f','i','p','ii')", name="ck_annotations_verb_form"
         ),
         CheckConstraint(
-            "verb_direct_object_case IN ('a','d','g','i')",
+            "verb_direct_object_case IN ('n', 'a','d','g','i')",
             name="ck_annotations_verb_direct_object_case",
         ),
         CheckConstraint(

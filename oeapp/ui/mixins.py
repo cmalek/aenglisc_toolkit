@@ -280,6 +280,7 @@ class AnnotationLookupsMixin(ThemeMixin):
     #: Default to accusative.
     VERB_DIRECT_OBJECT_CASE_MAP: Final[dict[str | None, str]] = {
         None: "",
+        "n": "Nominative (n)",
         "a": "Accusative (a)",
         "d": "Dative (d)",
         "g": "Genitive (g)",
