@@ -4,11 +4,10 @@ from __future__ import annotations
 
 import re
 import shutil
-import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Final
 
 from oeapp.mixins import AnnotationTextualMixin
 from oeapp.models.project import Project
@@ -16,9 +15,12 @@ from oeapp.services.logs import get_logger
 from oeapp.services.pdf_engine import PDFEngineError, compile_latex_with_tectonic
 
 if TYPE_CHECKING:
+    import subprocess
+
     from oeapp.models.annotation import Annotation
     from oeapp.models.note import Note
     from oeapp.models.sentence import Sentence
+    from oeapp.models.token import Token
 
 
 @dataclass
@@ -39,7 +41,7 @@ class GlossaryEntry:
 class FullTranslationPDFExporter(AnnotationTextualMixin):
     """Exports the full translation view as a LaTeX-driven PDF document."""
 
-    POS_LEGEND_MAP = {
+    POS_LEGEND_MAP: Final[dict[str, str]] = {
         "N": "noun",
         "V": "verb",
         "A": "adjective",
@@ -51,26 +53,44 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
         "I": "interjection",
         "L": "numeral",
     }
-    GENDER_LEGEND_MAP = {
+    GENDER_LEGEND_MAP: Final[dict[str, str]] = {
         "m": "masculine",
         "f": "feminine",
         "n": "neuter",
     }
-    CASE_LEGEND_MAP = {
+    CASE_LEGEND_MAP: Final[dict[str, str]] = {
         "n": "nominative",
         "a": "accusative",
         "g": "genitive",
         "d": "dative",
         "i": "instrumental",
     }
-    CASE_CODE_TO_SHORT_MAP = {
+    CASE_CODE_TO_SHORT_MAP: Final[dict[str, str]] = {
         "n": "nom",
         "a": "acc",
         "g": "gen",
         "d": "dat",
         "i": "inst",
     }
-    _OE_ALPHA_ORDER = {
+    VERB_TENSE_LEGEND_MAP: Final[dict[str, str]] = {
+        "pa": "past",
+        "pr": "present",
+    }
+    VERB_MOOD_LEGEND_MAP: Final[dict[str, str]] = {
+        "i": "indicative",
+        "s": "subjunctive",
+        "imp": "imperative",
+    }
+    NUMBER_LEGEND_MAP: Final[dict[str, str]] = {
+        "s": "singular",
+        "pl": "plural",
+    }
+    VERB_PERSON_LEGEND_MAP: Final[dict[str, str]] = {
+        "1": "1st person",
+        "2": "2nd person",
+        "3": "3rd person",
+    }
+    _OE_ALPHA_ORDER: Final[dict[str, int]] = {
         "a": 0,
         "æ": 1,
         "b": 2,
@@ -99,19 +119,25 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
         "y": 25,
         "z": 26,
     }
-    _POS_ORDER = ["N", "V", "A", "R", "D", "B", "C", "E", "I", "L"]
+    _POS_ORDER: Final[list[str]] = ["N", "V", "A", "R", "D", "B", "C", "E", "I", "L"]
 
     def __init__(self) -> None:
-        """Initialize exporter state."""
+        #: The logger instance.
         self.logger = get_logger(__name__)
+        #: The last error message.
         self.last_error: str | None = None
 
-    def export_side_by_side_pdf(self, project_id: int, output_path: Path) -> bool:
+    def export_side_by_side_pdf(self, project_id: int, output_path: Path) -> bool:  # noqa: PLR0911
         """
         Export project text as PDF using bundled Tectonic.
 
+        Args:
+            project_id: The ID of the project to export.
+            output_path: The path to the output PDF file.
+
         Returns:
             ``True`` on success, ``False`` on failure.
+
         """
         self.last_error = None
         project = Project.get(project_id)
@@ -128,7 +154,7 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
             output_path.parent.mkdir(parents=True, exist_ok=True)
         except OSError as exc:
             self.last_error = f"Cannot create output directory: {exc!s}"
-            self.logger.error(
+            self.logger.exception(
                 "pdf_export.failed",
                 project_id=project_id,
                 output_path=str(output_path),
@@ -152,8 +178,8 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
                         output_path=output_path,
                         compile_result=None,
                     )
-                    self.last_error = str(exc)
-                    self.logger.error(
+                    self.last_error = f"Failed to run PDF engine: {exc!s}"
+                    self.logger.exception(
                         "pdf_export.failed",
                         project_id=project_id,
                         output_path=str(output_path),
@@ -188,7 +214,8 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
                     output_preview = stderr or stdout or "Unknown compile error"
                     first_line = output_preview.splitlines()[0]
                     self.last_error = (
-                        f"LaTeX compilation failed (exit {result.returncode}): {first_line}"
+                        f"LaTeX compilation failed (exit {result.returncode}): "
+                        f"{first_line}"
                     )
                     self.logger.error(
                         "pdf_export.failed",
@@ -206,7 +233,7 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
                     shutil.copy2(pdf_path, output_path)
                 except OSError as exc:
                     self.last_error = f"Unable to write PDF file: {exc!s}"
-                    self.logger.error(
+                    self.logger.exception(
                         "pdf_export.failed",
                         project_id=project_id,
                         output_path=str(output_path),
@@ -236,7 +263,18 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
         output_path: Path,
         compile_result: subprocess.CompletedProcess[str] | None,
     ) -> list[Path]:
-        """Copy ``.tex``/``.log`` artifacts near the destination for debugging."""
+        """
+        Copy ``.tex``/``.log`` artifacts near the destination for debugging.
+
+        Args:
+            work_dir: The directory containing the work files.
+            output_path: The path to the output PDF file.
+            compile_result: The result of the PDF engine compilation.
+
+        Returns:
+            A list of paths to the copied files.
+
+        """
         debug_base = output_path.with_suffix("")
         artifact_map = {
             work_dir / "full_translation.tex": debug_base.with_suffix(".tex"),
@@ -261,11 +299,24 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
         return copied
 
     def _build_document_tex(self, project: Project) -> str:
-        """Build complete LaTeX source for a project export."""
-        header_lines = [r"\section*{Translation: " + self._latex_escape(project.name) + "}"]
+        """
+        Build complete LaTeX source for a project export.
+
+        Args:
+            project: The project to export.
+
+        Returns:
+            The complete LaTeX source for the project export.
+
+        """
+        header_lines: list[str] = [
+            r"\section*{Translation: " + self._latex_escape(project.name) + "}"
+        ]
         if project.source:
             header_lines.append(
-                r"\noindent\textbf{Source:} " + self._latex_escape(project.source) + r"\par"
+                r"\noindent\textbf{Source:} "
+                + self._latex_escape(project.source)
+                + r"\par"
             )
         if project.translator:
             header_lines.append(
@@ -280,12 +331,9 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
         about_text = ""
         if project.notes:
             about_text = (
-                r"\section*{About this text}" "\n"
-                + r"\noindent "
-                + self._latex_escape(project.notes)
-                + r"\par"
-                "\n"
-                + self._horizontal_rule()
+                r"\section*{About this text}"
+                "\n" + r"\noindent " + self._latex_escape(project.notes) + r"\par"
+                "\n" + self._horizontal_rule()
             )
 
         return (
@@ -377,8 +425,17 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
         blocks.append(r"\end{paracol}")
         return "\n".join(blocks)
 
-    def _group_sentences_by_paragraph(self, project: Project) -> list[list["Sentence"]]:
-        """Group ordered sentences by paragraph boundaries."""
+    def _group_sentences_by_paragraph(self, project: Project) -> list[list[Sentence]]:
+        """
+        Group ordered sentences by paragraph boundaries.
+
+        Args:
+            project: The project to export.
+
+        Returns:
+            A list of lists of sentences, grouped by paragraph.
+
+        """
         paragraphs: list[list[Sentence]] = []
         current: list[Sentence] = []
 
@@ -394,15 +451,33 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
 
         return paragraphs
 
-    def _is_paragraph_start(self, sentence: "Sentence") -> bool:
-        """Return ``True`` if sentence is first in its paragraph."""
+    def _is_paragraph_start(self, sentence: Sentence) -> bool:
+        """
+        Return ``True`` if sentence is first in its paragraph.
+
+        Args:
+            sentence: The sentence to check.
+
+        Returns:
+            ``True`` if sentence is first in its paragraph, ``False`` otherwise.
+
+        """
         if not sentence.paragraph:
             return False
         ordered = sorted(sentence.paragraph.sentences, key=lambda s: s.display_order)
         return bool(ordered and ordered[0].id == sentence.id)
 
-    def _notes_by_end_token(self, sentence: "Sentence") -> dict[int, list["Note"]]:
-        """Map sentence notes by end-token ID to render end-anchored footnotes."""
+    def _notes_by_end_token(self, sentence: Sentence) -> dict[int, list[Note]]:
+        """
+        Map sentence notes by end-token ID to render end-anchored footnotes.
+
+        Args:
+            sentence: The sentence to map notes for.
+
+        Returns:
+            A dictionary mapping end-token IDs to lists of notes.
+
+        """
         note_map: dict[int, list[Note]] = {}
         for note in sentence.sorted_notes:
             if note.end_token:
@@ -410,9 +485,19 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
         return note_map
 
     def _render_oe_sentence(
-        self, sentence: "Sentence", note_map: dict[int, list["Note"]]
+        self, sentence: Sentence, note_map: dict[int, list[Note]]
     ) -> str:
-        """Render OE sentence text while injecting LaTeX footnotes."""
+        """
+        Render OE sentence text while injecting LaTeX footnotes.
+
+        Args:
+            sentence: The sentence to render.
+            note_map: A dictionary mapping end-token IDs to lists of notes.
+
+        Returns:
+            The rendered OE sentence text.
+
+        """
         tokens, token_id_to_start = sentence.sorted_tokens
         text = sentence.text_oe
         last_pos = 0
@@ -434,7 +519,7 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
             )
             out_parts.append(rendered_surface)
             for note in note_map.get(token.id, []):
-                out_parts.append(self._render_footnote(sentence, note))
+                out_parts.append(self._render_footnote(sentence, note))  # noqa: PERF401
 
             last_pos = token_start + len(token.surface)
 
@@ -450,13 +535,22 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
     def _render_oe_text_segment(
         self,
         segment: str,
-        at_line_start: bool,
+        at_line_start: bool,  # noqa: FBT001
     ) -> tuple[str, bool]:
         """
         Render OE text while preserving line alignment and half-line spacing.
 
         - Line starts preserve leading spaces for verse indentation.
         - Runs of interior spaces are expanded to explicit horizontal space.
+
+        Args:
+            segment: The text segment to render.
+            at_line_start: Whether the segment is at the start of a line.
+
+        Returns:
+            A tuple containing the rendered text and whether the segment ends
+            with a newline.
+
         """
         if not segment:
             return "", at_line_start
@@ -480,7 +574,16 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
         return "".join(out_parts), trailing_newline
 
     def _render_modern_sentence(self, text: str) -> str:
-        """Render modern-English sentence text while preserving line indentation."""
+        """
+        Render modern-English sentence text while preserving line indentation.
+
+        Args:
+            text: The text to render.
+
+        Returns:
+            The rendered modern-English sentence text.
+
+        """
         out_parts: list[str] = []
         lines = text.split("\n")
         for idx, line in enumerate(lines):
@@ -497,7 +600,17 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
     def _latex_escape_preserving_space_runs(
         self, value: str, *, preserve_leading: bool = False
     ) -> str:
-        """Escape text for LaTeX and preserve repeated interior spaces."""
+        """
+        Escape text for LaTeX and preserve repeated interior spaces.
+
+        Args:
+            value: The text to escape.
+            preserve_leading: Whether to preserve leading spaces.
+
+        Returns:
+            The escaped text.
+
+        """
         escaped = self._latex_escape(value)
         leading_prefix = ""
         if preserve_leading:
@@ -514,24 +627,61 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
         return leading_prefix + escaped
 
     def _leading_space_hspace(self, count: int) -> str:
-        """Convert leading spaces to explicit LaTeX horizontal width."""
+        """
+        Convert leading spaces to explicit LaTeX horizontal width.
+
+        Args:
+            count: The number of leading spaces to convert.
+
+        Returns:
+            The converted text.
+
+        """
         width_em = f"{count * 0.6:.2f}"
         return rf"\hspace*{{{width_em}em}}"
 
     def _space_run_to_hspace(self, match: re.Match[str]) -> str:
-        """Convert runs of spaces into one normal space + explicit width."""
+        """
+        Convert runs of spaces into one normal space + explicit width.
+
+        Args:
+            match: The match object.
+
+        Returns:
+            The converted text.
+
+        """
         count = len(match.group(0))
         extra_spaces = count - 1
         width_em = f"{extra_spaces * 0.6:.2f}"
         return " " + rf"\hspace*{{{width_em}em}}"
 
     def _space_run_to_standard_ten_space_gap(self, _match: re.Match[str]) -> str:
-        """Normalize wide internal gaps to a fixed 10-space visual width."""
+        """
+        Normalize wide internal gaps to a fixed 10-space visual width.
+
+        Args:
+            _match: The match object.
+
+        Returns:
+            The converted text.
+
+        """
         # One literal space + width for 9 additional spaces.
         return r" \hspace*{5.40em}"
 
-    def _render_footnote(self, sentence: "Sentence", note: "Note") -> str:
-        """Render a footnote body for a note."""
+    def _render_footnote(self, sentence: Sentence, note: Note) -> str:
+        """
+        Render a footnote body for a note.
+
+        Args:
+            sentence: The sentence to render the footnote for.
+            note: The note to render the footnote for.
+
+        Returns:
+            The rendered footnote body.
+
+        """
         token_text = self._get_note_token_text(note, sentence)
         note_body = self._latex_escape(note.note_text_md)
         if token_text:
@@ -539,12 +689,22 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
             note_body = token_prefix + note_body
         return r"\footnote{" + note_body + "}"
 
-    def _get_note_token_text(self, note: "Note", sentence: "Sentence") -> str:
-        """Return surface text for a note span."""
+    def _get_note_token_text(self, note: Note, sentence: Sentence) -> str:
+        """
+        Return surface text for a note span.
+
+        Args:
+            note: The note to get the token text for.
+            sentence: The sentence to get the token text for.
+
+        Returns:
+            The surface text for the note span.
+
+        """
         if not note.start_token or not note.end_token:
             return ""
 
-        start_token = None
+        start_token: Token | None = None
         end_token = None
         for token in sentence.tokens:
             if token.id == note.start_token:
@@ -565,8 +725,17 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
                 break
         return " ".join(tokens_in_range)
 
-    def _build_glossary_entries(self, project: Project) -> list[GlossaryEntry]:
-        """Aggregate and sort glossary entries with Old English collation rules."""
+    def _build_glossary_entries(self, project: Project) -> list[GlossaryEntry]:  # noqa: PLR0912
+        """
+        Aggregate and sort glossary entries with Old English collation rules.
+
+        Args:
+            project: The project to build glossary entries for.
+
+        Returns:
+            A list of glossary entries.
+
+        """
         entries: dict[tuple[str, str, str | None], GlossaryEntry] = {}
         meaning_seen: dict[tuple[str, str, str | None], set[str]] = {}
         example_seen: dict[tuple[str, str, str | None], set[tuple[str, str]]] = {}
@@ -600,11 +769,13 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
                         entries[key].meanings.append(meaning)
                         meaning_seen[key].add(norm)
 
-                code = self._attested_form_code(annotation)
-                example = (token.surface.lower(), code)
-                if example not in example_seen[key]:
-                    entries[key].examples.append(example)
-                    example_seen[key].add(example)
+                    code = ""
+                    if annotation.pos not in ("C", "E"):
+                        code = self._attested_form_code(annotation)
+                    example = (token.surface.lower(), code)
+                    if example not in example_seen[key]:
+                        entries[key].examples.append(example)
+                        example_seen[key].add(example)
 
                 if annotation.gender:
                     entries[key].used_genders.add(annotation.gender)
@@ -625,8 +796,17 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
             ),
         )
 
-    def _classification(self, annotation: "Annotation") -> str:
-        """Render classification text for glossary entries."""
+    def _classification(self, annotation: Annotation) -> str:  # noqa: PLR0911
+        """
+        Render classification text for glossary entries.
+
+        Args:
+            annotation: The annotation to render the classification for.
+
+        Returns:
+            The rendered classification text.
+
+        """
         if annotation.pos == "N":
             declension = (
                 self.DECLENSION_MAP.get(annotation.declension, annotation.declension)
@@ -636,24 +816,48 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
             parts = [part for part in (annotation.gender, declension) if part]
             return " ".join(parts)
         if annotation.pos == "V":
-            parts = [part for part in (annotation.verb_class,) if part]
+            verb_class = "?"
+            if annotation.verb_class:
+                verb_class = self.VERB_CLASS_MAP.get(
+                    annotation.verb_class, annotation.verb_class
+                )
+            parts = [verb_class]
             if (
                 annotation.verb_direct_object_case
                 and annotation.verb_direct_object_case != "a"
             ):
-                parts.append(f"obj:{annotation.verb_direct_object_case}")
+                case_name = self.CASE_CODE_TO_SHORT_MAP.get(
+                    annotation.verb_direct_object_case,
+                    annotation.verb_direct_object_case,
+                )
+                parts.append(f"(+ {case_name})")
             return " ".join(parts)
         if annotation.pos == "R":
-            return annotation.pronoun_type or ""
+            if annotation.pronoun_type:
+                return self.PRONOUN_TYPE_MAP.get(
+                    annotation.pronoun_type, annotation.pronoun_type
+                )
+            return ""
         if annotation.pos == "E":
             if not annotation.prep_case:
                 return ""
-            case_name = self.CASE_CODE_TO_SHORT_MAP.get(annotation.prep_case, annotation.prep_case)
+            case_name = self.CASE_CODE_TO_SHORT_MAP.get(
+                annotation.prep_case, annotation.prep_case
+            )
             return f"(+{case_name})"
         return ""
 
-    def _attested_form_code(self, annotation: "Annotation") -> str:
-        """Render compact DB-code annotations for attested forms."""
+    def _attested_form_code(self, annotation: Annotation) -> str:  # noqa: PLR0911
+        """
+        Render compact DB-code annotations for attested forms.
+
+        Args:
+            annotation: The annotation to render the attested form code for.
+
+        Returns:
+            The rendered attested form code.
+
+        """
         if annotation.pos == "N":
             return self._dot_join(annotation.case, annotation.number)
 
@@ -677,7 +881,9 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
                 annotation.pronoun_type, annotation.pronoun_number, annotation.case
             )
         if annotation.pos == "D":
-            return self._dot_join(annotation.article_type, annotation.case, annotation.number)
+            return self._dot_join(
+                annotation.article_type, annotation.case, annotation.number
+            )
         if annotation.pos == "A":
             return self._dot_join(
                 annotation.adjective_degree,
@@ -688,16 +894,21 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
             )
         if annotation.pos == "B":
             return self._dot_join(annotation.adverb_degree)
-        if annotation.pos == "E":
-            return self._dot_join(annotation.prep_case)
-        if annotation.pos == "C":
-            return self._dot_join(annotation.conjunction_type)
         if annotation.pos == "L":
             return self._dot_join(annotation.case, annotation.number)
         return self._dot_join(annotation.case, annotation.number)
 
     def _render_glossary(self, entries: list[GlossaryEntry]) -> str:
-        """Render glossary legend and entries in three columns."""
+        """
+        Render glossary legend and entries in three columns.
+
+        Args:
+            entries: The list of glossary entries to render.
+
+        Returns:
+            The rendered glossary legend and entries.
+
+        """
         if not entries:
             return r"\noindent No glossary entries available."
 
@@ -716,9 +927,7 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
             )
             rendered_examples: list[str] = []
             for surface, code in entry.examples:
-                if entry.pos == "E" and code == "-":
-                    continue
-                if entry.pos == "C":
+                if entry.pos in ("E", "C"):
                     rendered_examples.append(
                         r"\textbf{" + self._latex_escape(surface) + r"}"
                     )
@@ -731,9 +940,7 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
                     + self._latex_escape(code)
                     + r"]}"
                 )
-            examples = "; ".join(
-                rendered_examples
-            )
+            examples = "; ".join(rendered_examples)
             if not examples:
                 examples = ""
 
@@ -741,7 +948,7 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
             if entry.pos == "E" and entry.classification:
                 classification_block = (
                     " "
-                    + r"\textcolor[HTML]{666666}{"
+                    r"\textcolor[HTML]{666666}{"
                     + self._latex_escape(entry.classification)
                     + r"}"
                 )
@@ -768,12 +975,21 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
         return "\n".join(lines)
 
     def _render_glossary_legend(self, entries: list[GlossaryEntry]) -> str:
-        """Render glossary legend including full verb/adjective/adverb codebooks."""
+        """
+        Render glossary legend including full verb/adjective/adverb codebooks.
+
+        Args:
+            entries: The list of glossary entries to render.
+
+        Returns:
+            The rendered glossary legend.
+
+        """
         del entries
         lines = [r"{\footnotesize", r"\begin{multicols}{5}"]
         lines.append(r"\noindent\textbf{Parts of Speech}\par")
         for pos in self._POS_ORDER:
-            lines.append(
+            lines.append(  # noqa: PERF401
                 r"\noindent "
                 + self._latex_escape(self.PART_OF_SPEECH_MAP[pos])
                 + ": "
@@ -784,7 +1000,7 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
         lines.append(r"\columnbreak")
         lines.append(r"\noindent\textbf{Gender \& Case}\par")
         for code in ["m", "f", "n"]:
-            lines.append(
+            lines.append(  # noqa: PERF401
                 r"\noindent "
                 + self._latex_escape(code)
                 + ": "
@@ -792,7 +1008,7 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
                 + r"\par"
             )
         for code in ["n", "a", "g", "d", "i"]:
-            lines.append(
+            lines.append(  # noqa: PERF401
                 r"\noindent "
                 + self._latex_escape(code)
                 + ": "
@@ -802,7 +1018,7 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
 
         lines.append(r"\columnbreak")
         lines.append(r"\noindent\textbf{Verb Notation I}\par")
-        for code, label in self.VERB_CLASS_MAP.items():
+        for code, label in self.VERB_TENSE_LEGEND_MAP.items():
             lines.append(
                 r"\noindent "
                 + self._latex_escape(code)
@@ -810,15 +1026,7 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
                 + self._latex_escape(label)
                 + r"\par"
             )
-        for code, label in self.VERB_TENSE_MAP.items():
-            lines.append(
-                r"\noindent "
-                + self._latex_escape(code)
-                + ": "
-                + self._latex_escape(label)
-                + r"\par"
-            )
-        for code, label in self.VERB_MOOD_MAP.items():
+        for code, label in self.VERB_MOOD_LEGEND_MAP.items():
             lines.append(
                 r"\noindent "
                 + self._latex_escape(code)
@@ -843,7 +1051,7 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
                 + self._latex_escape(label)
                 + r"\par"
             )
-        for code, label in self.VERB_PERSON_MAP.items():
+        for code, label in self.VERB_PERSON_LEGEND_MAP.items():
             lines.append(
                 r"\noindent "
                 + self._latex_escape(code)
@@ -851,15 +1059,7 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
                 + self._latex_escape(label)
                 + r"\par"
             )
-        for code, label in self.VERB_NUMBER_MAP.items():
-            lines.append(
-                r"\noindent "
-                + self._latex_escape(code)
-                + ": "
-                + self._latex_escape(label)
-                + r"\par"
-            )
-        for code, label in self.VERB_ASPECT_MAP.items():
+        for code, label in self.NUMBER_LEGEND_MAP.items():
             lines.append(
                 r"\noindent "
                 + self._latex_escape(code)
@@ -870,7 +1070,7 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
 
         lines.append(r"\columnbreak")
         lines.append(r"\noindent\textbf{Adjective \& Adverb}\par")
-        lines.append(r"\noindent\textbf{Adj Degree}\par")
+        lines.append(r"\noindent\textbf{Adj/Adv Degree}\par")
         for code, label in self.ADJECTIVE_DEGREE_MAP.items():
             lines.append(
                 r"\noindent "
@@ -879,7 +1079,7 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
                 + self._latex_escape(label)
                 + r"\par"
             )
-        lines.append(r"\noindent\textbf{Adj Type}\par")
+        lines.append(r"\noindent\textbf{Adj Inflection}\par")
         for code, label in self.ADJECTIVE_INFLECTION_MAP.items():
             lines.append(
                 r"\noindent "
@@ -888,34 +1088,40 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
                 + self._latex_escape(label)
                 + r"\par"
             )
-        lines.append(r"\noindent\textbf{Adv Degree}\par")
-        for code, label in self.ADVERB_DEGREE_MAP.items():
-            lines.append(
-                r"\noindent "
-                + self._latex_escape(code)
-                + ": "
-                + self._latex_escape(label)
-                + r"\par"
-            )
-
         lines.append(r"\end{multicols}")
         lines.append(r"}")
         return "\n".join(lines)
 
     def _render_glossary_decode_block(self) -> str:
-        """Render explanatory text beneath the legend columns."""
-        return "\n".join(
+        """
+        Render explanatory text beneath the legend columns.
+
+        Returns:
+            The rendered explanatory text.
+
+        """
+        return "\n".join(  # noqa: FLY002
             [
                 r"{\footnotesize",
                 r"\noindent\textbf{How to Decode Annotations}\par",
-                r"\noindent Codes in \textcolor[HTML]{666666}{[brackets]} after attested forms "
+                r"\noindent Codes in \textcolor[HTML]{666666}{[brackets]} after attested forms "  # noqa: E501
                 r"encode morphology using the abbreviations listed above.\par",
                 r"}",
             ]
         )
 
     def _oe_glossary_sort_key(self, root: str, pos: str) -> tuple[int, ...]:
-        """Return a sort key using Old English collation and ``ġe``-prefix rule."""
+        """
+        Return a sort key using Old English collation and ``ġe``-prefix rule.
+
+        Args:
+            root: The root of the entry.
+            pos: The part-of-speech of the entry.
+
+        Returns:
+            A sort key using Old English collation and ``ġe``-prefix rule.
+
+        """
         original = root.casefold()
         if pos in {"N", "V"} and original.startswith("ġe"):
             original = original[2:]
@@ -947,15 +1153,25 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
             }
         )
         normalized = text.translate(translations)
-        normalized = normalized.lstrip("-–— ")
-        normalized = re.sub(r"[^a-zæþ]", "", normalized)
-        return normalized
+        normalized = normalized.lstrip("-–— ")  # noqa: RUF001
+        return re.sub(r"[^a-zæþ]", "", normalized)
 
     def _split_meanings(self, modern_meaning: str | None) -> list[str]:
-        """Split and dedupe senses on semicolon/comma boundaries."""
+        """
+        Split and dedupe senses on semicolon/comma boundaries.
+
+        Args:
+            modern_meaning: The modern meaning to split.
+
+        Returns:
+            A list of split and deduped senses.
+
+        """
         if not modern_meaning:
             return []
-        parts = [part.strip() for part in re.split(r"[;,]", modern_meaning) if part.strip()]
+        parts = [
+            part.strip() for part in re.split(r"[;,]", modern_meaning) if part.strip()
+        ]
         deduped: list[str] = []
         seen: set[str] = set()
         for part in parts:
@@ -966,12 +1182,30 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
         return deduped
 
     def _dot_join(self, *parts: str | None) -> str:
-        """Join non-empty code segments without separators."""
+        """
+        Join non-empty code segments without separators.
+
+        Args:
+            *parts: The parts to join.
+
+        Returns:
+            A string of the joined parts.
+
+        """
         filtered = [part for part in parts if part]
         return "".join(filtered) if filtered else "-"
 
     def _verb_tense_code(self, tense: str | None) -> str | None:
-        """Render concise verb tense codes without POS ambiguity."""
+        """
+        Render concise verb tense codes without POS ambiguity.
+
+        Args:
+            tense: The tense to render the code for.
+
+        Returns:
+            The rendered tense code.
+
+        """
         if tense == "n":
             return "pr"
         if tense == "p":
@@ -979,11 +1213,26 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
         return tense
 
     def _horizontal_rule(self) -> str:
-        """Return LaTeX for a full-width horizontal rule."""
+        """
+        Return LaTeX for a full-width horizontal rule.
+
+        Returns:
+            The LaTeX for a full-width horizontal rule.
+
+        """
         return r"\par\noindent\rule{\textwidth}{0.4pt}\par"
 
     def _latex_escape(self, value: str) -> str:
-        """Escape user text for safe insertion into LaTeX source."""
+        """
+        Escape user text for safe insertion into LaTeX source.
+
+        Args:
+            value: The text to escape.
+
+        Returns:
+            The escaped text.
+
+        """
         unicode_macros = {
             "ā": r"\={a}",
             "ē": r"\={e}",
@@ -1016,8 +1265,5 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
             "~": r"\textasciitilde{}",
             "^": r"\textasciicircum{}",
         }
-        escaped = "".join(
-            unicode_macros.get(ch, escapes.get(ch, ch))
-            for ch in value
-        )
+        escaped = "".join(unicode_macros.get(ch, escapes.get(ch, ch)) for ch in value)
         return escaped.replace("\n", r"\newline ")

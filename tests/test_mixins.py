@@ -320,8 +320,8 @@ class TestAnnotationTextualMixin:
         annotation.number = "s"
         annotation.save()
         result = mixin.format_context(annotation)
-        # Format is: tense:mood:person:number = "pai3s"
-        assert result == "pai3s"
+        # Format is: tense:mood:person:number = "paind3s"
+        assert result == "paind3s"
 
     def test_format_context_preposition(self, db_session):
         """Test format_context for preposition."""

@@ -111,11 +111,11 @@ class AnnotationTextualMixin:
 
     #: Verb class map.
     VERB_CLASS_MAP: Final[dict[str, str]] = {
-        "a": "a",
+        "a": "anom",
         "w1": "weak1",
         "w2": "weak2",
         "w3": "weak3",
-        "pp": "pp",
+        "pp": "pret-pres",
         "s1": "strong1",
         "s2": "strong2",
         "s3": "strong3",
@@ -133,9 +133,9 @@ class AnnotationTextualMixin:
 
     #: Verb mood map.
     VERB_MOOD_MAP: Final[dict[str, str]] = {
-        "i": "i",
+        "i": "ind",
         "s": "subj",
-        "imp": "I",
+        "imp": "imp",
     }
 
     #: Verb aspect map.

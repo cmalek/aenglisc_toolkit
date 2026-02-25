@@ -479,7 +479,6 @@ class TestFullTranslationPDFExporter:
         assert r"\noindent m: masculine\par" in latex
         assert r"\noindent n: nominative\par" in latex
         assert r"\noindent f: feminine\par" in latex
-        assert r"\noindent w1: weak1\par" in latex
         assert r"\noindent p: pos\par" in latex
         assert r"\noindent s: strong\par" in latex
         assert r"\noindent f: finite\par" in latex
