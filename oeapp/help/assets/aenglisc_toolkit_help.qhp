@@ -16,6 +16,7 @@
     <section title="Idioms Guide" ref="idioms-guide.html" />
     <section title="Incremental Annotation" ref="incremental-annotation.html" />
     <section title="Notes Guide" ref="notes-guide.html" />
+    <section title="Full Translation Window" ref="full-translation-window.html" />
     <section title="Export Formatting" ref="export-formatting.html" />
     <section title="Project Export/Import" ref="project-export-import.html" />
     <section title="Automatic Backups" ref="automatic-backups.html" />
@@ -32,6 +33,7 @@
 <keyword name="Idioms Guide" id="idioms-guide" ref="idioms-guide.html" />
 <keyword name="Incremental Annotation" id="incremental-annotation" ref="incremental-annotation.html" />
 <keyword name="Notes Guide" id="notes-guide" ref="notes-guide.html" />
+<keyword name="Full Translation Window" id="full-translation-window" ref="full-translation-window.html" />
 <keyword name="Export Formatting" id="export-formatting" ref="export-formatting.html" />
 <keyword name="Project Export/Import" id="project-export-import" ref="project-export-import.html" />
 <keyword name="Automatic Backups" id="automatic-backups" ref="automatic-backups.html" />
@@ -47,6 +49,7 @@
 <file>idioms-guide.html</file>
 <file>incremental-annotation.html</file>
 <file>notes-guide.html</file>
+<file>full-translation-window.html</file>
 <file>export-formatting.html</file>
 <file>project-export-import.html</file>
 <file>automatic-backups.html</file>

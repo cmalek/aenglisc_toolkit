@@ -29,6 +29,11 @@ HELP_TOPICS: Final[tuple[HelpTopic, ...]] = (
         "incremental-annotation.html",
     ),
     HelpTopic("Notes Guide", "notes-guide.md", "notes-guide.html"),
+    HelpTopic(
+        "Full Translation Window",
+        "full-translation-window.md",
+        "full-translation-window.html",
+    ),
     HelpTopic("Export Formatting", "export-formatting.md", "export-formatting.html"),
     HelpTopic(
         "Project Export/Import",

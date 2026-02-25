@@ -1,0 +1,122 @@
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <title>Full Translation Window</title>
+          <style>
+            body {
+              margin: 0 auto;
+              max-width: 960px;
+              padding: 1.2rem 1.4rem 2.2rem;
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+              line-height: 1.6;
+            }
+            h1 {
+              border-bottom: 1px solid;
+              padding-bottom: 0.3rem;
+            }
+            table {
+              border-collapse: collapse;
+              width: 100%;
+              margin: 1rem 0;
+            }
+            th, td {
+              border: 1px solid;
+              padding-top: 8px;
+              padding-right: 8px;
+              padding-bottom: 8px;
+              padding-left: 8px;
+              text-align: left;
+              vertical-align: top;
+            }
+            th {
+              font-weight: 600;
+            }
+            code {
+              border-radius: 4px;
+              padding: 0.1rem 0.3rem;
+            }
+            pre {
+              border-radius: 6px;
+              overflow-x: auto;
+              padding: 0.75rem;
+            }
+          </style>
+        </head>
+        <body>
+          <h1>Full Translation Window</h1>
+<h2>Overview</h2>
+<p>The Full Translation Window is a focused reading and export view for a single project. It presents the entire Old English text and Modern English translation side by side, with project notes and token details available while you read.</p>
+<h2>How to Open It</h2>
+<ol>
+<li>Open a project.</li>
+<li>Use <strong>Window → Full Translation</strong>.</li>
+</ol>
+<p>The window title is <code>Full Translation - &lt;project name&gt;</code>.</p>
+<h2>What You Can Do in This Window</h2>
+<h3>Read the Full Text Side by Side</h3>
+<ul>
+<li>Left pane: full Old English text.</li>
+<li>Right pane: full Modern English translation.</li>
+<li>Scrolling is synchronized.</li>
+</ul>
+<h3>Search Across the Full Project</h3>
+<ul>
+<li>Use the toolbar search field to highlight matches in:</li>
+<li>Old English text</li>
+<li>Modern English text</li>
+<li>Note list</li>
+</ul>
+<h3>Inspect Notes in Context</h3>
+<ul>
+<li>Notes are listed under the text panes.</li>
+<li>Click a note to highlight the corresponding token span in the Old English pane.</li>
+<li>Click again to clear the note highlight.</li>
+</ul>
+<h3>Use Token/Idiom Details</h3>
+<ul>
+<li>Click a token in the Old English pane to open the details sidebar.</li>
+<li>The sidebar shows annotation information for the selected token/idiom.</li>
+</ul>
+<h3>Navigate Back to Main Editor Context</h3>
+<ul>
+<li>Double-clicking OE text can navigate to the corresponding sentence in the main window.</li>
+</ul>
+<h2>Exporting PDF from Full Translation Window</h2>
+<p>Use the <strong>Export PDF</strong> button in the toolbar.</p>
+<ol>
+<li>Click <strong>Export PDF</strong>.</li>
+<li>Choose a file location and name.</li>
+<li>Save as <code>.pdf</code>.</li>
+</ol>
+<p>The PDF is generated using a LaTeX-based layout pipeline for high-quality print output.</p>
+<h2>PDF Structure</h2>
+<p>The exported PDF includes these sections in this order:</p>
+<ol>
+<li><strong>Title</strong>: <code>Translation: &lt;project title&gt;</code></li>
+<li><strong>Source</strong> line (if set)</li>
+<li><strong>Translator</strong> line (if set)</li>
+<li><strong>Full-width horizontal rule</strong></li>
+<li><strong>Two side-by-side columns</strong></li>
+<li>Left: Old English</li>
+<li>Right: Translation</li>
+<li>Notes appear as real footnotes in the Old English flow</li>
+<li><strong>Full-width horizontal rule</strong></li>
+<li><strong>About this text</strong> (only if project-level notes exist)</li>
+<li><strong>Full-width horizontal rule</strong></li>
+<li><strong>Glossary</strong></li>
+<li>Alphabetized entries</li>
+<li>Two-column glossary layout</li>
+</ol>
+<h2>Notes About Footnotes and Glossary</h2>
+<ul>
+<li>Footnote markers are placed from note spans and rendered as real PDF footnotes.</li>
+<li>The glossary is built from token annotations (root + part of speech groupings).</li>
+</ul>
+<h2>Back to Start Here</h2>
+<ul>
+<li><a href="start-here.html">Start Here</a></li>
+</ul>
+        </body>
+        </html>

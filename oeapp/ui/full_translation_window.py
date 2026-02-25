@@ -35,7 +35,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from oeapp.services.export_docx import DOCXExporter
+from oeapp.services.export_pdf import FullTranslationPDFExporter
 from oeapp.ui.highlighting import SearchHighlighter
 from oeapp.ui.mixins import ThemeMixin
 from oeapp.ui.oe_text_edit import OldEnglishTextEdit, OldEnglishTextSelector
@@ -903,8 +903,8 @@ class FullTranslationWindow(QMainWindow):
         """
         Build the export button.
         """
-        self.export_btn = QPushButton("Export DOCX (Landscape)")
-        self.export_btn.clicked.connect(self._export_docx)
+        self.export_btn = QPushButton("Export PDF")
+        self.export_btn.clicked.connect(self._export_pdf)
         self.toolbar_layout.addWidget(self.export_btn)
 
     def build_content(self) -> None:
@@ -1161,22 +1161,28 @@ class FullTranslationWindow(QMainWindow):
                 card.focus()
                 break
 
-    def _export_docx(self) -> None:
+    def _export_pdf(self) -> None:
         """
-        Event handler for :attr:`export_btn.clicked` signal: Export to landscape DOCX.
+        Event handler for :attr:`export_btn.clicked` signal: Export to PDF.
         """
         file_path, _ = QFileDialog.getSaveFileName(
             self,
             "Export Side-by-Side",
-            f"{self.project.name}_side_by_side.docx",
-            "Word Documents (*.docx)",
+            f"{self.project.name}_side_by_side.pdf",
+            "PDF Files (*.pdf)",
         )
         if file_path:
-            exporter = DOCXExporter()
-            if exporter.export_side_by_side(self.project.id, Path(file_path)):
+            if not file_path.lower().endswith(".pdf"):
+                file_path += ".pdf"
+            exporter = FullTranslationPDFExporter()
+            if exporter.export_side_by_side_pdf(self.project.id, Path(file_path)):
                 self.main_window.messages.show_message("Exported successfully")
             else:
-                self.main_window.messages.show_error("Export failed")
+                detail = exporter.last_error or "Unknown export error."
+                self.main_window.messages.show_error(
+                    f"Export failed.\n\n{detail}",
+                    title="PDF Export Failed",
+                )
 
 
 class FullProjectNoteWidget(ThemeMixin, QWidget):

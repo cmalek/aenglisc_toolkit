@@ -50,6 +50,7 @@ The app is designed to help you keep translation and annotation work organized w
 - [Idioms Guide](idioms-guide.html)
 - [Incremental Annotation](incremental-annotation.html)
 - [Notes Guide](notes-guide.html)
+- [Full Translation Window](full-translation-window.html)
 - [Export Formatting](export-formatting.html)
 - [Project Export/Import](project-export-import.html)
 - [Automatic Backups](automatic-backups.html)

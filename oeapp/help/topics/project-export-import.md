@@ -9,7 +9,7 @@ The Ænglisc Toolkit allows you to export and import entire projects in JSON for
 - Moving projects between computers
 - Archiving completed projects
 
-## Two Types of Export
+## Three Types of Export
 
 The application offers two different export options:
 
@@ -20,6 +20,19 @@ The application offers two different export options:
 - **Purpose**: Creating formatted documents for reading, printing, or sharing
 - **Content**: Formatted text with annotations displayed as superscripts/subscripts
 - **Use when**: You want a readable document with your annotations
+
+### PDF Export (Full Translation Window)
+
+- **Location**: Full Translation window toolbar → **Export PDF**
+- **Format**: PDF document (.pdf)
+- **Purpose**: High-fidelity side-by-side presentation for reading/printing
+- **Content**:
+  - Landscape layout
+  - Side-by-side Old English and Modern English columns
+  - Real footnotes anchored in the Old English flow
+  - Project "About this text" section (if present)
+  - Glossary section generated from token annotations
+- **Use when**: You want a polished publication-style copy
 
 ### JSON Export (Project Menu)
 

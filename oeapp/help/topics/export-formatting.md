@@ -1,8 +1,48 @@
 # Export Formatting
 
-## DOCX Export
+The application has two formatted document exports:
 
-The application exports annotated Old English texts to Microsoft Word (.docx) format. The export preserves both grammatical annotations and clarifying notes.
+- **DOCX Export (File menu)** for Word workflows.
+- **PDF Export (Full Translation window)** for publication-style layout.
+
+## PDF Export (Full Translation Window)
+
+### Accessing Export
+
+1. Open **Window → Full Translation**
+2. Click **Export PDF**
+3. Choose a save location
+
+### PDF Structure
+
+- Landscape page orientation
+- Title: `Translation: <project title>`
+- Source and translator metadata (if set)
+- Full-width horizontal rule
+- Two real side-by-side columns:
+  - Left: Old English
+  - Right: Modern English translation
+- Real footnotes in the Old English flow from sentence notes
+- Full-width horizontal rule after columns
+- Optional **About this text** section from project notes
+- Full-width horizontal rule
+- **Glossary** section in two columns
+
+### Footnotes
+
+- Notes are anchored at the end token of each note span
+- Footnote numbers are clickable in supporting PDF viewers
+
+### Glossary
+
+- One entry per unique `(root, part-of-speech)`
+- Senses are merged and deduplicated
+- Attested forms are listed with compact DB-code annotations
+
+## DOCX Export (File Menu)
+
+The File menu export creates a Microsoft Word (.docx) document with annotated
+sentence formatting.
 
 ## Accessing Export
 

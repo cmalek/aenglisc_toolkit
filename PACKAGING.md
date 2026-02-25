@@ -7,12 +7,43 @@ This guide explains how to package the Ænglisc Toolkit application for distribu
 - Python 3.14+ installed
 - Virtual environment activated
 - PyInstaller installed (`pip install pyinstaller`)
+- Bundled Tectonic assets prepared and verified (see below)
+
+## Bundled PDF Engine Assets (Required)
+
+FullTranslationWindow PDF export uses a bundled Tectonic runtime and offline
+bundle. These assets must exist before packaging.
+
+Expected layout:
+
+- `assets/tectonic/binaries/macos/arm64/tectonic`
+- `assets/tectonic/binaries/macos/x86_64/tectonic`
+- `assets/tectonic/binaries/windows/x86_64/tectonic.exe`
+- `assets/tectonic/bundle/default/...`
+- `assets/tectonic/manifest.json`
+
+Prepare/update assets:
+
+```bash
+python scripts/prepare_tectonic_assets.py \
+  --macos-arm64-binary /path/to/tectonic-macos-arm64 \
+  --macos-x86_64-binary /path/to/tectonic-macos-x86_64 \
+  --windows-x86_64-binary /path/to/tectonic-windows-x86_64.exe \
+  --bundle-dir /path/to/tectonic-offline-bundle
+```
+
+Verify assets:
+
+```bash
+python scripts/verify_tectonic_assets.py
+```
 
 ## Resources Included
 
 The following resources are automatically included in the packaged application:
 
 - `oeapp/help/assets/` - QtHelp assets (`.qch/.qhc/.qhp/.qhcp` + rendered HTML)
+- `assets/tectonic/` - Bundled Tectonic binaries + offline TeX bundle
 - `src/oeapp/themes/` - Application themes (if any)
 
 ## Building for macOS
@@ -20,8 +51,9 @@ The following resources are automatically included in the packaged application:
 1. Ensure you're in the project root directory
 2. Activate your virtual environment: `source .venv/bin/activate`
 3. Build help assets: `python scripts/build_help.py`
-4. Run the build script: `./build_macos.sh`
-5. The application will be created in `dist/Ænglisc Toolkit.app`
+4. Verify Tectonic assets: `python scripts/verify_tectonic_assets.py`
+5. Run the build script: `./build_macos.sh`
+6. The application will be created in `dist/Ænglisc Toolkit.app`
 
 ### Creating a DMG (Optional)
 
@@ -47,8 +79,10 @@ create-dmg --volname "Ænglisc Toolkit" \
 
 1. Ensure you're in the project root directory
 2. Activate your virtual environment: `.venv\Scripts\activate`
-3. Run the build script: `build_windows.bat`
-4. The executable will be created in `dist\Ænglisc Toolkit.exe`
+3. Build help assets: `python scripts\build_help.py`
+4. Verify Tectonic assets: `python scripts\verify_tectonic_assets.py`
+5. Run the build script: `build_windows.bat`
+6. The executable will be created in `dist\Ænglisc Toolkit.exe`
 
 ## Customizing the Build
 
@@ -81,6 +115,7 @@ pyinstaller oe_annotator.spec --clean
 
 - Ensure all resources are listed in the `datas` section of the spec file
 - Check that resource loading code uses `get_resource_path()` helper function
+- Run `python scripts/verify_tectonic_assets.py` and fix any missing payloads
 
 ### Large Executable Size
 

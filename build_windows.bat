@@ -20,11 +20,20 @@ REM Clean previous builds
 echo Cleaning previous builds...
 if exist build rmdir /s /q build
 if exist dist rmdir /s /q dist
-if exist *.spec del /q *.spec
+
+REM Build QtHelp artifacts from markdown sources
+echo Building help assets...
+python scripts\build_help.py
+if errorlevel 1 exit /b 1
+
+REM Verify bundled PDF engine assets
+echo Verifying bundled Tectonic assets...
+python scripts\verify_tectonic_assets.py
+if errorlevel 1 exit /b 1
 
 REM Build the application
 echo Building application...
-pyinstaller aenglisc_toolkit.spec
+pyinstaller oe_annotator.spec
 
 REM Check if build succeeded
 if exist "dist\Ænglisc Toolkit.exe" (
@@ -34,4 +43,3 @@ if exist "dist\Ænglisc Toolkit.exe" (
     echo Build failed - Ænglisc Toolkit.exe not found
     exit /b 1
 )
-

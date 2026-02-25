@@ -1,5 +1,6 @@
 import pytest
 from unittest.mock import MagicMock
+from pathlib import Path
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QTextCursor
 from PySide6.QtWidgets import QScrollArea, QVBoxLayout, QLabel
@@ -229,3 +230,56 @@ class TestFullTranslationWindow:
         assert not hasattr(window, "source_label")
         assert not hasattr(window, "translator_label")
         assert window.notes_label.text() == "<i>Only notes here.</i>"
+
+    def test_export_button_uses_pdf_label(self, full_window):
+        """The Full Translation toolbar export button should target PDF."""
+        assert full_window.export_btn.text() == "Export PDF"
+
+    def test_export_pdf_invokes_pdf_exporter(self, full_window, monkeypatch):
+        """Export action should call the PDF exporter with selected path."""
+        selected_path = "/tmp/test-full-translation.pdf"
+        calls: list[tuple[int, Path]] = []
+
+        monkeypatch.setattr(
+            "oeapp.ui.full_translation_window.QFileDialog.getSaveFileName",
+            lambda *args, **kwargs: (selected_path, "PDF Files (*.pdf)"),
+        )
+
+        def fake_export(self, project_id: int, output_path: Path) -> bool:
+            calls.append((project_id, output_path))
+            return True
+
+        monkeypatch.setattr(
+            "oeapp.ui.full_translation_window.FullTranslationPDFExporter.export_side_by_side_pdf",
+            fake_export,
+        )
+
+        full_window._export_pdf()
+
+        assert calls == [(full_window.project.id, Path(selected_path))]
+        full_window.main_window.messages.show_message.assert_called_once()
+
+    def test_export_pdf_failure_shows_detailed_error(self, full_window, monkeypatch):
+        """Failed export should display exporter-provided error details."""
+        selected_path = "/tmp/test-full-translation.pdf"
+
+        monkeypatch.setattr(
+            "oeapp.ui.full_translation_window.QFileDialog.getSaveFileName",
+            lambda *args, **kwargs: (selected_path, "PDF Files (*.pdf)"),
+        )
+
+        def fake_export(self, project_id: int, output_path: Path) -> bool:  # noqa: ARG001
+            self.last_error = "Bundled Tectonic binary is missing."
+            return False
+
+        monkeypatch.setattr(
+            "oeapp.ui.full_translation_window.FullTranslationPDFExporter.export_side_by_side_pdf",
+            fake_export,
+        )
+
+        full_window._export_pdf()
+
+        full_window.main_window.messages.show_error.assert_called_once()
+        args, kwargs = full_window.main_window.messages.show_error.call_args
+        assert "Bundled Tectonic binary is missing." in args[0]
+        assert kwargs["title"] == "PDF Export Failed"

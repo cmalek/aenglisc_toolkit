@@ -25,6 +25,10 @@ rm -rf build dist 2>/dev/null || true
 echo "Building help assets..."
 python scripts/build_help.py
 
+# Verify bundled PDF engine assets
+echo "Verifying bundled Tectonic assets..."
+python scripts/verify_tectonic_assets.py
+
 # Build the application
 echo "Building application..."
 pyinstaller oe_annotator.spec

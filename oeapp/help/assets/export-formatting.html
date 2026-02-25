@@ -46,8 +46,47 @@
         </head>
         <body>
           <h1>Export Formatting</h1>
-<h2>DOCX Export</h2>
-<p>The application exports annotated Old English texts to Microsoft Word (.docx) format. The export preserves both grammatical annotations and clarifying notes.</p>
+<p>The application has two formatted document exports:</p>
+<ul>
+<li><strong>DOCX Export (File menu)</strong> for Word workflows.</li>
+<li><strong>PDF Export (Full Translation window)</strong> for publication-style layout.</li>
+</ul>
+<h2>PDF Export (Full Translation Window)</h2>
+<h3>Accessing Export</h3>
+<ol>
+<li>Open <strong>Window → Full Translation</strong></li>
+<li>Click <strong>Export PDF</strong></li>
+<li>Choose a save location</li>
+</ol>
+<h3>PDF Structure</h3>
+<ul>
+<li>Landscape page orientation</li>
+<li>Title: <code>Translation: &lt;project title&gt;</code></li>
+<li>Source and translator metadata (if set)</li>
+<li>Full-width horizontal rule</li>
+<li>Two real side-by-side columns:</li>
+<li>Left: Old English</li>
+<li>Right: Modern English translation</li>
+<li>Real footnotes in the Old English flow from sentence notes</li>
+<li>Full-width horizontal rule after columns</li>
+<li>Optional <strong>About this text</strong> section from project notes</li>
+<li>Full-width horizontal rule</li>
+<li><strong>Glossary</strong> section in two columns</li>
+</ul>
+<h3>Footnotes</h3>
+<ul>
+<li>Notes are anchored at the end token of each note span</li>
+<li>Footnote numbers are clickable in supporting PDF viewers</li>
+</ul>
+<h3>Glossary</h3>
+<ul>
+<li>One entry per unique <code>(root, part-of-speech)</code></li>
+<li>Senses are merged and deduplicated</li>
+<li>Attested forms are listed with compact DB-code annotations</li>
+</ul>
+<h2>DOCX Export (File Menu)</h2>
+<p>The File menu export creates a Microsoft Word (.docx) document with annotated
+sentence formatting.</p>
 <h2>Accessing Export</h2>
 <ol>
 <li>Press <strong>Ctrl+E</strong> or go to File → Export</li>
