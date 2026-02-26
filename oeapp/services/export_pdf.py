@@ -13,6 +13,7 @@ from oeapp.mixins import AnnotationTextualMixin
 from oeapp.models.project import Project
 from oeapp.services.logs import get_logger
 from oeapp.services.pdf_engine import PDFEngineError, compile_latex_with_tectonic
+from oeapp.utils import normalize_old_english
 
 if TYPE_CHECKING:
     import subprocess
@@ -27,20 +28,46 @@ if TYPE_CHECKING:
 class GlossaryEntry:
     """Aggregated glossary entry for a unique ``(root, pos)`` key."""
 
+    #: The root word of the glossary entry.
     root: str
+    #: The normalized root used for deduping forms.
+    normalized_root: str
+    #: The part of speech of the glossary entry.
     pos: str
+    #: The classification of the glossary entry.
     classification: str
+    #: The prep case of the glossary entry.
     prep_case: str | None = None
+    #: The sort key of the glossary entry.
     sort_key: tuple[int, ...] = field(default_factory=tuple)
+    #: The genders used in the glossary entry.
     used_genders: set[str] = field(default_factory=set)
+    #: The cases used in the glossary entry.  Used to ensure that all the
+    #: we only list a single instance of each case.
     used_cases: set[str] = field(default_factory=set)
+    #: The modern English meanings of the glossary entry.
     meanings: list[str] = field(default_factory=list)
+    #: The attested forms of the glossary entry from the text.
     examples: list[tuple[str, str]] = field(default_factory=list)
+    #: Other root spellings that normalize to the same root.
+    root_variants: list[str] = field(default_factory=list)
+    #: Verb class label for verb entries.
+    verb_class_label: str | None = None
+    #: Verb direct object case for verb entries.
+    verb_direct_object_case: str | None = None
+    #: Whether any entry requires an infinitive complement.
+    verb_requires_infinitive: bool = False
+    #: Whether any entry is impersonal.
+    verb_impersonal: bool = False
+    #: Whether any entry is intransitive.
+    verb_intransitive: bool = False
 
 
 class FullTranslationPDFExporter(AnnotationTextualMixin):
     """Exports the full translation view as a LaTeX-driven PDF document."""
 
+    #: A lookup map for part of speech codes to their long form, for
+    #: the glossary legend.
     POS_LEGEND_MAP: Final[dict[str, str]] = {
         "N": "noun",
         "V": "verb",
@@ -53,11 +80,15 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
         "I": "interjection",
         "L": "numeral",
     }
+    #: A lookup map for gender codes to their long form, for
+    #: the glossary legend.  This is yet another mapping, I know.
     GENDER_LEGEND_MAP: Final[dict[str, str]] = {
         "m": "masculine",
         "f": "feminine",
         "n": "neuter",
     }
+    #: A lookup map for case codes to their long form, for
+    #: the glossary legend.  This is yet another mapping, I know.
     CASE_LEGEND_MAP: Final[dict[str, str]] = {
         "n": "nominative",
         "a": "accusative",
@@ -65,6 +96,8 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
         "d": "dative",
         "i": "instrumental",
     }
+    #: A lookup map for case codes to their short form, for
+    #: the glossary legend.  This is yet another mapping, I know.
     CASE_CODE_TO_SHORT_MAP: Final[dict[str, str]] = {
         "n": "nom",
         "a": "acc",
@@ -72,24 +105,43 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
         "d": "dat",
         "i": "inst",
     }
+    #: A lookup map for verb tense codes to their long form, for
+    #: the glossary legend.  This is yet another mapping, I know.
     VERB_TENSE_LEGEND_MAP: Final[dict[str, str]] = {
         "pa": "past",
         "pr": "present",
     }
+    #: A lookup map for verb mood codes to their long form, for
+    #: the glossary legend.  This is yet another mapping, I know.
     VERB_MOOD_LEGEND_MAP: Final[dict[str, str]] = {
         "i": "indicative",
         "s": "subjunctive",
         "imp": "imperative",
     }
+    #: A lookup map for number codes to their long form, for
+    #: the glossary legend.  This is yet another mapping, I know.
     NUMBER_LEGEND_MAP: Final[dict[str, str]] = {
         "s": "singular",
         "pl": "plural",
     }
+    #: A lookup map for verb person codes to their long form, for
+    #: the glossary legend.  This is yet another mapping, I know.
     VERB_PERSON_LEGEND_MAP: Final[dict[str, str]] = {
         "1": "1st person",
         "2": "2nd person",
         "3": "3rd person",
     }
+    #: A lookup map for verb form codes to their long form, for
+    #: the glossary legend.  This is yet another mapping, I know.
+    VERB_FORM_LEGEND_MAP: Final[dict[str, str]] = {
+        "f": "finite",
+        "i": "infinitive",
+        "p": "participle",
+        "ii": "inflected infinitive",
+    }
+    #: The order of OE alphabet characters, for sorting glossary entries.
+    #: Sorting by normal alphabetical order is not sufficient because
+    #: æ, þ, ð, ġ and ċ are not handled correctly by the default sorting.
     _OE_ALPHA_ORDER: Final[dict[str, int]] = {
         "a": 0,
         "æ": 1,
@@ -119,6 +171,7 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
         "y": 25,
         "z": 26,
     }
+    #: The order of parts of speech, for rendering the glossary legend.
     _POS_ORDER: Final[list[str]] = ["N", "V", "A", "R", "D", "B", "C", "E", "I", "L"]
 
     def __init__(self) -> None:
@@ -394,7 +447,17 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
         )
 
     def _render_two_columns(self, project: Project) -> str:
-        """Render OE + ModE into real parallel columns using ``paracol``."""
+        """
+        Render OE + ModE into real parallel columns using the ``paracol`` LaTeX
+        package.
+
+        Args:
+            project: The project to render.
+
+        Returns:
+            The rendered two-column text.
+
+        """
         blocks = [r"\begin{paracol}{2}"]
         for paragraph_sentences in self._group_sentences_by_paragraph(project):
             oe_sentence_blocks: list[str] = []
@@ -725,7 +788,7 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
                 break
         return " ".join(tokens_in_range)
 
-    def _build_glossary_entries(self, project: Project) -> list[GlossaryEntry]:  # noqa: PLR0912
+    def _build_glossary_entries(self, project: Project) -> list[GlossaryEntry]:
         """
         Aggregate and sort glossary entries with Old English collation rules.
 
@@ -746,45 +809,44 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
                 if not annotation or not annotation.root or not annotation.pos:
                     continue
                 root = annotation.root.strip()
+                root_normalized = annotation.root_normalized or normalize_old_english(
+                    root
+                )
                 pos = annotation.pos.strip()
-                if not root or not pos:
+                if not root or not root_normalized or not pos:
                     continue
 
                 prep_case = annotation.prep_case if pos == "E" else None
-                key = (root, pos, prep_case)
+                key = (root_normalized, pos, prep_case)
                 if key not in entries:
                     entries[key] = GlossaryEntry(
                         root=root,
+                        normalized_root=root_normalized,
                         pos=pos,
                         classification=self._classification(annotation),
                         prep_case=prep_case,
-                        sort_key=self._oe_glossary_sort_key(root, pos),
+                        sort_key=self._oe_glossary_sort_key(root_normalized, pos),
+                        root_variants=[],
+                        verb_class_label=self._verb_class_label(annotation),
+                        verb_direct_object_case=annotation.verb_direct_object_case,
+                        verb_requires_infinitive=bool(
+                            annotation.verb_requires_infinitive
+                        ),
+                        verb_impersonal=bool(annotation.verb_impersonal),
+                        verb_intransitive=(
+                            annotation.verb_transitivity == "intransitive"
+                        ),
                     )
                     meaning_seen[key] = set()
                     example_seen[key] = set()
-
-                for meaning in self._split_meanings(annotation.modern_english_meaning):
-                    norm = meaning.casefold()
-                    if norm not in meaning_seen[key]:
-                        entries[key].meanings.append(meaning)
-                        meaning_seen[key].add(norm)
-
-                    code = ""
-                    if annotation.pos not in ("C", "E"):
-                        code = self._attested_form_code(annotation)
-                    example = (token.surface.lower(), code)
-                    if example not in example_seen[key]:
-                        entries[key].examples.append(example)
-                        example_seen[key].add(example)
-
-                if annotation.gender:
-                    entries[key].used_genders.add(annotation.gender)
-                if annotation.case:
-                    entries[key].used_cases.add(annotation.case)
-                if annotation.prep_case:
-                    entries[key].used_cases.add(annotation.prep_case)
-                if annotation.verb_direct_object_case:
-                    entries[key].used_cases.add(annotation.verb_direct_object_case)
+                self._merge_root_variant(entries[key], root)
+                self._accumulate_glossary_entry(
+                    entry=entries[key],
+                    annotation=annotation,
+                    token=token,
+                    seen_meanings=meaning_seen[key],
+                    seen_examples=example_seen[key],
+                )
 
         return sorted(
             entries.values(),
@@ -792,9 +854,103 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
                 item.sort_key,
                 item.pos,
                 item.prep_case or "",
-                item.root.casefold(),
+                item.normalized_root,
             ),
         )
+
+    def _accumulate_glossary_entry(
+        self,
+        entry: GlossaryEntry,
+        annotation: Annotation,
+        token: Token,
+        seen_meanings: set[str],
+        seen_examples: set[tuple[str, str]],
+    ) -> None:
+        """
+        Merge one attestation into an existing glossary entry.
+
+        Args:
+            entry: Glossary entry to update.
+            annotation: Annotation source data.
+            token: Token source data.
+            seen_meanings: Dedup tracker for meanings.
+            seen_examples: Dedup tracker for examples.
+
+        """
+        for meaning in self._split_meanings(annotation.modern_english_meaning):
+            norm = meaning.casefold()
+            if norm not in seen_meanings:
+                entry.meanings.append(meaning)
+                seen_meanings.add(norm)
+            code = (
+                ""
+                if annotation.pos in ("C", "E")
+                else self._attested_form_code(annotation)
+            )
+            example = (token.surface.lower(), code)
+            if example not in seen_examples:
+                entry.examples.append(example)
+                seen_examples.add(example)
+        if annotation.gender:
+            entry.used_genders.add(annotation.gender)
+        if annotation.case:
+            entry.used_cases.add(annotation.case)
+        if annotation.prep_case:
+            entry.used_cases.add(annotation.prep_case)
+        if annotation.verb_direct_object_case:
+            entry.used_cases.add(annotation.verb_direct_object_case)
+        if annotation.pos == "V":
+            if entry.verb_class_label is None:
+                entry.verb_class_label = self._verb_class_label(annotation)
+            if (
+                entry.verb_direct_object_case is None
+                and annotation.verb_direct_object_case
+            ):
+                entry.verb_direct_object_case = annotation.verb_direct_object_case
+            entry.verb_requires_infinitive = (
+                entry.verb_requires_infinitive or bool(annotation.verb_requires_infinitive)
+            )
+            entry.verb_impersonal = entry.verb_impersonal or bool(
+                annotation.verb_impersonal
+            )
+            entry.verb_intransitive = entry.verb_intransitive or (
+                annotation.verb_transitivity == "intransitive"
+            )
+
+    def _merge_root_variant(self, entry: GlossaryEntry, root: str) -> None:
+        """
+        Merge a new root spelling into an existing glossary entry.
+
+        Args:
+            entry: Existing glossary entry.
+            root: Incoming root spelling from annotation data.
+
+        """
+        if root == entry.root or root in entry.root_variants:
+            return
+        if self._root_display_score(root) > self._root_display_score(entry.root):
+            entry.root_variants.append(entry.root)
+            entry.root = root
+            return
+        entry.root_variants.append(root)
+        entry.root_variants = sorted(set(entry.root_variants), key=str.casefold)
+
+    def _root_display_score(self, root: str) -> tuple[int, int]:
+        """
+        Score a root form for display preference.
+
+        Higher values win and favor richer diacritics and internal dashes.
+
+        Args:
+            root: The root form to score.
+
+        Returns:
+            Tuple score for comparison.
+
+        """
+        diacritics = sum(1 for ch in root if ch in "āēīōūȳǣċġ")
+        dashes = sum(1 for ch in root if ch in "-–—")  # noqa: RUF001
+        return diacritics + dashes, len(root)
 
     def _classification(self, annotation: Annotation) -> str:  # noqa: PLR0911
         """
@@ -921,6 +1077,14 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
         ]
         for entry in entries:
             pos_display = self.PART_OF_SPEECH_MAP.get(entry.pos, entry.pos.lower())
+            root_block = r"\textbf{" + self._latex_escape(entry.root) + r"}"
+            if entry.root_variants:
+                root_block += (
+                    " "
+                    r"\textcolor[HTML]{666666}{("
+                    + self._latex_escape("variants: " + ", ".join(entry.root_variants))
+                    + r")}"
+                )
             classification = self._latex_escape(entry.classification or "?")
             meaning_text = (
                 self._latex_escape("; ".join(entry.meanings)) if entry.meanings else "?"
@@ -945,7 +1109,9 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
                 examples = ""
 
             classification_block = ""
-            if entry.pos == "E" and entry.classification:
+            if entry.pos == "V":
+                classification_block = self._render_verb_classification(entry)
+            elif entry.pos == "E" and entry.classification:
                 classification_block = (
                     " "
                     r"\textcolor[HTML]{666666}{"
@@ -959,9 +1125,9 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
             if examples:
                 details += "; " + examples
             lines.append(
-                r"\noindent\textbf{"
-                + self._latex_escape(entry.root)
-                + r"} "
+                r"\noindent"
+                + root_block
+                + " "
                 + self._latex_escape(pos_display)
                 + ":"
                 + classification_block
@@ -973,6 +1139,48 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
         lines.append(r"\end{multicols}")
         lines.append(r"\normalsize")
         return "\n".join(lines)
+
+    def _render_verb_classification(self, entry: GlossaryEntry) -> str:
+        """
+        Render verb classification block with verb metadata flags.
+
+        Args:
+            entry: Glossary entry.
+
+        Returns:
+            LaTeX fragment for the classification block.
+
+        """
+        verb_class = entry.verb_class_label or "?"
+        parts = [r"\textit{" + self._latex_escape(verb_class) + r"}"]
+        if entry.verb_impersonal:
+            parts.append(r"\textcolor[HTML]{666666}{[impers]}")
+        if entry.verb_intransitive:
+            parts.append(r"\textcolor[HTML]{666666}{[intrans]}")
+        if entry.verb_direct_object_case and entry.verb_direct_object_case != "a":
+            case_name = self.CASE_CODE_TO_SHORT_MAP.get(
+                entry.verb_direct_object_case,
+                entry.verb_direct_object_case,
+            )
+            parts.append(self._latex_escape(f"(+ {case_name})"))
+        if entry.verb_requires_infinitive:
+            parts.append(self._latex_escape("(+ inf)"))
+        return " " + " ".join(parts)
+
+    def _verb_class_label(self, annotation: Annotation) -> str | None:
+        """
+        Resolve human-readable verb class label from annotation.
+
+        Args:
+            annotation: Source annotation.
+
+        Returns:
+            Verb class label or ``None``.
+
+        """
+        if not annotation.verb_class:
+            return None
+        return self.VERB_CLASS_MAP.get(annotation.verb_class, annotation.verb_class)
 
     def _render_glossary_legend(self, entries: list[GlossaryEntry]) -> str:
         """

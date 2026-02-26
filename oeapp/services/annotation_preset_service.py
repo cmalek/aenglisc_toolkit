@@ -143,6 +143,10 @@ class AnnotationPresetService:
             annotation.verb_form = preset.verb_form
         if preset.verb_direct_object_case is not None:
             annotation.verb_direct_object_case = preset.verb_direct_object_case
+        annotation.verb_requires_infinitive = preset.verb_requires_infinitive
+        annotation.verb_impersonal = preset.verb_impersonal
+        if preset.verb_transitivity:
+            annotation.verb_transitivity = preset.verb_transitivity
         if preset.adjective_inflection is not None:
             annotation.adjective_inflection = preset.adjective_inflection
         if preset.adjective_degree is not None:

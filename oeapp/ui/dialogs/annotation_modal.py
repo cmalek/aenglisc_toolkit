@@ -297,6 +297,8 @@ class VerbFields(PartOfSpeechFieldsBase):
     """
 
     PART_OF_SPEECH: str = "Verb"
+    VERB_REQUIRES_INF_MAP: ClassVar[dict[bool, str]] = {False: "No", True: "Yes"}
+    VERB_IMPERSONAL_MAP: ClassVar[dict[bool, str]] = {False: "No", True: "Yes"}
 
     def build(self) -> None:
         """
@@ -323,6 +325,33 @@ class VerbFields(PartOfSpeechFieldsBase):
             self.VERB_DIRECT_OBJECT_CASE_MAP,
         )
         self.add_combo("verb_form", "Form", self.VERB_FORM_MAP)
+        self.add_combo(
+            "verb_requires_infinitive",
+            "Requires Infinitive",
+            self.VERB_REQUIRES_INF_MAP,
+        )
+        self.add_combo("verb_impersonal", "Impersonal", self.VERB_IMPERSONAL_MAP)
+        self.add_combo(
+            "verb_transitivity",
+            "Transitivity",
+            self.VERB_TRANSITIVITY_MAP,
+        )
+        self.fields["verb_class"].currentIndexChanged.connect(self._on_class_changed)
+
+    def _on_class_changed(self, _index: int) -> None:
+        """
+        Auto-set ``requires infinitive`` for preterite-present verbs.
+
+        Args:
+            _index: The selected class index.
+
+        """
+        verb_class = self.extract_values().get("verb_class")
+        if verb_class != "pp":
+            return
+        requires_inf = self.code_to_index_map["verb_requires_infinitive"].get(True)
+        if requires_inf is not None:
+            self.fields["verb_requires_infinitive"].setCurrentIndex(requires_inf)
 
 
 class PronounFields(PartOfSpeechFieldsBase):

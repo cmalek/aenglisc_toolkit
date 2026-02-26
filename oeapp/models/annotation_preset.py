@@ -4,12 +4,14 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     DateTime,
     Integer,
     String,
     UniqueConstraint,
     select,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -29,6 +31,10 @@ class AnnotationPreset(SaveDeleteMixin, Base):
         UniqueConstraint("name", "pos", name="uq_annotation_presets_name_pos"),
         CheckConstraint(
             "pos IN ('N','V','A','R','D')", name="ck_annotation_presets_pos"
+        ),
+        CheckConstraint(
+            "verb_transitivity IN ('transitive','intransitive')",
+            name="ck_annotation_presets_verb_transitivity",
         ),
     )
 
@@ -78,6 +84,18 @@ class AnnotationPreset(SaveDeleteMixin, Base):
     verb_direct_object_case: Mapped[str | None] = mapped_column(
         String, nullable=True
     )  # a, d, g, i
+    #: Whether the verb requires an infinitive complement.
+    verb_requires_infinitive: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("0")
+    )
+    #: Whether the verb is impersonal.
+    verb_impersonal: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("0")
+    )
+    #: Whether the verb is transitive or intransitive.
+    verb_transitivity: Mapped[str] = mapped_column(
+        String, nullable=False, default="transitive", server_default="transitive"
+    )
     #: The adjective inflection.
     adjective_inflection: Mapped[str | None] = mapped_column(
         String, nullable=True
@@ -258,6 +276,9 @@ class AnnotationPreset(SaveDeleteMixin, Base):
             "verb_aspect": self.verb_aspect,
             "verb_form": self.verb_form,
             "verb_direct_object_case": self.verb_direct_object_case,
+            "verb_requires_infinitive": self.verb_requires_infinitive,
+            "verb_impersonal": self.verb_impersonal,
+            "verb_transitivity": self.verb_transitivity,
             "adjective_inflection": self.adjective_inflection,
             "adjective_degree": self.adjective_degree,
             "created_at": self.created_at.isoformat(),
@@ -301,6 +322,9 @@ class AnnotationPreset(SaveDeleteMixin, Base):
             verb_aspect=preset_data.get("verb_aspect"),
             verb_form=preset_data.get("verb_form"),
             verb_direct_object_case=preset_data.get("verb_direct_object_case"),
+            verb_requires_infinitive=preset_data.get("verb_requires_infinitive", False),
+            verb_impersonal=preset_data.get("verb_impersonal", False),
+            verb_transitivity=preset_data.get("verb_transitivity", "transitive"),
             adjective_inflection=preset_data.get("adjective_inflection"),
             adjective_degree=preset_data.get("adjective_degree"),
         )

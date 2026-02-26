@@ -289,6 +289,24 @@ class AnnotationLookupsMixin(ThemeMixin):
     VERB_DIRECT_OBJECT_CASE_REVERSE_MAP: Final[dict[int, str]] = {
         i: k for i, k in enumerate(VERB_DIRECT_OBJECT_CASE_MAP.keys()) if k is not None
     }
+    #: A lookup map for verb transitivity values.
+    VERB_TRANSITIVITY_MAP: Final[dict[str, str]] = {
+        "transitive": "Transitive",
+        "intransitive": "Intransitive",
+    }
+    #: Reverse map for verb transitivity combo indices.
+    VERB_TRANSITIVITY_REVERSE_MAP: Final[dict[int, str]] = {
+        i: k for i, k in enumerate(VERB_TRANSITIVITY_MAP.keys())
+    }
+    #: Lookup map for yes/no verb metadata flags.
+    VERB_BOOLEAN_MAP: Final[dict[bool, str]] = {
+        False: "No",
+        True: "Yes",
+    }
+    #: Reverse map for yes/no verb metadata flags.
+    VERB_BOOLEAN_REVERSE_MAP: Final[dict[int, bool]] = {
+        i: k for i, k in enumerate(VERB_BOOLEAN_MAP.keys(), start=1)
+    }
 
     # Pronoun
     # -------

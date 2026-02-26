@@ -73,7 +73,9 @@ The exported PDF includes these sections in this order:
 ## Notes About Footnotes and Glossary
 
 - Footnote markers are placed from note spans and rendered as real PDF footnotes.
-- The glossary is built from token annotations (root + part of speech groupings).
+- The glossary is built from token annotations (normalized root + part of speech groupings).
+- Root display preserves original diacritics/dashes and can show alternate variants.
+- Verb entries can include `#666` metadata markers such as `[impers]`, `[intrans]`, and `(+ inf)`.
 
 ## Back to Start Here
 

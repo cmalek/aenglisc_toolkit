@@ -234,3 +234,19 @@ class TestAnnotationPresetManagementDialog:
         dialog._set_combo_value(dialog.case_combo, "d", dialog.CASE_REVERSE_MAP)
         assert dialog.case_combo.currentIndex() == 5
         assert "Dative" in dialog.case_combo.currentText()
+
+    def test_save_mode_verb_metadata_defaults_are_persisted(self, qapp, db_session):
+        """Verb preset save mode should persist new verb metadata defaults."""
+        from oeapp.ui.dialogs import AnnotationPresetManagementDialog
+
+        dialog = AnnotationPresetManagementDialog(save_mode=True, initial_pos="V")
+        dialog.name_edit.setText("Verb Metadata Defaults")
+        dialog._save_preset()
+        db_session.commit()
+
+        presets = AnnotationPreset.get_all_by_pos("V")
+        preset = next((p for p in presets if p.name == "Verb Metadata Defaults"), None)
+        assert preset is not None
+        assert preset.verb_requires_infinitive is False
+        assert preset.verb_impersonal is False
+        assert preset.verb_transitivity == "transitive"

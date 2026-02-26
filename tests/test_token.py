@@ -112,6 +112,7 @@ class TestToken:
         data = token.to_json()
         assert data["order_index"] == token.order_index
         assert data["surface"] == token.surface
+        assert data["surface_normalized"] == token.surface_normalized
         assert data["lemma"] == token.lemma
         assert "created_at" in data
         assert "updated_at" in data
@@ -169,6 +170,7 @@ class TestToken:
         assert token.sentence_id == sentence.id
         assert token.order_index == 2
         assert token.surface == "wæs"
+        assert token.surface_normalized == "wæs"
         assert token.lemma == "wesan"
 
     def test_from_json_creates_annotation(self, db_session):
@@ -278,6 +280,18 @@ class TestToken:
 
         assert token.updated_at > original_updated
 
+    def test_surface_normalized_updates_with_surface(self, db_session):
+        """Token should keep surface_normalized in sync with surface."""
+        project = create_test_project(db_session)
+        sentence = create_test_sentence(db_session, project.id, "Hēah-þing")
+        token = Token.list(sentence.id)[0]
+
+        token.surface = "Hēah-ðing"
+        token.save()
+        db_session.refresh(token)
+
+        assert token.surface_normalized == "heahþing"
+
     def test_relationship_with_sentence(self, db_session):
         """Test token has relationship with sentence."""
         project = create_test_project(db_session)
@@ -330,4 +344,3 @@ class TestTokenize:
         assert "Se" in result
         assert "cyning" in result
         assert "wæs" in result
-

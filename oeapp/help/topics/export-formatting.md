@@ -35,9 +35,14 @@ The application has two formatted document exports:
 
 ### Glossary
 
-- One entry per unique `(root, part-of-speech)`
+- One entry per unique `(normalized root, part-of-speech)`
+- Display uses an original root form (with diacritics/dashes preserved), with alternate spellings shown as variants
 - Senses are merged and deduplicated
 - Attested forms are listed with compact DB-code annotations
+- Verb classifier metadata may include:
+  - `[impers]` (impersonal)
+  - `[intrans]` (intransitive)
+  - `(+ inf)` (requires infinitive)
 
 ## DOCX Export (File Menu)
 

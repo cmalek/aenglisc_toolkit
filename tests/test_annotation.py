@@ -41,6 +41,9 @@ class TestAnnotation:
             verb_aspect="p",
             verb_form="f",
             verb_direct_object_case="a",
+            verb_requires_infinitive=True,
+            verb_impersonal=True,
+            verb_transitivity="intransitive",
             prep_case="d",
             adjective_inflection="s",
             adjective_degree="p",
@@ -69,6 +72,9 @@ class TestAnnotation:
         assert _annotation.verb_aspect == "p"
         assert _annotation.verb_form == "f"
         assert _annotation.verb_direct_object_case == "a"
+        assert _annotation.verb_requires_infinitive is True
+        assert _annotation.verb_impersonal is True
+        assert _annotation.verb_transitivity == "intransitive"
         assert _annotation.prep_case == "d"
         assert _annotation.adjective_inflection == "s"
         assert _annotation.adjective_degree == "p"
@@ -80,6 +86,7 @@ class TestAnnotation:
         assert _annotation.confidence == 75
         assert _annotation.modern_english_meaning == "king"
         assert _annotation.root == "cyning"
+        assert _annotation.root_normalized == "cyning"
 
     def test_create_with_partial_fields(self, db_session):
         """Test model creation with partial fields (None values)."""
@@ -176,6 +183,9 @@ class TestAnnotation:
         annotation.verb_aspect = "p"
         annotation.verb_form = "f"
         annotation.verb_direct_object_case = "a"
+        annotation.verb_requires_infinitive = True
+        annotation.verb_impersonal = True
+        annotation.verb_transitivity = "intransitive"
         annotation.prep_case = "d"
         annotation.adjective_inflection = "s"
         annotation.adjective_degree = "p"
@@ -203,6 +213,9 @@ class TestAnnotation:
         assert data["verb_aspect"] == "p"
         assert data["verb_form"] == "f"
         assert data["verb_direct_object_case"] == "a"
+        assert data["verb_requires_infinitive"] is True
+        assert data["verb_impersonal"] is True
+        assert data["verb_transitivity"] == "intransitive"
         assert data["prep_case"] == "d"
         assert data["adjective_inflection"] == "s"
         assert data["adjective_degree"] == "p"
@@ -211,6 +224,7 @@ class TestAnnotation:
         assert data["confidence"] == 75
         assert data["modern_english_meaning"] == "king"
         assert data["root"] == "cyning"
+        assert data["root_normalized"] == "cyning"
         assert data["last_inferred_json"] == '{"some": "data"}'
         assert "updated_at" in data
         assert isinstance(data["updated_at"], str)
@@ -245,6 +259,9 @@ class TestAnnotation:
         assert annotation.gender == "m"
         assert annotation.number == "s"
         assert annotation.case == "n"
+        assert annotation.verb_requires_infinitive is False
+        assert annotation.verb_impersonal is False
+        assert annotation.verb_transitivity == "transitive"
 
     def test_from_json_handles_partial_data(self, db_session):
         """Test from_json() handles partial data."""
@@ -609,6 +626,9 @@ class TestAnnotationFromAnnotation:
             verb_aspect="p",
             verb_form="f",
             verb_direct_object_case="a",
+            verb_requires_infinitive=True,
+            verb_impersonal=True,
+            verb_transitivity="intransitive",
             prep_case="d",
             adjective_inflection="s",
             adjective_degree="p",
@@ -638,6 +658,9 @@ class TestAnnotationFromAnnotation:
         assert target.verb_aspect == "p"
         assert target.verb_form == "f"
         assert target.verb_direct_object_case == "a"
+        assert target.verb_requires_infinitive is True
+        assert target.verb_impersonal is True
+        assert target.verb_transitivity == "intransitive"
         assert target.prep_case == "d"
         assert target.adjective_inflection == "s"
         assert target.adjective_degree == "p"
@@ -647,6 +670,20 @@ class TestAnnotationFromAnnotation:
         assert target.last_inferred_json == '{"foo": "bar"}'
         assert target.modern_english_meaning == "king"
         assert target.root == "cyning"
+
+    def test_root_normalized_updates_with_root_changes(self, db_session):
+        """Annotation should keep root_normalized in sync with root."""
+        project = create_test_project(db_session)
+        sentence = create_test_sentence(db_session, project.id, "Sċip")
+        token = sentence.tokens[0]
+        annotation = Annotation.get_by_token(token.id)
+        assert annotation is not None
+
+        annotation.root = "Sċip-ðrēam"
+        annotation.save()
+        db_session.refresh(annotation)
+
+        assert annotation.root_normalized == "scipþream"
 
     def test_from_annotation_commit_false(self, db_session):
         """Test commit=False does not save to DB."""

@@ -50,6 +50,9 @@ class TestAnnotationPreset:
         assert preset.verb_class == "w1"
         assert preset.verb_tense is None
         assert preset.verb_mood is None
+        assert preset.verb_requires_infinitive is False
+        assert preset.verb_impersonal is False
+        assert preset.verb_transitivity == "transitive"
 
     def test_create_class_method(self, db_session):
         """Test create() class method."""
@@ -159,6 +162,9 @@ class TestAnnotationPreset:
         assert data["pos"] == "R"
         assert data["pronoun_type"] == "p"
         assert data["gender"] == "m"
+        assert data["verb_requires_infinitive"] is False
+        assert data["verb_impersonal"] is False
+        assert data["verb_transitivity"] == "transitive"
         assert "created_at" in data
         assert "updated_at" in data
         assert "id" not in data
@@ -171,6 +177,9 @@ class TestAnnotationPreset:
             "gender": "m",
             "number": "s",
             "case": "n",
+            "verb_requires_infinitive": True,
+            "verb_impersonal": True,
+            "verb_transitivity": "intransitive",
         }
 
         preset = AnnotationPreset.from_json(preset_data)
@@ -180,6 +189,9 @@ class TestAnnotationPreset:
         assert preset.gender == "m"
         assert preset.number == "s"
         assert preset.case == "n"
+        assert preset.verb_requires_infinitive is True
+        assert preset.verb_impersonal is True
+        assert preset.verb_transitivity == "intransitive"
 
     def test_check_constraint_rejects_invalid_pos(self, db_session):
         """Test check constraint rejects invalid POS values."""

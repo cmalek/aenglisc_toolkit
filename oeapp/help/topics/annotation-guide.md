@@ -46,6 +46,11 @@ When a phrase should be treated as one unit, annotate it as an idiom instead of 
 - **Number**: Singular (s), Plural (p)
 - **Aspect**: Perfect (p), Progressive (prg), Gnomic (gn)
 - **Form**: Finite (f), Infinitive (i), Participle (p)
+- **Requires Infinitive**: Marks verbs that govern an infinitive complement
+- **Impersonal**: Marks impersonal verbs
+- **Transitivity**: Transitive or intransitive
+
+> **Preterite-present shortcut:** Selecting verb class `pp` auto-enables **Requires Infinitive**. You can manually change it afterward.
 
 ### Adjectives
 
@@ -86,6 +91,14 @@ The following fields are available for all POS types in the Metadata section:
 - **TODO**: Mark annotation as needing review
 - **Modern English Meaning**: Enter the modern English translation/meaning of the word (e.g., "time, season")
 - **Root**: Enter the root form of the word (e.g., "sumor")
+
+`Root` and token surface forms are also stored in normalized internal forms for grouping/search:
+
+- lowercase
+- no combining-mark diacritics
+- internal hyphens removed
+- `ð` normalized to `þ`
+- OE letters like `æ` and `þ` preserved
 
 These metadata fields are displayed in the token table as "ModE" and "Root" columns.
 

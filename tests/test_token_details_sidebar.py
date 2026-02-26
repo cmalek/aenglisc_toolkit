@@ -238,6 +238,50 @@ class TestTokenDetailsSidebar:
                 assert labels[i+1].text() == "?"
 
         assert found is True
+
+    def test_verb_metadata_fields_rendering(self, db_session, qapp):
+        """Test verb metadata fields render correctly in sidebar."""
+        from oeapp.models.annotation import Annotation
+
+        project = create_test_project(db_session, name="Test", text="mæg")
+        sentence = project.sentences[0]
+        token = sentence.tokens[0]
+
+        db_session.refresh(token)
+        if token.annotation:
+            token.annotation.delete()
+            db_session.refresh(token)
+
+        annotation = Annotation(token_id=token.id)
+        annotation.pos = "V"
+        annotation.verb_requires_infinitive = True
+        annotation.verb_impersonal = True
+        annotation.verb_transitivity = "intransitive"
+        annotation.save()
+        db_session.refresh(token)
+
+        sidebar = TokenDetailsSidebar(parent=None)
+        sidebar.render_token(token, sentence)
+
+        labels = []
+
+        def collect_labels(layout):
+            for i in range(layout.count()):
+                item = layout.itemAt(i)
+                if item.widget() and isinstance(item.widget(), QLabel):
+                    labels.append(item.widget())
+                elif item.layout():
+                    collect_labels(item.layout())
+
+        collect_labels(sidebar.content_layout)
+        values_by_label = {}
+        for i, label in enumerate(labels[:-1]):
+            if label.text().endswith(": "):
+                values_by_label[label.text()] = labels[i + 1].text()
+
+        assert values_by_label["Requires Infinitive: "] == "Yes"
+        assert values_by_label["Impersonal: "] == "Yes"
+        assert values_by_label["Transitivity: "] == "Intransitive"
     """Test cases for the lifecycle of TokenDetailsSidebar."""
 
     @pytest.fixture

@@ -3,6 +3,7 @@
 import os
 import re
 import sys
+import unicodedata
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
@@ -204,3 +205,32 @@ def clear_layout(layout: "QLayout") -> None:
         if child_layout is not None:
             clear_layout(child_layout)
             child_layout.deleteLater()
+
+
+def normalize_old_english(text: str | None) -> str | None:
+    """
+    Normalize Old English token/root text for stable grouping/search.
+
+    Rules:
+        - Lowercase
+        - Remove combining-mark diacritics
+        - Remove internal hyphen/dash characters
+        - Replace eth with thorn
+        - Preserve OE letters like ``æ`` and ``þ``
+
+    Args:
+        text: The source text.
+
+    Returns:
+        Normalized text, or ``None`` when input is ``None``.
+
+    """
+    if text is None:
+        return None
+    lowered = text.strip().lower().replace("ð", "þ")
+    decomposed = unicodedata.normalize("NFD", lowered)
+    without_marks = "".join(
+        ch for ch in decomposed if unicodedata.category(ch) != "Mn"
+    )
+    stripped_internal_hyphen = re.sub(r"(?<=\S)[-–—](?=\S)", "", without_marks)
+    return unicodedata.normalize("NFC", stripped_internal_hyphen)

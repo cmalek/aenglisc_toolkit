@@ -7,12 +7,12 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, ClassVar, cast
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String, UniqueConstraint, select
-from sqlalchemy.orm import Mapped, Session, mapped_column, relationship
+from sqlalchemy.orm import Mapped, Session, mapped_column, relationship, validates
 
 from oeapp.db import Base
 from oeapp.models.annotation import Annotation
 from oeapp.models.mixins import SaveDeleteMixin
-from oeapp.utils import from_utc_iso, to_utc_iso
+from oeapp.utils import from_utc_iso, normalize_old_english, to_utc_iso
 
 if TYPE_CHECKING:
     from oeapp.models.sentence import Sentence
@@ -45,6 +45,8 @@ class Token(SaveDeleteMixin, Base):
     order_index: Mapped[int] = mapped_column(Integer, nullable=False)
     #: The surface form of the token.
     surface: Mapped[str] = mapped_column(String, nullable=False)
+    #: The normalized surface form used for grouping/search.
+    surface_normalized: Mapped[str] = mapped_column(String, nullable=False, default="")
     #: The lemma of the token.
     lemma: Mapped[str | None] = mapped_column(String, nullable=True)
     #: The date and time the token was created.
@@ -79,6 +81,7 @@ class Token(SaveDeleteMixin, Base):
         token_data: dict = {
             "order_index": self.order_index,
             "surface": self.surface,
+            "surface_normalized": self.surface_normalized,
             "lemma": self.lemma,
             "created_at": to_utc_iso(self.created_at),
             "updated_at": to_utc_iso(self.updated_at),
@@ -136,6 +139,22 @@ class Token(SaveDeleteMixin, Base):
             session.commit()
 
         return token
+
+    @validates("surface")
+    def _sync_surface_normalized(self, _key: str, value: str) -> str:
+        """
+        Keep ``surface_normalized`` in sync with ``surface`` updates.
+
+        Args:
+            _key: The SQLAlchemy attribute key.
+            value: The incoming surface value.
+
+        Returns:
+            The original surface value.
+
+        """
+        self.surface_normalized = normalize_old_english(value) or ""
+        return value
 
     @classmethod
     def get(cls, token_id: int) -> "Token | None":

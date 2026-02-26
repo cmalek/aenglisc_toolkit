@@ -89,7 +89,13 @@ features, and metadata.</p>
 <li><strong>Number</strong>: Singular (s), Plural (p)</li>
 <li><strong>Aspect</strong>: Perfect (p), Progressive (prg), Gnomic (gn)</li>
 <li><strong>Form</strong>: Finite (f), Infinitive (i), Participle (p)</li>
+<li><strong>Requires Infinitive</strong>: Marks verbs that govern an infinitive complement</li>
+<li><strong>Impersonal</strong>: Marks impersonal verbs</li>
+<li><strong>Transitivity</strong>: Transitive or intransitive</li>
 </ul>
+<blockquote>
+<p><strong>Preterite-present shortcut:</strong> Selecting verb class <code>pp</code> auto-enables <strong>Requires Infinitive</strong>. You can manually change it afterward.</p>
+</blockquote>
 <h3>Adjectives</h3>
 <ul>
 <li><strong>Gender</strong>: Masculine (m), Feminine (f), Neuter (n)</li>
@@ -128,6 +134,14 @@ features, and metadata.</p>
 <li><strong>TODO</strong>: Mark annotation as needing review</li>
 <li><strong>Modern English Meaning</strong>: Enter the modern English translation/meaning of the word (e.g., "time, season")</li>
 <li><strong>Root</strong>: Enter the root form of the word (e.g., "sumor")</li>
+</ul>
+<p><code>Root</code> and token surface forms are also stored in normalized internal forms for grouping/search:</p>
+<ul>
+<li>lowercase</li>
+<li>no combining-mark diacritics</li>
+<li>internal hyphens removed</li>
+<li><code>ð</code> normalized to <code>þ</code></li>
+<li>OE letters like <code>æ</code> and <code>þ</code> preserved</li>
 </ul>
 <p>These metadata fields are displayed in the token table as "ModE" and "Root" columns.</p>
 <h2>Applying Annotations</h2>

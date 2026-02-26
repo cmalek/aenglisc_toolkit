@@ -42,6 +42,12 @@ class AnnotationJson(BaseModel):
     verb_form: str | None = None
     #: The direct object case for a verb.
     verb_direct_object_case: str | None = None
+    #: Whether the verb requires an infinitive complement.
+    verb_requires_infinitive: bool = False
+    #: Whether the verb is impersonal.
+    verb_impersonal: bool = False
+    #: Verb transitivity type.
+    verb_transitivity: str = "transitive"
     #: The preposition case, for prepositions.
     prep_case: str | None = None
     #: The adjective inflection, for adjectives.
@@ -60,6 +66,8 @@ class AnnotationJson(BaseModel):
     modern_english_meaning: str | None = None
     #: The root.
     root: str | None = None
+    #: The normalized root.
+    root_normalized: str | None = None
     #: The date and time the annotation was created.
     created_at: str | None = None
     #: The date and time the annotation was last updated.
@@ -75,6 +83,8 @@ class TokenJson(BaseModel):
     order_index: int
     #: The surface form of the token.
     surface: str
+    #: The normalized surface form.
+    surface_normalized: str | None = None
     #: The lemma of the token.
     lemma: str | None = None
     #: The date and time the token was created.

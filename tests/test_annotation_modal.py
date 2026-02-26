@@ -142,6 +142,9 @@ class TestPartOfSpeechSubclasses:
             "verb_aspect": PartOfSpeechFieldsBase.VERB_ASPECT_MAP,
             "verb_form": PartOfSpeechFieldsBase.VERB_FORM_MAP,
             "verb_direct_object_case": PartOfSpeechFieldsBase.VERB_DIRECT_OBJECT_CASE_MAP,
+            "verb_requires_infinitive": VerbFields.VERB_REQUIRES_INF_MAP,
+            "verb_impersonal": VerbFields.VERB_IMPERSONAL_MAP,
+            "verb_transitivity": PartOfSpeechFieldsBase.VERB_TRANSITIVITY_MAP,
         }),
         (PronounFields, {
             "pronoun_type": PartOfSpeechFieldsBase.PRONOUN_TYPE_MAP,
@@ -269,6 +272,22 @@ class TestPartOfSpeechFormManager:
         ann = Annotation()
         manager.update_annotation(ann)
         assert ann.gender == "m"
+
+    def test_verb_pp_autosets_requires_infinitive(self, manager):
+        """Switching verb class to pp should auto-set requires infinitive."""
+        manager.select("V")
+        verb_class = manager.current.fields["verb_class"]
+        requires_inf = manager.current.fields["verb_requires_infinitive"]
+
+        verb_class.setCurrentIndex(
+            manager.current.code_to_index_map["verb_class"]["pp"]
+        )
+        assert manager.current.extract_values()["verb_requires_infinitive"] is True
+
+        requires_inf.setCurrentIndex(
+            manager.current.code_to_index_map["verb_requires_infinitive"][False]
+        )
+        assert manager.current.extract_values()["verb_requires_infinitive"] is False
 
 
 class TestPOSFieldModelMapping:

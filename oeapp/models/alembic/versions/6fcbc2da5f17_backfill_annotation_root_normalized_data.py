@@ -1,0 +1,71 @@
+"""backfill annotation root_normalized data
+
+Revision ID: 6fcbc2da5f17
+Revises: d6d8b613bc53
+Create Date: 2026-02-26 13:15:46.562494
+
+"""
+from typing import Sequence, Union
+import re
+import unicodedata
+
+from alembic import op
+import sqlalchemy as sa
+
+
+# revision identifiers, used by Alembic.
+revision: str = '6fcbc2da5f17'
+down_revision: Union[str, Sequence[str], None] = 'd6d8b613bc53'
+branch_labels: Union[str, Sequence[str], None] = None
+depends_on: Union[str, Sequence[str], None] = None
+
+
+def _normalize_old_english(text: str | None) -> str | None:
+    """
+    Normalize root text for stable grouping and lookup.
+
+    Args:
+        text: Raw root text.
+
+    Returns:
+        Normalized text.
+
+    """
+    if text is None:
+        return None
+    lowered = text.strip().lower().replace("ð", "þ")
+    decomposed = unicodedata.normalize("NFD", lowered)
+    without_marks = "".join(
+        ch for ch in decomposed if unicodedata.category(ch) != "Mn"
+    )
+    stripped_hyphen = re.sub(r"(?<=\S)[-–—](?=\S)", "", without_marks)
+    return unicodedata.normalize("NFC", stripped_hyphen)
+
+
+def _backfill_annotation_roots() -> None:
+    """
+    Populate annotations.root_normalized for all existing annotation rows.
+    """
+    bind = op.get_bind()
+    rows = bind.execute(sa.text("SELECT id, root FROM annotations")).fetchall()
+    for row in rows:
+        bind.execute(
+            sa.text(
+                "UPDATE annotations "
+                "SET root_normalized = :root_normalized "
+                "WHERE id = :annotation_id"
+            ),
+            {
+                "annotation_id": row.id,
+                "root_normalized": _normalize_old_english(row.root),
+            },
+        )
+
+
+def upgrade() -> None:
+    """Backfill normalized root values for existing annotations."""
+    _backfill_annotation_roots()
+
+
+def downgrade() -> None:
+    """No-op downgrade for data backfill migration."""

@@ -50,6 +50,7 @@ Quick reference guide for Old English morphological tags used in annotations.
 | `w1` | Weak Class I | Verbs like `nerian` (to save) |
 | `w2` | Weak Class II | Verbs like `lufian` (to love) |
 | `w3` | Weak Class III | Verbs like `habban` (to have) |
+| `pp` | Preterite-Present | Verbs like `magan` (to be able) |
 
 ### Strong Verbs
 
@@ -102,6 +103,16 @@ Quick reference guide for Old English morphological tags used in annotations.
 | `f` | Finite | Conjugated verb |
 | `i` | Infinitive | Base form |
 | `p` | Participle | Verbal adjective |
+
+## Verb Metadata Flags
+
+These are not compact one-letter morphology codes, but they are saved as part of verb annotations and may appear in glossary classifiers.
+
+| Field | Values | Meaning |
+|------|------|-------------|
+| `verb_requires_infinitive` | `true`/`false` | Verb governs an infinitive complement |
+| `verb_impersonal` | `true`/`false` | Verb is impersonal |
+| `verb_transitivity` | `transitive` / `intransitive` | Verb transitivity |
 
 ## Pronoun Types
 

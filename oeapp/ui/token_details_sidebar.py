@@ -166,6 +166,9 @@ class VerbRenderer(AbstractPartOfSpeechRenderer):
         - Verb Aspect
         - Verb Form
         - Direct Object Case
+        - Requires Infinitive
+        - Impersonal
+        - Transitivity
 
         Args:
             parent_layout: Parent layout to add the fields to
@@ -195,6 +198,20 @@ class VerbRenderer(AbstractPartOfSpeechRenderer):
         )
         form_value = self.VERB_FORM_MAP.get(annotation.verb_form, "?")
         self.field_renderer.format_field("Form", form_value, parent_layout)
+        requires_inf_value = self.VERB_BOOLEAN_MAP.get(
+            annotation.verb_requires_infinitive, "?"
+        )
+        self.field_renderer.format_field(
+            "Requires Infinitive", requires_inf_value, parent_layout
+        )
+        impersonal_value = self.VERB_BOOLEAN_MAP.get(annotation.verb_impersonal, "?")
+        self.field_renderer.format_field("Impersonal", impersonal_value, parent_layout)
+        transitivity_value = self.VERB_TRANSITIVITY_MAP.get(
+            annotation.verb_transitivity, "?"
+        )
+        self.field_renderer.format_field(
+            "Transitivity", transitivity_value, parent_layout
+        )
 
 
 class AdjectiveRenderer(AbstractPartOfSpeechRenderer):

@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -11,12 +12,13 @@ from sqlalchemy import (
     Integer,
     String,
     select,
+    text,
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
 from oeapp.db import Base
 from oeapp.mixins import AnnotationTextualMixin
-from oeapp.utils import from_utc_iso, to_utc_iso
+from oeapp.utils import from_utc_iso, normalize_old_english, to_utc_iso
 
 from .mixins import SaveDeleteMixin
 
@@ -73,6 +75,10 @@ class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
         CheckConstraint(
             "verb_direct_object_case IN ('n', 'a','d','g','i')",
             name="ck_annotations_verb_direct_object_case",
+        ),
+        CheckConstraint(
+            "verb_transitivity IN ('transitive','intransitive')",
+            name="ck_annotations_verb_transitivity",
         ),
         CheckConstraint(
             "prep_case IN ('a','d','g','i')", name="ck_annotations_prep_case"
@@ -151,6 +157,18 @@ class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
     verb_direct_object_case: Mapped[str | None] = mapped_column(
         String, nullable=True
     )  # a, d, g, i
+    #: Whether the verb requires an infinitive complement.
+    verb_requires_infinitive: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("0")
+    )
+    #: Whether the verb is impersonal.
+    verb_impersonal: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("0")
+    )
+    #: Whether the verb is transitive or intransitive.
+    verb_transitivity: Mapped[str] = mapped_column(
+        String, nullable=False, default="transitive", server_default="transitive"
+    )
     #: The preposition case.
     prep_case: Mapped[str | None] = mapped_column(String, nullable=True)  # a, d, g
     #: The adjective inflection.
@@ -173,6 +191,8 @@ class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
     modern_english_meaning: Mapped[str | None] = mapped_column(String, nullable=True)
     #: The root.
     root: Mapped[str | None] = mapped_column(String, nullable=True)
+    #: Normalized root used for grouping/search.
+    root_normalized: Mapped[str | None] = mapped_column(String, nullable=True)
     #: The date and time the annotation was last updated.
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
@@ -235,6 +255,9 @@ class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
                 "verb_aspect": self.verb_aspect,
                 "verb_form": self.verb_form,
                 "verb_direct_object_case": self.verb_direct_object_case,
+                "verb_requires_infinitive": self.verb_requires_infinitive,
+                "verb_impersonal": self.verb_impersonal,
+                "verb_transitivity": self.verb_transitivity,
                 "prep_case": self.prep_case,
                 "adjective_inflection": self.adjective_inflection,
                 "adjective_degree": self.adjective_degree,
@@ -244,6 +267,7 @@ class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
                 "last_inferred_json": self.last_inferred_json,
                 "modern_english_meaning": self.modern_english_meaning,
                 "root": self.root,
+                "root_normalized": self.root_normalized,
             }
         )
         data["updated_at"] = to_utc_iso(self.updated_at)
@@ -383,6 +407,9 @@ class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
         self.verb_aspect = annotation.verb_aspect
         self.verb_form = annotation.verb_form
         self.verb_direct_object_case = annotation.verb_direct_object_case
+        self.verb_requires_infinitive = annotation.verb_requires_infinitive
+        self.verb_impersonal = annotation.verb_impersonal
+        self.verb_transitivity = annotation.verb_transitivity
         self.prep_case = annotation.prep_case
         self.adjective_inflection = annotation.adjective_inflection
         self.adjective_degree = annotation.adjective_degree
@@ -392,6 +419,7 @@ class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
         self.last_inferred_json = annotation.last_inferred_json
         self.modern_english_meaning = annotation.modern_english_meaning
         self.root = annotation.root
+        self.root_normalized = annotation.root_normalized
         if commit:
             self.save()
             _logger = logger.bind(annotation_id=self.id)
@@ -426,6 +454,7 @@ class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
         from oeapp.services.logs import get_logger  # noqa: PLC0415
 
         logger = get_logger(self.__class__.__name__)
+        self._apply_verb_defaults()
         super().save(commit=commit)
         if commit:
             _logger = logger.bind(annotation_id=self.id)
@@ -505,6 +534,9 @@ class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
             "verb_aspect": ann_data.get("verb_aspect"),
             "verb_form": ann_data.get("verb_form"),
             "verb_direct_object_case": ann_data.get("verb_direct_object_case"),
+            "verb_requires_infinitive": ann_data.get("verb_requires_infinitive", False),
+            "verb_impersonal": ann_data.get("verb_impersonal", False),
+            "verb_transitivity": ann_data.get("verb_transitivity", "transitive"),
             "prep_case": ann_data.get("prep_case"),
             "adjective_inflection": ann_data.get("adjective_inflection"),
             "adjective_degree": ann_data.get("adjective_degree"),
@@ -514,4 +546,36 @@ class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
             "last_inferred_json": ann_data.get("last_inferred_json"),
             "modern_english_meaning": ann_data.get("modern_english_meaning"),
             "root": ann_data.get("root"),
+            "root_normalized": ann_data.get(
+                "root_normalized", normalize_old_english(ann_data.get("root"))
+            ),
         }
+
+    @validates("root")
+    def _sync_root_normalized(self, _key: str, value: str | None) -> str | None:
+        """
+        Keep ``root_normalized`` in sync with ``root`` updates.
+
+        Args:
+            _key: The SQLAlchemy attribute key.
+            value: The incoming root value.
+
+        Returns:
+            The original root value.
+
+        """
+        self.root_normalized = normalize_old_english(value)
+        return value
+
+    def _apply_verb_defaults(self) -> None:
+        """
+        Ensure non-null verb metadata defaults are always populated.
+
+        This protects legacy payloads that omit new fields.
+        """
+        if self.verb_requires_infinitive is None:
+            self.verb_requires_infinitive = False
+        if self.verb_impersonal is None:
+            self.verb_impersonal = False
+        if not self.verb_transitivity:
+            self.verb_transitivity = "transitive"

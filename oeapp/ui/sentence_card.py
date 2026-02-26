@@ -667,6 +667,9 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
             "verb_aspect": annotation.verb_aspect,
             "verb_form": annotation.verb_form,
             "verb_direct_object_case": annotation.verb_direct_object_case,
+            "verb_requires_infinitive": annotation.verb_requires_infinitive,
+            "verb_impersonal": annotation.verb_impersonal,
+            "verb_transitivity": annotation.verb_transitivity,
             "prep_case": annotation.prep_case,
             "adverb_degree": annotation.adverb_degree,
             "adjective_inflection": annotation.adjective_inflection,
@@ -675,6 +678,7 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
             "confidence": annotation.confidence,
             "modern_english_meaning": annotation.modern_english_meaning,
             "root": annotation.root,
+            "root_normalized": annotation.root_normalized,
         }
 
     def _execute_annotate_command(

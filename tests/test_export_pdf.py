@@ -186,6 +186,31 @@ class TestFullTranslationPDFExporter:
         assert ("ic", "ns") in noun_entry.examples
         assert ("singe", "pri1s") in verb_entry.examples
 
+    def test_verb_glossary_renders_impers_intrans_infinitive_metadata(self, db_session):
+        """Verb glossary should render impers/intrans markers and (+ inf)."""
+        from tests.conftest import create_test_project
+
+        project = create_test_project(db_session, name="Verb Meta", text="Mæg.")
+        token = project.sentences[0].tokens[0]
+        token.annotation.pos = "V"
+        token.annotation.root = "magan"
+        token.annotation.verb_class = "pp"
+        token.annotation.verb_direct_object_case = "d"
+        token.annotation.verb_impersonal = True
+        token.annotation.verb_transitivity = "intransitive"
+        token.annotation.verb_requires_infinitive = True
+        token.annotation.modern_english_meaning = "may"
+        token.annotation.save()
+
+        exporter = FullTranslationPDFExporter()
+        latex = exporter._build_document_tex(project)
+        expected = (
+            r"\textbf{magan} v: \textit{pret-pres} "
+            r"\textcolor[HTML]{666666}{[impers]} "
+            r"\textcolor[HTML]{666666}{[intrans]} (+ dat) (+ inf) may"
+        )
+        assert expected in latex
+
     def test_glossary_examples_keep_unique_code_combinations_for_same_form(self, db_session):
         """Same lowercase form should keep distinct morphology codes for N/A/R."""
         from tests.conftest import create_test_project
@@ -410,6 +435,37 @@ class TestFullTranslationPDFExporter:
         assert len(in_entries) == 2
         assert {entry.prep_case for entry in in_entries} == {"a", "d"}
         assert {entry.classification for entry in in_entries} == {"(+acc)", "(+dat)"}
+
+    def test_glossary_groups_by_normalized_root_and_tracks_variants(self, db_session):
+        """Roots that normalize the same should be deduped and variant-listed."""
+        from tests.conftest import create_test_project
+
+        project = create_test_project(db_session, name="Norm Roots", text="Hæðen Hæþen.")
+        first, second = [token for token in project.sentences[0].tokens if token.surface.isalpha()][:2]
+
+        first.annotation.pos = "N"
+        first.annotation.root = "Hæð-en"
+        first.annotation.gender = "m"
+        first.annotation.case = "n"
+        first.annotation.number = "s"
+        first.annotation.modern_english_meaning = "heathen"
+        first.annotation.save()
+
+        second.annotation.pos = "N"
+        second.annotation.root = "Hæþen"
+        second.annotation.gender = "m"
+        second.annotation.case = "n"
+        second.annotation.number = "s"
+        second.annotation.modern_english_meaning = "heathen"
+        second.annotation.save()
+
+        exporter = FullTranslationPDFExporter()
+        entries = exporter._build_glossary_entries(project)
+        noun_entries = [entry for entry in entries if entry.pos == "N"]
+
+        assert len(noun_entries) == 1
+        assert noun_entries[0].root == "Hæð-en"
+        assert "Hæþen" in noun_entries[0].root_variants
 
     def test_glossary_preposition_classifier_and_dash_attestation_behavior(self, db_session):
         """Prepositions show case classifier and omit bracketed ``[-]`` attestations."""

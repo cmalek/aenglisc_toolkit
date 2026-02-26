@@ -388,6 +388,21 @@ class AnnotationPresetManagementDialog(AnnotationLookupsMixin, SessionMixin, QDi
             cast("list[str]", list(self.VERB_DIRECT_OBJECT_CASE_MAP.values())),
             "verb_direct_object_case_combo",
         )
+        self.verb_requires_infinitive_combo = self._create_combo(
+            "Requires Infinitive:",
+            ["", "No", "Yes"],
+            "verb_requires_infinitive_combo",
+        )
+        self.verb_impersonal_combo = self._create_combo(
+            "Impersonal:",
+            ["", "No", "Yes"],
+            "verb_impersonal_combo",
+        )
+        self.verb_transitivity_combo = self._create_combo(
+            "Transitivity:",
+            ["", "Transitive", "Intransitive"],
+            "verb_transitivity_combo",
+        )
 
     def _add_adjective_fields_to_form(self) -> None:
         """Add adjective fields to form."""
@@ -707,6 +722,9 @@ class AnnotationPresetManagementDialog(AnnotationLookupsMixin, SessionMixin, QDi
             "verb_aspect": preset.verb_aspect,
             "verb_form": preset.verb_form,
             "verb_direct_object_case": preset.verb_direct_object_case,
+            "verb_requires_infinitive": preset.verb_requires_infinitive,
+            "verb_impersonal": preset.verb_impersonal,
+            "verb_transitivity": preset.verb_transitivity,
             "adjective_inflection": preset.adjective_inflection,
             "adjective_degree": preset.adjective_degree,
         }
@@ -821,6 +839,30 @@ class AnnotationPresetManagementDialog(AnnotationLookupsMixin, SessionMixin, QDi
                     self.verb_direct_object_case_combo,
                     field_values["verb_direct_object_case"],
                     self.VERB_DIRECT_OBJECT_CASE_REVERSE_MAP,
+                )
+            if "verb_requires_infinitive" in field_values and hasattr(
+                self, "verb_requires_infinitive_combo"
+            ):
+                self._set_combo_value(
+                    self.verb_requires_infinitive_combo,
+                    field_values["verb_requires_infinitive"],
+                    self.VERB_BOOLEAN_REVERSE_MAP,
+                )
+            if "verb_impersonal" in field_values and hasattr(
+                self, "verb_impersonal_combo"
+            ):
+                self._set_combo_value(
+                    self.verb_impersonal_combo,
+                    field_values["verb_impersonal"],
+                    self.VERB_BOOLEAN_REVERSE_MAP,
+                )
+            if "verb_transitivity" in field_values and hasattr(
+                self, "verb_transitivity_combo"
+            ):
+                self._set_combo_value(
+                    self.verb_transitivity_combo,
+                    field_values["verb_transitivity"],
+                    self.VERB_TRANSITIVITY_REVERSE_MAP,
                 )
         elif pos == "A":
             if "adjective_degree" in field_values and hasattr(self, "adj_degree_combo"):
@@ -1009,6 +1051,36 @@ class AnnotationPresetManagementDialog(AnnotationLookupsMixin, SessionMixin, QDi
                     field_values["verb_direct_object_case"],
                     self.VERB_DIRECT_OBJECT_CASE_REVERSE_MAP,
                 )
+            verb_requires_infinitive_combo = form_widget.findChild(
+                QComboBox, "verb_requires_infinitive_combo"
+            )
+            if (
+                verb_requires_infinitive_combo
+                and "verb_requires_infinitive" in field_values
+            ):
+                self._set_combo_value(
+                    verb_requires_infinitive_combo,
+                    field_values["verb_requires_infinitive"],
+                    self.VERB_BOOLEAN_REVERSE_MAP,
+                )
+            verb_impersonal_combo = form_widget.findChild(
+                QComboBox, "verb_impersonal_combo"
+            )
+            if verb_impersonal_combo and "verb_impersonal" in field_values:
+                self._set_combo_value(
+                    verb_impersonal_combo,
+                    field_values["verb_impersonal"],
+                    self.VERB_BOOLEAN_REVERSE_MAP,
+                )
+            verb_transitivity_combo = form_widget.findChild(
+                QComboBox, "verb_transitivity_combo"
+            )
+            if verb_transitivity_combo and "verb_transitivity" in field_values:
+                self._set_combo_value(
+                    verb_transitivity_combo,
+                    field_values["verb_transitivity"],
+                    self.VERB_TRANSITIVITY_REVERSE_MAP,
+                )
         elif pos == "A":
             adj_degree_combo = form_widget.findChild(QComboBox, "adj_degree_combo")
             if adj_degree_combo and "adjective_degree" in field_values:
@@ -1098,7 +1170,7 @@ class AnnotationPresetManagementDialog(AnnotationLookupsMixin, SessionMixin, QDi
                     article_case_combo, field_values["case"], self.CASE_REVERSE_MAP
                 )
 
-    def _extract_combo_value(self, idx: int, reverse_map: dict) -> str | None:
+    def _extract_combo_value(self, idx: int, reverse_map: dict) -> str | bool | None:
         """
         Extract value from combo box index.
 
@@ -1118,7 +1190,10 @@ class AnnotationPresetManagementDialog(AnnotationLookupsMixin, SessionMixin, QDi
         return reverse_map.get(idx - 1)
 
     def _set_combo_value(
-        self, combo: QComboBox, value: str | None, reverse_map: dict[int, str]
+        self,
+        combo: QComboBox,
+        value: str | bool | None,
+        reverse_map: dict[int, str | bool],
     ) -> None:
         """
         Set combo box value using reverse map.
@@ -1322,6 +1397,8 @@ class AnnotationPresetManagementDialog(AnnotationLookupsMixin, SessionMixin, QDi
                 return
             name = name_edit.text().strip()
             field_values = self._extract_field_values_for_tab(cast("PresetPos", pos))
+        if pos == "V":
+            field_values = self._normalize_verb_metadata_fields(field_values)
 
         try:
             # Only update if we have a preset ID AND it matches the current POS
@@ -1369,6 +1446,29 @@ class AnnotationPresetManagementDialog(AnnotationLookupsMixin, SessionMixin, QDi
                 )
             else:
                 QMessageBox.critical(self, "Error", f"Failed to save preset: {e}")
+
+    def _normalize_verb_metadata_fields(self, field_values: dict) -> dict:
+        """
+        Normalize verb metadata values before persisting presets.
+
+        Args:
+            field_values: Raw extracted field values.
+
+        Returns:
+            Normalized field values.
+
+        """
+        defaults = {
+            "verb_requires_infinitive": False,
+            "verb_impersonal": False,
+            "verb_transitivity": "transitive",
+        }
+        normalized = dict(field_values)
+        for key, default_value in defaults.items():
+            value = normalized.get(key)
+            if value in (None, CLEAR_SENTINEL):
+                normalized[key] = default_value
+        return normalized
 
     def _extract_field_values(self) -> dict[str, str | None]:  # noqa: PLR0912, PLR0915
         """Extract field values from form in save mode."""
@@ -1451,6 +1551,21 @@ class AnnotationPresetManagementDialog(AnnotationLookupsMixin, SessionMixin, QDi
                 idx = self.verb_direct_object_case_combo.currentIndex()
                 field_values["verb_direct_object_case"] = self._extract_combo_value(
                     idx, self.VERB_DIRECT_OBJECT_CASE_REVERSE_MAP
+                )
+            if hasattr(self, "verb_requires_infinitive_combo"):
+                idx = self.verb_requires_infinitive_combo.currentIndex()
+                field_values["verb_requires_infinitive"] = self._extract_combo_value(
+                    idx, self.VERB_BOOLEAN_REVERSE_MAP
+                )
+            if hasattr(self, "verb_impersonal_combo"):
+                idx = self.verb_impersonal_combo.currentIndex()
+                field_values["verb_impersonal"] = self._extract_combo_value(
+                    idx, self.VERB_BOOLEAN_REVERSE_MAP
+                )
+            if hasattr(self, "verb_transitivity_combo"):
+                idx = self.verb_transitivity_combo.currentIndex()
+                field_values["verb_transitivity"] = self._extract_combo_value(
+                    idx, self.VERB_TRANSITIVITY_REVERSE_MAP
                 )
         elif pos == "A":
             if hasattr(self, "adj_degree_combo"):
@@ -1614,6 +1729,30 @@ class AnnotationPresetManagementDialog(AnnotationLookupsMixin, SessionMixin, QDi
                 idx = verb_direct_object_case_combo.currentIndex()
                 field_values["verb_direct_object_case"] = self._extract_combo_value(
                     idx, self.VERB_DIRECT_OBJECT_CASE_REVERSE_MAP
+                )
+            verb_requires_infinitive_combo = form_widget.findChild(
+                QComboBox, "verb_requires_infinitive_combo"
+            )
+            if verb_requires_infinitive_combo:
+                idx = verb_requires_infinitive_combo.currentIndex()
+                field_values["verb_requires_infinitive"] = self._extract_combo_value(
+                    idx, self.VERB_BOOLEAN_REVERSE_MAP
+                )
+            verb_impersonal_combo = form_widget.findChild(
+                QComboBox, "verb_impersonal_combo"
+            )
+            if verb_impersonal_combo:
+                idx = verb_impersonal_combo.currentIndex()
+                field_values["verb_impersonal"] = self._extract_combo_value(
+                    idx, self.VERB_BOOLEAN_REVERSE_MAP
+                )
+            verb_transitivity_combo = form_widget.findChild(
+                QComboBox, "verb_transitivity_combo"
+            )
+            if verb_transitivity_combo:
+                idx = verb_transitivity_combo.currentIndex()
+                field_values["verb_transitivity"] = self._extract_combo_value(
+                    idx, self.VERB_TRANSITIVITY_REVERSE_MAP
                 )
         elif pos == "A":
             adj_degree_combo = form_widget.findChild(QComboBox, "adj_degree_combo")
