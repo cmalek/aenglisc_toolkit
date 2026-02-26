@@ -2,7 +2,7 @@
 
 from typing import TYPE_CHECKING, cast
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import (
     QFont,
 )
@@ -194,13 +194,21 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
         self.oe_text_edit.setFocus()
         return True
 
-    def highlight_search(self, pattern: str, scope: str) -> int:
+    def highlight_search(
+        self,
+        pattern: str,
+        scope: str,
+        normalized_oe: str | None = None,
+        oe_token_ids: set[int] | None = None,
+    ) -> int:
         """
         Highlight matches in OE text, translation, and notes.
 
         Args:
             pattern: Search pattern
             scope: Search scope ("OE Text", "ModE text", "Notes", "All")
+            normalized_oe: Normalized OE query for token/root matching.
+            oe_token_ids: Optional precomputed token ids to highlight.
 
         Returns:
             int: Number of matches found
@@ -209,9 +217,9 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
         total_matches = 0
 
         # OE Text scope
-        if scope in ["OE Text", "All"]:
-            total_matches += SearchHighlighter.highlight_text(
-                self.oe_text_edit, pattern
+        if scope in ["OE Text", "Notes", "All"]:
+            total_matches += self._highlight_oe_search(
+                pattern, normalized_oe, oe_token_ids
             )
         else:
             SearchHighlighter.clear_highlight(self.oe_text_edit)
@@ -235,6 +243,93 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
         self.translation_edit.setReadOnly(bool(pattern))
 
         return total_matches
+
+    def _highlight_oe_search(
+        self,
+        pattern: str,
+        normalized_oe: str | None,
+        oe_token_ids: set[int] | None,
+    ) -> int:
+        """
+        Highlight OE token matches for search.
+
+        Args:
+            pattern: Raw search query.
+            normalized_oe: Normalized OE query, if enabled.
+            oe_token_ids: Optional precomputed token id set.
+
+        Returns:
+            Number of OE matches highlighted.
+
+        """
+        if not pattern:
+            return SearchHighlighter.highlight_text(self.oe_text_edit, pattern)
+        token_ids = oe_token_ids if oe_token_ids is not None else set()
+        if not token_ids and normalized_oe:
+            token_ids = self._matching_oe_token_ids(normalized_oe)
+        if token_ids:
+            ranges = self._token_ranges_for_ids(token_ids)
+            return SearchHighlighter.highlight_token_ranges(self.oe_text_edit, ranges)
+        return SearchHighlighter.highlight_text(self.oe_text_edit, pattern)
+
+    def _matching_oe_token_ids(self, normalized_oe: str) -> set[int]:
+        """
+        Return token ids that match normalized surface/root fields.
+
+        Args:
+            normalized_oe: Normalized OE query.
+
+        Returns:
+            Set of matching token ids.
+
+        """
+        token_ids: set[int] = set()
+        for token in self.oe_text_edit.tokens:
+            if token.id is None:
+                continue
+            if normalized_oe in (token.surface_normalized or ""):
+                token_ids.add(token.id)
+                continue
+            root = token.annotation.root_normalized if token.annotation else None
+            if root and normalized_oe in root:
+                token_ids.add(token.id)
+        return token_ids
+
+    def _token_ranges_for_ids(self, token_ids: set[int]) -> list[tuple[int, int]]:
+        """
+        Convert token ids to character ranges in the OE text editor.
+
+        Args:
+            token_ids: Token ids to map.
+
+        Returns:
+            Ordered list of ``(start, end)`` positions.
+
+        """
+        ranges = [
+            self.oe_text_edit.token_to_position[token_id]
+            for token_id in token_ids
+            if token_id in self.oe_text_edit.token_to_position
+        ]
+        return sorted(ranges, key=lambda item: item[0])
+
+    def focus_token_by_id(self, token_id: int | None) -> None:
+        """
+        Focus a token selection by token id.
+
+        Args:
+            token_id: Token id to focus.
+
+        """
+        if token_id is None:
+            self.oe_text_edit.setFocus(Qt.FocusReason.OtherFocusReason)
+            return
+        token = next((item for item in self.oe_text_edit.tokens if item.id == token_id), None)
+        if token is None:
+            self.oe_text_edit.setFocus(Qt.FocusReason.OtherFocusReason)
+            return
+        self.oe_text_edit.set_selected_token_index(token.order_index)
+        self.oe_text_edit.setFocus(Qt.FocusReason.OtherFocusReason)
 
     # -------------------------------------------------------------------------
     # Build methods

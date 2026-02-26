@@ -4,6 +4,7 @@ from PySide6.QtCore import QUrl
 from PySide6.QtGui import QTextDocument
 from PySide6.QtHelp import QHelpLink
 
+from oeapp.help.topics import TOPIC_TO_HTML
 from oeapp.ui.dialogs.help_center_dialog import HelpCenterDialog
 
 
@@ -97,3 +98,7 @@ class TestHelpCenterDialog:
 
         html = bytes(payload).decode("utf-8", errors="replace")
         assert "qt-help-theme-override" in html
+
+    def test_search_guide_topic_is_registered(self):
+        """Search Guide should be available in help topic mappings."""
+        assert TOPIC_TO_HTML["Search Guide"] == "search-guide.html"

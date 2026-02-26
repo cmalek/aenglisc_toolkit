@@ -882,7 +882,7 @@ class OldEnglishTextEdit(QTextEdit):
             and self._main_window.search_input.text()
         ):
             scope = self._main_window.search_scope_combo.currentText()
-            if scope in ["OE Text", "All"]:
+            if scope in ["OE Text", "Notes", "All"]:
                 SearchHighlighter.highlight_text(
                     self, self._main_window.search_input.text()
                 )

@@ -20,6 +20,23 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
+def _table_exists(table_name: str) -> bool:
+    """Return whether the target table exists in the current database."""
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    return table_name in inspector.get_table_names()
+
+
+def _column_exists(table_name: str, column_name: str) -> bool:
+    """Return whether the target column exists on the given table."""
+    if not _table_exists(table_name):
+        return False
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    columns = inspector.get_columns(table_name)
+    return any(column["name"] == column_name for column in columns)
+
+
 def _normalize_old_english(text: str | None) -> str | None:
     """
     Normalize root text for stable grouping and lookup.
@@ -46,6 +63,12 @@ def _backfill_annotation_roots() -> None:
     """
     Populate annotations.root_normalized for all existing annotation rows.
     """
+    if not _table_exists("annotations"):
+        return
+    if not _column_exists("annotations", "root"):
+        return
+    if not _column_exists("annotations", "root_normalized"):
+        return
     bind = op.get_bind()
     rows = bind.execute(sa.text("SELECT id, root FROM annotations")).fetchall()
     for row in rows:

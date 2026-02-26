@@ -935,6 +935,51 @@ class SearchHighlighter:
         return matches
 
     @staticmethod
+    def highlight_token_ranges(
+        text_edit: QTextEdit,
+        token_ranges: list[tuple[int, int]],
+    ) -> int:
+        """
+        Highlight token ranges in ``text_edit`` as search matches.
+
+        Args:
+            text_edit: Target text edit.
+            token_ranges: List of ``(start, end)`` character ranges.
+
+        Returns:
+            Number of highlighted ranges.
+
+        """
+        settings = QSettings()
+        is_dark_theme = settings.value("theme/name", "dark", type=str) == "dark"
+        selections = [
+            selection
+            for selection in text_edit.extraSelections()
+            if not selection.format.property(SearchHighlighter.SEARCH_HIGHLIGHT_PROPERTY)  # type: ignore[attr-defined]
+        ]
+        for start, end in token_ranges:
+            cursor = QTextCursor(text_edit.document())
+            cursor.setPosition(start)
+            cursor.setPosition(end, QTextCursor.MoveMode.KeepAnchor)
+            selection = QTextEdit.ExtraSelection()
+            selection.cursor = cursor  # type: ignore[attr-defined]
+            selection.format.setBackground(SearchHighlighter.SEARCH_COLOR)  # type: ignore[attr-defined]
+            if is_dark_theme:
+                theme_base_color = (
+                    cast("QApplication", QApplication.instance())
+                    .palette()
+                    .color(QPalette.ColorRole.Base)
+                )
+                selection.format.setForeground(theme_base_color)  # type: ignore[attr-defined]
+            selection.format.setProperty(  # type: ignore[attr-defined]
+                SearchHighlighter.SEARCH_HIGHLIGHT_PROPERTY,
+                True,  # noqa: FBT003
+            )
+            selections.append(selection)
+        text_edit.setExtraSelections(selections)
+        return len(token_ranges)
+
+    @staticmethod
     def clear_highlight(text_edit: QTextEdit) -> None:
         """
         Clear search highlights from ``text_edit``.

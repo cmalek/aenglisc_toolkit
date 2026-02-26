@@ -20,6 +20,35 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
+def _table_exists(table_name: str) -> bool:
+    """Return whether the target table exists in the current database."""
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    return table_name in inspector.get_table_names()
+
+
+def _column_exists(table_name: str, column_name: str) -> bool:
+    """Return whether the target column exists on the given table."""
+    if not _table_exists(table_name):
+        return False
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    columns = inspector.get_columns(table_name)
+    return any(column["name"] == column_name for column in columns)
+
+
+def _check_constraint_exists(table_name: str, constraint_name: str) -> bool:
+    """Return whether a check constraint exists on the given table."""
+    if not _table_exists(table_name):
+        return False
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    constraints = inspector.get_check_constraints(table_name)
+    return any(
+        constraint.get("name") == constraint_name for constraint in constraints
+    )
+
+
 def _normalize_old_english(text: str | None) -> str | None:
     """Normalize token/root text for stable lookup and grouping."""
     if text is None:
@@ -35,6 +64,12 @@ def _normalize_old_english(text: str | None) -> str | None:
 
 def _backfill_annotations() -> None:
     """Backfill normalized root values for existing annotations."""
+    if not _table_exists("annotations"):
+        return
+    if not _column_exists("annotations", "root"):
+        return
+    if not _column_exists("annotations", "root_normalized"):
+        return
     bind = op.get_bind()
     rows = bind.execute(sa.text("SELECT id, root FROM annotations")).fetchall()
     for row in rows:
@@ -49,6 +84,12 @@ def _backfill_annotations() -> None:
 
 def _backfill_tokens() -> None:
     """Backfill normalized surface values for existing tokens."""
+    if not _table_exists("tokens"):
+        return
+    if not _column_exists("tokens", "surface"):
+        return
+    if not _column_exists("tokens", "surface_normalized"):
+        return
     bind = op.get_bind()
     rows = bind.execute(sa.text("SELECT id, surface FROM tokens")).fetchall()
     for row in rows:
@@ -63,71 +104,81 @@ def _backfill_tokens() -> None:
 
 def upgrade() -> None:
     """Upgrade schema."""
-    with op.batch_alter_table('annotation_presets', schema=None) as batch_op:
-        batch_op.add_column(
-            sa.Column(
-                'verb_requires_infinitive',
-                sa.Boolean(),
-                server_default=sa.text("0"),
-                nullable=False,
-            )
-        )
-        batch_op.add_column(
-            sa.Column(
-                'verb_impersonal',
-                sa.Boolean(),
-                server_default=sa.text("0"),
-                nullable=False,
-            )
-        )
-        batch_op.add_column(
-            sa.Column(
-                'verb_transitivity',
-                sa.String(),
-                server_default='transitive',
-                nullable=False,
-            )
-        )
-        batch_op.create_check_constraint(
-            "ck_annotation_presets_verb_transitivity",
-            "verb_transitivity IN ('transitive','intransitive')",
-        )
+    if _table_exists("annotation_presets"):
+        with op.batch_alter_table('annotation_presets', schema=None) as batch_op:
+            if not _column_exists("annotation_presets", "verb_requires_infinitive"):
+                batch_op.add_column(
+                    sa.Column(
+                        'verb_requires_infinitive',
+                        sa.Boolean(),
+                        server_default=sa.text("0"),
+                        nullable=False,
+                    )
+                )
+            if not _column_exists("annotation_presets", "verb_impersonal"):
+                batch_op.add_column(
+                    sa.Column(
+                        'verb_impersonal',
+                        sa.Boolean(),
+                        server_default=sa.text("0"),
+                        nullable=False,
+                    )
+                )
+            if not _column_exists("annotation_presets", "verb_transitivity"):
+                batch_op.add_column(
+                    sa.Column(
+                        'verb_transitivity',
+                        sa.String(),
+                        server_default='transitive',
+                        nullable=False,
+                    )
+                )
+                batch_op.create_check_constraint(
+                    "ck_annotation_presets_verb_transitivity",
+                    "verb_transitivity IN ('transitive','intransitive')",
+                )
 
-    with op.batch_alter_table('annotations', schema=None) as batch_op:
-        batch_op.add_column(
-            sa.Column(
-                'verb_requires_infinitive',
-                sa.Boolean(),
-                server_default=sa.text('0'),
-                nullable=False,
-            )
-        )
-        batch_op.add_column(
-            sa.Column(
-                'verb_impersonal',
-                sa.Boolean(),
-                server_default=sa.text('0'),
-                nullable=False,
-            )
-        )
-        batch_op.add_column(
-            sa.Column(
-                'verb_transitivity',
-                sa.String(),
-                server_default='transitive',
-                nullable=False,
-            )
-        )
-        batch_op.add_column(sa.Column('root_normalized', sa.String(), nullable=True))
-        batch_op.create_check_constraint(
-            "ck_annotations_verb_transitivity",
-            "verb_transitivity IN ('transitive','intransitive')",
-        )
+    if _table_exists("annotations"):
+        with op.batch_alter_table('annotations', schema=None) as batch_op:
+            if not _column_exists("annotations", "verb_requires_infinitive"):
+                batch_op.add_column(
+                    sa.Column(
+                        'verb_requires_infinitive',
+                        sa.Boolean(),
+                        server_default=sa.text('0'),
+                        nullable=False,
+                    )
+                )
+            if not _column_exists("annotations", "verb_impersonal"):
+                batch_op.add_column(
+                    sa.Column(
+                        'verb_impersonal',
+                        sa.Boolean(),
+                        server_default=sa.text('0'),
+                        nullable=False,
+                    )
+                )
+            if not _column_exists("annotations", "verb_transitivity"):
+                batch_op.add_column(
+                    sa.Column(
+                        'verb_transitivity',
+                        sa.String(),
+                        server_default='transitive',
+                        nullable=False,
+                    )
+                )
+                batch_op.create_check_constraint(
+                    "ck_annotations_verb_transitivity",
+                    "verb_transitivity IN ('transitive','intransitive')",
+                )
+            if not _column_exists("annotations", "root_normalized"):
+                batch_op.add_column(sa.Column('root_normalized', sa.String(), nullable=True))
 
-    with op.batch_alter_table('tokens', schema=None) as batch_op:
-        batch_op.add_column(
-            sa.Column('surface_normalized', sa.String(), server_default='', nullable=False)
-        )
+    if _table_exists("tokens") and not _column_exists("tokens", "surface_normalized"):
+        with op.batch_alter_table('tokens', schema=None) as batch_op:
+            batch_op.add_column(
+                sa.Column('surface_normalized', sa.String(), server_default='', nullable=False)
+            )
 
     _backfill_annotations()
     _backfill_tokens()
@@ -135,21 +186,37 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """Downgrade schema."""
-    with op.batch_alter_table('tokens', schema=None) as batch_op:
-        batch_op.drop_column('surface_normalized')
+    if _table_exists("tokens") and _column_exists("tokens", "surface_normalized"):
+        with op.batch_alter_table('tokens', schema=None) as batch_op:
+            batch_op.drop_column('surface_normalized')
 
-    with op.batch_alter_table('annotations', schema=None) as batch_op:
-        batch_op.drop_constraint("ck_annotations_verb_transitivity", type_="check")
-        batch_op.drop_column('root_normalized')
-        batch_op.drop_column('verb_transitivity')
-        batch_op.drop_column('verb_impersonal')
-        batch_op.drop_column('verb_requires_infinitive')
+    if _table_exists("annotations"):
+        with op.batch_alter_table('annotations', schema=None) as batch_op:
+            if _check_constraint_exists(
+                "annotations", "ck_annotations_verb_transitivity"
+            ):
+                batch_op.drop_constraint("ck_annotations_verb_transitivity", type_="check")
+            if _column_exists("annotations", "root_normalized"):
+                batch_op.drop_column('root_normalized')
+            if _column_exists("annotations", "verb_transitivity"):
+                batch_op.drop_column('verb_transitivity')
+            if _column_exists("annotations", "verb_impersonal"):
+                batch_op.drop_column('verb_impersonal')
+            if _column_exists("annotations", "verb_requires_infinitive"):
+                batch_op.drop_column('verb_requires_infinitive')
 
-    with op.batch_alter_table('annotation_presets', schema=None) as batch_op:
-        batch_op.drop_constraint(
-            "ck_annotation_presets_verb_transitivity",
-            type_="check",
-        )
-        batch_op.drop_column('verb_transitivity')
-        batch_op.drop_column('verb_impersonal')
-        batch_op.drop_column('verb_requires_infinitive')
+    if _table_exists("annotation_presets"):
+        with op.batch_alter_table('annotation_presets', schema=None) as batch_op:
+            if _check_constraint_exists(
+                "annotation_presets", "ck_annotation_presets_verb_transitivity"
+            ):
+                batch_op.drop_constraint(
+                    "ck_annotation_presets_verb_transitivity",
+                    type_="check",
+                )
+            if _column_exists("annotation_presets", "verb_transitivity"):
+                batch_op.drop_column('verb_transitivity')
+            if _column_exists("annotation_presets", "verb_impersonal"):
+                batch_op.drop_column('verb_impersonal')
+            if _column_exists("annotation_presets", "verb_requires_infinitive"):
+                batch_op.drop_column('verb_requires_infinitive')

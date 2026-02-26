@@ -78,3 +78,9 @@ def test_ensure_runtime_help_assets_copies_qch_and_qhc(
     runtime_qhc.write_bytes(b"new-collection-bytes")
     _ = help_paths.ensure_runtime_help_assets()
     assert runtime_qhc.exists()
+
+
+def test_search_guide_markdown_exists():
+    """Search guide markdown topic should exist in source topics."""
+    topic_path = Path("oeapp/help/topics/search-guide.md")
+    assert topic_path.exists()

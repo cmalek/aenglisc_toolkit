@@ -1,0 +1,95 @@
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <title>Search Guide</title>
+          <style>
+            body {
+              margin: 0 auto;
+              max-width: 960px;
+              padding: 1.2rem 1.4rem 2.2rem;
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+              line-height: 1.6;
+            }
+            h1 {
+              border-bottom: 1px solid;
+              padding-bottom: 0.3rem;
+            }
+            table {
+              border-collapse: collapse;
+              width: 100%;
+              margin: 1rem 0;
+            }
+            th, td {
+              border: 1px solid;
+              padding-top: 8px;
+              padding-right: 8px;
+              padding-bottom: 8px;
+              padding-left: 8px;
+              text-align: left;
+              vertical-align: top;
+            }
+            th {
+              font-weight: 600;
+            }
+            code {
+              border-radius: 4px;
+              padding: 0.1rem 0.3rem;
+            }
+            pre {
+              border-radius: 6px;
+              overflow-x: auto;
+              padding: 0.75rem;
+            }
+          </style>
+        </head>
+        <body>
+          <h1>Search Guide</h1>
+<p>Use the search bar at the top of the main window to find Old English terms, modern English translations, and note text.</p>
+<h2>Search Modes</h2>
+<p>Use the scope dropdown to choose what is searched:</p>
+<ul>
+<li><strong>OE Text</strong>: Searches normalized Old English token surface forms and normalized annotation roots.</li>
+<li><strong>ModE text</strong>: Searches only the Modern English translation text (no OE normalization).</li>
+<li><strong>Notes</strong>: Combines normalized OE matching with note-text matching.</li>
+<li><strong>All</strong>: Combines normalized OE matching, ModE text matching, and note-text matching.</li>
+</ul>
+<h2>OE Normalization Rules</h2>
+<p>For OE-aware scopes, your query is normalized before matching:</p>
+<ul>
+<li>lowercase</li>
+<li>remove combining-mark diacritics</li>
+<li>remove internal hyphens/dashes</li>
+<li>normalize <code>ð</code> to <code>þ</code></li>
+<li>preserve OE letters like <code>æ</code> and <code>þ</code></li>
+</ul>
+<p>Matching is partial (substring), so a query like <code>cyn</code> can match <code>cyning</code>.</p>
+<h2>Navigating Matches</h2>
+<ul>
+<li>Press <strong>Enter</strong> (or <strong>Ctrl+G</strong>) to focus the first result.</li>
+<li>Press <strong>N</strong> for next match.</li>
+<li>Press <strong>Shift+N</strong> for previous match.</li>
+<li>The counter shows your current position as <code>current / total</code>.</li>
+</ul>
+<p>When a match is in another chapter or section, the app loads that location and moves focus to the matched context:</p>
+<ul>
+<li>OE token/root match: focuses the matched token</li>
+<li>ModE match: focuses the sentence's ModE textbox</li>
+<li>Notes match: focuses the sentence card</li>
+</ul>
+<h2>Exiting Search Mode</h2>
+<p>You can exit search mode by:</p>
+<ul>
+<li>Clicking <strong>Clear</strong></li>
+<li>Pressing <strong>Esc</strong> while search is active</li>
+</ul>
+<p>After exit, focus returns to the Modern English textbox of the sentence you were in when search began.</p>
+<h2>Related Topics</h2>
+<ul>
+<li><a href="start-here.html">Start Here</a></li>
+<li><a href="notes-guide.html">Notes Guide</a></li>
+<li><a href="keybindings.html">Keybindings</a></li>
+</ul>
+        </body>
+        </html>

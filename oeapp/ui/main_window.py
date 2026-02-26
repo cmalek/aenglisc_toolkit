@@ -1,8 +1,9 @@
 """Main application window."""
 
 import sys
+from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Final, cast
+from typing import TYPE_CHECKING, Any, Final, Literal, cast
 
 from PySide6.QtCore import QSettings, Qt, QTimer
 from PySide6.QtGui import QColor, QPalette
@@ -61,7 +62,7 @@ from oeapp.ui.mixins import ThemeMixin
 from oeapp.ui.sentence_card import SentenceCard
 from oeapp.ui.shortcuts import GlobalShortcuts
 from oeapp.ui.token_details_sidebar import TokenDetailsSidebar
-from oeapp.utils import get_logo_pixmap
+from oeapp.utils import get_logo_pixmap, normalize_old_english
 
 if TYPE_CHECKING:
     from PySide6.QtGui import QKeyEvent
@@ -70,6 +71,35 @@ if TYPE_CHECKING:
     from oeapp.models.idiom import Idiom
     from oeapp.models.sentence import Sentence
     from oeapp.models.token import Token
+
+
+@dataclass(slots=True)
+class SearchResult:
+    """
+    Search result descriptor used for project-wide navigation.
+
+    Attributes:
+        chapter_id: Owning chapter id.
+        section_id: Owning section id.
+        sentence_id: Owning sentence id.
+        match_kind: Match source kind.
+        token_id: Matched token id for OE matches.
+        match_count: Number of matches represented by this result.
+
+    """
+
+    #: Owning chapter id.
+    chapter_id: int
+    #: Owning section id.
+    section_id: int
+    #: Owning sentence id.
+    sentence_id: int
+    #: Match source kind.
+    match_kind: Literal["oe_surface", "oe_root", "mode_text", "note_text"]
+    #: Matched token id for OE matches.
+    token_id: int | None = None
+    #: Number of matches represented by this result.
+    match_count: int = 1
 
 
 class MainWindow(QMainWindow):
@@ -256,9 +286,11 @@ class MainWindow(QMainWindow):
 
     def _on_clear_search_clicked(self) -> None:
         """Handle clear search button click."""
-        self.search_input.clear()
-        self.search_input.setFocus()
-        self.search_input.setStyleSheet("")
+        self.action_service.clear_search(restore_origin_focus=True)
+
+    def _clear_search_without_focus_restore(self) -> None:
+        """Clear search state without restoring origin focus."""
+        self.action_service.clear_search(restore_origin_focus=False)
 
     def build_navigation_toolbar(self) -> QWidget:
         """
@@ -364,7 +396,7 @@ class MainWindow(QMainWindow):
             event: The key event
 
         """
-        if event.key() == Qt.Key.Key_Escape:
+        if event.key() == Qt.Key.Key_Escape and self.search_input.text():
             self._on_clear_search_clicked()
             event.accept()
             return
@@ -606,7 +638,7 @@ class MainWindow(QMainWindow):
         dialog = SettingsDialog(self)
         dialog.execute()
         # Clear search after settings changes as they may affect display/tokenization
-        self._on_clear_search_clicked()
+        self._clear_search_without_focus_restore()
 
     def show_restore_dialog(self) -> None:
         """
@@ -687,10 +719,16 @@ class MainWindowActions(ThemeMixin):
         #: Messages
         self.messages = main_window.messages
 
-        #: List of sentence cards with matches
-        self.search_results: list[SentenceCard] = []
+        #: Ordered search results across the entire project.
+        self.search_results: list[SearchResult] = []
+        #: Total number of matched occurrences across all results.
+        self.search_total_matches: int = 0
         #: Current match index in search_results
         self.current_match_index: int = -1
+        #: Sentence-to-token map for OE normalized matches.
+        self._search_token_map: dict[int, set[int]] = {}
+        #: Starting location when search mode first becomes active.
+        self._search_origin: tuple[int, int, int] | None = None
 
     @property
     def sentence_cards(self) -> list[SentenceCard]:
@@ -699,24 +737,31 @@ class MainWindowActions(ThemeMixin):
 
     def perform_search(self, pattern: str, scope: str) -> None:
         """
-        Perform search across all sentence cards.
+        Perform project-wide search and update visible highlights.
 
         Args:
             pattern: Search pattern
             scope: Search scope ("OE Text", "ModE text", "Notes", "All")
 
         """
-        self.search_results = []
-        total_matches = 0
+        if not pattern.strip():
+            self._reset_search_matches()
+            self._search_origin = None
+            self._apply_visible_highlights("", scope, None, {})
+            self._update_search_ui(0)
+            return
 
-        for card in self.sentence_cards:
-            matches = card.highlight_search(pattern, scope)
-            if matches > 0:
-                self.search_results.append(card)
-                total_matches += matches
-
-        self.current_match_index = -1 if not self.search_results else 0
-        self._update_search_ui(total_matches)
+        self._capture_search_origin()
+        normalized_oe = self._normalized_oe_query(pattern, scope)
+        results, total, token_map = self._build_search_results(
+            pattern, scope, normalized_oe
+        )
+        self.search_results = results
+        self.search_total_matches = total
+        self._search_token_map = token_map
+        self.current_match_index = -1 if not results else 0
+        self._apply_visible_highlights(pattern, scope, normalized_oe, token_map)
+        self._update_search_ui(total)
 
     def _update_search_ui(self, total_matches: int) -> None:
         """
@@ -742,7 +787,7 @@ class MainWindowActions(ThemeMixin):
             self.main_window.search_input.setStyleSheet("")
 
     def next_match(self) -> None:
-        """Navigate to the next matching sentence card."""
+        """Navigate to the next matching search result."""
         if not self.search_results:
             return
 
@@ -752,7 +797,7 @@ class MainWindowActions(ThemeMixin):
         self._focus_current_match()
 
     def prev_match(self) -> None:
-        """Navigate to the previous matching sentence card."""
+        """Navigate to the previous matching search result."""
         if not self.search_results:
             return
 
@@ -775,25 +820,249 @@ class MainWindowActions(ThemeMixin):
 
     def _focus_current_match(self) -> None:
         """
-        Focus the current matching sentence card, scroll it into view, and
-        outline the result so the user knows which result is focused.
+        Focus the current search result and update the search counter.
 
         """
         if 0 <= self.current_match_index < len(self.search_results):
-            card = self.search_results[self.current_match_index]
-            self.main_window.ensure_visible(card)
-            # Ensure the widget can receive focus
-            card.oe_text_edit.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-            card.oe_text_edit.setFocus(Qt.FocusReason.OtherFocusReason)
-            # Update counter label
-            self._update_search_ui(self._get_total_matches())
+            result = self.search_results[self.current_match_index]
+            self._focus_result(result)
+            self._update_search_ui(self.search_total_matches)
 
-    def _get_total_matches(self) -> int:
-        """Calculate total matches from all cards (roughly, based on label)."""
-        try:
-            return int(self.main_window.search_counter_label.text().split(" / ")[1])
-        except (ValueError, IndexError):
-            return 0
+    def clear_search(self, restore_origin_focus: bool = False) -> None:  # noqa: FBT001, FBT002
+        """
+        Clear search state, highlights, and optionally restore origin focus.
+
+        Args:
+            restore_origin_focus: Whether to restore focus to search origin ModE field.
+
+        """
+        scope = self.main_window.search_scope_combo.currentText()
+        self.main_window.search_input.blockSignals(True)
+        self.main_window.search_input.clear()
+        self.main_window.search_input.blockSignals(False)
+        self._reset_search_matches()
+        self._apply_visible_highlights("", scope, None, {})
+        self._update_search_ui(0)
+        self.main_window.search_input.setStyleSheet("")
+        if restore_origin_focus:
+            self._restore_origin_focus()
+        else:
+            self._search_origin = None
+
+    def _reset_search_matches(self) -> None:
+        """Reset in-memory search results and counters."""
+        self.search_results = []
+        self.search_total_matches = 0
+        self.current_match_index = -1
+        self._search_token_map = {}
+
+    def _capture_search_origin(self) -> None:
+        """Capture the sentence location where search mode started."""
+        if self._search_origin is not None:
+            return
+        card = self._focused_or_selected_card()
+        if card is None:
+            return
+        sentence = card.sentence
+        if not sentence.paragraph:
+            return
+        section = sentence.paragraph.section
+        chapter = section.chapter
+        self._search_origin = (chapter.id, section.id, sentence.id)
+
+    def _focused_or_selected_card(self) -> SentenceCard | None:
+        """Find the best sentence card candidate for focus restoration."""
+        for card in self.sentence_cards:
+            if card.has_focus:
+                return card
+        selected = self.application_state.get(SELECTED_SENTENCE_CARD)
+        if isinstance(selected, SentenceCard):
+            return selected
+        return self.sentence_cards[0] if self.sentence_cards else None
+
+    def _normalized_oe_query(self, pattern: str, scope: str) -> str | None:
+        """Return normalized OE search query for OE-aware scopes."""
+        if scope not in {"OE Text", "Notes", "All"}:
+            return None
+        normalized = normalize_old_english(pattern)
+        return normalized if normalized else None
+
+    def _build_search_results(
+        self, pattern: str, scope: str, normalized_oe: str | None
+    ) -> tuple[list[SearchResult], int, dict[int, set[int]]]:
+        """
+        Build ordered search results for the current project.
+
+        Args:
+            pattern: Raw search pattern.
+            scope: Search scope.
+            normalized_oe: Normalized query for OE fields, if enabled.
+
+        Returns:
+            Tuple of ordered results, total match count, and sentence token map.
+
+        """
+        if CURRENT_PROJECT_ID not in self.application_state:
+            return [], 0, {}
+        project = Project.get(self.application_state[CURRENT_PROJECT_ID])
+        if project is None:
+            return [], 0, {}
+        results: list[SearchResult] = []
+        token_map: dict[int, set[int]] = {}
+        total_matches = 0
+        needle = pattern.lower()
+        for chapter in sorted(project.chapters, key=lambda c: c.number):
+            chapter_results, chapter_total, chapter_tokens = self._chapter_matches(
+                chapter, needle, scope, normalized_oe
+            )
+            results.extend(chapter_results)
+            total_matches += chapter_total
+            for sentence_id, token_ids in chapter_tokens.items():
+                token_map.setdefault(sentence_id, set()).update(token_ids)
+        return results, total_matches, token_map
+
+    def _chapter_matches(
+        self, chapter, needle: str, scope: str, normalized_oe: str | None
+    ) -> tuple[list[SearchResult], int, dict[int, set[int]]]:
+        """Collect search results for a chapter."""
+        chapter_results: list[SearchResult] = []
+        chapter_total = 0
+        token_map: dict[int, set[int]] = {}
+        for section in sorted(chapter.sections, key=lambda s: s.number):
+            section_results, section_total, section_tokens = self._section_matches(
+                section, chapter.id, needle, scope, normalized_oe
+            )
+            chapter_results.extend(section_results)
+            chapter_total += section_total
+            token_map.update(section_tokens)
+        return chapter_results, chapter_total, token_map
+
+    def _section_matches(
+        self, section, chapter_id: int, needle: str, scope: str, normalized_oe: str | None
+    ) -> tuple[list[SearchResult], int, dict[int, set[int]]]:
+        """Collect search results for a section."""
+        results: list[SearchResult] = []
+        total = 0
+        token_map: dict[int, set[int]] = {}
+        for paragraph in sorted(section.paragraphs, key=lambda p: p.order):
+            for sentence in sorted(paragraph.sentences, key=lambda s: s.display_order):
+                sentence_results, sentence_total, token_ids = self._sentence_matches(
+                    chapter_id, section.id, sentence, needle, scope, normalized_oe
+                )
+                results.extend(sentence_results)
+                total += sentence_total
+                if token_ids:
+                    token_map[sentence.id] = token_ids
+        return results, total, token_map
+
+    def _sentence_matches(  # noqa: PLR0912
+        self,
+        chapter_id: int,
+        section_id: int,
+        sentence,
+        needle: str,
+        scope: str,
+        normalized_oe: str | None,
+    ) -> tuple[list[SearchResult], int, set[int]]:
+        """Collect search results for a sentence."""
+        results: list[SearchResult] = []
+        total = 0
+        token_ids: set[int] = set()
+        if normalized_oe and scope in {"OE Text", "Notes", "All"}:
+            for token in sentence.sorted_tokens[0]:
+                token_id = token.id
+                if token_id is None:
+                    continue
+                surface = token.surface_normalized or normalize_old_english(token.surface) or ""
+                if normalized_oe in surface:
+                    results.append(
+                        SearchResult(
+                            chapter_id, section_id, sentence.id, "oe_surface", token_id
+                        )
+                    )
+                    total += 1
+                    token_ids.add(token_id)
+                root = (
+                    token.annotation.root_normalized
+                    or normalize_old_english(token.annotation.root)
+                    if token.annotation
+                    else None
+                )
+                if root and normalized_oe in root:
+                    results.append(
+                        SearchResult(
+                            chapter_id, section_id, sentence.id, "oe_root", token_id
+                        )
+                    )
+                    total += 1
+                    token_ids.add(token_id)
+        if scope in {"ModE text", "All"} and sentence.text_modern:
+            count = sentence.text_modern.lower().count(needle)
+            if count > 0:
+                results.append(
+                    SearchResult(
+                        chapter_id, section_id, sentence.id, "mode_text", match_count=count
+                    )
+                )
+                total += count
+        if scope in {"Notes", "All"}:
+            for note in sentence.sorted_notes:
+                count = note.note_text_md.lower().count(needle)
+                if count > 0:
+                    results.append(
+                        SearchResult(
+                            chapter_id, section_id, sentence.id, "note_text", match_count=count
+                        )
+                    )
+                    total += count
+        return results, total, token_ids
+
+    def _apply_visible_highlights(
+        self,
+        pattern: str,
+        scope: str,
+        normalized_oe: str | None,
+        token_map: dict[int, set[int]],
+    ) -> None:
+        """Apply search highlights on currently loaded sentence cards."""
+        for card in self.sentence_cards:
+            token_ids = token_map.get(card.sentence.id, set())
+            card.highlight_search(pattern, scope, normalized_oe, token_ids)
+
+    def _focus_result(self, result: SearchResult) -> None:
+        """Navigate to and focus a specific search result."""
+        card = self.main_window.project_ui.navigate_to_sentence(
+            result.chapter_id, result.section_id, result.sentence_id
+        )
+        if card is None:
+            return
+        query = self.main_window.search_input.text()
+        scope = self.main_window.search_scope_combo.currentText()
+        normalized_oe = self._normalized_oe_query(query, scope)
+        self._apply_visible_highlights(query, scope, normalized_oe, self._search_token_map)
+        self.main_window.ensure_visible(card)
+        if result.match_kind in {"oe_surface", "oe_root"}:
+            card.focus_token_by_id(result.token_id)
+            return
+        if result.match_kind == "mode_text":
+            card.focus_translation()
+            return
+        card.setFocus(Qt.FocusReason.OtherFocusReason)
+
+    def _restore_origin_focus(self) -> None:
+        """Restore focus to the ModE field where search mode began."""
+        if self._search_origin is not None:
+            chapter_id, section_id, sentence_id = self._search_origin
+            card = self.main_window.project_ui.navigate_to_sentence(
+                chapter_id, section_id, sentence_id
+            )
+            if card is not None:
+                card.focus_translation()
+                self._search_origin = None
+                return
+        if self.sentence_cards:
+            self.sentence_cards[0].focus_translation()
+        self._search_origin = None
 
     def scroll_to_end(self) -> None:
         """
@@ -1360,7 +1629,7 @@ class ProjectUI:
         """
         # Clear or re-apply search
         if clear_search:
-            self.main_window._on_clear_search_clicked()
+            self.main_window._clear_search_without_focus_restore()
         else:
             self.main_window.action_service.perform_search(
                 self.main_window.search_input.text(),
@@ -1438,6 +1707,61 @@ class ProjectUI:
                 self.content_layout.addWidget(card)
                 self._connect_card_signals(card)
 
+    def find_sentence_card(self, sentence_id: int) -> SentenceCard | None:
+        """
+        Find a loaded sentence card by sentence id.
+
+        Args:
+            sentence_id: Target sentence id.
+
+        Returns:
+            Matching sentence card when loaded, else ``None``.
+
+        """
+        for card in self.sentence_cards:
+            if card.sentence.id == sentence_id:
+                return card
+        return None
+
+    def _set_combo_to_data(self, combo: QComboBox, target_id: int) -> bool:
+        """
+        Set combo current index by item data id.
+
+        Args:
+            combo: Combo box to update.
+            target_id: Item data id to activate.
+
+        Returns:
+            ``True`` when target exists in combo, else ``False``.
+
+        """
+        for index in range(combo.count()):
+            if combo.itemData(index) == target_id:
+                combo.setCurrentIndex(index)
+                return True
+        return False
+
+    def navigate_to_sentence(
+        self, chapter_id: int, section_id: int, sentence_id: int
+    ) -> SentenceCard | None:
+        """
+        Load chapter/section for a sentence and return its sentence card.
+
+        Args:
+            chapter_id: Target chapter id.
+            section_id: Target section id.
+            sentence_id: Target sentence id.
+
+        Returns:
+            Loaded sentence card when found, else ``None``.
+
+        """
+        if not self._set_combo_to_data(self.main_window.chapter_combo, chapter_id):
+            return None
+        if not self._set_combo_to_data(self.main_window.section_combo, section_id):
+            return None
+        return self.find_sentence_card(sentence_id)
+
     def _clear_content(self) -> None:
         """Clear existing content from the layout."""
         for i in reversed(range(self.content_layout.count())):
@@ -1484,7 +1808,9 @@ class ProjectUI:
         card.edit_mode_finished.connect(
             lambda: self.main_window.update_search_ui_state(False)
         )
-        card.edit_mode_started.connect(self.main_window._on_clear_search_clicked)
+        card.edit_mode_started.connect(
+            self.main_window._clear_search_without_focus_restore
+        )
 
     def reload(self) -> None:
         """
