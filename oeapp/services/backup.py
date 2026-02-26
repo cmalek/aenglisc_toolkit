@@ -31,11 +31,14 @@ class BackupService(QObject):
     def __init__(self) -> None:
         """Initialize backup service."""
         super().__init__()
+        #: The global settings for the application.
         self.settings = QSettings()
+        #: The path to the project database.
         self.db_path = get_project_db_path()
+        #: The directory to store backups.
         self.backup_dir = self.db_path.parent / "backups"
         self.backup_dir.mkdir(parents=True, exist_ok=True)
-        #: The logger for the backup service.
+        #: The logger
         self.logger = get_logger(__name__)
 
     def get_num_backups(self) -> int:

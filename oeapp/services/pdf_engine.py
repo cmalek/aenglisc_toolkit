@@ -9,6 +9,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 
 from oeapp.utils import get_resource_path
 
@@ -19,19 +20,37 @@ class PDFEngineError(RuntimeError):
 
 @dataclass(frozen=True)
 class TectonicEnginePaths:
-    """Resolved paths for a bundled Tectonic engine installation."""
+    """Resolved paths for a bundled Tectonic engine and offline bundle."""
 
+    #: The path to the Tectonic binary.
     binary_path: Path
+    #: The path to the Tectonic bundle.  This is optional because it is only
+    #: needed for offline mode.
     bundle_path: Path | None
 
 
 def _bundle_has_required_index(bundle_path: Path) -> bool:
-    """Return whether a local Tectonic bundle directory looks valid."""
+    """
+    Return whether a local Tectonic bundle directory looks valid.
+
+    Args:
+        bundle_path: The path to the Tectonic bundle.
+
+    Returns:
+        Whether the bundle directory looks valid.
+
+    """
     return (bundle_path / "SHA256SUM").exists()
 
 
 def _normalize_platform() -> tuple[str, str]:
-    """Return normalized ``(platform, arch)`` values for asset lookup."""
+    """
+    Return normalized ``(platform, arch)`` values for asset lookup.
+
+    Returns:
+        The normalized platform and architecture.
+
+    """
     system = platform.system().lower()
     machine = platform.machine().lower()
 
@@ -58,7 +77,13 @@ def _normalize_platform() -> tuple[str, str]:
 
 
 def resolve_tectonic_engine_paths() -> TectonicEnginePaths:
-    """Resolve bundled Tectonic binary and offline bundle paths."""
+    """
+    Resolve bundled Tectonic binary and offline bundle paths.
+
+    Returns:
+        The resolved paths for the Tectonic binary and offline bundle.
+
+    """
     env_binary = os.environ.get("OE_ANNOTATOR_TECTONIC_BINARY")
     env_bundle = os.environ.get("OE_ANNOTATOR_TECTONIC_BUNDLE")
     if env_binary:
@@ -85,7 +110,7 @@ def resolve_tectonic_engine_paths() -> TectonicEnginePaths:
 
     binary_name = "tectonic.exe" if platform_name == "windows" else "tectonic"
     binary_path = base / "binaries" / platform_name / arch / binary_name
-    bundle_path = base / "bundle" / "default"
+    bundle_path: Path | None = base / "bundle" / "default"
 
     if not binary_path.exists():
         # Development fallback: allow a PATH-installed tectonic binary when the
@@ -104,9 +129,9 @@ def resolve_tectonic_engine_paths() -> TectonicEnginePaths:
     # For development, allow compilation with default bundle behavior if a
     # bundled offline bundle is not available. Production builds should include
     # assets/tectonic/bundle/default.
-    if not bundle_path.exists():
+    if bundle_path is not None and not bundle_path.exists():
         bundle_path = None
-    elif not _bundle_has_required_index(bundle_path):
+    elif not _bundle_has_required_index(cast("Path", bundle_path)):
         # During source development, allow fallback to default Tectonic bundle
         # behavior when only placeholder bundle assets are present.
         if getattr(sys, "frozen", False):
@@ -128,6 +153,14 @@ def compile_latex_with_tectonic(
 
     This uses offline mode by pointing Tectonic to the bundled package set and
     enforcing ``--only-cached``.
+
+    Args:
+        tex_path: The path to the LaTeX file to compile.
+        output_dir: The directory to write the compiled PDF to.
+
+    Returns:
+        The result of the subprocess call.
+
     """
     engine = resolve_tectonic_engine_paths()
     cmd = [
@@ -142,7 +175,7 @@ def compile_latex_with_tectonic(
     ]
     if engine.bundle_path is not None:
         cmd.extend(["--bundle", str(engine.bundle_path), "--only-cached"])
-    return subprocess.run(  # noqa: S603
+    return subprocess.run(
         cmd,
         capture_output=True,
         text=True,

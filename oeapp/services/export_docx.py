@@ -172,7 +172,7 @@ class DOCXExporter(SessionMixin, AnnotationTextualMixin, TokenOccurrenceMixin):
         run._r.append(instr_text)
         run._r.append(fld_char2)
 
-    def export(self, project_id: int, output_path: "Path") -> bool:
+    def export(self, project_id: int, output_path: "Path") -> bool:  # noqa: PLR0912, PLR0915
         """
         Export project to DOCX file.
 
@@ -217,7 +217,9 @@ class DOCXExporter(SessionMixin, AnnotationTextualMixin, TokenOccurrenceMixin):
             # Add paragraph break if this sentence starts a paragraph
             is_paragraph_start = False
             if sentence.paragraph:
-                p_sentences = sorted(sentence.paragraph.sentences, key=lambda s: s.display_order)
+                p_sentences = sorted(
+                    sentence.paragraph.sentences, key=lambda s: s.display_order
+                )
                 if p_sentences and p_sentences[0].id == sentence.id:
                     is_paragraph_start = True
 
@@ -230,7 +232,9 @@ class DOCXExporter(SessionMixin, AnnotationTextualMixin, TokenOccurrenceMixin):
             # Calculate sentence number in paragraph
             sentence_num = 1
             if sentence.paragraph:
-                p_sentences = sorted(sentence.paragraph.sentences, key=lambda s: s.display_order)
+                p_sentences = sorted(
+                    sentence.paragraph.sentences, key=lambda s: s.display_order
+                )
                 for i, s in enumerate(p_sentences, 1):
                     if s.id == sentence.id:
                         sentence_num = i
@@ -366,7 +370,9 @@ class DOCXExporter(SessionMixin, AnnotationTextualMixin, TokenOccurrenceMixin):
             # Check if this sentence is the first in its paragraph
             is_paragraph_start = False
             if sentence.paragraph:
-                p_sentences = sorted(sentence.paragraph.sentences, key=lambda s: s.display_order)
+                p_sentences = sorted(
+                    sentence.paragraph.sentences, key=lambda s: s.display_order
+                )
                 if p_sentences and p_sentences[0].id == sentence.id:
                     is_paragraph_start = True
 
@@ -375,12 +381,11 @@ class DOCXExporter(SessionMixin, AnnotationTextualMixin, TokenOccurrenceMixin):
                 if sentence != project.sentences[0]:
                     current_oe_p = oe_cell.add_paragraph()
                     current_mode_p = mode_cell.add_paragraph()
-            else:
-                # Add a space between sentences in the same paragraph
-                # But only if it's not the very first sentence
-                if sentence != project.sentences[0]:
-                    current_oe_p.add_run(" ")
-                    current_mode_p.add_run(" ")
+            # Add a space between sentences in the same paragraph
+            # But only if it's not the very first sentence
+            elif sentence != project.sentences[0]:
+                current_oe_p.add_run(" ")
+                current_mode_p.add_run(" ")
 
             # Add OE text with manual hyperlinked note references
             tokens, token_id_to_start = sentence.sorted_tokens

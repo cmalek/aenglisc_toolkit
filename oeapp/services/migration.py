@@ -89,7 +89,9 @@ class MigrationMetadataService(ProjectFoldersMixin):
             return
 
         target = self.MIGRATION_VERSIONS_PATH.resolve()
-        canonical = (self.PROJECT_ROOT / "oeapp" / "etc" / "migration_versions.json").resolve()
+        canonical = (
+            self.PROJECT_ROOT / "oeapp" / "etc" / "migration_versions.json"
+        ).resolve()
         if target != canonical:
             return
 
