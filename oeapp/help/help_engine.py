@@ -9,6 +9,7 @@ from PySide6.QtHelp import (
     QHelpContentWidget,
     QHelpEngine,
     QHelpIndexWidget,
+    QHelpSearchQuery,
     QHelpSearchQueryWidget,
     QHelpSearchResultWidget,
 )
@@ -27,11 +28,23 @@ class HelpEngineError(RuntimeError):
 class HelpEngine:
     """Application-specific wrapper around :class:`QHelpEngine`."""
 
+    #: Whether QtHelp full-text indexing has completed for this runtime.
+    _search_index_ready: bool
+    #: Whether a full-text indexing run has been requested.
+    _search_index_requested: bool
+    #: Query captured while indexing, to execute once indexing finishes.
+    _pending_search_query: list[QHelpSearchQuery] | None
+
     def __init__(self) -> None:
+        """Initialize QtHelp and prime all searchable/indexable models."""
         self.paths = ensure_runtime_help_assets()
         self.qt_engine = QHelpEngine(str(self.paths.runtime_collection_file))
         self._setup()
         self.search_engine = self.qt_engine.searchEngine()
+        self._search_index_ready = False
+        self._search_index_requested = False
+        self._pending_search_query = None
+        self._prepare_indexes()
 
     def _setup(self) -> None:
         """Initialize packaged QtHelp collection."""
@@ -50,6 +63,48 @@ class HelpEngine:
             "`source .venv/bin/activate && python scripts/build_help.py`."
         )
         raise HelpEngineError(details)
+
+    def _prepare_indexes(self) -> None:
+        """
+        Build QtHelp content/index models and start full-text indexing.
+
+        Returns:
+            None
+
+        """
+        self.search_engine.indexingFinished.connect(self._on_search_indexing_finished)
+        self.qt_engine.contentModel().createContentsForCurrentFilter()
+        self.qt_engine.indexModel().createIndex("")
+        self._request_search_index()
+
+    def _request_search_index(self) -> None:
+        """
+        Trigger full-text indexing when it has not already been requested.
+
+        Returns:
+            None
+
+        """
+        if self._search_index_requested:
+            return
+        self._search_index_requested = True
+        self.search_engine.reindexDocumentation()
+
+    def _on_search_indexing_finished(self) -> None:
+        """
+        Mark search index ready and execute any queued query.
+
+        Returns:
+            None
+
+        """
+        self._search_index_ready = True
+        self._search_index_requested = False
+        if self._pending_search_query is None:
+            return
+        query = self._pending_search_query
+        self._pending_search_query = None
+        self.search_engine.search(query)
 
     def topic_url(self, topic: str | None) -> QUrl:
         """Return the `qthelp://` URL for a named topic (or default home page)."""
@@ -80,6 +135,31 @@ class HelpEngine:
         """Return the search results widget."""
         return self.search_engine.resultWidget()
 
+    @property
+    def search_index_ready(self) -> bool:
+        """
+        Report whether full-text search indexing is complete.
+
+        Returns:
+            True if full-text indexing has completed, else False.
+
+        """
+        return self._search_index_ready
+
     def start_search(self) -> None:
-        """Execute a help search using the current query widget values."""
-        self.search_engine.search(self.search_query_widget.query())
+        """
+        Execute a help search using current query widget values.
+
+        If indexing has not completed yet, the query is queued and executed
+        when QtHelp emits ``indexingFinished``.
+
+        Returns:
+            None
+
+        """
+        query = self.search_query_widget.query()
+        if self._search_index_ready:
+            self.search_engine.search(query)
+            return
+        self._pending_search_query = query
+        self._request_search_index()

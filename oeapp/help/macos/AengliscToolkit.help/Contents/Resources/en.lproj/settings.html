@@ -1,0 +1,90 @@
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <title>Settings</title>
+          <style>
+            body {
+              margin: 0 auto;
+              max-width: 960px;
+              padding: 1.2rem 1.4rem 2.2rem;
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+              line-height: 1.6;
+            }
+            h1 {
+              border-bottom: 1px solid;
+              padding-bottom: 0.3rem;
+            }
+            table {
+              border-collapse: collapse;
+              width: 100%;
+              margin: 1rem 0;
+            }
+            th, td {
+              border: 1px solid;
+              padding-top: 8px;
+              padding-right: 8px;
+              padding-bottom: 8px;
+              padding-left: 8px;
+              text-align: left;
+              vertical-align: top;
+            }
+            th {
+              font-weight: 600;
+            }
+            code {
+              border-radius: 4px;
+              padding: 0.1rem 0.3rem;
+            }
+            pre {
+              border-radius: 6px;
+              overflow-x: auto;
+              padding: 0.75rem;
+            }
+          </style>
+        </head>
+        <body>
+          <h1>Settings</h1>
+<h2>Overview</h2>
+<p>Use Settings to control backup behavior and the application theme.</p>
+<h2>Open Settings</h2>
+<ul>
+<li><strong>macOS</strong>: Application menu -&gt; <strong>Preferences...</strong> (<code>Ctrl+,</code>)</li>
+<li><strong>Windows/Linux</strong>: <strong>File</strong> -&gt; <strong>Settings...</strong></li>
+</ul>
+<h2>Available Settings</h2>
+<h3>Backup Settings</h3>
+<ul>
+<li><strong>Number of backups to keep</strong>: rolling backup retention (1-100)</li>
+<li><strong>Backup interval (minutes)</strong>: how often automatic backups are created (1-1440)</li>
+</ul>
+<h3>Theme Setting</h3>
+<ul>
+<li><strong>Theme</strong>: choose <code>dark</code> or <code>light</code></li>
+</ul>
+<h2>Theme Changes Require Restart</h2>
+<p>When you change the theme, the app shows a confirmation message. The new theme is saved immediately, but it does <strong>not</strong> apply until you fully quit and restart Ænglisc Toolkit.</p>
+<p>Recommended sequence:</p>
+<ol>
+<li>Open Settings.</li>
+<li>Select <code>dark</code> or <code>light</code>.</li>
+<li>Click <strong>OK</strong>.</li>
+<li>Quit the app completely.</li>
+<li>Launch the app again.</li>
+</ol>
+<h2>Notes</h2>
+<ul>
+<li>Manual backup is always available from <strong>Tools -&gt; Backup Now</strong>.</li>
+<li>Backup settings affect automatic backups; they do not remove existing export files.</li>
+</ul>
+<h2>Undo Support</h2>
+<blockquote>
+<p><strong>Undo support:</strong> Settings changes are not part of the editor undo stack. <code>Ctrl+Z</code> does not revert settings. To revert, open Settings and change values back manually. Theme changes still require restart.</p>
+</blockquote>
+<h2>Back to Start Here</h2>
+<ul>
+<li><a href="start-here.html">Start Here</a></li>
+</ul>
+        </body>
+        </html>

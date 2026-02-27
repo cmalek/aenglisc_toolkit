@@ -1,0 +1,194 @@
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <title>Troubleshooting</title>
+          <style>
+            body {
+              margin: 0 auto;
+              max-width: 960px;
+              padding: 1.2rem 1.4rem 2.2rem;
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+              line-height: 1.6;
+            }
+            h1 {
+              border-bottom: 1px solid;
+              padding-bottom: 0.3rem;
+            }
+            table {
+              border-collapse: collapse;
+              width: 100%;
+              margin: 1rem 0;
+            }
+            th, td {
+              border: 1px solid;
+              padding-top: 8px;
+              padding-right: 8px;
+              padding-bottom: 8px;
+              padding-left: 8px;
+              text-align: left;
+              vertical-align: top;
+            }
+            th {
+              font-weight: 600;
+            }
+            code {
+              border-radius: 4px;
+              padding: 0.1rem 0.3rem;
+            }
+            pre {
+              border-radius: 6px;
+              overflow-x: auto;
+              padding: 0.75rem;
+            }
+          </style>
+        </head>
+        <body>
+          <h1>Troubleshooting</h1>
+<h2>Common Issues and Solutions</h2>
+<h3>Database Issues</h3>
+<p><strong>Problem</strong>: "Database locked" error</p>
+<ul>
+<li><strong>Solution</strong>: Close other instances of the application. The database uses SQLite WAL mode for concurrent access, but multiple instances can conflict.</li>
+</ul>
+<p><strong>Problem</strong>: Data not saving</p>
+<ul>
+<li><strong>Solution</strong>: Check that autosave is working (changes save automatically after 500ms). Try using File → Save (Ctrl+S) to force an immediate save.</li>
+</ul>
+<p><strong>Problem</strong>: Can't open project file</p>
+<ul>
+<li><strong>Solution</strong>: Ensure the project file (.db) isn't corrupted. Check file permissions.</li>
+</ul>
+<h3>Annotation Issues</h3>
+<p><strong>Problem</strong>: Annotation modal not opening</p>
+<ul>
+<li><strong>Solution</strong>: Ensure a token is selected in the token table. Press <strong>A</strong> when a token row is highlighted.</li>
+</ul>
+<p><strong>Problem</strong>: Annotation fields not appearing</p>
+<ul>
+<li><strong>Solution</strong>: Select a Part of Speech first. Fields are dynamically generated based on POS selection.</li>
+</ul>
+<p><strong>Problem</strong>: Previous annotation values not restoring</p>
+<ul>
+<li><strong>Solution</strong>: The system remembers values per POS type. If you change POS, previous values for that POS type should restore. Try selecting the same POS again.</li>
+</ul>
+<h3>Export Issues</h3>
+<p><strong>Problem</strong>: DOCX export fails</p>
+<ul>
+<li><strong>Solution</strong>: Ensure <code>python-docx</code> is installed. Check file permissions on the save location. Try a different save location.</li>
+</ul>
+<p><strong>Problem</strong>: Annotations not appearing in export</p>
+<ul>
+<li><strong>Solution</strong>: Ensure annotations are actually applied (not just entered in modal). Check that you clicked Apply or pressed Enter.</li>
+</ul>
+<p><strong>Problem</strong>: Formatting looks wrong in Word</p>
+<ul>
+<li><strong>Solution</strong>: Open the exported file in Word. Word may need to apply styles. The document uses standard Word styles that should render correctly.</li>
+</ul>
+<h3>UI Issues</h3>
+<p><strong>Problem</strong>: Keyboard shortcuts not working</p>
+<ul>
+<li>
+<p><strong>Solution</strong>: Ensure the correct widget has focus. Some shortcuts only work when specific widgets are focused:</p>
+<ul>
+<li>J/K: Work globally</li>
+<li>A: Works when token table is focused</li>
+<li>Arrow keys: Work when token table is focused</li>
+</ul>
+</li>
+</ul>
+<p><strong>Problem</strong>: Can't navigate between sentences</p>
+<ul>
+<li><strong>Solution</strong>: Ensure a sentence card or token table has focus. Try clicking on a token table first.</li>
+</ul>
+<p><strong>Problem</strong>: Translation field not focusing</p>
+<ul>
+<li><strong>Solution</strong>: Press <strong>T</strong> when a sentence card is active. Ensure the sentence has a translation field.</li>
+</ul>
+<h3>Performance Issues</h3>
+<p><strong>Problem</strong>: Application is slow</p>
+<ul>
+<li>
+<p><strong>Solution</strong>: Large projects may be slow. Consider:</p>
+<ul>
+<li>Reducing the number of sentences loaded at once (future feature)</li>
+<li>Checking database file size</li>
+<li>Ensuring autosave delay isn't too short</li>
+</ul>
+</li>
+</ul>
+<p><strong>Problem</strong>: Memory usage high</p>
+<ul>
+<li><strong>Solution</strong>: The application loads all sentences into memory. For very large texts, consider splitting into multiple projects.</li>
+</ul>
+<h2>Getting Help</h2>
+<h3>Check Documentation</h3>
+<ol>
+<li>Press <strong>F1</strong> to open the help dialog</li>
+<li>Browse topics in the help system</li>
+<li>Refer to the keyboard shortcuts guide</li>
+</ol>
+<h3>Common Workflows</h3>
+<p><strong>Starting a new project:</strong></p>
+<ol>
+<li>File → New Project</li>
+<li>Paste Old English text</li>
+<li>Click Create</li>
+<li>Sentences are automatically tokenized</li>
+</ol>
+<p><strong>Annotating a token:</strong></p>
+<ol>
+<li>Use arrow keys to select a token</li>
+<li>Press <strong>A</strong></li>
+<li>Select POS (use keyboard shortcuts: N, V, A, etc.)</li>
+<li>Fill in fields</li>
+<li>Press <strong>Enter</strong> to apply</li>
+</ol>
+<p><strong>Navigating:</strong></p>
+<ul>
+<li><strong>J</strong> = Next sentence</li>
+<li><strong>K</strong> = Previous sentence</li>
+<li><strong>→</strong> = Next token</li>
+<li><strong>←</strong> = Previous token</li>
+</ul>
+<p><strong>Undoing changes:</strong></p>
+<ul>
+<li><strong>Ctrl+Z</strong> = Undo</li>
+<li><strong>Ctrl+R</strong> = Redo</li>
+<li><strong>Ctrl+Shift+R</strong> = Redo</li>
+</ul>
+<h2>Reporting Issues</h2>
+<p>If you encounter bugs or issues:</p>
+<ol>
+<li>Note the exact steps to reproduce</li>
+<li>Check if the issue persists after restarting</li>
+<li>Check the database file for corruption</li>
+<li>
+<p>Report with:</p>
+</li>
+<li>
+<p>Steps to reproduce</p>
+</li>
+<li>Expected behavior</li>
+<li>Actual behavior</li>
+<li>System information (OS, Python version)</li>
+</ol>
+<h2>Tips for Success</h2>
+<ol>
+<li><strong>Save regularly</strong>: Although autosave is enabled, use Ctrl+S for important milestones</li>
+<li><strong>Use keyboard shortcuts</strong>: Much faster than mouse clicking</li>
+<li><strong>Work incrementally</strong>: Don't try to annotate everything perfectly on first pass</li>
+<li><strong>Use confidence level</strong>: Indicate your level of certainty with the confidence slider rather than guessing</li>
+<li><strong>Review exports</strong>: Regularly export and review DOCX files to catch annotation errors</li>
+</ol>
+<h2>Undo Support</h2>
+<blockquote>
+<p><strong>Undo support:</strong> Many in-editor operations are undoable with <code>Ctrl+Z</code> (and redo with <code>Ctrl+R</code> / <code>Ctrl+Shift+R</code>), but project-level destructive actions are not always undoable. When in doubt, create a backup or JSON export first.</p>
+</blockquote>
+<h2>Back to Start Here</h2>
+<ul>
+<li><a href="start-here.html">Start Here</a></li>
+</ul>
+        </body>
+        </html>

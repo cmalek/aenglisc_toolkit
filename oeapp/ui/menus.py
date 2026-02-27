@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import QMenu, QMenuBar
 
+from oeapp.help.topics import HELP_TOPICS
 from oeapp.models.project import Project
 from oeapp.state import CURRENT_PROJECT_ID
 from oeapp.ui.dialogs import (
@@ -403,8 +404,37 @@ class HelpMenu:
         - Help
         """
         self.help_menu = self.main_menu.add_menu("&Help")
+        self._add_help_action()
+        if sys.platform == "darwin":
+            self._add_topic_actions()
 
+    def _add_help_action(self) -> None:
+        """
+        Add the primary Help Center action.
+
+        Returns:
+            None
+
+        """
         help_action = QAction("&Help", self.help_menu)
         help_action.setShortcut(QKeySequence("F1"))
         help_action.triggered.connect(lambda: self.main_window.show_help())  # noqa: PLW0108
         self.help_menu.addAction(help_action)
+
+    def _add_topic_actions(self) -> None:
+        """
+        Add per-topic Help actions for macOS native Help menu search.
+
+        Returns:
+            None
+
+        """
+        self.help_menu.addSeparator()
+        for topic in HELP_TOPICS:
+            topic_action = QAction(topic.title, self.help_menu)
+            topic_action.triggered.connect(
+                lambda checked=False, topic_title=topic.title: self.main_window.show_help(
+                    topic=topic_title
+                )
+            )
+            self.help_menu.addAction(topic_action)

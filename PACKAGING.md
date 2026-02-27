@@ -38,11 +38,31 @@ Verify assets:
 python scripts/verify_tectonic_assets.py
 ```
 
+Helper Make targets:
+
+```bash
+# Download official binaries + default bundle, stage into assets/tectonic, and verify.
+make tectonic-assets
+
+# Only verify existing packaged assets.
+make tectonic-assets-verify
+```
+
+Optional overrides:
+
+```bash
+# Pin a specific Tectonic release or bundle URL.
+make tectonic-assets \
+  TECTONIC_VERSION=0.15.0 \
+  TECTONIC_BUNDLE_URL=https://relay.fullyjustified.net/default_bundle_v33.tar
+```
+
 ## Resources Included
 
 The following resources are automatically included in the packaged application:
 
 - `oeapp/help/assets/` - QtHelp assets (`.qch/.qhc/.qhp/.qhcp` + rendered HTML)
+- `oeapp/help/macos/AengliscToolkit.help/` - Apple Help Book assets used by native macOS Help-menu search
 - `assets/tectonic/` - Bundled Tectonic binaries + offline TeX bundle
 - `src/oeapp/themes/` - Application themes (if any)
 
@@ -51,9 +71,17 @@ The following resources are automatically included in the packaged application:
 1. Ensure you're in the project root directory
 2. Activate your virtual environment: `source .venv/bin/activate`
 3. Build help assets: `python scripts/build_help.py`
-4. Verify Tectonic assets: `python scripts/verify_tectonic_assets.py`
-5. Run the build script: `./build_macos.sh`
-6. The application will be created in `dist/Ænglisc Toolkit.app`
+4. Build Apple Help Book assets: `python scripts/build_macos_helpbook.py`
+5. Verify Tectonic assets: `python scripts/verify_tectonic_assets.py`
+6. Run the build script: `./build_macos.sh`
+7. The application will be created in `dist/Ænglisc Toolkit.app`
+
+### Native macOS Help-menu search
+
+- The search field at the top of the macOS Help menu is controlled by macOS Help Viewer.
+- It uses the app bundle's Apple Help Book, not the in-app QtHelp UI directly.
+- In development runs where the app menu bar shows **Python** (not **Ænglisc Toolkit**), that search field is associated with Python's help context.
+- To validate native Help-menu search against Ænglisc Toolkit help content, test using the packaged `dist/Ænglisc Toolkit.app`.
 
 ### Creating a DMG (Optional)
 
@@ -63,16 +91,16 @@ To create a distributable DMG file:
 # Install create-dmg
 brew install create-dmg
 
+# Stage only the app bundle (dist/ also contains a standalone PyInstaller executable)
+mkdir -p dist/dmg-root
+rm -rf dist/dmg-root/*
+cp -R "dist/Ænglisc Toolkit.app" "dist/dmg-root/"
+
 # Create DMG
 create-dmg --volname "Ænglisc Toolkit" \
-           --window-pos 200 120 \
-           --window-size 800 400 \
-           --icon-size 100 \
-           --icon "Ænglisc Toolkit.app" 200 190 \
-           --hide-extension "Ænglisc Toolkit.app" \
            --app-drop-link 600 185 \
            dist/Ænglisc Toolkit.dmg \
-           dist/
+           dist/dmg-root
 ```
 
 ## Building for Windows

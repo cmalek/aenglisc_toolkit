@@ -1,5 +1,7 @@
 """Unit tests for QtHelp-based Help Center dialog."""
 
+import time
+
 from PySide6.QtCore import QUrl
 from PySide6.QtGui import QTextDocument
 from PySide6.QtHelp import QHelpLink
@@ -10,6 +12,29 @@ from oeapp.ui.dialogs.help_center_dialog import HelpCenterDialog
 
 class TestHelpCenterDialog:
     """Test cases for HelpCenterDialog."""
+
+    @staticmethod
+    def _wait_for_condition(qapp, predicate, timeout_seconds: float = 6.0) -> bool:
+        """
+        Process Qt events until a predicate returns True or timeout expires.
+
+        Args:
+            qapp: Shared Qt application fixture.
+            predicate: Zero-argument callable tested after each event cycle.
+            timeout_seconds: Maximum wait duration in seconds.
+
+        Returns:
+            True when predicate became true before timeout, else False.
+
+        """
+        deadline = time.monotonic() + timeout_seconds
+        while time.monotonic() < deadline:
+            qapp.processEvents()
+            if predicate():
+                return True
+            time.sleep(0.01)
+        qapp.processEvents()
+        return bool(predicate())
 
     def test_help_center_dialog_initializes(self, qapp, tmp_path, monkeypatch):
         """Dialog should initialize in non-modal mode and load Start Here."""
@@ -98,6 +123,52 @@ class TestHelpCenterDialog:
 
         html = bytes(payload).decode("utf-8", errors="replace")
         assert "qt-help-theme-override" in html
+
+    def test_help_center_dialog_populates_index_model(
+        self, qapp, tmp_path, monkeypatch
+    ):
+        """Index model should populate shortly after dialog initialization."""
+        monkeypatch.setenv("OE_ANNOTATOR_DATA_PATH", str(tmp_path))
+        dialog = HelpCenterDialog(parent=None)
+        model = dialog.index_widget.model()
+
+        assert model is not None
+        assert self._wait_for_condition(qapp, lambda: model.rowCount() > 0)
+
+    def test_help_center_dialog_index_filter_finds_matching_topic(
+        self, qapp, tmp_path, monkeypatch
+    ):
+        """Index filter should narrow to matching topic text."""
+        monkeypatch.setenv("OE_ANNOTATOR_DATA_PATH", str(tmp_path))
+        dialog = HelpCenterDialog(parent=None)
+        model = dialog.index_widget.model()
+        assert model is not None
+        assert self._wait_for_condition(qapp, lambda: model.rowCount() > 0)
+
+        dialog.index_filter.setText("Keybindings")
+
+        def has_keybindings_row() -> bool:
+            return any(
+                "Keybindings" in str(model.data(model.index(row, 0)))
+                for row in range(model.rowCount())
+            )
+
+        assert self._wait_for_condition(qapp, has_keybindings_row)
+
+    def test_help_center_dialog_search_tab_returns_results(
+        self, qapp, tmp_path, monkeypatch
+    ):
+        """Search pane should return full-text results for known terms."""
+        monkeypatch.setenv("OE_ANNOTATOR_DATA_PATH", str(tmp_path))
+        dialog = HelpCenterDialog(parent=None)
+
+        dialog.search_query_widget.setSearchInput("search")
+        dialog.search_query_widget.search.emit()
+
+        assert self._wait_for_condition(
+            qapp,
+            lambda: dialog.help_engine.search_engine.searchResultCount() > 0,
+        )
 
     def test_search_guide_topic_is_registered(self):
         """Search Guide should be available in help topic mappings."""

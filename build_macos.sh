@@ -24,6 +24,7 @@ rm -rf build dist 2>/dev/null || true
 # Build QtHelp artifacts from markdown sources
 echo "Building help assets..."
 python scripts/build_help.py
+python scripts/build_macos_helpbook.py
 
 # Verify bundled PDF engine assets
 echo "Verifying bundled Tectonic assets..."
@@ -40,7 +41,9 @@ if [ -d "dist/Ænglisc Toolkit.app" ]; then
     echo ""
     echo "To create a DMG, install create-dmg:"
     echo "  brew install create-dmg"
-    echo "  create-dmg --volname 'Ænglisc Toolkit' dist/Ænglisc Toolkit.dmg dist/"
+    echo "  mkdir -p 'dist/dmg-root' && rm -rf 'dist/dmg-root'/*"
+    echo "  cp -R 'dist/Ænglisc Toolkit.app' 'dist/dmg-root/'"
+    echo "  create-dmg --volname 'Ænglisc Toolkit' --app-drop-link 600 185 'dist/Ænglisc Toolkit.dmg' 'dist/dmg-root'"
 else
     echo "Build failed - Ænglisc Toolkit.app not found"
     exit 1

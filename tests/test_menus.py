@@ -2,7 +2,29 @@
 
 from PySide6.QtWidgets import QMenu
 
-from oeapp.ui.menus import MainMenu, FileMenu, ProjectMenu, ToolsMenu, HelpMenu, PreferencesMenu
+from oeapp.help.topics import HELP_TOPICS
+from oeapp.ui.menus import (
+    FileMenu,
+    HelpMenu,
+    MainMenu,
+    PreferencesMenu,
+    ProjectMenu,
+    ToolsMenu,
+)
+
+
+def _non_separator_action_texts(menu: QMenu) -> list[str]:
+    """
+    Return visible action text values, excluding separators.
+
+    Args:
+        menu: Menu instance under inspection.
+
+    Returns:
+        List of non-empty action text values.
+
+    """
+    return [action.text() for action in menu.actions() if not action.isSeparator()]
 
 
 class TestMainMenu:
@@ -108,6 +130,49 @@ class TestHelpMenu:
         # Should not raise error
         assert help_menu is not None
 
+    def test_help_menu_adds_topic_actions_on_macos(
+        self, db_session, mock_main_window, qapp, monkeypatch
+    ):
+        """Help menu should include topic actions on macOS."""
+        monkeypatch.setattr("oeapp.ui.menus.sys.platform", "darwin")
+        main_menu = MainMenu(mock_main_window)
+        help_menu = HelpMenu(main_menu, mock_main_window)
+        action_texts = _non_separator_action_texts(help_menu.help_menu)
+
+        assert "&Help" in action_texts
+        for topic in HELP_TOPICS:
+            assert topic.title in action_texts
+
+    def test_help_menu_topic_action_opens_requested_topic(
+        self, db_session, mock_main_window, qapp, monkeypatch
+    ):
+        """Selecting a macOS topic action should open that help topic."""
+        monkeypatch.setattr("oeapp.ui.menus.sys.platform", "darwin")
+        main_menu = MainMenu(mock_main_window)
+        help_menu = HelpMenu(main_menu, mock_main_window)
+
+        topic_action = next(
+            action
+            for action in help_menu.help_menu.actions()
+            if action.text() == "Keybindings"
+        )
+        topic_action.trigger()
+
+        mock_main_window.show_help.assert_any_call(topic="Keybindings")
+
+    def test_help_menu_does_not_add_topic_actions_off_macos(
+        self, db_session, mock_main_window, qapp, monkeypatch
+    ):
+        """Help menu should not include topic actions on non-macOS platforms."""
+        monkeypatch.setattr("oeapp.ui.menus.sys.platform", "win32")
+        main_menu = MainMenu(mock_main_window)
+        help_menu = HelpMenu(main_menu, mock_main_window)
+        action_texts = _non_separator_action_texts(help_menu.help_menu)
+        topic_titles = {topic.title for topic in HELP_TOPICS}
+
+        assert "&Help" in action_texts
+        assert topic_titles.isdisjoint(action_texts)
+
 
 class TestPreferencesMenu:
     """Test cases for PreferencesMenu."""
@@ -123,4 +188,3 @@ class TestPreferencesMenu:
 
         # Should not raise error
         assert preferences_menu is not None
-
