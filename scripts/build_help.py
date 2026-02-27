@@ -94,10 +94,7 @@ def main() -> None:
         topic_html_files.append(topic.html_file)
 
     if DEFAULT_HOME_PAGE not in topic_html_files:
-        msg = (
-            "Default home page is missing from help topics: "
-            f"{DEFAULT_HOME_PAGE}"
-        )
+        msg = f"Default home page is missing from help topics: {DEFAULT_HOME_PAGE}"
         raise ValueError(msg)
 
     index_html = render_index_page(home_page=DEFAULT_HOME_PAGE)
@@ -107,12 +104,12 @@ def main() -> None:
     QHCP_PATH.write_text(build_qhcp(), encoding="utf-8")
 
     if args.skip_generator:
-        print("Rendered HTML and QtHelp project files (generator skipped).")
+        print("Rendered HTML and QtHelp project files (generator skipped).")  # noqa: T201
         return
 
     qhelpgenerator = resolve_qhelpgenerator(args.qhelpgenerator)
     run_generator(qhelpgenerator)
-    print(f"QtHelp build complete: {QCH_PATH} and {QHC_PATH}")
+    print(f"QtHelp build complete: {QCH_PATH} and {QHC_PATH}")  # noqa: T201
 
 
 def first_heading(markdown_text: str) -> str | None:
@@ -241,7 +238,7 @@ def build_qhp(topic_titles: list[str], topic_html_files: list[str]) -> str:
                 </files>
               </filterSection>
             </QtHelpProject>
-            """
+            """  # noqa: E501
     ).lstrip()
 
 

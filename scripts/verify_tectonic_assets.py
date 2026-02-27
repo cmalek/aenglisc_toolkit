@@ -9,21 +9,38 @@ import json
 import sys
 from pathlib import Path
 
-
+#: Path to the project root directory
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+#: Default path to the target directory
 DEFAULT_TARGET_ROOT = PROJECT_ROOT / "assets" / "tectonic"
+#: Name of the manifest file
 MANIFEST_NAME = "manifest.json"
 
 
 def parse_args() -> argparse.Namespace:
-    """Parse CLI arguments."""
+    """
+    Parse CLI arguments.
+
+    Returns:
+        argparse.Namespace: The parsed arguments.
+
+    """
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--target-root", type=Path, default=DEFAULT_TARGET_ROOT)
     return parser.parse_args()
 
 
 def file_sha256(path: Path) -> str:
-    """Return SHA-256 hash for a file."""
+    """
+    Return SHA-256 hash for a file.
+
+    Args:
+        path: The path to the file.
+
+    Returns:
+        The SHA-256 hash of the file.
+
+    """
     digest = hashlib.sha256()
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
@@ -32,7 +49,17 @@ def file_sha256(path: Path) -> str:
 
 
 def verify_required_layout(target_root: Path, errors: list[str]) -> None:
-    """Verify minimum cross-platform payload requirements."""
+    """
+    Verify minimum cross-platform payload requirements.
+
+    Side Effects:
+        Adds errors to the list of error messages.
+
+    Args:
+        target_root: The path to the target directory.
+        errors: A list of error messages.
+
+    """
     windows_bin = target_root / "binaries" / "windows" / "x86_64" / "tectonic.exe"
     mac_arm = target_root / "binaries" / "macos" / "arm64" / "tectonic"
     mac_x86 = target_root / "binaries" / "macos" / "x86_64" / "tectonic"
@@ -55,7 +82,17 @@ def verify_required_layout(target_root: Path, errors: list[str]) -> None:
 
 
 def verify_manifest(target_root: Path, errors: list[str]) -> None:
-    """Verify that manifest entries exist and match expected hashes."""
+    """
+    Verify that manifest entries exist and match expected hashes.
+
+    Side Effects:
+        Adds errors to the list of error messages.
+
+    Args:
+        target_root: The path to the target directory.
+        errors: A list of error messages.
+
+    """
     manifest_path = target_root / MANIFEST_NAME
     if not manifest_path.exists():
         errors.append(f"Missing manifest: {manifest_path}")

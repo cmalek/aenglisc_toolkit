@@ -907,8 +907,8 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
                 and annotation.verb_direct_object_case
             ):
                 entry.verb_direct_object_case = annotation.verb_direct_object_case
-            entry.verb_requires_infinitive = (
-                entry.verb_requires_infinitive or bool(annotation.verb_requires_infinitive)
+            entry.verb_requires_infinitive = entry.verb_requires_infinitive or bool(
+                annotation.verb_requires_infinitive
             )
             entry.verb_impersonal = entry.verb_impersonal or bool(
                 annotation.verb_impersonal

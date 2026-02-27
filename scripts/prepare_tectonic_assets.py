@@ -9,7 +9,6 @@ import json
 import shutil
 from pathlib import Path
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_TARGET_ROOT = PROJECT_ROOT / "assets" / "tectonic"
 MANIFEST_NAME = "manifest.json"
@@ -27,7 +26,16 @@ def parse_args() -> argparse.Namespace:
 
 
 def file_sha256(path: Path) -> str:
-    """Return SHA-256 hash for a file."""
+    """
+    Return SHA-256 hash for a file.
+
+    Args:
+        path: The path to the file.
+
+    Returns:
+        The SHA-256 hash of the file.
+
+    """
     digest = hashlib.sha256()
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
@@ -36,7 +44,20 @@ def file_sha256(path: Path) -> str:
 
 
 def copy_binary(src: Path | None, dst: Path) -> bool:
-    """Copy a single binary if provided."""
+    """
+    Copy a single binary if provided.
+
+    Args:
+        src: The path to the source binary.
+        dst: The path to the destination binary.
+
+    Raises:
+        FileNotFoundError: If the source binary does not exist.
+
+    Returns:
+        True if a binary was copied, False otherwise.
+
+    """
     if src is None:
         return False
     if not src.exists():
@@ -50,7 +71,17 @@ def copy_binary(src: Path | None, dst: Path) -> bool:
 
 
 def copy_bundle(bundle_src: Path, bundle_dst: Path) -> None:
-    """Replace bundled TeX asset directory with provided source."""
+    """
+    Replace bundled TeX asset directory with provided source.
+
+    Args:
+        bundle_src: The path to the source bundle directory.
+        bundle_dst: The path to the destination bundle directory.
+
+    Raises:
+        FileNotFoundError: If the source bundle directory does not exist.
+
+    """
     if not bundle_src.exists() or not bundle_src.is_dir():
         msg = f"Bundle directory does not exist: {bundle_src}"
         raise FileNotFoundError(msg)
@@ -60,7 +91,16 @@ def copy_bundle(bundle_src: Path, bundle_dst: Path) -> None:
 
 
 def build_manifest(target_root: Path) -> dict[str, object]:
-    """Build deterministic manifest data from target directory contents."""
+    """
+    Build deterministic manifest data from target directory contents.
+
+    Args:
+        target_root: The path to the target directory.
+
+    Returns:
+        The manifest data.
+
+    """
     files: dict[str, str] = {}
     for path in sorted(target_root.rglob("*")):
         if not path.is_file():
@@ -73,7 +113,15 @@ def build_manifest(target_root: Path) -> dict[str, object]:
 
 
 def main() -> None:
-    """Prepare binaries/bundle and emit integrity manifest."""
+    """
+    Prepare binaries/bundle and emit integrity manifest.
+
+    Raises:
+        ValueError: If no binaries are provided.
+        PermissionError: If the manifest file cannot be created.
+        OSError: If the manifest file cannot be created.
+
+    """
     args = parse_args()
     target_root = args.target_root.resolve()
     binaries_root = target_root / "binaries"
