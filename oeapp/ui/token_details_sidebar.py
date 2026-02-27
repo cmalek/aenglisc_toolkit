@@ -833,7 +833,7 @@ class FullTranslationSidebar(BaseTokenDetailsSidebar):
         super().__init__(parent)
         self._is_sidebar_open: bool = False
 
-    def set_sidebar_open(self, is_open: bool) -> None:  # noqa: FBT001
+    def set_sidebar_open(self, is_open: bool) -> None:
         """
         Set whether the sidebar is currently open/visible.
 

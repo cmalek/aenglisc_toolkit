@@ -168,7 +168,7 @@ def create_engine_with_path(db_path: Path | None = None) -> Engine:
         """Set SQLite pragmas on connection."""
         cursor = cast("sqlite3.Cursor", dbapi_conn.cursor())
         for pragma, value in _sqlite_pragma_settings().items():
-            cursor.execute(f"PRAGMA {pragma}={value}")  # noqa: S608
+            cursor.execute(f"PRAGMA {pragma}={value}")
         cursor.close()
 
     return engine
@@ -195,7 +195,7 @@ def run_pragma_optimize(engine: Engine | None = None) -> bool:
         with target_engine.connect() as conn:
             conn.exec_driver_sql("PRAGMA optimize")
             conn.commit()
-    except Exception:  # noqa: BLE001
+    except Exception:
         _LOGGER.exception("sqlite.optimize.failed")
         return False
     return True

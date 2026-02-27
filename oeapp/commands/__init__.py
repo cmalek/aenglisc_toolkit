@@ -1,7 +1,7 @@
 from .abstract import Command, CommandManager
 from .annotation import AnnotateTokenCommand
 from .note import AddNoteCommand, DeleteNoteCommand, UpdateNoteCommand
-from .paragraph import SplitParagraphCommand, MergeParagraphCommand
+from .paragraph import MergeParagraphCommand, SplitParagraphCommand
 from .sentence import (
     AddSentenceCommand,
     DeleteSentenceCommand,

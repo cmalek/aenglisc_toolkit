@@ -111,7 +111,7 @@ class Sentence(SaveDeleteMixin, Base):
         cls,
         project_id: int,
         display_order: int,
-        is_paragraph_start: bool,  # noqa: FBT001
+        is_paragraph_start: bool,
     ) -> dict[str, int]:
         """
         Calculate paragraph_number and sentence_number_in_paragraph for a new sentence.
@@ -218,7 +218,7 @@ class Sentence(SaveDeleteMixin, Base):
         display_order: int,
         text_oe: str,
         paragraph_id: int | None = None,
-        commit: bool = True,  # noqa: FBT001, FBT002
+        commit: bool = True,
     ) -> Sentence:
         """
         Import an entire OE text into a project.
@@ -513,7 +513,7 @@ class Sentence(SaveDeleteMixin, Base):
         project_id: int,
         sentence_data: dict,
         paragraph_lookup: dict[tuple[int, int, int], int],
-        commit: bool = True,  # noqa: FBT001, FBT002
+        commit: bool = True,
     ) -> Sentence:
         """
         Create a sentence and all related entities from JSON import data.
@@ -597,7 +597,7 @@ class Sentence(SaveDeleteMixin, Base):
         )
         return sentence
 
-    def update(self, text_oe: str, commit: bool = True) -> builtins.list[str]:  # noqa: FBT001, FBT002
+    def update(self, text_oe: str, commit: bool = True) -> builtins.list[str]:
         """
         Update the sentence.
 
@@ -634,7 +634,7 @@ class Sentence(SaveDeleteMixin, Base):
         )
         return messages
 
-    def save(self, commit: bool = True) -> None:  # noqa: FBT001, FBT002
+    def save(self, commit: bool = True) -> None:
         """
         Save the sentence.
         """
@@ -654,7 +654,7 @@ class Sentence(SaveDeleteMixin, Base):
             text_modern=self.text_modern,
         )
 
-    def delete(self, commit: bool = True) -> None:  # noqa: FBT001, FBT002
+    def delete(self, commit: bool = True) -> None:
         """
         Delete the sentence.
         """

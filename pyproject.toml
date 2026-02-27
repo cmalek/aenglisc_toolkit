@@ -46,7 +46,9 @@ dependencies = [
 [dependency-groups]
 dev = [
     "ipython>=9.9.0",
+    "mypy>=1.19.1",
     "pyinstaller>=6.0.0",
+    "ruff>=0.15.4",
 ]
 docs = [
     "sphinx>7",                                         # https://github.com/sphinx-doc/sphinx
@@ -207,6 +209,8 @@ ignore = [
     "TD002",    # Missing author in TODO; try: # TODO(<author_name>): ... or # TODO @<author_name>:
     "TD003",    # Missing issue link on the line following this TODO
     "TRY003",   # Avoid specifying long messages outside the exception class
+    "FBT001",   # Boolean parameter in function call
+    "FBT002",   # Boolean parameter in function call with default value
 ]
 
 [tool.pytest.ini_options]

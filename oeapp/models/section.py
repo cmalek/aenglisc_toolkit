@@ -64,7 +64,7 @@ class Section(SaveDeleteMixin, Base):
         number: int,
         title: str | None = None,
         paragraphs: list[Paragraph] | None = None,
-        commit: bool = True,  # noqa: FBT001, FBT002
+        commit: bool = True,
     ) -> Section:
         """
         Create a new section.
@@ -243,7 +243,7 @@ class Section(SaveDeleteMixin, Base):
         cls,
         chapter_id: int,
         section_data: dict,
-        commit: bool = True,  # noqa: FBT001, FBT002
+        commit: bool = True,
     ) -> Section:
         """
         Create section (and nested paragraphs) from JSON import data.

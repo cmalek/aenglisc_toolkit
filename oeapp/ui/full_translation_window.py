@@ -338,7 +338,7 @@ class FullProjectOldEnglishTextEdit(ThemeMixin, OldEnglishTextEdit):
 
         self.setExtraSelections(selections)
 
-    def highlight_note_tokens(self, note: "Note", highlight: bool) -> None:  # noqa: FBT001
+    def highlight_note_tokens(self, note: "Note", highlight: bool) -> None:
         """
         Highlight the tokens covered by a note.
 
@@ -1120,7 +1120,7 @@ class FullTranslationWindow(QMainWindow):
             cast("FullProjectNoteWidget", target_widget).set_selected(True)
             self.oe_edit.highlight_note_tokens(note, True)  # noqa: FBT003
 
-    def _toggle_sidebar(self, checked: bool) -> None:  # noqa: FBT001
+    def _toggle_sidebar(self, checked: bool) -> None:
         """
         Event handler for :attr:`toggle_sidebar_btn.clicked` signal: Animate the
         sidebar width so that it opens or closes smoothly.
@@ -1230,7 +1230,7 @@ class FullProjectNoteWidget(ThemeMixin, QWidget):
         self.clicked.emit(self.note_num)
         super().mousePressEvent(event)
 
-    def set_selected(self, selected: bool) -> None:  # noqa: FBT001
+    def set_selected(self, selected: bool) -> None:
         """
         Set the selected state of the note widget.
 
@@ -1289,7 +1289,7 @@ class FullProjectNotesArea(QScrollArea):
                 self.main_layout.addWidget(widget)
                 self.note_widgets[note_num] = widget
 
-    def set_note_selected(self, note_num: int, selected: bool) -> None:  # noqa: FBT001
+    def set_note_selected(self, note_num: int, selected: bool) -> None:
         """
         Set the selected state of a note widget identified by its note number.
 

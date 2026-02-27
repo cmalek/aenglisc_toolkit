@@ -102,7 +102,7 @@ class Token(SaveDeleteMixin, Base):
         cls,
         sentence_id: int,
         token_data: dict,
-        commit: bool = True,  # noqa: FBT001, FBT002
+        commit: bool = True,
     ) -> "Token":
         """
         Create a token and annotation from JSON import data.
@@ -201,7 +201,7 @@ class Token(SaveDeleteMixin, Base):
         cls,
         sentence_id: int,
         sentence_text: str,
-        commit: bool = True,  # noqa: FBT001, FBT002
+        commit: bool = True,
     ) -> builtins.list["Token"]:
         """
         Create new tokens for a sentence.

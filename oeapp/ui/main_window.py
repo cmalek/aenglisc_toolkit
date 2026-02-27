@@ -404,7 +404,7 @@ class MainWindow(QMainWindow):
             return
         super().keyPressEvent(event)
 
-    def update_search_ui_state(self, is_editing: bool) -> None:  # noqa: FBT001
+    def update_search_ui_state(self, is_editing: bool) -> None:
         """
         Update the search UI state (enabled/disabled) based on whether
         any sentence card is in edit mode.
@@ -863,7 +863,7 @@ class MainWindowActions(ThemeMixin):
             self._focus_result(result)
             self._update_search_ui(self.search_total_matches)
 
-    def clear_search(self, restore_origin_focus: bool = False) -> None:  # noqa: FBT001, FBT002
+    def clear_search(self, restore_origin_focus: bool = False) -> None:
         """
         Clear search state, highlights, and optionally restore origin focus.
 
@@ -1412,7 +1412,7 @@ class MainWindowActions(ThemeMixin):
 
     def export_project_json(
         self,
-        project_id: int | bool | None = None,  # noqa: FBT001
+        project_id: int | bool | None = None,
         parent: QWidget | None = None,
     ) -> bool:
         """
@@ -1685,7 +1685,7 @@ class ProjectUI:
         """Get the autosave service owned by the main window."""
         return self.main_window.autosave_service
 
-    def load(self, project: Project, clear_search: bool = True) -> None:  # noqa: FBT001, FBT002
+    def load(self, project: Project, clear_search: bool = True) -> None:
         """
         Build the project.
 

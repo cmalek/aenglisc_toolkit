@@ -70,7 +70,7 @@ class Chapter(SaveDeleteMixin, Base):
         number: int,
         title: str | None = None,
         sections: list[Section] | None = None,
-        commit: bool = True,  # noqa: FBT001, FBT002
+        commit: bool = True,
     ) -> Chapter:
         """
         Create a new chapter.
@@ -212,7 +212,7 @@ class Chapter(SaveDeleteMixin, Base):
         cls,
         project_id: int,
         chapter_data: dict,
-        commit: bool = True,  # noqa: FBT001, FBT002
+        commit: bool = True,
     ) -> Chapter:
         """
         Create chapter (and nested sections/paragraphs) from JSON import data.

@@ -107,7 +107,7 @@ class Note(SaveDeleteMixin, Base):
         end_token_id: int | None = None,
         note_text_md: str = "",
         note_type: str = "token",
-        commit: bool = True,  # noqa: FBT001, FBT002
+        commit: bool = True,
     ) -> "Note":
         """
         Create a new note.
@@ -171,7 +171,7 @@ class Note(SaveDeleteMixin, Base):
         sentence_id: int,
         note_data: dict,
         token_map: dict[int, Token],
-        commit: bool = True,  # noqa: FBT001, FBT002
+        commit: bool = True,
     ) -> "Note":
         """
         Create a note from JSON import data.
@@ -242,7 +242,7 @@ class Note(SaveDeleteMixin, Base):
         note.save(commit=commit)
         return note
 
-    def save(self, commit: bool = True) -> None:  # noqa: FBT001, FBT002
+    def save(self, commit: bool = True) -> None:
         """
         Save the note.
         """
@@ -265,7 +265,7 @@ class Note(SaveDeleteMixin, Base):
             md_text=self.note_text_md,
         )
 
-    def delete(self, commit: bool = True) -> None:  # noqa: FBT001, FBT002
+    def delete(self, commit: bool = True) -> None:
         """
         Delete the note.
         """

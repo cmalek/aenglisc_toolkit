@@ -118,7 +118,7 @@ class AnnotationPreset(SaveDeleteMixin, Base):
         cls,
         name: str,
         pos: "PresetPos",
-        commit: bool = True,  # noqa: FBT001, FBT002
+        commit: bool = True,
         **kwargs,
     ) -> "AnnotationPreset":
         """
@@ -205,7 +205,7 @@ class AnnotationPreset(SaveDeleteMixin, Base):
     def update(
         cls,
         preset_id: int,
-        commit: bool = True,  # noqa: FBT001, FBT002
+        commit: bool = True,
         **kwargs,
     ) -> "AnnotationPreset | None":
         """
@@ -289,7 +289,7 @@ class AnnotationPreset(SaveDeleteMixin, Base):
     def from_json(
         cls,
         preset_data: dict,
-        commit: bool = True,  # noqa: FBT001, FBT002
+        commit: bool = True,
     ) -> "AnnotationPreset":
         """
         Create preset from JSON import data.

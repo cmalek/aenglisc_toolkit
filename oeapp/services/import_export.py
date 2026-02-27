@@ -70,7 +70,7 @@ class ProjectExporter(SessionMixin):
         self,
         project_id: int,
         filename: str,
-        compact: bool = True,  # noqa: FBT001, FBT002
+        compact: bool = True,
     ) -> None:
         """
         Export project as JSON to a file.

@@ -87,7 +87,7 @@ class Idiom(SaveDeleteMixin, Base):
         sentence_id: int,
         start_token_id: int,
         end_token_id: int,
-        commit: bool = True,  # noqa: FBT001, FBT002
+        commit: bool = True,
     ) -> "Idiom":
         """
         Create a new idiom.
@@ -114,7 +114,7 @@ class Idiom(SaveDeleteMixin, Base):
         session.refresh(idiom)
         return idiom
 
-    def save(self, commit: bool = True) -> None:  # noqa: FBT001, FBT002
+    def save(self, commit: bool = True) -> None:
         """
         Save the idiom.
         """
@@ -137,7 +137,7 @@ class Idiom(SaveDeleteMixin, Base):
             ),
         )
 
-    def delete(self, commit: bool = True) -> None:  # noqa: FBT001, FBT002
+    def delete(self, commit: bool = True) -> None:
         """
         Delete the idiom.
         """
@@ -182,7 +182,7 @@ class Idiom(SaveDeleteMixin, Base):
         sentence_id: int,
         idiom_data: dict,
         token_map: dict[int, "Token"],
-        commit: bool = True,  # noqa: FBT001, FBT002
+        commit: bool = True,
     ) -> "Idiom":
         """
         Create idiom from JSON import data.

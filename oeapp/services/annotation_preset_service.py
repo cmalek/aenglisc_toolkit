@@ -31,7 +31,7 @@ class AnnotationPresetService:
         name: str,
         pos: str,
         field_values: dict,
-        commit: bool = True,  # noqa: FBT001, FBT002
+        commit: bool = True,
     ) -> AnnotationPreset:
         """
         Create preset with field values dict.
@@ -61,7 +61,7 @@ class AnnotationPresetService:
         preset_id: int,
         name: str,
         field_values: dict,
-        commit: bool = True,  # noqa: FBT001, FBT002
+        commit: bool = True,
     ) -> AnnotationPreset | None:
         """
         Update preset.

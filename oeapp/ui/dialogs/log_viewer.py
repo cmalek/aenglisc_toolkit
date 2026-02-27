@@ -193,7 +193,7 @@ class LogTableModel(QAbstractTableModel):
             self._all_logs = self._all_logs[-self._max_lines :]
         self._apply_filters()
 
-    def set_display_local_time(self, local: bool) -> None:  # noqa: FBT001
+    def set_display_local_time(self, local: bool) -> None:
         """
         Set the display local time flag.  This toggles the display of the
         timestamp from UTC to local time and vice versa.  Default is False
@@ -467,7 +467,7 @@ class LogViewerDialog(QDialog):
             cast("LogLevel", self.level_combo.currentText().upper())
         )
 
-    def on_live_toggled(self, checked: bool) -> None:  # noqa: FBT001
+    def on_live_toggled(self, checked: bool) -> None:
         """
         Handle the "Live" toggle.
 
@@ -483,7 +483,7 @@ class LogViewerDialog(QDialog):
         else:
             self.live_btn.setText("Live: OFF")
 
-    def on_local_time_toggled(self, checked: bool) -> None:  # noqa: FBT001
+    def on_local_time_toggled(self, checked: bool) -> None:
         """
         Handle the "Local Time" toggle.
 

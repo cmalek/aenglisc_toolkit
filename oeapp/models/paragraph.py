@@ -51,7 +51,7 @@ class Paragraph(SaveDeleteMixin, Base):
         section_id: int,
         order: int,
         sentences: list[Sentence] | None = None,
-        commit: bool = True,  # noqa: FBT001, FBT002
+        commit: bool = True,
     ) -> Paragraph:
         """
         Create a new paragraph.
@@ -199,7 +199,7 @@ class Paragraph(SaveDeleteMixin, Base):
         cls,
         section_id: int,
         paragraph_data: dict,
-        commit: bool = True,  # noqa: FBT001, FBT002
+        commit: bool = True,
     ) -> Paragraph:
         """
         Create paragraph from JSON import data.

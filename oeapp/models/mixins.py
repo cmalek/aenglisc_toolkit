@@ -27,7 +27,7 @@ class SessionMixin:
 class SaveDeleteMixin(SessionMixin):
     """Mixin for models that need to save and delete."""
 
-    def save(self, commit: bool = True) -> None:  # noqa: FBT001, FBT002
+    def save(self, commit: bool = True) -> None:
         """
         Save the model.
 
@@ -43,7 +43,7 @@ class SaveDeleteMixin(SessionMixin):
             session.flush()
         session.refresh(self)
 
-    def delete(self, commit: bool = True) -> None:  # noqa: FBT001, FBT002
+    def delete(self, commit: bool = True) -> None:
         """
         Delete the model.
 

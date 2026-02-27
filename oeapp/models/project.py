@@ -118,7 +118,7 @@ class Project(SaveDeleteMixin, Base):
         source: str | None = None,
         translator: str | None = None,
         notes: str | None = None,
-        commit: bool = True,  # noqa: FBT001, FBT002
+        commit: bool = True,
     ) -> "Project":
         """
         Create a new project.
@@ -361,7 +361,7 @@ class Project(SaveDeleteMixin, Base):
         cls,
         project_data: dict,
         resolved_name: str,
-        commit: bool = True,  # noqa: FBT001, FBT002
+        commit: bool = True,
     ) -> "Project":
         """
         Create a project from JSON import data.
@@ -405,7 +405,7 @@ class Project(SaveDeleteMixin, Base):
         )
         return project
 
-    def save(self, commit: bool = True) -> None:  # noqa: FBT001, FBT002
+    def save(self, commit: bool = True) -> None:
         """
         Save the project.
         """
@@ -423,7 +423,7 @@ class Project(SaveDeleteMixin, Base):
                 sentences_count=len(self.sentences),
             )
 
-    def delete(self, commit: bool = True) -> None:  # noqa: FBT001, FBT002
+    def delete(self, commit: bool = True) -> None:
         """
         Delete the project.
         """

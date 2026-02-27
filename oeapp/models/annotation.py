@@ -319,7 +319,7 @@ class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
         token_id: int | None,
         ann_data: dict,
         idiom_id: int | None = None,
-        commit: bool = True,  # noqa: FBT001, FBT002
+        commit: bool = True,
     ) -> "Annotation":
         """
         Create an annotation from JSON import data.
@@ -402,7 +402,7 @@ class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
     def from_annotation(
         self,
         annotation: "Annotation",
-        commit: bool = True,  # noqa: FBT001, FBT002
+        commit: bool = True,
     ) -> "Annotation":
         """
         Update or create an annotation from an existing annotation.
@@ -488,7 +488,7 @@ class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
                 )
         return self
 
-    def save(self, commit: bool = True) -> None:  # noqa: FBT001, FBT002
+    def save(self, commit: bool = True) -> None:
         """Save the annotation."""
         # Import here to avoid circular import
         from oeapp.services.logs import get_logger  # noqa: PLC0415
@@ -522,7 +522,7 @@ class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
                     ),
                 )
 
-    def delete(self, commit: bool = True) -> None:  # noqa: FBT001, FBT002
+    def delete(self, commit: bool = True) -> None:
         """Delete the annotation."""
         # Import here to avoid circular import
         from oeapp.services.logs import get_logger  # noqa: PLC0415

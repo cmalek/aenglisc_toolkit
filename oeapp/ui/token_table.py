@@ -226,7 +226,7 @@ class TokenTable(QWidget):
         """
         self.table.setFocus()
 
-    def setVisible(self, visible: bool) -> None:  # noqa: FBT001, N802
+    def setVisible(self, visible: bool) -> None:  # noqa: N802
         """
         Set the visibility of the token table.
 

@@ -8,12 +8,9 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDialog,
-    QFormLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
-    QLayout,
-    QLayoutItem,
     QLineEdit,
     QMessageBox,
     QPushButton,
@@ -26,9 +23,21 @@ from sqlalchemy.exc import SQLAlchemyError
 from oeapp.models import Annotation, Idiom
 from oeapp.models.annotation_preset import AnnotationPreset
 from oeapp.services.annotation_preset_service import AnnotationPresetService
-from oeapp.ui.dialogs.annotation_preset_management import (
+from oeapp.ui.dialogs.pos_form_system import (
     CLEAR_SENTINEL,
-    AnnotationPresetManagementDialog,
+    AdjectiveFields,
+    AdverbFields,
+    AnnotationPosFormManager,
+    ArticleFields,
+    ConjunctionFields,
+    InterjectionFields,
+    NoneFields,
+    NounFields,
+    NumberFields,
+    PartOfSpeechFieldsBase,
+    PrepositionFields,
+    PronounFields,
+    VerbFields,
 )
 from oeapp.ui.mixins import AnnotationLookupsMixin
 
@@ -37,669 +46,39 @@ if TYPE_CHECKING:
     from oeapp.types import PresetPos
 
 
-class PartOfSpeechFieldsBase(AnnotationLookupsMixin):
-    """
-    The base class for the Part of Speech set of fields.
-
-    This must be subclassed to provide the fields for the particular Part of
-    Speech.
-
-    Args:
-        parent: The parent widget
-
-    """
-
-    #: The Part of Speech Name
-    PART_OF_SPEECH: str
-
-    def __init__(self, layout: QFormLayout, parent_widget: QWidget) -> None:
-        """
-        Initialize the Part of Speech form.
-        """
-        #: The layout to add the fields to
-        self.layout = layout
-        #: The parent widget for the fields
-        self.parent_widget = parent_widget
-        #: The fields for the Part of Speech form
-        self.fields: dict[str, QComboBox] = {}
-        #: The lookup map for the fields
-        self.lookup_map: dict[str, dict[str | None, str]] = {}
-        #: The code to combo index map for the fields
-        self.code_to_index_map: dict[str, dict[str | None, int]] = {}
-        #: The index to code map for the fields
-        self.index_to_code_map: dict[str, dict[int, str | None]] = {}
-
-    def add_combo(
-        self,
-        attr: str,
-        label: str,
-        lookup_map: dict[str | None, str],
-    ) -> None:
-        """
-        Add a combo box to the Part of Speech form.
-
-        Args:
-            attr: The attribute name for the field
-            label: The label for the combo box
-            lookup_map: The lookup map for the combo box.  This should be one of
-                the lookup maps from
-                :class:`~oeapp.ui.mixins.AnnotationLookupsMixin`. like
-                :attr:`~oeapp.ui.mixins.AnnotationLookupsMixin.ARTICLE_TYPE_MAP`.
-
-        """
-        combo = QComboBox(self.parent_widget)
-        combo.addItems(list(lookup_map.values()))
-        self.lookup_map[attr] = lookup_map
-        self.code_to_index_map[attr] = {k: i for i, k in enumerate(lookup_map.keys())}
-        self.index_to_code_map[attr] = {
-            i: k for k, i in self.code_to_index_map[attr].items()
-        }
-        self.add_field(attr, label, combo)
-
-    def clear(self) -> None:
-        """
-        Reset the Part of Speech form.
-
-        - Clears the fields dictionary
-        - Clears the lookup map
-        - Clears the code to index map
-        - Clears the index to code map
-        """
-        self.fields.clear()
-        self.lookup_map.clear()
-        self.code_to_index_map.clear()
-        self.index_to_code_map.clear()
-
-    def reset(self) -> None:
-        """
-        Reset the fields to their default values, meaning index 0 (empty selection).
-        """
-        for field in self.fields.values():
-            field.setCurrentIndex(0)
-
-    def add_field(self, attr: str, label: str, field: QComboBox) -> None:
-        """
-        Add a field to the Part of Speech form.
-
-        Side effect:
-            The field will be added to the fields dictionary and to the
-            :class:`~PySide6.QtWidgets.QFormLayout` as a row.
-
-        Args:
-            attr: The attribute name for the field on :class:`~oeapp.models.Annotation`
-            label: The label for the field
-            field: The field to add
-
-        """
-        self.fields[attr] = field
-        self.layout.addRow(label, field)
-
-    def build(self) -> None:
-        """
-        Build the Part of Speech form.
-        """
-        msg = "Subclasses must implement this method"
-        raise NotImplementedError(msg)
-
-    def load_from_indices(self, indices: dict[str, int]) -> None:
-        """
-        Load the values from the indices into the Part of Speech form.
-
-        Side effect:
-            For each attribute in the indices, if the attribute is in the lookup
-            map, the field will be set to the value.  If the index is not in the
-            lookup map, that index is ignored.
-
-        Args:
-            indices: The indices to load the values from
-
-
-        """
-        for attr, index in indices.items():
-            if attr in self.fields:
-                self.fields[attr].blockSignals(True)  # noqa: FBT003
-                self.fields[attr].setCurrentIndex(index)
-                self.fields[attr].blockSignals(False)  # noqa: FBT003
-
-    def load_from_preset(self, preset: AnnotationPreset) -> None:
-        """
-        Load the values from the preset into the Part of Speech form.
-
-        Side effect:
-            For each attribute in the preset, if the attribute is in the lookup
-            map, the field will be set to the value.  If the value is
-            :data:`~oeapp.ui.dialogs.annotation_preset_management.CLEAR_SENTINEL`,
-            the field will be set to empty selection (index 0).
-            If the value is None, the field will be left unchanged.
-
-            If the preset has a value that is not in the lookup map,
-            the field will be set to empty selection (index 0).
-
-
-        Args:
-            preset: The preset to load the values from
-
-        """
-        for attr, value in preset.to_json().items():
-            if attr in self.lookup_map:
-                if value == CLEAR_SENTINEL:
-                    # "Clear" was selected - set to empty selection (index 0)
-                    self.fields[attr].setCurrentIndex(0)
-                    continue
-                if value is None:
-                    # Empty was selected - don't change this field, skip it
-                    continue
-                # Actually set the value
-                index = self.code_to_index_map[attr].get(value)
-                if index is not None:
-                    self.fields[attr].blockSignals(True)  # noqa: FBT003
-                    self.fields[attr].setCurrentIndex(index)
-                    self.fields[attr].blockSignals(False)  # noqa: FBT003
-
-    def load_from_annotation(self, annotation: Annotation) -> None:
-        """
-        Load the annotation into the Part of Speech form.
-
-        Side effect:
-            For each attribute in the annotation, if the attribute is in the lookup map,
-            the field will be set to the value.
-
-            If the annotation has a value that is not in the lookup map,
-            the field will be set to empty selection (index 0).
-
-        Args:
-            annotation: The annotation to load the values from
-
-        """
-        for attr, value in annotation.to_json().items():
-            if attr in self.lookup_map:
-                index = self.code_to_index_map[attr].get(value)
-                if index is not None:
-                    self.fields[attr].blockSignals(True)  # noqa: FBT003
-                    self.fields[attr].setCurrentIndex(index)
-                    self.fields[attr].blockSignals(False)  # noqa: FBT003
-
-    def extract_indices(self) -> dict[str, int]:
-        """
-        Extract the indices from the Part of Speech form into a dict
-        where the keys are the attribute names and the values are the indices.
-
-        Returns:
-            A dictionary of the indices from the Part of Speech form
-
-        """
-        return {attr: self.fields[attr].currentIndex() for attr in self.fields}
-
-    def extract_values(self) -> dict[str, str | None]:
-        """
-        Extract the values from the form and return them as a dictionary where
-        the keys are the attribute names and the values are the values from the
-        combo box (the codes).  If the field is empty, the value will be None.
-
-        Returns:
-            A dictionary of the values from the Part of Speech form
-
-        """
-        return {
-            attr: self.index_to_code_map[attr].get(self.fields[attr].currentIndex())
-            for attr in self.fields
-        }
-
-    def update_annotation(self, annotation: Annotation) -> None:
-        """
-        Extract the values from the form and save them to the annotation.
-
-        Args:
-            annotation: The annotation to save the values to
-
-        Keyword Args:
-            commit: Whether to commit the changes to the database
-
-        Raises:
-            AttributeError: If the attribute we we think is associated with an
-                combo box is not a valid Annotation attribute
-
-        """
-        valid_fields = {column.name for column in Annotation.__table__.columns}
-        values = self.extract_values()
-        for attr, value in values.items():
-            if attr not in valid_fields:
-                msg = f"Invalid Annotation attribute: {attr}"
-                raise AttributeError(msg)
-            setattr(annotation, attr, value)
-
-
-class NounFields(PartOfSpeechFieldsBase):
-    """
-    The fields for the Noun form.
-    """
-
-    PART_OF_SPEECH: str = "Noun"
-
-    def build(self) -> None:
-        """
-        Build the Noun form.
-
-        - Adds the gender combo box
-        - Adds the number combo box
-        - Adds the case combo box
-        - Adds the declension combo box
-        """
-        self.add_combo("gender", "Gender", self.GENDER_MAP)
-        self.add_combo("number", "Number", self.NUMBER_MAP)
-        self.add_combo("case", "Case", self.CASE_MAP)
-        self.add_combo("declension", "Declension", self.DECLENSION_MAP)
-
-
-class VerbFields(PartOfSpeechFieldsBase):
-    """
-    The fields for the Verb form.
-    """
-
-    PART_OF_SPEECH: str = "Verb"
-    VERB_REQUIRES_INF_MAP: ClassVar[dict[bool, str]] = {False: "No", True: "Yes"}
-    VERB_IMPERSONAL_MAP: ClassVar[dict[bool, str]] = {False: "No", True: "Yes"}
-
-    def build(self) -> None:
-        """
-        Build the Verb form.
-
-        - Adds the verb class combo box
-        - Adds the verb tense combo box
-        - Adds the verb mood combo box
-        - Adds the verb person combo box
-        - Adds the verb number combo box
-        - Adds the verb aspect combo box
-        - Adds the verb form combo box
-        - Adds the verb direct object case combo box
-        """
-        self.add_combo("verb_class", "Class", self.VERB_CLASS_MAP)
-        self.add_combo("verb_tense", "Tense", self.VERB_TENSE_MAP)
-        self.add_combo("verb_mood", "Mood", self.VERB_MOOD_MAP)
-        self.add_combo("verb_person", "Person", self.VERB_PERSON_MAP)
-        self.add_combo("number", "Number", self.NUMBER_MAP)
-        self.add_combo("verb_aspect", "Aspect", self.VERB_ASPECT_MAP)
-        self.add_combo(
-            "verb_direct_object_case",
-            "Direct Object Case",
-            self.VERB_DIRECT_OBJECT_CASE_MAP,
-        )
-        self.add_combo("verb_form", "Form", self.VERB_FORM_MAP)
-        self.add_combo(
-            "verb_requires_infinitive",
-            "Requires Infinitive",
-            self.VERB_REQUIRES_INF_MAP,
-        )
-        self.add_combo("verb_impersonal", "Impersonal", self.VERB_IMPERSONAL_MAP)
-        self.add_combo(
-            "verb_transitivity",
-            "Transitivity",
-            self.VERB_TRANSITIVITY_MAP,
-        )
-        self.fields["verb_class"].currentIndexChanged.connect(self._on_class_changed)
-
-    def _on_class_changed(self, _index: int) -> None:
-        """
-        Auto-set ``requires infinitive`` for preterite-present verbs.
-
-        Args:
-            _index: The selected class index.
-
-        """
-        verb_class = self.extract_values().get("verb_class")
-        if verb_class != "pp":
-            return
-        requires_inf = self.code_to_index_map["verb_requires_infinitive"].get(True)
-        if requires_inf is not None:
-            self.fields["verb_requires_infinitive"].setCurrentIndex(requires_inf)
-
-
-class PronounFields(PartOfSpeechFieldsBase):
-    """
-    The fields for the Pronoun form.
-    """
-
-    PART_OF_SPEECH: str = "Pronoun"
-
-    def build(self) -> None:
-        """
-        Build the Pronoun form.
-
-        - Adds the pronoun type combo box
-        - Adds the pronoun gender combo box
-        - Adds the pronoun number combo box
-        - Adds the pronoun case combo box
-        """
-        self.add_combo("pronoun_type", "Type", self.PRONOUN_TYPE_MAP)
-        self.add_combo("gender", "Gender", self.GENDER_MAP)
-        self.add_combo("pronoun_number", "Number", self.PRONOUN_NUMBER_MAP)
-        self.add_combo("case", "Case", self.CASE_MAP)
-
-
-class PrepositionFields(PartOfSpeechFieldsBase):
-    """
-    The fields for the Preposition form.
-    """
-
-    PART_OF_SPEECH: str = "Preposition"
-
-    def build(self) -> None:
-        """
-        Build the Preposition form.
-
-        - Adds the preposition case combo box
-        """
-        self.add_combo("prep_case", "Governed Case", self.PREPOSITION_CASE_MAP)
-
-
-class AdjectiveFields(PartOfSpeechFieldsBase):
-    """
-    The fields for the Adjective form.
-    """
-
-    PART_OF_SPEECH: str = "Adjective"
-
-    def build(self) -> None:
-        """
-        Build the Adjective form.
-
-        - Adds the adjective degree combo box
-        - Adds the adjective inflection combo box
-        """
-        self.add_combo("adjective_degree", "Degree", self.ADJECTIVE_DEGREE_MAP)
-        self.add_combo(
-            "adjective_inflection",
-            "Inflection",
-            self.ADJECTIVE_INFLECTION_MAP,
-        )
-        self.add_combo("gender", "Gender", self.GENDER_MAP)
-        self.add_combo("number", "Number", self.NUMBER_MAP)
-        self.add_combo("case", "Case", self.CASE_MAP)
-
-
-class ArticleFields(PartOfSpeechFieldsBase):
-    """
-    The fields for the Article form.
-    """
-
-    PART_OF_SPEECH: str = "Article"
-
-    def build(self) -> None:
-        """
-        Build the Article form.
-        """
-        self.add_combo("article_type", "Type", self.ARTICLE_TYPE_MAP)
-        self.add_combo("gender", "Gender", self.GENDER_MAP)
-        self.add_combo("number", "Number", self.NUMBER_MAP)
-        self.add_combo("case", "Case", self.CASE_MAP)
-
-
-class AdverbFields(PartOfSpeechFieldsBase):
-    """
-    The fields for the Adverb form.
-    """
-
-    PART_OF_SPEECH: str = "Adverb"
-
-    def build(self) -> None:
-        """
-        Build the Adverb form.
-
-        - Adds the adverb degree combo box
-        """
-        self.add_combo("adverb_degree", "Degree", self.ADVERB_DEGREE_MAP)
-
-
-class ConjunctionFields(PartOfSpeechFieldsBase):
-    """
-    The fields for the Conjunction form.
-    """
-
-    PART_OF_SPEECH: str = "Conjunction"
-
-    def build(self) -> None:
-        """
-        Build the Conjunction form.
-        """
-        self.add_combo("conjunction_type", "Type", self.CONJUNCTION_TYPE_MAP)
-
-
-class InterjectionFields(PartOfSpeechFieldsBase):
-    """
-    The fields for the Interjection form.  There are no fields for Interjection.
-    """
-
-    PART_OF_SPEECH: str = "Interjection"
-
-    def build(self) -> None:
-        """
-        Build the Interjection form.
-        """
-
-
-class NumberFields(PartOfSpeechFieldsBase):
-    """
-    The fields for the Number form.  There are no fields for Number.
-    """
-
-    PART_OF_SPEECH: str = "Number"
-
-    def build(self) -> None:
-        """
-        Build the Number form.
-        """
-
-
-class NoneFields(PartOfSpeechFieldsBase):
-    """
-    The fields for the None form.  There are no fields for None.
-    """
-
-    PART_OF_SPEECH: str = "N/A"
-
-    def build(self) -> None:
-        """
-        Build the None form.
-        """
-
-
-class PartOfSpeechFormManager:
-    """
-    Manager for the Part of Speech form."""
-
-    #: Mapping of Part of Speech codes to the corresponding
-    #: :class:`PartOfSpeechFieldsBase` subclass.
-    PARTS_OF_SPEECH: ClassVar[dict[str | None, type[PartOfSpeechFieldsBase]]] = {
-        "N": NounFields,
-        "V": VerbFields,
-        "A": AdjectiveFields,
-        "D": ArticleFields,
-        "R": PronounFields,
-        "E": PrepositionFields,
-        "B": AdverbFields,
-        "C": ConjunctionFields,
-        "I": InterjectionFields,
-        "L": NumberFields,
-        None: NoneFields,
-    }
-
-    def __init__(self, container_layout: QVBoxLayout, parent_widget: QWidget) -> None:
-        """
-        Initialize the Part of Speech form manager.
-
-        Args:
-            container_layout: The layout to add the Part of Speech widgets to
-            parent_widget: The widget that will be the parent of the container
-                widgets created for each Part of Speech.
-
-        """
-        #: The layout to add the Part of Speech widgets to
-        self.container_layout = container_layout
-        #: The widget that will be the parent of the container widgets created
-        #: for each Part of Speech.
-        self.parent_widget = parent_widget
-        #: The current Part of Speech fields
-        self.current: PartOfSpeechFieldsBase | None = None
-
-        # Start with NoneFields
-        self.select(None)
-
-    def select(self, pos: str | None) -> None:
-        """
-        Set the current Part of Speech fields.
-
-        Args:
-            pos: The Part of Speech code to set the fields for, like "N", "V",
-                "A", "R", "D", "E", "B", "C", "I", "L"
-
-        Raises:
-            ValueError: If the Part of Speech is invalid
-
-        """
-        if pos not in self.PARTS_OF_SPEECH:
-            msg = f"Invalid Part of Speech: {pos}"
-            raise ValueError(msg)
-
-        # 1. Clean up old items from the container layout
-        while self.container_layout.count():
-            item = cast("QLayoutItem", self.container_layout.takeAt(0))
-            if item.widget():
-                widget = cast("QWidget", item.widget())
-                widget.hide()
-                widget.deleteLater()
-            elif item.layout():
-                # Recursively clear sub-layouts
-                self._clear_layout(item.layout())
-
-        # 2. Create new form layout and add it to container
-        new_layout = QFormLayout()
-        self.container_layout.addLayout(new_layout)
-
-        # 3. Create the fields instance with the NEW layout
-        self.current = self.PARTS_OF_SPEECH[pos](new_layout, self.parent_widget)
-        self.current.build()
-
-    def _clear_layout(self, layout: QLayout) -> None:
-        """
-        Helper to clear a layout and its sub-layouts/widgets.
-
-        This is a recursive function that iterates through the layout and hides
-        and deletes all widgets and sub-layouts.
-
-        Args:
-            layout: The layout to clear
-
-        """
-        while layout.count():
-            item = cast("QLayoutItem", layout.takeAt(0))
-            if item.widget():
-                widget = cast("QWidget", item.widget())
-                widget.hide()
-                widget.deleteLater()
-            elif item.layout():
-                self._clear_layout(item.layout())
-
-    def reset(self) -> None:
-        """
-        Reset the Part of Speech form.
-        """
-        if self.current:
-            self.current.reset()
-
-    def load_from_indices(self, indices: dict[str, int]) -> None:
-        """
-        Load the values from the indices into the Part of Speech form.
-
-        If :attr:`current` is not set, do nothing.
-
-        Args:
-            indices: A dictionary of the attribute names and the indices to load
-                the values from.  The keys are the attribute names and the values
-                are the indices to set the fields to.
-
-        """
-        if self.current:
-            self.current.load_from_indices(indices)
-
-    def load_from_preset(self, preset: AnnotationPreset) -> None:
-        """
-        Load the values from the preset into the Part of Speech form.
-
-        If :attr:`current` is not set, do nothing.
-
-        Args:
-            preset: The preset to load the values from
-
-        """
-        if self.current:
-            self.current.load_from_preset(preset)
-
-    def load_from_annotation(self, annotation: Annotation) -> None:
-        """
-        Load the annotation into the Part of Speech form.
-
-        Args:
-            annotation: The annotation to load the values from
-
-        Raises:
-            AssertionError: If the current Part of Speech fields are not set
-
-        """
-        assert self.current is not None, (  # noqa: S101
-            "load_from_annotation called without a selected Part of Speech"
-        )
-        if self.current:
-            self.current.load_from_annotation(annotation)
-
-    def extract_indices(self) -> dict[str, int]:
-        """
-        Extract the indices from the Part of Speech form.
-
-        If :attr:`current` is not set, return an empty dictionary.
-
-        Returns:
-            A dictionary of the indices from the Part of Speech form
-
-        """
-        if self.current:
-            return self.current.extract_indices()
-        return {}
-
-    def extract_values(self) -> dict[str, str | None]:
-        """
-        Extract the values from the Part of Speech form.
-
-        Returns:
-            A dictionary of the values from the Part of Speech form
-
-        Raises:
-            AssertionError: If the current Part of Speech fields are not set
-
-        """
-        assert self.current is not None, (  # noqa: S101
-            "extract_values called without a selected Part of Speech"
-        )
-        return self.current.extract_values()
-
-    def update_annotation(self, annotation: Annotation) -> None:
-        """
-        Update the annotation with the values from the Part of Speech form.
-
-        Args:
-            annotation: The annotation to update
-
-        Raises:
-            AssertionError: If the current Part of Speech fields are not set
-
-        """
-        assert self.current is not None, (  # noqa: S101
-            "update_annotation called without a selected Part of Speech"
-        )
-        self.current.update_annotation(annotation)
+# Backward-compatible alias expected by existing tests/importers.
+PartOfSpeechFormManager = AnnotationPosFormManager
+
+__all__ = [
+    "CLEAR_SENTINEL",
+    "AdjectiveFields",
+    "AdverbFields",
+    "AnnotationModal",
+    "ArticleFields",
+    "ConjunctionFields",
+    "InterjectionFields",
+    "NoneFields",
+    "NounFields",
+    "NumberFields",
+    "PartOfSpeechFieldsBase",
+    "PartOfSpeechFormManager",
+    "PrepositionFields",
+    "PronounFields",
+    "VerbFields",
+]
 
 
 class AnnotationModal(AnnotationLookupsMixin, QDialog):
-    """Modal dialog for annotating tokens with prompt-based entry."""
+    """
+    Modal dialog for annotating tokens with prompt-based entry.
+
+    Args:
+        token: Token to annotate (exclusive with idiom)
+        idiom: Idiom to annotate (exclusive with token)
+        annotation: Existing annotation (if any)
+        parent: Parent widget
+
+    """
 
     # -------------------------------------------------------------------------
     # Signals
@@ -1275,6 +654,8 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
 
     def _update_preset_dropdown(self) -> None:
         """
+        Signal callback for the ``currentIndexChanged`` signal on the POS combo box.
+
         Populate preset dropdown based on current POS selection.
 
         Does the following:
@@ -1346,7 +727,9 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
             self.apply_preset_button.setEnabled(False)
 
     def _refresh_preset_dropdown(self) -> None:
-        """Refresh preset dropdown from database."""
+        """
+        Refresh preset dropdown from database.
+        """
         self._update_preset_dropdown()
 
     # -------------------------------------------------------------------------
@@ -1355,6 +738,8 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
 
     def _on_preset_apply(self) -> None:
         """
+        Signal callback for the ``clicked`` signal on the "Apply Preset" button.
+
         Apply selected preset values to form fields.
 
         - If the preset is not selected, return
@@ -1380,6 +765,8 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
 
     def _on_token_link_clicked(self, token: "Token") -> None:
         """
+        Signal callback for the ``clicked`` signal on the "Open Token Modal" button.
+
         Handle clicking a token link in an idiom modal.
 
         Args:
@@ -1394,6 +781,8 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
 
     def _select_pos_by_key(self, pos_key: str):
         """
+        Signal callback for the keyboard shortcut for the POS key.
+
         Select POS by keyboard shortcut.  This is an event handler for the
         keyboard shortcuts.
 
@@ -1410,6 +799,8 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
 
     def _on_pos_changed(self) -> None:
         """
+        Signal callback for the ``currentIndexChanged`` signal on the POS combo box.
+
         Handle POS selection change.
 
         - Get the current POS and previous POS
@@ -1441,10 +832,15 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
 
     def _on_save_as_preset(self) -> None:
         """
+        Signal callback for the ``clicked`` signal on the "Save as Preset" button.
+
         Open preset management dialog in save mode with current form values
         preloaded.
         """
-        # We need this here to avoid circular import
+        # We need these imports here to avoid circular imports
+        from oeapp.ui.dialogs.annotation_preset_management import (  # noqa: PLC0415
+            AnnotationPresetManagementDialog,
+        )
         from oeapp.ui.main_window import MainWindow  # noqa: PLC0415
 
         pos = self.PART_OF_SPEECH_REVERSE_MAP.get(self.pos_combo.currentText())
@@ -1509,6 +905,8 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
 
     def _clear_all(self) -> None:
         """
+        Signal callback for the ``clicked`` signal on the "Clear All" button.
+
         Clear all fields.
 
         - Set the POS combo box to index 0 (empty/None selection)

@@ -27,7 +27,7 @@ class ImportProjectDialog:
         self,
         main_window: "MainWindow",
         project: "Project",
-        was_renamed: bool,  # noqa: FBT001
+        was_renamed: bool,
     ) -> None:
         """
         Initialize import project dialog.

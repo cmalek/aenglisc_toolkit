@@ -717,7 +717,7 @@ class OldEnglishTextEdit(QTextEdit):
             return self.selector.selected_token_index
         return None
 
-    def set_selected_token_index(self, index: int, emit: bool = True) -> None:  # noqa: FBT001, FBT002
+    def set_selected_token_index(self, index: int, emit: bool = True) -> None:
         """
         Set the selected token index and highlight the token.
 

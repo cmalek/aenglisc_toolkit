@@ -598,7 +598,7 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
     def _render_oe_text_segment(
         self,
         segment: str,
-        at_line_start: bool,  # noqa: FBT001
+        at_line_start: bool,
     ) -> tuple[str, bool]:
         """
         Render OE text while preserving line alignment and half-line spacing.
