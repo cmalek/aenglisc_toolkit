@@ -56,6 +56,7 @@ class SaveDeleteMixin(SessionMixin):
         """
         session = self._get_session()
         session.delete(self)
-        session.flush()
         if commit:
             session.commit()
+        else:
+            session.expunge(self)
