@@ -38,7 +38,10 @@ def main_window(qapp, db_session, mock_services):
     state.session = db_session
 
     window = MainWindow()
-    return window
+    yield window
+    window.close()
+    window.deleteLater()
+    qapp.processEvents()
 
 class TestMainWindowInitialization:
     """Test cases for MainWindow initialization and basic layout."""
@@ -195,6 +198,19 @@ class TestMainWindowActions:
         # In PySide6, we can check the message directly
         assert main_window.statusBar().currentMessage() == "Test Message"
 
+    def test_autosave_noops_without_current_project(self, main_window):
+        """Autosave should safely no-op when no project is active."""
+        state = main_window.application_state
+        state.pop(CURRENT_PROJECT_ID, None)
+        with (
+            patch("oeapp.ui.main_window.Project.get") as mock_project_get,
+            patch.object(main_window.messages, "show_message") as mock_show_message,
+        ):
+            main_window.action_service.autosave()
+
+        mock_project_get.assert_not_called()
+        mock_show_message.assert_not_called()
+
 
 class TestMainWindowHelp:
     """Test help-center wiring on the main window."""
@@ -260,17 +276,20 @@ class TestMainWindowStartupDialogs:
 class TestMainWindowOptimizeHooks:
     """Test startup and shutdown optimize hooks."""
 
-    def test_startup_runs_pragma_optimize(self, db_session, mock_services):
+    def test_startup_runs_pragma_optimize(self, qapp, db_session, mock_services):
         """MainWindow should run PRAGMA optimize after migration handling."""
         state = ApplicationState()
         state.reset()
         state.session = db_session
 
         with patch("oeapp.ui.main_window.run_pragma_optimize") as mock_optimize:
-            _ = MainWindow()
+            window = MainWindow()
             assert mock_optimize.call_count == 1
+        window.close()
+        window.deleteLater()
+        qapp.processEvents()
 
-    def test_close_event_swallows_optimize_errors(self, db_session, mock_services):
+    def test_close_event_swallows_optimize_errors(self, qapp, db_session, mock_services):
         """Close should not fail even if optimize unexpectedly raises."""
         state = ApplicationState()
         state.reset()
@@ -283,3 +302,5 @@ class TestMainWindowOptimizeHooks:
             window = MainWindow()
             event = QCloseEvent()
             window.closeEvent(event)
+        window.deleteLater()
+        qapp.processEvents()

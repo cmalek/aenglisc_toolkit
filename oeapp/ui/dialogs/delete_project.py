@@ -234,7 +234,8 @@ class DeleteProjectDialog:
                     widget.setParent(None)
 
             self.main_window.sentence_cards = []
-            self.main_window.autosave_service = None
+            if self.main_window.autosave_service:
+                self.main_window.autosave_service.cancel()
             self.state.reset()
             self.state.set_main_window(self.main_window)
 

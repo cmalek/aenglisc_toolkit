@@ -135,14 +135,16 @@ class MainWindow(QMainWindow):
 
         #: Sentence cards
         self.sentence_cards: list[SentenceCard] = []
-        #: Autosave service
-        self.autosave_service: AutosaveService | None = None
         #: Main window actions
         self.action_service = MainWindowActions(self)
         #: The application state
         self.application_state = ApplicationState()
         self.application_state.reset()
         self.application_state.set_main_window(self)
+        #: Autosave service
+        self.autosave_service: AutosaveService | None = AutosaveService(
+            self.action_service.autosave
+        )
 
         #: Count of sentence cards in edit mode
         self._edit_mode_count = 0
@@ -508,9 +510,12 @@ class MainWindow(QMainWindow):
         # Stop backup timer
         if self.backup_timer:
             self.backup_timer.stop()
+            self.backup_timer.deleteLater()
+            self.backup_timer = None
         # Stop autosave service
         if self.autosave_service:
             self.autosave_service.cancel()
+            self.autosave_service = None
         # Keep this non-blocking on shutdown.
         try:
             run_pragma_optimize()
@@ -1288,7 +1293,10 @@ class MainWindowActions(ThemeMixin):
         - Show a message in the status bar that the project has been saved.
 
         """
-        project = Project.get(self.application_state[CURRENT_PROJECT_ID])
+        project_id = self.application_state.get(CURRENT_PROJECT_ID)
+        if not isinstance(project_id, int):
+            return
+        project = Project.get(project_id)
         if project is None:
             return
 
@@ -1302,7 +1310,11 @@ class MainWindowActions(ThemeMixin):
                     note.end_token = None
 
         project.save()
-        self.messages.show_message("Saved")
+        try:
+            self.messages.show_message("Saved")
+        except RuntimeError:
+            # Main window can already be deleted when late timer callbacks run.
+            return
 
     def import_project_json(self) -> None:
         """
@@ -1618,6 +1630,11 @@ class ProjectUI:
         self.show_error = main_window.messages.show_error
         self.show_information = main_window.messages.show_information
 
+    @property
+    def autosave_service(self) -> AutosaveService | None:
+        """Get the autosave service owned by the main window."""
+        return self.main_window.autosave_service
+
     def load(self, project: Project, clear_search: bool = True) -> None:  # noqa: FBT001, FBT002
         """
         Build the project.
@@ -1635,6 +1652,9 @@ class ProjectUI:
                 self.main_window.search_input.text(),
                 self.main_window.search_scope_combo.currentText(),
             )
+
+        if self.main_window.autosave_service:
+            self.main_window.autosave_service.cancel()
 
         self.application_state[CURRENT_PROJECT_ID] = project.id
 
@@ -1655,9 +1675,6 @@ class ProjectUI:
             # Handle empty project (should not happen with new logic)
             self.main_window.section_combo.clear()
             self._clear_content()
-
-        # Initialize autosave and command manager
-        self.autosave_service = AutosaveService(self.action_service.autosave)
 
     def update_sections_for_chapter(self, chapter_id: int) -> None:
         """Update section dropdown for the given chapter."""
@@ -1832,7 +1849,6 @@ class ProjectUI:
 
         # Preserve existing services
         existing_command_manager = self.command_manager
-        existing_autosave = self.autosave_service
 
         # Refresh the project configuration (reloads all sentence cards)
         # Search is reapplied after reload
@@ -1841,8 +1857,6 @@ class ProjectUI:
         # Restore preserved services
         if existing_command_manager:
             self.command_manager = existing_command_manager
-        if existing_autosave:
-            self.autosave_service = existing_autosave
 
         # Update all sentence cards to use the preserved command manager
         for card in self.sentence_cards:
@@ -1927,7 +1941,6 @@ class ProjectUI:
 
         # Preserve existing command manager to keep undo history
         existing_command_manager = self.application_state.command_manager
-        existing_autosave = self.autosave_service
 
         # Refresh the project configuration (reloads all sentence cards)
         # Search is reapplied after merge
@@ -1936,8 +1949,6 @@ class ProjectUI:
         # Restore preserved services
         if existing_command_manager:
             self.command_manager = existing_command_manager
-        if existing_autosave:
-            self.autosave_service = existing_autosave
 
         # Update all sentence cards to use the preserved command manager
         for card in self.sentence_cards:
@@ -1972,7 +1983,6 @@ class ProjectUI:
 
         # Preserve existing command manager to keep undo history
         existing_command_manager = self.application_state.command_manager
-        existing_autosave = self.autosave_service
 
         # Refresh the project configuration (reloads all sentence cards)
         self.load(project)
@@ -1980,8 +1990,6 @@ class ProjectUI:
         # Restore preserved services
         if existing_command_manager:
             self.command_manager = existing_command_manager
-        if existing_autosave:
-            self.autosave_service = existing_autosave
 
         # Update all sentence cards to use the preserved command manager
         for card in self.sentence_cards:
@@ -2029,7 +2037,6 @@ class ProjectUI:
 
         # Preserve existing command manager to keep undo history
         existing_command_manager = self.application_state.command_manager
-        existing_autosave = self.autosave_service
 
         # Refresh the project configuration (reloads all sentence cards)
         # Search is reapplied after deletion
@@ -2038,8 +2045,6 @@ class ProjectUI:
         # Restore preserved services
         if existing_command_manager:
             self.command_manager = existing_command_manager
-        if existing_autosave:
-            self.autosave_service = existing_autosave
 
         # Update all sentence cards to use the preserved command manager
         for card in self.sentence_cards:

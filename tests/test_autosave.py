@@ -3,7 +3,11 @@
 import time
 from unittest.mock import MagicMock
 
+import pytest
+
 from oeapp.services.autosave import AutosaveService
+
+pytestmark = pytest.mark.enable_autosave
 
 
 class TestAutosaveService:

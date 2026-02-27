@@ -75,6 +75,25 @@ def qapp():
         app = QApplication([])
     return app
 
+
+@pytest.fixture(autouse=True)
+def disable_autosave_by_default(request, monkeypatch):
+    """
+    Disable autosave triggers unless a test explicitly opts in.
+
+    Opt-in tests should use ``@pytest.mark.enable_autosave``.
+    """
+    if request.node.get_closest_marker("enable_autosave"):
+        return
+
+    from oeapp.services.autosave import AutosaveService
+
+    def _disabled_trigger(self):
+        self.cancel()
+
+    monkeypatch.setattr(AutosaveService, "trigger", _disabled_trigger)
+
+
 @pytest.fixture
 def db_session():
     """Create a temporary database and session for testing."""
@@ -91,6 +110,21 @@ def db_session():
     state.session.info["db_path"] = db_path
 
     yield state.session
+
+    try:
+        from PySide6.QtWidgets import QApplication
+
+        app = QApplication.instance()
+        if app is not None:
+            for widget in app.topLevelWidgets():
+                try:
+                    widget.close()
+                    widget.deleteLater()
+                except RuntimeError:
+                    continue
+            app.processEvents()
+    except RuntimeError:
+        pass
 
     state.session.close()
     engine.dispose()
@@ -381,4 +415,3 @@ def mock_migration_services():
     )
 
     return migration_service, mock_metadata
-

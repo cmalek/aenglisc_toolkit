@@ -208,3 +208,8 @@ ignore = [
     "TD003",    # Missing issue link on the line following this TODO
     "TRY003",   # Avoid specifying long messages outside the exception class
 ]
+
+[tool.pytest.ini_options]
+markers = [
+    "enable_autosave: run tests with real autosave behavior enabled",
+]
