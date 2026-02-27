@@ -24,3 +24,11 @@ Before planning or implementation, every agent must provide concise evidence of:
 
 In an early progress update, include the tool names used and one line on what each returned.
 If a tool is not relevant for the task, state that explicitly in one line.
+
+## Post-Implementation Quality Gate (Required)
+
+After implementation edits are complete:
+
+1. Run `ruff` on the touched files (or broader target if the task requires it).
+2. Run `mypy` on the touched files (or broader target if the task requires it).
+3. Fix all problems reported by those runs before finishing the task.
