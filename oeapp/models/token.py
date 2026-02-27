@@ -89,7 +89,11 @@ class Token(SaveDeleteMixin, Base):
 
         # Add annotation if it exists
         if self.annotation:
-            token_data["annotation"] = self.annotation.to_json()
+            token_data["annotation"] = (
+                None
+                if self.annotation.is_effectively_empty()
+                else self.annotation.to_json()
+            )
 
         return token_data
 
@@ -132,7 +136,7 @@ class Token(SaveDeleteMixin, Base):
         session.flush()
 
         # Create annotation if it exists
-        if "annotation" in token_data:
+        if "annotation" in token_data and isinstance(token_data["annotation"], dict):
             Annotation.from_json(token.id, token_data["annotation"], commit=commit)
 
         if commit:

@@ -39,7 +39,7 @@ The application offers two different export options:
 ### JSON Export (Project Menu)
 
 - **Location**: Project → Export...
-- **Format**: JSON file (.json)
+- **Format**: JSON file (`.json`) or compressed JSON (`.json.gz`)
 - **Purpose**: Complete project backup, sharing, or migration
 - **Content**: All project data including sentences, tokens, annotations, and notes
 - **Use when**: You want to backup, share, or move the entire project
@@ -52,7 +52,8 @@ The application offers two different export options:
 2. Go to **Project → Export...**
 3. Choose a location to save the file
 4. The default filename is based on your project name (e.g., `my_project.json`)
-5. Click **Save**
+5. Optionally save as `my_project.json.gz` for a much smaller compressed backup
+6. Click **Save**
 
 The export includes:
 
@@ -72,6 +73,14 @@ The exported JSON file contains:
 - **project**: Project information (name, dates, etc.)
 - **sentences**: Array of all sentences with their tokens and annotations
 
+The JSON export is optimized for size while remaining machine-readable:
+
+- Fields that are `null` are omitted
+- Fields equal to schema defaults are omitted
+- Omitted fields are reconstructed during import using schema defaults
+- The default `.json` output is compact (minified) JSON
+- `.json.gz` stores the same JSON payload inside gzip compression
+
 ## Importing a Project
 
 ### Step-by-Step Instructions
@@ -80,6 +89,8 @@ The exported JSON file contains:
 2. Select the JSON file you want to import
 3. Click **Open**
 4. The project will be imported into your database
+
+Import accepts both plain `.json` files and gzip-compressed `.json.gz` files.
 
 ### What Happens During Import
 
@@ -145,10 +156,10 @@ While automatic backups protect your database, you can also create manual projec
 ## Important Notes
 
 - **Complete Export**: JSON export includes everything - you can't export just part of a project
-- **File Size**: Large projects may create large JSON files (several MB for extensive texts)
+- **File Size**: Exports are compact by default and can be compressed further using `.json.gz`
 - **No Data Loss**: All annotations, notes, and metadata are preserved in the export
 - **One Project Per File**: Each JSON file contains exactly one project
-- **Readable Format**: JSON files are text-based and can be opened in any text editor (though editing is not recommended)
+- **Readable Format**: JSON remains text-based and language-agnostic; use `.json` for readability and `.json.gz` for smallest backups
 
 ## Troubleshooting
 

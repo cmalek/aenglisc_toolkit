@@ -1,5 +1,6 @@
 """Unit tests for ProjectExporter and ProjectImporter."""
 
+import gzip
 import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -11,6 +12,7 @@ from oeapp.models.idiom import Idiom
 from oeapp.models.note import Note
 from oeapp.models.project import Project
 from oeapp.services.import_export import ProjectExporter, ProjectImporter
+from oeapp.services.import_export_schema import ProjectExportPayload
 from tests.conftest import create_test_project
 
 FORBIDDEN_ID_KEYS = {
@@ -77,6 +79,22 @@ def _build_full_project(db_session) -> Project:
     return project
 
 
+def _legacy_verbose_export_size(project: Project, migration_version: str) -> int:
+    """Build legacy-style verbose pretty JSON and return size in bytes."""
+    project_data = {
+        "export_version": "2.0",
+        "migration_version": migration_version,
+        "project": project.to_json(),
+        "sentences": [
+            sentence.to_json()
+            for sentence in sorted(project.sentences, key=lambda s: s.display_order)
+        ],
+    }
+    payload = ProjectExportPayload.model_validate(project_data)
+    legacy_text = json.dumps(payload.model_dump(), indent=2, ensure_ascii=False)
+    return len(legacy_text.encode("utf-8"))
+
+
 class TestProjectExporter:
     """Test cases for ProjectExporter."""
 
@@ -124,6 +142,10 @@ class TestProjectExporter:
         assert "paragraph_ref" in data["sentences"][0]
         assert "idioms" in data["sentences"][0]
         _assert_no_row_ids(data)
+        token_annotation = data["sentences"][0]["tokens"][0]["annotation"]
+        assert "verb_requires_infinitive" not in token_annotation
+        assert "verb_impersonal" not in token_annotation
+        assert "verb_transitivity" not in token_annotation
 
     def test_export_project_json_adds_extension(self, db_session, tmp_path):
         """Test export_project_json() adds .json extension if missing."""
@@ -144,9 +166,77 @@ class TestProjectExporter:
         mock_migration.db_migration_version.return_value = "v1"
         exporter = ProjectExporter(migration_service=mock_migration)
 
-        with patch("json.dump", side_effect=TypeError("Not serializable")):
+        with patch("json.dumps", side_effect=TypeError("Not serializable")):
             with pytest.raises(ValueError, match="Failed to serialize project data"):
                 exporter.export_project_json(project.id, str(tmp_path / "error.json"))
+
+    def test_export_project_json_writes_gzip_file(self, db_session, tmp_path):
+        """Test exporter writes gzip-compressed JSON when filename ends with .gz."""
+        project = _build_full_project(db_session)
+        mock_migration = MagicMock()
+        mock_migration.db_migration_version.return_value = "v1"
+        exporter = ProjectExporter(migration_service=mock_migration)
+
+        export_file = tmp_path / "compressed_export.json.gz"
+        exporter.export_project_json(project.id, str(export_file))
+
+        assert export_file.exists()
+        with gzip.open(export_file, "rt", encoding="utf-8") as f:
+            data = json.load(f)
+        assert data["export_version"] == "2.0"
+        assert data["project"]["name"] == "Full Export Test"
+
+    def test_export_project_json_compact_flag_false_writes_pretty_json(
+        self, db_session, tmp_path
+    ):
+        """Test compact=False writes sparse but pretty-printed JSON."""
+        project = _build_full_project(db_session)
+        mock_migration = MagicMock()
+        mock_migration.db_migration_version.return_value = "v1"
+        exporter = ProjectExporter(migration_service=mock_migration)
+
+        export_file = tmp_path / "pretty_export.json"
+        exporter.export_project_json(project.id, str(export_file), compact=False)
+        content = export_file.read_text(encoding="utf-8")
+
+        assert "\n  " in content
+        data = json.loads(content)
+        assert data["export_version"] == "2.0"
+
+    def test_export_project_json_sparse_omits_none_and_default_values(
+        self, db_session, tmp_path
+    ):
+        """Test default export omits null and schema-default values."""
+        project = create_test_project(db_session, name="Sparse Export", text="Se cyning.")
+        mock_migration = MagicMock()
+        mock_migration.db_migration_version.return_value = "v1"
+        exporter = ProjectExporter(migration_service=mock_migration)
+
+        export_file = tmp_path / "sparse_export.json"
+        exporter.export_project_json(project.id, str(export_file))
+        data = json.loads(export_file.read_text(encoding="utf-8"))
+
+        sentence = data["sentences"][0]
+        assert "annotation" not in sentence["tokens"][0]
+
+    def test_export_project_json_reduces_size_for_sparse_projects(
+        self, db_session, tmp_path
+    ):
+        """Test compact sparse export is substantially smaller than legacy verbose export."""
+        text = " ".join(["Ic eom cyning." for _ in range(60)])
+        project = create_test_project(db_session, name="Size Regression", text=text)
+        mock_migration = MagicMock()
+        mock_migration.db_migration_version.return_value = "v1"
+        exporter = ProjectExporter(migration_service=mock_migration)
+
+        export_file = tmp_path / "size_regression.json"
+        exporter.export_project_json(project.id, str(export_file))
+        compact_size = export_file.stat().st_size
+        legacy_size = _legacy_verbose_export_size(project, "v1")
+
+        assert compact_size < legacy_size
+        reduction_ratio = 1 - (compact_size / legacy_size)
+        assert reduction_ratio >= 0.40
 
 
 class TestProjectImporter:
@@ -328,9 +418,118 @@ class TestProjectImporter:
             importer.import_project_json("nonexistent.json")
 
         with patch("pathlib.Path.exists", return_value=True):
-            with patch("pathlib.Path.open", side_effect=PermissionError("Denied")):
+            with patch("pathlib.Path.read_bytes", side_effect=PermissionError("Denied")):
                 with pytest.raises(ValueError, match="Failed to load"):
                     importer.import_project_json("denied.json")
+
+    def test_import_project_json_accepts_gzip_with_non_gz_extension(
+        self, db_session, tmp_path
+    ):
+        """Test importer uses magic header detection even when extension is not .gz."""
+        project = _build_full_project(db_session)
+        mock_migration = MagicMock()
+        mock_migration.db_migration_version.return_value = "v1"
+        mock_migration.code_migration_version.return_value = "v1"
+        exporter = ProjectExporter(migration_service=mock_migration)
+        importer = ProjectImporter(migration_service=mock_migration)
+
+        export_file = tmp_path / "source.json"
+        exporter.export_project_json(project.id, str(export_file))
+        payload_bytes = export_file.read_bytes()
+        disguised_file = tmp_path / "payload.bin"
+        disguised_file.write_bytes(gzip.compress(payload_bytes))
+
+        project.delete()
+        db_session.commit()
+
+        imported_project, _renamed = importer.import_project_json(str(disguised_file))
+        assert imported_project.name == "Full Export Test"
+
+    def test_import_project_json_accepts_plain_json_with_gz_extension(
+        self, db_session, tmp_path
+    ):
+        """Test importer falls back to plain JSON parsing if content is not gzip."""
+        project = _build_full_project(db_session)
+        mock_migration = MagicMock()
+        mock_migration.db_migration_version.return_value = "v1"
+        mock_migration.code_migration_version.return_value = "v1"
+        exporter = ProjectExporter(migration_service=mock_migration)
+        importer = ProjectImporter(migration_service=mock_migration)
+
+        export_file = tmp_path / "source.json"
+        exporter.export_project_json(project.id, str(export_file))
+        disguised_file = tmp_path / "not_really_gzip.gz"
+        disguised_file.write_text(export_file.read_text(encoding="utf-8"), encoding="utf-8")
+
+        project.delete()
+        db_session.commit()
+
+        imported_project, _renamed = importer.import_project_json(str(disguised_file))
+        assert imported_project.name == "Full Export Test"
+
+    def test_import_project_json_accepts_token_annotation_null(
+        self, db_session, tmp_path
+    ):
+        """Test importer accepts token annotation set to null."""
+        mock_migration = MagicMock()
+        mock_migration.code_migration_version.return_value = "v1"
+        importer = ProjectImporter(migration_service=mock_migration)
+
+        payload = {
+            "export_version": "2.0",
+            "migration_version": "v1",
+            "project": {
+                "name": "Null Annotation",
+                "source": None,
+                "translator": None,
+                "notes": None,
+                "created_at": None,
+                "updated_at": None,
+                "chapters": [
+                    {
+                        "number": 1,
+                        "title": None,
+                        "sections": [
+                            {
+                                "number": 1,
+                                "title": None,
+                                "paragraphs": [{"order": 1}],
+                            }
+                        ],
+                    }
+                ],
+            },
+            "sentences": [
+                {
+                    "display_order": 1,
+                    "text_oe": "Se cyning.",
+                    "text_modern": None,
+                    "paragraph_ref": {
+                        "chapter_number": 1,
+                        "section_number": 1,
+                        "paragraph_order": 1,
+                    },
+                    "tokens": [
+                        {
+                            "order_index": 0,
+                            "surface": "Se",
+                            "annotation": None,
+                        },
+                        {
+                            "order_index": 1,
+                            "surface": "cyning",
+                        },
+                    ],
+                    "notes": [],
+                    "idioms": [],
+                }
+            ],
+        }
+        import_file = tmp_path / "null_annotation.json"
+        import_file.write_text(json.dumps(payload), encoding="utf-8")
+
+        project, _renamed = importer.import_project_json(str(import_file))
+        assert project.name == "Null Annotation"
 
     def test_load_field_mappings_io_error(self):
         """Test _load_field_mappings handles errors gracefully."""

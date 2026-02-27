@@ -117,6 +117,18 @@ class TestToken:
         assert "created_at" in data
         assert "updated_at" in data
 
+    def test_to_json_sets_annotation_null_for_untouched_default_annotation(
+        self, db_session
+    ):
+        """Untouched auto-created annotation should serialize as null."""
+        project = create_test_project(db_session)
+        sentence = create_test_sentence(db_session, project.id, "Se cyning")
+        token = Token.list(sentence.id)[0]
+
+        data = token.to_json()
+        assert "annotation" in data
+        assert data["annotation"] is None
+
     def test_to_json_includes_annotation(self, db_session):
         """Test to_json() includes annotation if present."""
         project = create_test_project(db_session)

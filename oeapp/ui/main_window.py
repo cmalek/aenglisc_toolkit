@@ -1322,7 +1322,10 @@ class MainWindowActions(ThemeMixin):
         """
         # Get file path from user
         file_path, _ = QFileDialog.getOpenFileName(
-            self.main_window, "Import Project", "", "JSON Files (*.json);;All Files (*)"
+            self.main_window,
+            "Import Project",
+            "",
+            "Project Exports (*.json *.json.gz);;JSON Files (*.json);;GZip JSON Files (*.json.gz);;All Files (*)",
         )
 
         # If the user cancels the dialog, do nothing
@@ -1399,7 +1402,7 @@ class MainWindowActions(ThemeMixin):
             dialog_parent,
             "Export Project",
             default_filename,
-            "JSON Files (*.json);;All Files (*)",
+            "Project Exports (*.json *.json.gz);;JSON Files (*.json);;GZip JSON Files (*.json.gz);;All Files (*)",
         )
 
         # If the user cancels the dialog, do nothing

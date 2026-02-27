@@ -1,6 +1,8 @@
 """Project import/export service for Ænglisc Toolkit."""
 
+import gzip
 import json
+import mimetypes
 from pathlib import Path
 from typing import Any
 
@@ -64,20 +66,27 @@ class ProjectExporter(SessionMixin):
             raise ValueError(msg)
         return project
 
-    def export_project_json(self, project_id: int, filename: str) -> None:
+    def export_project_json(
+        self,
+        project_id: int,
+        filename: str,
+        compact: bool = True,  # noqa: FBT001, FBT002
+    ) -> None:
         """
         Export project as JSON to a file.
 
         Args:
             project_id: Project ID to export
             filename: Filename to export the project to
+            compact: Whether to write compact JSON (default True). If False,
+                writes sparse pretty JSON for readability.
 
         Raises:
             ValueError: If project is not found or if the export fails, with a
                 descriptive message
 
         """
-        if not filename.endswith(".json"):
+        if not filename.endswith(".json") and not filename.endswith(".json.gz"):
             filename += ".json"
 
         project = self.get_project(project_id)
@@ -102,15 +111,30 @@ class ProjectExporter(SessionMixin):
 
         try:
             payload = ProjectExportPayload.model_validate(project_data)
-            serialized_data = payload.model_dump()
+            serialized_data = payload.model_dump(
+                exclude_none=True,
+                exclude_defaults=True,
+            )
         except ValidationError as e:
             msg = f"Failed to validate export data:\n{e!s}"
             raise ValueError(msg) from e
 
-        # Write JSON to file
+        json_kwargs: dict[str, Any] = {"ensure_ascii": False}
+        if compact:
+            json_kwargs["separators"] = (",", ":")
+        else:
+            json_kwargs["indent"] = 2
+
         try:
-            with Path(filename).open("w", encoding="utf-8") as f:
-                json.dump(serialized_data, f, indent=2, ensure_ascii=False)
+            export_text = json.dumps(serialized_data, **json_kwargs)
+            export_path = Path(filename)
+            if export_path.suffix == ".gz":
+                with export_path.open("wb") as f:
+                    with gzip.GzipFile(fileobj=f, mode="wb") as gz_file:
+                        gz_file.write(export_text.encode("utf-8"))
+            else:
+                with export_path.open("w", encoding="utf-8") as f:
+                    f.write(export_text)
         except (OSError, PermissionError) as e:
             msg = f"Failed to write export file:\n{e!s}"
             raise ValueError(msg) from e
@@ -147,6 +171,71 @@ class ProjectImporter(SessionMixin):
             if migration_metadata_service is not None
             else MigrationMetadataService()
         )
+
+    @staticmethod
+    def _should_decompress_gzip(path: Path, first_bytes: bytes) -> bool:
+        """
+        Determine whether input bytes should be treated as gzip.
+
+        Detection order:
+        1. Magic bytes (authoritative): 0x1f 0x8b
+        2. mimetypes hint
+        3. File extension fallback
+
+        Args:
+            path: Input path
+            first_bytes: Leading bytes from the input file
+
+        Returns:
+            True if file should be gzip-decompressed, False otherwise
+
+        """
+        if first_bytes.startswith(b"\x1f\x8b"):
+            return True
+
+        mime_type, encoding = mimetypes.guess_type(path.name)
+        if encoding == "gzip" or mime_type in {"application/gzip", "application/x-gzip"}:
+            return True
+
+        return path.name.endswith(".gz")
+
+    def _load_json_payload(self, path: Path) -> dict[str, Any]:
+        """
+        Load JSON payload from plain or gzip-compressed export file.
+
+        Args:
+            path: Input file path
+
+        Returns:
+            Decoded JSON payload
+
+        Raises:
+            ValueError: If file cannot be read/decompressed/parsed as JSON
+
+        """
+        try:
+            raw_bytes = path.read_bytes()
+        except (OSError, PermissionError) as e:
+            msg = f"Failed to load project data from file:\n{e!s}"
+            raise ValueError(msg) from e
+
+        has_gzip_magic = raw_bytes.startswith(b"\x1f\x8b")
+        if self._should_decompress_gzip(path, raw_bytes[:2]):
+            try:
+                raw_bytes = gzip.decompress(raw_bytes)
+            except (OSError, EOFError, gzip.BadGzipFile) as e:
+                # If content does not have gzip magic, mime/extension hints may be
+                # wrong; fall back to plain JSON decode.
+                if has_gzip_magic:
+                    msg = f"Failed to load project data from file:\n{e!s}"
+                    raise ValueError(msg) from e
+
+        try:
+            decoded = raw_bytes.decode("utf-8")
+            return json.loads(decoded)
+        except (UnicodeDecodeError, json.JSONDecodeError) as e:
+            msg = f"Failed to load project data from file:\n{e!s}"
+            raise ValueError(msg) from e
 
     def _validate_migration_version(self, export_version: str) -> None:
         """
@@ -451,13 +540,7 @@ class ProjectImporter(SessionMixin):
             msg = f"File {filename} not found"
             raise ValueError(msg)
 
-        try:
-            # Load and parse JSON
-            with Path(filename).open("r", encoding="utf-8") as f:
-                data = json.load(f)
-        except (OSError, PermissionError, json.JSONDecodeError) as e:
-            msg = f"Failed to load project data from file:\n{e!s}"
-            raise ValueError(msg) from e
+        data = self._load_json_payload(Path(filename))
 
         # Validate migration version
         export_version = data.get("migration_version")

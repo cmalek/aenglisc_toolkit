@@ -273,6 +273,46 @@ class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
         data["updated_at"] = to_utc_iso(self.updated_at)
         return data
 
+    def is_effectively_empty(self) -> bool:
+        """
+        Determine whether annotation contains only untouched default values.
+
+        Returns:
+            True when the annotation is effectively an auto-created placeholder
+            with no user-provided grammatical content.
+
+        """
+        return (
+            self.pos is None
+            and self.gender is None
+            and self.number is None
+            and self.case is None
+            and self.declension is None
+            and self.article_type is None
+            and self.pronoun_type is None
+            and self.pronoun_number is None
+            and self.verb_class is None
+            and self.verb_tense is None
+            and self.verb_person is None
+            and self.verb_mood is None
+            and self.verb_aspect is None
+            and self.verb_form is None
+            and self.verb_direct_object_case is None
+            and self.verb_requires_infinitive is False
+            and self.verb_impersonal is False
+            and self.verb_transitivity == "transitive"
+            and self.prep_case is None
+            and self.adjective_inflection is None
+            and self.adjective_degree is None
+            and self.conjunction_type is None
+            and self.adverb_degree is None
+            and self.confidence is None
+            and self.last_inferred_json is None
+            and self.modern_english_meaning is None
+            and self.root is None
+            and self.root_normalized is None
+        )
+
     @classmethod
     def from_json(  # noqa: PLR0912
         cls,
