@@ -1,6 +1,8 @@
 """Unit tests for Menus."""
 
+from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QMenu
+import pytest
 
 from oeapp.help.topics import HELP_TOPICS
 from oeapp.ui.menus import (
@@ -11,6 +13,14 @@ from oeapp.ui.menus import (
     ProjectMenu,
     ToolsMenu,
 )
+
+
+@pytest.fixture(autouse=True)
+def _cleanup_mock_window(mock_main_window):
+    """Ensure menu test windows are cleaned up between tests."""
+    yield
+    mock_main_window.close()
+    mock_main_window.deleteLater()
 
 
 def _non_separator_action_texts(menu: QMenu) -> list[str]:
@@ -173,6 +183,38 @@ class TestHelpMenu:
         assert "&Help" in action_texts
         assert topic_titles.isdisjoint(action_texts)
 
+    def test_help_topic_actions_use_no_role_on_macos(
+        self, db_session, mock_main_window, qapp, monkeypatch
+    ):
+        """Help topic actions should avoid macOS text heuristics."""
+        monkeypatch.setattr("oeapp.ui.menus.sys.platform", "darwin")
+        monkeypatch.setattr("oeapp.ui.menus._is_offscreen_qt_platform", lambda: False)
+        main_menu = MainMenu(mock_main_window)
+        help_menu = HelpMenu(main_menu, mock_main_window)
+
+        topic_action_texts = {topic.title for topic in HELP_TOPICS}
+        for action in help_menu.help_menu.actions():
+            if action.text() in topic_action_texts:
+                assert action.menuRole() == QAction.MenuRole.NoRole
+
+    def test_help_settings_topic_still_opens_help_topic_on_macos(
+        self, db_session, mock_main_window, qapp, monkeypatch
+    ):
+        """The Settings help topic should still open help, not preferences."""
+        monkeypatch.setattr("oeapp.ui.menus.sys.platform", "darwin")
+        main_menu = MainMenu(mock_main_window)
+        help_menu = HelpMenu(main_menu, mock_main_window)
+
+        settings_topic_action = next(
+            action
+            for action in help_menu.help_menu.actions()
+            if action.text() == "Settings"
+        )
+        settings_topic_action.trigger()
+
+        mock_main_window.show_help.assert_any_call(topic="Settings")
+        mock_main_window.show_settings_dialog.assert_not_called()
+
 
 class TestPreferencesMenu:
     """Test cases for PreferencesMenu."""
@@ -188,3 +230,40 @@ class TestPreferencesMenu:
 
         # Should not raise error
         assert preferences_menu is not None
+
+    def test_preferences_action_uses_preferences_role_on_macos(
+        self, db_session, mock_main_window, qapp, monkeypatch
+    ):
+        """macOS preferences action should use PreferencesRole and open settings."""
+        monkeypatch.setattr("oeapp.ui.menus.sys.platform", "darwin")
+        monkeypatch.setattr("oeapp.ui.menus._is_offscreen_qt_platform", lambda: False)
+        main_menu = MainMenu(mock_main_window)
+        FileMenu(main_menu, mock_main_window)
+        PreferencesMenu(main_menu, mock_main_window)
+
+        preferences_action = next(
+            action
+            for action in main_menu.file_menu.actions()
+            if action.text() == "&Preferences..."
+        )
+        assert preferences_action.menuRole() == QAction.MenuRole.PreferencesRole
+
+        preferences_action.trigger()
+        mock_main_window.show_settings_dialog.assert_called_once()
+
+    def test_preferences_menu_non_macos_branch_creates_settings_action(
+        self, db_session, mock_main_window, qapp, monkeypatch
+    ):
+        """Windows/Linux preferences entry should exist and open settings."""
+        monkeypatch.setattr("oeapp.ui.menus.sys.platform", "win32")
+        main_menu = MainMenu(mock_main_window)
+        FileMenu(main_menu, mock_main_window)
+        PreferencesMenu(main_menu, mock_main_window)
+
+        settings_action = next(
+            action
+            for action in main_menu.file_menu.actions()
+            if action.text() == "&Settings..."
+        )
+        settings_action.trigger()
+        mock_main_window.show_settings_dialog.assert_called_once()

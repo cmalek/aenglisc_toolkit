@@ -2,7 +2,7 @@ import sys
 from typing import TYPE_CHECKING
 
 from PySide6.QtGui import QAction, QKeySequence
-from PySide6.QtWidgets import QMenu, QMenuBar
+from PySide6.QtWidgets import QApplication, QMenu
 
 from oeapp.help.topics import HELP_TOPICS
 from oeapp.models.project import Project
@@ -20,6 +20,14 @@ from oeapp.ui.full_translation_window import FullTranslationWindow
 
 if TYPE_CHECKING:
     from oeapp.ui.main_window import MainWindow
+
+
+def _is_offscreen_qt_platform() -> bool:
+    """Return True when tests are using Qt's offscreen platform plugin."""
+    app = QApplication.instance()
+    if app is None:
+        return False
+    return app.platformName().lower() == "offscreen"
 
 
 class MainMenu:
@@ -176,6 +184,7 @@ class FileMenu:
         """
         # Store reference for preferences menu
         self.file_menu = self.main_menu.add_menu("&File")
+        self.main_menu.file_menu = self.file_menu
 
         new_action = QAction("&New Project...", self.file_menu)
         new_action.setShortcut(QKeySequence("Ctrl+N"))
@@ -302,28 +311,16 @@ class PreferencesMenu:
 
         """
         if sys.platform == "darwin":
-            # macOS: Add to application menu (first menu, typically app name)
-            # The application menu is automatically created by Qt on macOS
-            # We need to find it by looking for menus
-
-            menu_bar = self.main_window.menuBar()
-            if isinstance(menu_bar, QMenuBar):
-                actions = menu_bar.actions()
-                if actions:
-                    app_menu_action = actions[0]
-                    app_menu = app_menu_action.menu()
-                    if isinstance(app_menu, QMenu):
-                        app_menu.addSeparator()
-                        preferences_action = QAction("&Preferences...", app_menu)
-                        preferences_action.setShortcut(QKeySequence("Ctrl+,"))
-                        preferences_action.triggered.connect(
-                            self.main_window.show_settings_dialog
-                        )
-                        app_menu.addAction(preferences_action)
+            preferences_action = QAction("&Preferences...", self.main_menu.file_menu)
+            if not _is_offscreen_qt_platform():
+                preferences_action.setMenuRole(QAction.MenuRole.PreferencesRole)
+            preferences_action.setShortcut(QKeySequence("Ctrl+,"))
+            preferences_action.triggered.connect(self.main_window.show_settings_dialog)
+            self.main_menu.file_menu.addAction(preferences_action)
         else:
             # Windows/Linux: Add to File menu
             self.main_menu.file_menu.addSeparator()
-            settings_action = QAction("&Settings...", self.file_menu)
+            settings_action = QAction("&Settings...", self.main_menu.file_menu)
             settings_action.triggered.connect(self.main_window.show_settings_dialog)
             self.main_menu.file_menu.addAction(settings_action)
 
@@ -417,6 +414,8 @@ class HelpMenu:
 
         """
         help_action = QAction("&Help", self.help_menu)
+        if not _is_offscreen_qt_platform():
+            help_action.setMenuRole(QAction.MenuRole.NoRole)
         help_action.setShortcut(QKeySequence("F1"))
         help_action.triggered.connect(lambda: self.main_window.show_help())  # noqa: PLW0108
         self.help_menu.addAction(help_action)
@@ -432,6 +431,8 @@ class HelpMenu:
         self.help_menu.addSeparator()
         for topic in HELP_TOPICS:
             topic_action = QAction(topic.title, self.help_menu)
+            if not _is_offscreen_qt_platform():
+                topic_action.setMenuRole(QAction.MenuRole.NoRole)
             topic_action.triggered.connect(
                 lambda checked=False, topic_title=topic.title: self.main_window.show_help(
                     topic=topic_title
