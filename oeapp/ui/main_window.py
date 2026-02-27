@@ -1,11 +1,12 @@
 """Main application window."""
 
 import sys
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final, Literal, cast
 
-from PySide6.QtCore import QSettings, Qt, QTimer
+from PySide6.QtCore import QPoint, QSettings, Qt, QTimer
 from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import (
     QApplication,
@@ -27,6 +28,7 @@ from oeapp.commands import (
 )
 from oeapp.db import run_pragma_optimize
 from oeapp.exc import MigrationFailed
+from oeapp.help.help_engine import HelpEngineError
 from oeapp.models.project import Project
 from oeapp.services import (
     AutosaveService,
@@ -55,7 +57,6 @@ from oeapp.ui.dialogs import (
     RestoreDialog,
     SettingsDialog,
 )
-from oeapp.help.help_engine import HelpEngineError
 from oeapp.ui.dialogs.help_center_dialog import HelpCenterDialog
 from oeapp.ui.menus import MainMenu
 from oeapp.ui.mixins import ThemeMixin
@@ -128,10 +129,8 @@ class MainWindow(QMainWindow):
         # Note: session is created after migrations to avoid issues
         self._handle_migrations()
         # Best-effort planner/statistics maintenance after DB is ready.
-        try:
+        with suppress(Exception):
             run_pragma_optimize()
-        except Exception:  # noqa: BLE001
-            pass
 
         #: Sentence cards
         self.sentence_cards: list[SentenceCard] = []
@@ -300,6 +299,7 @@ class MainWindow(QMainWindow):
 
         Returns:
             QWidget: The navigation toolbar widget
+
         """
         toolbar = QWidget()
         toolbar.setObjectName("navigation_toolbar")
@@ -517,10 +517,8 @@ class MainWindow(QMainWindow):
             self.autosave_service.cancel()
             self.autosave_service = None
         # Keep this non-blocking on shutdown.
-        try:
+        with suppress(Exception):
             run_pragma_optimize()
-        except Exception:  # noqa: BLE001
-            pass
         super().closeEvent(event)
 
     def reload_main_window(self) -> None:
@@ -612,7 +610,39 @@ class MainWindow(QMainWindow):
             widget: Widget to ensure visible
 
         """
-        self.main_column.ensureWidgetVisible(widget)
+        content_widget = self.main_column.widget()
+        if content_widget is None:
+            return
+
+        viewport_height = self.main_column.viewport().height()
+        scrollbar = self.main_column.verticalScrollBar()
+        if viewport_height <= 0:
+            self.main_column.ensureWidgetVisible(widget)
+            return
+
+        widget_top = widget.mapTo(content_widget, QPoint(0, 0)).y()
+        widget_bottom = widget_top + widget.height()
+        viewport_top = scrollbar.value()
+        viewport_bottom = viewport_top + viewport_height
+        top_padding = 8
+
+        # Prefer full-card visibility when the card fits in the viewport.
+        if widget.height() <= viewport_height:
+            if widget_top < viewport_top or widget_bottom > viewport_bottom:
+                target = max(
+                    scrollbar.minimum(),
+                    min(widget_top - top_padding, scrollbar.maximum()),
+                )
+                scrollbar.setValue(target)
+            return
+
+        # Fallback for very tall cards: keep the top of the card visible.
+        if widget_top < viewport_top or widget_top > viewport_bottom:
+            target = max(
+                scrollbar.minimum(),
+                min(widget_top - top_padding, scrollbar.maximum()),
+            )
+            scrollbar.setValue(target)
 
     def show_help(self, topic: str | None = None) -> None:
         """
@@ -842,9 +872,9 @@ class MainWindowActions(ThemeMixin):
 
         """
         scope = self.main_window.search_scope_combo.currentText()
-        self.main_window.search_input.blockSignals(True)
+        self.main_window.search_input.blockSignals(True)  # noqa: FBT003
         self.main_window.search_input.clear()
-        self.main_window.search_input.blockSignals(False)
+        self.main_window.search_input.blockSignals(False)  # noqa: FBT003
         self._reset_search_matches()
         self._apply_visible_highlights("", scope, None, {})
         self._update_search_ui(0)
@@ -890,7 +920,7 @@ class MainWindowActions(ThemeMixin):
         if scope not in {"OE Text", "Notes", "All"}:
             return None
         normalized = normalize_old_english(pattern)
-        return normalized if normalized else None
+        return normalized or None
 
     def _build_search_results(
         self, pattern: str, scope: str, normalized_oe: str | None
@@ -943,7 +973,12 @@ class MainWindowActions(ThemeMixin):
         return chapter_results, chapter_total, token_map
 
     def _section_matches(
-        self, section, chapter_id: int, needle: str, scope: str, normalized_oe: str | None
+        self,
+        section,
+        chapter_id: int,
+        needle: str,
+        scope: str,
+        normalized_oe: str | None,
     ) -> tuple[list[SearchResult], int, dict[int, set[int]]]:
         """Collect search results for a section."""
         results: list[SearchResult] = []
@@ -960,7 +995,7 @@ class MainWindowActions(ThemeMixin):
                     token_map[sentence.id] = token_ids
         return results, total, token_map
 
-    def _sentence_matches(  # noqa: PLR0912
+    def _sentence_matches(  # noqa: PLR0913
         self,
         chapter_id: int,
         section_id: int,
@@ -978,7 +1013,11 @@ class MainWindowActions(ThemeMixin):
                 token_id = token.id
                 if token_id is None:
                     continue
-                surface = token.surface_normalized or normalize_old_english(token.surface) or ""
+                surface = (
+                    token.surface_normalized
+                    or normalize_old_english(token.surface)
+                    or ""
+                )
                 if normalized_oe in surface:
                     results.append(
                         SearchResult(
@@ -1006,7 +1045,11 @@ class MainWindowActions(ThemeMixin):
             if count > 0:
                 results.append(
                     SearchResult(
-                        chapter_id, section_id, sentence.id, "mode_text", match_count=count
+                        chapter_id,
+                        section_id,
+                        sentence.id,
+                        "mode_text",
+                        match_count=count,
                     )
                 )
                 total += count
@@ -1016,7 +1059,11 @@ class MainWindowActions(ThemeMixin):
                 if count > 0:
                     results.append(
                         SearchResult(
-                            chapter_id, section_id, sentence.id, "note_text", match_count=count
+                            chapter_id,
+                            section_id,
+                            sentence.id,
+                            "note_text",
+                            match_count=count,
                         )
                     )
                     total += count
@@ -1044,7 +1091,9 @@ class MainWindowActions(ThemeMixin):
         query = self.main_window.search_input.text()
         scope = self.main_window.search_scope_combo.currentText()
         normalized_oe = self._normalized_oe_query(query, scope)
-        self._apply_visible_highlights(query, scope, normalized_oe, self._search_token_map)
+        self._apply_visible_highlights(
+            query, scope, normalized_oe, self._search_token_map
+        )
         self.main_window.ensure_visible(card)
         if result.match_kind in {"oe_surface", "oe_root"}:
             card.focus_token_by_id(result.token_id)
@@ -1325,7 +1374,7 @@ class MainWindowActions(ThemeMixin):
             self.main_window,
             "Import Project",
             "",
-            "Project Exports (*.json *.json.gz);;JSON Files (*.json);;GZip JSON Files (*.json.gz);;All Files (*)",
+            "Project Exports (*.json *.json.gz);;JSON Files (*.json);;GZip JSON Files (*.json.gz);;All Files (*)",  # noqa: E501
         )
 
         # If the user cancels the dialog, do nothing
@@ -1381,9 +1430,7 @@ class MainWindowActions(ThemeMixin):
             True if export was successful, False if canceled or failed
 
         """
-        target_project_id = (
-            project_id if project_id else self.application_state[CURRENT_PROJECT_ID]
-        )
+        target_project_id = project_id or self.application_state[CURRENT_PROJECT_ID]
         if not self.application_state.session or not target_project_id:
             self.messages.show_warning("No project open")
             return False
@@ -1402,7 +1449,7 @@ class MainWindowActions(ThemeMixin):
             dialog_parent,
             "Export Project",
             default_filename,
-            "Project Exports (*.json *.json.gz);;JSON Files (*.json);;GZip JSON Files (*.json.gz);;All Files (*)",
+            "Project Exports (*.json *.json.gz);;JSON Files (*.json);;GZip JSON Files (*.json.gz);;All Files (*)",  # noqa: E501
         )
 
         # If the user cancels the dialog, do nothing
@@ -1662,11 +1709,11 @@ class ProjectUI:
         self.application_state[CURRENT_PROJECT_ID] = project.id
 
         # Update chapter dropdown
-        self.main_window.chapter_combo.blockSignals(True)
+        self.main_window.chapter_combo.blockSignals(True)  # noqa: FBT003
         self.main_window.chapter_combo.clear()
         for chapter in project.chapters:
             self.main_window.chapter_combo.addItem(chapter.display_title, chapter.id)
-        self.main_window.chapter_combo.blockSignals(False)
+        self.main_window.chapter_combo.blockSignals(False)  # noqa: FBT003
 
         # Select first chapter if available
         if project.chapters:
@@ -1681,16 +1728,18 @@ class ProjectUI:
 
     def update_sections_for_chapter(self, chapter_id: int) -> None:
         """Update section dropdown for the given chapter."""
-        from oeapp.models.chapter import Chapter
+        # Import here to avoid circular import
+        from oeapp.models.chapter import Chapter  # noqa: PLC0415
+
         chapter = Chapter.get(chapter_id)
         if not chapter:
             return
 
-        self.main_window.section_combo.blockSignals(True)
+        self.main_window.section_combo.blockSignals(True)  # noqa: FBT003
         self.main_window.section_combo.clear()
         for section in chapter.sections:
             self.main_window.section_combo.addItem(section.display_title, section.id)
-        self.main_window.section_combo.blockSignals(False)
+        self.main_window.section_combo.blockSignals(False)  # noqa: FBT003
 
         if chapter.sections:
             self.main_window.section_combo.setCurrentIndex(0)
@@ -1702,7 +1751,9 @@ class ProjectUI:
 
     def load_section(self, section_id: int) -> None:
         """Load sentences for the given section."""
-        from oeapp.models.section import Section
+        # Import here to avoid circular import
+        from oeapp.models.section import Section  # noqa: PLC0415
+
         section = Section.get(section_id)
         if not section:
             return
@@ -1797,14 +1848,14 @@ class ProjectUI:
         separator.setFixedHeight(20)
         palette = separator.palette()
         mid = palette.color(QPalette.ColorRole.Mid)
-        h, s, v, a = mid.getHsv()
-        v = min(v, 255)
+        h, s, v, a = mid.getHsv()  # type: ignore[misc]
+        v = min(v, 255)  # type: ignore[has-type]
         v = int((v + 255 + 20) % 255)
-        background = QColor.fromHsv(h, s, v, a)
-        h, s, v, a = mid.getHsv()
-        v = min(v, 0)
+        background = QColor.fromHsv(h, s, v, a)  # type: ignore[has-type]
+        h, s, v, a = mid.getHsv()  # type: ignore[misc]
+        v = min(v, 0)  # type: ignore[has-type]
         v = int((v + 255 + 20) % 255)
-        border = QColor.fromHsv(h, s, v, a)
+        border = QColor.fromHsv(h, s, v, a)  # type: ignore[has-type]
         separator.setStyleSheet(
             f"background-color: {background.name()}; "
             f"border-top: 2px solid {border.name()};"
@@ -1823,10 +1874,10 @@ class ProjectUI:
         card.idiom_selected_for_details.connect(self._on_idiom_selected_for_details)
         card.annotation_applied.connect(self._on_annotation_applied)
         card.edit_mode_started.connect(
-            lambda: self.main_window.update_search_ui_state(True)
+            lambda: self.main_window.update_search_ui_state(True)  # noqa: FBT003
         )
         card.edit_mode_finished.connect(
-            lambda: self.main_window.update_search_ui_state(False)
+            lambda: self.main_window.update_search_ui_state(False)  # noqa: FBT003
         )
         card.edit_mode_started.connect(
             self.main_window._clear_search_without_focus_restore
@@ -2005,14 +2056,20 @@ class ProjectUI:
                 new_card = card
                 break
 
-        if new_card:
-            # Scroll card into view
-            self.main_window.ensure_visible(new_card)
-            # Enter edit mode and focus OE text box
-            new_card.enter_edit_mode()
-
-        # Ensure UI is updated/repainted
+        # Ensure UI is updated/repainted before final focus handoff.
         self.main_window.reload_main_window()
+
+        if new_card:
+            # Defer focus to the next event-loop cycle so it is not overridden
+            # by immediate post-load UI updates.
+            _new_card = cast("SentenceCard", new_card)
+
+            def _focus_new_card(card: SentenceCard = _new_card) -> None:
+                self.main_window.ensure_visible(card)
+                card.enter_edit_mode()
+                card.flash_added()
+
+            QTimer.singleShot(0, _focus_new_card)
 
         self.show_message("Sentence added", duration=2000)
 

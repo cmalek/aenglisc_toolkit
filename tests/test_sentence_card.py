@@ -509,6 +509,25 @@ class TestSentenceCard:
         updated = Annotation.get_by_idiom(idiom.id)
         assert updated.pos == "N"
 
+    def test_flash_added_applies_and_restores_background(
+        self, db_session, qapp, qtbot, mock_main_window
+    ):
+        """flash_added should temporarily style the card background and restore it."""
+        project = create_test_project(db_session, name="Test", text="Se cyning")
+        sentence = project.sentences[0]
+        card = SentenceCard(sentence, main_window=mock_main_window, parent=None)
+        qtbot.addWidget(card)
+        card.show()
+
+        base_style = card.styleSheet()
+        card.flash_added()
+        assert "QWidget#sentence-card" in card.styleSheet()
+
+        # Repeated calls should be safe and still restore cleanly.
+        card.flash_added()
+        qtbot.wait(700)
+        assert card.styleSheet() == base_style
+
 
 class TestOldEnglishTextEditInternal:
     """Internal tests for OldEnglishTextEdit when used within SentenceCard."""

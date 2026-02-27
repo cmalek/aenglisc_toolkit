@@ -3,7 +3,7 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QPoint, Qt
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import QLabel, QStatusBar, QVBoxLayout, QWidget
 
@@ -198,6 +198,28 @@ class TestMainWindowActions:
         # In PySide6, we can check the message directly
         assert main_window.statusBar().currentMessage() == "Test Message"
 
+    def test_ensure_visible_scrolls_to_show_full_card(self, main_window):
+        """ensure_visible should scroll so a fitting card is fully visible."""
+        scroll_area = MagicMock()
+        scrollbar = MagicMock()
+        content_widget = QWidget()
+        card_widget = MagicMock()
+
+        scroll_area.widget.return_value = content_widget
+        scroll_area.viewport.return_value.height.return_value = 400
+        scroll_area.verticalScrollBar.return_value = scrollbar
+        scrollbar.value.return_value = 0
+        scrollbar.minimum.return_value = 0
+        scrollbar.maximum.return_value = 1000
+
+        card_widget.mapTo.return_value = QPoint(0, 350)
+        card_widget.height.return_value = 120
+
+        main_window.main_column = scroll_area
+        main_window.ensure_visible(card_widget)
+
+        scrollbar.setValue.assert_called_once_with(342)
+
     def test_autosave_noops_without_current_project(self, main_window):
         """Autosave should safely no-op when no project is active."""
         state = main_window.application_state
@@ -210,6 +232,39 @@ class TestMainWindowActions:
 
         mock_project_get.assert_not_called()
         mock_show_message.assert_not_called()
+
+    def test_on_sentence_added_defers_focus_to_new_card(self, main_window):
+        """Adding a sentence should focus the new card OE editor after reload."""
+        project_ui = main_window.project_ui
+        state = main_window.application_state
+        state[CURRENT_PROJECT_ID] = 1
+
+        project = MagicMock()
+        existing_card = MagicMock()
+        existing_card.sentence.id = 10
+        new_card = MagicMock()
+        new_card.sentence.id = 99
+
+        def fake_load(_project):
+            project_ui.sentence_cards = [existing_card, new_card]
+
+        with (
+            patch("oeapp.ui.main_window.Project.get", return_value=project),
+            patch.object(project_ui, "load", side_effect=fake_load),
+            patch.object(main_window, "reload_main_window"),
+            patch.object(main_window, "ensure_visible") as mock_ensure_visible,
+            patch("oeapp.ui.main_window.QTimer.singleShot") as mock_single_shot,
+        ):
+            project_ui._on_sentence_added(99)
+
+            mock_single_shot.assert_called_once()
+            scheduled_delay, scheduled_callback = mock_single_shot.call_args.args
+            assert scheduled_delay == 0
+
+            scheduled_callback()
+            mock_ensure_visible.assert_called_once_with(new_card)
+            new_card.enter_edit_mode.assert_called_once_with()
+            new_card.flash_added.assert_called_once_with()
 
 
 class TestMainWindowHelp:

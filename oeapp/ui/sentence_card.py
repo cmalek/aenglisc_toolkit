@@ -2,7 +2,12 @@
 
 from typing import TYPE_CHECKING, cast
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import (
+    QSettings,
+    Qt,
+    QTimer,
+    Signal,
+)
 from PySide6.QtGui import (
     QFont,
 )
@@ -61,6 +66,7 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
 
     Keyword Args:
         command_manager: Command manager for undo/redo
+        main_window: Main window this card belongs to
         parent: Parent widget
 
     """
@@ -94,12 +100,25 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
         parent: QWidget | None = None,
     ):
         super().__init__(parent)
+        #: The sentence this card represents
         self.sentence = sentence
+        #: The session this card belongs to
         self.session = self._get_session()
+        #: The command manager for this card
         self.command_manager = command_manager
+        #: The main window this card belongs to
         self.main_window = main_window
+        #: The token table for this card
         self.token_table = TokenTable()
+        #: The sentence highlighter for this card
         self.sentence_highlighter: WholeSentenceHighlighter = WholeSentenceHighlighter()
+        #: The base stylesheet for the card
+        self._flash_base_stylesheet: str | None = None
+        #: The timer for the flash restore after a new sentence is added
+        self._flash_restore_timer = QTimer(self)
+        self._flash_restore_timer.setSingleShot(True)
+        self._flash_restore_timer.timeout.connect(self._clear_added_flash)
+        self.setObjectName("sentence-card")
         self.build()
         self.edit_oe_button.clicked.connect(
             self.sentence_highlighter._on_edit_oe_clicked
@@ -193,6 +212,38 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
         # Set focus on OE text edit
         self.oe_text_edit.setFocus()
         return True
+
+    def flash_added(self) -> None:
+        """
+        Briefly flash the card background to indicate a new sentence was added.
+        """
+        if self._flash_base_stylesheet is None:
+            self._flash_base_stylesheet = self.styleSheet()
+
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)  # noqa: FBT003
+        # get settings from QSettings to see what theme is being used
+        settings = QSettings()
+        theme = settings.value("theme/name", "nord")
+        flash_rule = "QWidget#sentence-card { "
+        if theme == "dark":
+            flash_rule += "background-color: rgba(140, 160, 206, 205); "
+        else:
+            flash_rule += "background-color: rgba(255, 244, 185, 150); "
+        flash_rule += "border-radius: 6px; "
+        flash_rule += "}"
+        base = self._flash_base_stylesheet
+        combined = f"{base}\n{flash_rule}" if base else flash_rule
+        self.setStyleSheet(combined)
+        self._flash_restore_timer.start(550)
+
+    def _clear_added_flash(self) -> None:
+        """
+        Restore card stylesheet after temporary add flash.
+        """
+        if self._flash_base_stylesheet is None:
+            return
+        self.setStyleSheet(self._flash_base_stylesheet)
+        self._flash_base_stylesheet = None
 
     def highlight_search(
         self,
@@ -324,7 +375,9 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
         if token_id is None:
             self.oe_text_edit.setFocus(Qt.FocusReason.OtherFocusReason)
             return
-        token = next((item for item in self.oe_text_edit.tokens if item.id == token_id), None)
+        token = next(
+            (item for item in self.oe_text_edit.tokens if item.id == token_id), None
+        )
         if token is None:
             self.oe_text_edit.setFocus(Qt.FocusReason.OtherFocusReason)
             return
