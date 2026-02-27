@@ -387,8 +387,10 @@ class AddSentenceCommand(SessionMixin, Command):
             )
         else:  # "after"
             # For "after", we need sentences with display_order > reference_order
-            affected_sentences = Sentence.subsequent_sentences(
-                self.project_id, reference_sentence.display_order
+            affected_sentences = list(
+                Sentence.subsequent_sentences(
+                    self.project_id, reference_sentence.display_order
+                )
             )
             # Sort descending for processing
             affected_sentences = sorted(
@@ -559,7 +561,7 @@ class DeleteSentenceCommand(SessionMixin, Command):
         )
         if subsequent_sentences:
             self.display_order_changes = Sentence.renumber_sentences(
-                subsequent_sentences,
+                list(subsequent_sentences),
                 order_function=lambda s: s.display_order - 1,
             )
 

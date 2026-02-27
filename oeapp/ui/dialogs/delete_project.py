@@ -229,7 +229,10 @@ class DeleteProjectDialog:
             # Clear sentence cards
             layout = cast("QVBoxLayout", self.main_window.content_layout)
             for i in reversed(range(layout.count())):
-                widget = layout.itemAt(i).widget()
+                item = layout.itemAt(i)
+                if item is None:
+                    continue
+                widget = item.widget()
                 if widget:
                     widget.setParent(None)
 

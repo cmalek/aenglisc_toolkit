@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, ClassVar, cast
+from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 from PySide6.QtWidgets import (
     QComboBox,
@@ -32,7 +32,7 @@ class PosFieldSpec:
 
     attr: str
     label: str
-    lookup_map: Mapping[str | bool | None, str] | None = None
+    lookup_map: Mapping[Any, str] | None = None
     editable: bool = False
     object_name: str | None = None
     preset_clear_mode: bool = True
@@ -48,15 +48,15 @@ class PartOfSpeechFieldsBase(AnnotationLookupsMixin):
         self.layout = layout
         self.parent_widget = parent_widget
         self.fields: dict[str, QComboBox] = {}
-        self.lookup_map: dict[str, Mapping[str | bool | None, str]] = {}
-        self.code_to_index_map: dict[str, dict[str | bool | None, int]] = {}
-        self.index_to_code_map: dict[str, dict[int, str | bool | None]] = {}
+        self.lookup_map: dict[str, Mapping[Any, str]] = {}
+        self.code_to_index_map: dict[str, dict[Any, int]] = {}
+        self.index_to_code_map: dict[str, dict[int, Any]] = {}
 
     def add_combo(
         self,
         attr: str,
         label: str,
-        lookup_map: Mapping[str | bool | None, str],
+        lookup_map: Mapping[Any, str],
     ) -> None:
         """Add a combo box field with lookup/index maps."""
         combo = QComboBox(self.parent_widget)
@@ -127,7 +127,7 @@ class PartOfSpeechFieldsBase(AnnotationLookupsMixin):
         """Extract current combo indices."""
         return {attr: self.fields[attr].currentIndex() for attr in self.fields}
 
-    def extract_values(self) -> dict[str, str | bool | None]:
+    def extract_values(self) -> dict[str, Any]:
         """Extract current combo code values."""
         return {
             attr: self.index_to_code_map[attr].get(self.fields[attr].currentIndex())
@@ -385,7 +385,7 @@ class PresetPartOfSpeechFieldsBase(AnnotationLookupsMixin):
     """Base class for preset-dialog POS field groups."""
 
     PART_OF_SPEECH: str = ""
-    FIELD_SPECS: ClassVar[list[PosFieldSpec]] = []
+    FIELD_SPECS: ClassVar[tuple[PosFieldSpec, ...]] = ()
     PRESET_VERB_BOOLEAN_MAP: ClassVar[dict[bool | None, str]] = {
         None: "",
         False: "No",
@@ -402,8 +402,8 @@ class PresetPartOfSpeechFieldsBase(AnnotationLookupsMixin):
         self.parent_widget = parent_widget
         self.fields: dict[str, QComboBox] = {}
         self._specs_by_attr: dict[str, PosFieldSpec] = {}
-        self.code_to_index_map: dict[str, dict[str | bool | None, int]] = {}
-        self.index_to_code_map: dict[str, dict[int, str | bool | None]] = {}
+        self.code_to_index_map: dict[str, dict[Any, int]] = {}
+        self.index_to_code_map: dict[str, dict[int, Any]] = {}
 
     def build(self) -> None:
         """Build all configured preset fields."""

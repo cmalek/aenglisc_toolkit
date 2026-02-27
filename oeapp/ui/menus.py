@@ -27,7 +27,10 @@ def _is_offscreen_qt_platform() -> bool:
     app = QApplication.instance()
     if app is None:
         return False
-    return app.platformName().lower() == "offscreen"
+    platform_name = getattr(app, "platformName", None)
+    if callable(platform_name):
+        return str(platform_name()).lower() == "offscreen"
+    return False
 
 
 class MainMenu:

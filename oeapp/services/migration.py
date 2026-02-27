@@ -927,7 +927,9 @@ class MigrationService(ProjectFoldersMixin):
                 for target in node.targets:
                     if isinstance(target, ast.Name) and target.id == "revision":
                         if isinstance(node.value, ast.Constant):
-                            return node.value.value
+                            value = node.value.value
+                            if isinstance(value, str):
+                                return value
                         if sys.version_info < (3, 8) and isinstance(
                             node.value, ast.Str
                         ):  # Python < 3.8
