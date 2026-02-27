@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Full Translation Window is a focused reading and export view for a single project. It presents the entire Old English text and Modern English translation side by side, with project notes and token details available while you read.
+The Full Translation Window is a focused reading and export view for a single project. It presents the entire Old English text and Modern English translation side by side, with project notes and word details available while you read.
 
 ## How to Open It
 
@@ -22,20 +22,21 @@ The window title is `Full Translation - <project name>`.
 ### Search Across the Full Project
 
 - Use the toolbar search field to highlight matches in:
-  - Old English text
-  - Modern English text
-  - Note list
+
+    - Old English text
+    - Modern English text
+    - Note list
 
 ### Inspect Notes in Context
 
 - Notes are listed under the text panes.
-- Click a note to highlight the corresponding token span in the Old English pane.
+- Click a note to highlight the corresponding word span in the Old English pane.
 - Click again to clear the note highlight.
 
-### Use Token/Idiom Details
+### Use Word/Idiom Details
 
-- Click a token in the Old English pane to open the details sidebar.
-- The sidebar shows annotation information for the selected token/idiom.
+- Click a word in the Old English pane to open the details sidebar.
+- The sidebar shows annotation information for the selected word/idiom.
 
 ### Navigate Back to Main Editor Context
 
@@ -58,24 +59,25 @@ The exported PDF includes these sections in this order:
 1. **Title**: `Translation: <project title>`
 2. **Source** line (if set)
 3. **Translator** line (if set)
-4. **Full-width horizontal rule**
-5. **Two side-by-side columns**
+4. **Two side-by-side columns**
+
    - Left: Old English
    - Right: Translation
    - Notes appear as real footnotes in the Old English flow
-6. **Full-width horizontal rule**
-7. **About this text** (only if project-level notes exist)
-8. **Full-width horizontal rule**
-9. **Glossary**
+
+5. **About this text** (only if project-level notes exist)
+6. **Glossary**
+
+   - Legend
    - Alphabetized entries
-   - Two-column glossary layout
+   - Three-column glossary layout
 
 ## Notes About Footnotes and Glossary
 
 - Footnote markers are placed from note spans and rendered as real PDF footnotes.
-- The glossary is built from token annotations (normalized root + part of speech groupings).
+- The glossary is built from word annotations (normalized root + part of speech groupings).
 - Root display preserves original diacritics/dashes and can show alternate variants.
-- Verb entries can include `#666` metadata markers such as `[impers]`, `[intrans]`, and `(+ inf)`.
+- Verb entries can include contextual markers such as `[impers]`, `[intrans]`, and `(+ inf)`.
 
 ## Back to Start Here
 

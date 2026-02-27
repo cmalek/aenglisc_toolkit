@@ -10,8 +10,8 @@ For multi-token phrase annotation, see [Idioms Guide](idioms-guide.html).
 
 ## Starting an Annotation
 
-1. Select a token in the token table (use arrow keys or click)
-2. Press **A** to open the annotation modal
+1. Select a word in the Old English Text box.
+2. Press **Enter** or double-click on the word to open the annotation modal
 3. Select the Part of Speech from the dropdown or use keyboard shortcuts:
 
    - **N** - Noun
@@ -35,7 +35,7 @@ When a phrase should be treated as one unit, annotate it as an idiom instead of 
 - **Gender**: Masculine (m), Feminine (f), Neuter (n)
 - **Number**: Singular (s), Plural (p)
 - **Case**: Nominative (n), Accusative (a), Genitive (g), Dative (d), Instrumental (i)
-- **Declension**: Strong (s), Weak (w), Other (o), i-stem (i), u-stem (u), ja-stem (ja), jo-stem (jo), wa-stem (wa), wo-stem (wo)
+- **Declension**: Strong (s), Weak (w), Other (o), i-stem (i), u-stem (u), ja-stem (ja), jo-stem (jo), wa-stem (wa), wo-stem (wo), -pu/po
 
 ### Verbs
 
@@ -46,11 +46,11 @@ When a phrase should be treated as one unit, annotate it as an idiom instead of 
 - **Number**: Singular (s), Plural (p)
 - **Aspect**: Perfect (p), Progressive (prg), Gnomic (gn)
 - **Form**: Finite (f), Infinitive (i), Participle (p)
-- **Requires Infinitive**: Marks verbs that govern an infinitive complement
+- **Requires Infinitive**: Marks verbs that govern an infinitive complement, e.g. modal/preterite-present verbs
 - **Impersonal**: Marks impersonal verbs
 - **Transitivity**: Transitive or intransitive
 
-> **Preterite-present shortcut:** Selecting verb class `pp` auto-enables **Requires Infinitive**. You can manually change it afterward.
+> **Preterite-present shortcut:** Selecting verb class `preterite-present` auto-enables **Requires Infinitive**. You can manually change it afterward.
 
 ### Adjectives
 
@@ -80,19 +80,18 @@ When a phrase should be treated as one unit, annotate it as an idiom instead of 
 
 ### Adverbs
 
-- Adverbs have minimal grammatical fields in the current system.
+- **Degree**: Positive (p), Comparative (c), Superlative (s)
 
 ## Metadata Fields
 
 The following fields are available for all POS types in the Metadata section:
 
-- **Alternatives**: Enter alternative interpretations (e.g., "w2 / s3")
 - **Confidence**: Set confidence level from 0-100% using the slider
 - **TODO**: Mark annotation as needing review
 - **Modern English Meaning**: Enter the modern English translation/meaning of the word (e.g., "time, season")
 - **Root**: Enter the root form of the word (e.g., "sumor")
 
-`Root` and token surface forms are also stored in normalized internal forms for grouping/search:
+`Root` and word surface forms are also stored in normalized internal forms for grouping/search:
 
 - lowercase
 - no combining-mark diacritics

@@ -17,7 +17,9 @@ The Ænglisc Toolkit automatically creates backups of your project database to p
 
 - **Backup Interval**: Every 12 hours (720 minutes)
 - **Number of Backups Kept**: 5 most recent backups
-- Older backups are automatically deleted to save space
+- You can change these by opening the [settings](settings.html)
+
+Older backups are automatically deleted to save space once the maximum number of backups from the settings has been reached.
 
 ### Backup Location
 

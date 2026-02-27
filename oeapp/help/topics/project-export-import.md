@@ -19,7 +19,7 @@ The application offers two different export options:
 - **Format**: Microsoft Word document (.docx)
 - **Purpose**: Creating formatted documents for reading, printing, or sharing
 - **Content**: Formatted text with annotations displayed as superscripts/subscripts
-- **Use when**: You want a readable document with your annotations
+- **Use when**: You want a readable and writable Word document with your annotations
 
 ### PDF Export (Full Translation Window)
 
@@ -27,11 +27,13 @@ The application offers two different export options:
 - **Format**: PDF document (.pdf)
 - **Purpose**: High-fidelity side-by-side presentation for reading/printing
 - **Content**:
-  - Landscape layout
-  - Side-by-side Old English and Modern English columns
-  - Real footnotes anchored in the Old English flow
-  - Project "About this text" section (if present)
-  - Glossary section generated from token annotations
+
+    - Landscape layout
+    - Side-by-side Old English and Modern English columns
+    - Real footnotes anchored in the Old English flow
+    - Project "About this text" section (if present)
+    - Glossary section generated from token annotations
+
 - **Use when**: You want a polished publication-style copy
 
 ### JSON Export (Project Menu)
@@ -56,7 +58,7 @@ The export includes:
 
 - Project name and metadata
 - All sentences in order
-- All tokens for each sentence
+- All words for each sentence
 - All annotations (POS, grammatical features, metadata)
 - All notes attached to sentences
 - Migration version information
@@ -173,7 +175,6 @@ While automatic backups protect your database, you can also create manual projec
 3. **File Naming**: Use descriptive names when exporting (e.g., `beowulf_complete_2024-01-15.json`)
 4. **Storage**: Store exported JSON files in multiple locations for safety
 5. **Test Imports**: Periodically test importing your exports to ensure they work correctly
-
 
 ## Undo Support
 

@@ -6,7 +6,7 @@ Use the search bar at the top of the main window to find Old English terms, mode
 
 Use the scope dropdown to choose what is searched:
 
-- **OE Text**: Searches normalized Old English token surface forms and normalized annotation roots.
+- **OE Text**: Searches normalized Old English word surface forms and normalized annotation roots.
 - **ModE text**: Searches only the Modern English translation text (no OE normalization).
 - **Notes**: Combines normalized OE matching with note-text matching.
 - **All**: Combines normalized OE matching, ModE text matching, and note-text matching.

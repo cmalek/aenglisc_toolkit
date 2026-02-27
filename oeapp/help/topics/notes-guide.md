@@ -2,25 +2,22 @@
 
 ## Overview
 
-The Notes system allows you to attach explanatory notes to ranges of tokens in your Old English text. Notes are displayed with superscript numbers in the text and listed in the Notes section of each sentence card.
+The Notes system allows you to attach explanatory notes to ranges of words in your Old English text. Notes are displayed with superscript numbers in the text and listed in the Notes section of each sentence card.
 
 ## Adding a Note
 
-### Selecting Token Ranges
+### Selecting Word Ranges
 
-1. **Single Token Selection**: Click on a token in the Old English text area to select it
-2. **Range Selection**:
-
-   - Click on the first token you want to include
-   - Hold down **Shift** and click on the last token
-   - All tokens between the two points will be selected and highlighted
+- Click on the first word you want to include
+- Hold down **Shift** and click on the last word (if you simply want a note for one word, Shift-Click twice on the same word)
+- All words between the two points will be selected and highlighted
 
 ### Creating the Note
 
-1. After selecting your token range, click the **Add Note** button (located to the left of the "Edit OE" button)
+1. After selecting your word range, click the **Add Note** button (located to the left of the "Edit OE" button)
 2. A note dialog opens with:
 
-   - The selected token range (shown in italics and quoted)
+   - The selected words (shown in italics and quoted)
    - A text area where you type the note body
 
 3. Enter your note text in the text area
@@ -28,16 +25,16 @@ The Notes system allows you to attach explanatory notes to ranges of tokens in y
 
 ### Note Numbering
 
-- Notes are automatically numbered starting from 1
+- For each sentence, notes are automatically numbered starting from 1
 - Numbers increase sequentially based on the note's position in the sentence
 - Notes that appear earlier in the sentence have lower numbers
-- After saving, the note number appears as a superscript after the last token in the selected range
+- After saving, the note number appears as a superscript after the last word in the selected range
 
 ## Viewing Notes
 
 ### In the Text Area
 
-- Note numbers appear as superscripts after the last token in each note's range
+- Note numbers appear as superscripts after the last word in each note's range
 - Example: `Hwæt<sup>1</sup> we<sup>2</sup> Gar-Dena`
 - Superscripts are only visible when not in edit mode
 
@@ -45,7 +42,7 @@ The Notes system allows you to attach explanatory notes to ranges of tokens in y
 
 - All notes for a sentence are displayed in the Notes section below the translation field
 - Each note is prefixed with its number
-- The highlighted tokens appear in italics and quoted at the start of the note
+- The highlighted words appear in italics and quoted at the start of the note
 - Example: `1. "Hwæt" - This is an interjection meaning "Lo!" or "Listen!"`
 - Notes are displayed in 10 point Helvetica font
 
@@ -62,10 +59,10 @@ The Notes system allows you to attach explanatory notes to ranges of tokens in y
 2. In the note dialog, click the **Delete** button
 3. The note will be removed and remaining notes will be automatically renumbered
 
-## Highlighting Token Ranges
+## Highlighting Word Ranges
 
-- **Click** on a note in the Notes section to highlight its associated tokens in the Old English text area
-- This helps you quickly locate which tokens a note refers to
+- **Click** on a note in the Notes section to highlight its associated words in the Old English text area
+- This helps you quickly locate which words a note refers to
 
 ## Editing Mode Behavior
 
@@ -75,34 +72,34 @@ The Notes system allows you to attach explanatory notes to ranges of tokens in y
 - This keeps the text clean and easy to edit
 - When you save or cancel editing, superscripts are restored
 
-### Token Changes During Editing
+### Word Changes During Editing
 
-The system automatically handles note associations when tokens change:
+The system automatically handles note associations when words change:
 
-- **Adding tokens**: If you add tokens within a note's token range, they are automatically included in the note
-- **Removing tokens**: If you remove tokens from a note's range, they are automatically removed from the note
-- **Empty ranges**: If a note's token range becomes empty (all tokens deleted), the note is automatically deleted
+- **Adding words**: If you add words within a note's words range, they are automatically included in the note
+- **Removing words**: If you remove words from a note's range, they are automatically removed from the note
+- **Empty ranges**: If a note's words range becomes empty (all words deleted), the note is automatically deleted
 
 ## Best Practices
 
-1. **Be specific**: Select the exact token range that your note refers to
+1. **Be specific**: Select the exact words range that your note refers to
 2. **Use clear language**: Write notes that will be helpful when reviewing the text later
 3. **Organize by position**: Notes are numbered by their position in the sentence, making it easy to follow along
-4. **Review regularly**: Click on notes to highlight their tokens and verify they still refer to the correct text
+4. **Review regularly**: Click on notes to highlight their words and verify they still refer to the correct text
 
 ## Keyboard Shortcuts
 
 | Action | Shortcut |
 |--------|----------|
-| Select token range | Click first token, then **Shift+Click** last token |
-| Add note | Click **Add Note** button (after selecting tokens) |
+| Select words range | Click first words, then **Shift+Click** last words |
+| Add note | Click **Add Note** button (after selecting words) |
 | Edit note | **Double-click** note in Notes section |
-| Highlight note tokens | **Click** note in Notes section |
+| Highlight note words | **Click** note in Notes section |
 
 ## Workflow Tips
 
 1. Read through a sentence first to identify areas that need notes
-2. Select token ranges carefully - you can always edit the note later if needed
+2. Select words ranges carefully - you can always edit the note later if needed
 3. Use notes to explain:
 
    - Unusual grammatical constructions
@@ -111,7 +108,7 @@ The system automatically handles note associations when tokens change:
    - Ambiguous interpretations
    - Cross-references to other parts of the text
 
-4. Click on notes while reading to quickly see which tokens they refer to
+4. Click on notes while reading to quickly see which words they refer to
 5. Notes persist across sessions and are included in project exports
 
 ## Undo Support

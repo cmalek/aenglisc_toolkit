@@ -8,17 +8,17 @@ Old English annotation is an iterative process. You don't need to annotate every
 
 ### Step 1: Basic POS Tagging
 
-Start by identifying the Part of Speech for each token:
+Start by identifying the Part of Speech for each word:
 
-- Press **A** on a token
+- Select the word and press **Enter** or double-click it
 - Select POS (N, V, A, etc.)
 - Press **Enter** to apply
 
 ### Step 2: Add Grammatical Features
 
-Later, return to tokens and add morphological details:
+Later, return to word and add morphological details:
 
-- Select the token again
+- Select the word again
 - Press **A**
 - The modal remembers your previous POS selection
 - Add gender, number, case, etc.
@@ -81,7 +81,7 @@ The annotation modal remembers your last-used values for each POS type:
 - Adjust only what differs
 - Press **Enter** to apply quickly
 
-This makes annotating similar tokens much faster!
+This makes annotating similar words much faster!
 
 ## Undo Support
 

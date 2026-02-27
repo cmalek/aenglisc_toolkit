@@ -18,19 +18,18 @@ The application has two formatted document exports:
 - Landscape page orientation
 - Title: `Translation: <project title>`
 - Source and translator metadata (if set)
-- Full-width horizontal rule
 - Two real side-by-side columns:
-  - Left: Old English
-  - Right: Modern English translation
+
+    - Left: Old English
+    - Right: Modern English translation
+
 - Real footnotes in the Old English flow from sentence notes
-- Full-width horizontal rule after columns
 - Optional **About this text** section from project notes
-- Full-width horizontal rule
 - **Glossary** section in two columns
 
 ### Footnotes
 
-- Notes are anchored at the end token of each note span
+- Notes are anchored at the end word of each note span
 - Footnote numbers are clickable in supporting PDF viewers
 
 ### Glossary
@@ -40,9 +39,12 @@ The application has two formatted document exports:
 - Senses are merged and deduplicated
 - Attested forms are listed with compact DB-code annotations
 - Verb classifier metadata may include:
-  - `[impers]` (impersonal)
-  - `[intrans]` (intransitive)
-  - `(+ inf)` (requires infinitive)
+
+    - `[impers]` (impersonal)
+    - `[intrans]` (intransitive)
+    - `(+ inf)` (requires infinitive)
+    - `(+ dat)` (requires dative object)
+    - etc.
 
 ## DOCX Export (File Menu)
 

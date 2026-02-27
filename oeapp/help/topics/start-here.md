@@ -2,14 +2,14 @@
 
 ## What This App Is
 
-Ænglisc Toolkit does not automatically translate or annotate Old English text. It is a scaffold for the translator: it provides structure, navigation, editing, and organization tools so human translation and annotation work can be done more efficiently.
+Ænglisc Toolkit is a desktop applications intended to aid in translation of Old English/Anglo-Saxon text into idiomatic modern English (or your own language if it is not English).  All translation and word annotation is manual, and is done by the translator: Ænglisc Toolkit does not automatically translate or annotate Old English text.  The app is designed to help you keep translation and annotation work organized while you make the linguistic decisions.
 
-The app is designed to help you keep translation and annotation work organized while you make the linguistic decisions.
+Think of it as an efficiency scaffold for the translator: it provides structure, navigation, editing, and organization tools so human translation and annotation work can be done more efficiently.
 
 ## What This App Is Not
 
 - It is not an automatic translator.
-- It does not automatically choose annotations for you.
+- It does not automatically assign morphological annotations for you.
 - It does not disambiguate grammar or meaning for you.
 
 ## Typical Workflow
@@ -19,7 +19,7 @@ The app is designed to help you keep translation and annotation work organized w
 3. Annotate tokens and idioms.
 4. Add notes and refine paragraph/section/chapter structure.
 5. Review highlights, navigation, and translation text.
-6. Export to DOCX or JSON.
+6. Export to DOCX, PDF or JSON.
 
 ## Main Interface Areas
 
@@ -34,7 +34,7 @@ The app is designed to help you keep translation and annotation work organized w
 - Project data is stored locally in SQLite.
 - Automatic and manual backups are available.
 - JSON export/import is available for transfer and backup workflows.
-- DOCX export is available for presentation and review output.
+- DOCX and PDF export are available for presentation and review output.
 
 ## Undo Model (Important)
 

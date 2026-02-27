@@ -43,6 +43,15 @@ Quick reference guide for Old English morphological tags used in annotations.
 
 ## Verb Classes
 
+### Anomolus Verbs
+
+This is for the small class of Old English words that fit in no other class, like `bēon`, `wesan`, and `willan`.
+
+| Code | Name | Description |
+|------|------|-------------|
+| `a` | Anomolous | Verbs like `bēon` (to save) |
+
+
 ### Weak Verbs
 
 | Code | Name | Description |

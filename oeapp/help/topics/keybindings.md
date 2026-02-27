@@ -4,17 +4,15 @@
 
 | Action | Shortcut |
 |--------|----------|
-| Next Sentence | **J** |
-| Previous Sentence | **K** |
-| Next Token | **→** (Right Arrow) |
-| Previous Token | **←** (Left Arrow) |
+| Next Word in OE Text | **→** (Right Arrow) |
+| Previous Word in OE Text | **←** (Left Arrow) |
 | Focus Translation Field | **T** |
 
 ## Annotation
 
 | Action | Shortcut |
 |--------|----------|
-| Annotate Selected Token | **A** |
+| Annotate Selected Word | **A** |
 | Copy Annotation | **Cmd+C** / **Ctrl+C** |
 | Paste Annotation | **Cmd+V** / **Ctrl+V** |
 | In Annotation Modal: | |
