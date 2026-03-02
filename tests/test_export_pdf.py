@@ -145,8 +145,7 @@ class TestFullTranslationPDFExporter:
         assert r"The \hspace*{5.40em}king." in latex
         assert "m weak" in latex
         assert r"\textcolor[HTML]{666666}{[" in latex
-        assert r"\switchcolumn[1]" in latex
-        assert r"\switchcolumn[0]*" in latex
+        assert r"\switchcolumn" in latex
         assert latex.index(r"\clearpage") < latex.index(r"\section*{Glossary}")
 
     def test_glossary_entries_use_compact_db_codes(self, db_session):
@@ -341,7 +340,7 @@ class TestFullTranslationPDFExporter:
         exporter = FullTranslationPDFExporter()
         latex = exporter._render_two_columns(project)
 
-        assert latex.count(r"\switchcolumn[1]") == 1
+        assert latex.count(r"\switchcolumn") == 1
         assert "First sentence. Second sentence." in latex
         assert "First modern. Second modern." in latex
 
@@ -370,8 +369,92 @@ class TestFullTranslationPDFExporter:
         exporter = FullTranslationPDFExporter()
         latex = exporter._render_two_columns(project)
 
-        assert latex.count(r"\switchcolumn[1]") == 2
+        assert latex.count(r"\switchcolumn") == 1
         assert "First modern. Second modern." not in latex
+
+    def test_render_two_columns_hides_auto_titles_and_numbers_verse(self, db_session):
+        """Two-column output should suppress auto titles and add 5-line markers."""
+        from oeapp.models.chapter import Chapter
+        from oeapp.models.paragraph import Paragraph
+        from oeapp.models.project import Project
+        from oeapp.models.section import Section
+        from oeapp.models.sentence import Sentence
+
+        project = Project(name="PDF Verse")
+        project.save()
+        chapter = Chapter.create(
+            project_id=project.id,
+            number=1,
+            title="Official Chapter",
+            title_auto=False,
+            commit=False,
+        )
+        section = Section.create(
+            chapter_id=chapter.id,
+            number=1,
+            title="Official Section",
+            title_auto=False,
+            commit=False,
+        )
+        p1 = Paragraph(section_id=section.id, order=1)
+        p2 = Paragraph(section_id=section.id, order=2)
+        db_session.add_all([p1, p2])
+        db_session.flush()
+        Sentence.create(
+            project_id=project.id,
+            display_order=1,
+            text_oe="a1\na2\na3\na4\na5",
+            paragraph_id=p1.id,
+            verse_line_start=1,
+            verse_line_end=5,
+            commit=False,
+        )
+        Sentence.create(
+            project_id=project.id,
+            display_order=2,
+            text_oe="b1\nb2\nb3\nb4\nb5",
+            paragraph_id=p2.id,
+            verse_line_start=6,
+            verse_line_end=10,
+            commit=False,
+        )
+        hidden_chapter = Chapter.create(
+            project_id=project.id,
+            number=2,
+            title="Auto Chapter ....",
+            title_auto=True,
+            commit=False,
+        )
+        hidden_section = Section.create(
+            chapter_id=hidden_chapter.id,
+            number=1,
+            title="Lines 11-15",
+            title_auto=True,
+            commit=False,
+        )
+        p3 = Paragraph(section_id=hidden_section.id, order=1)
+        db_session.add(p3)
+        db_session.flush()
+        Sentence.create(
+            project_id=project.id,
+            display_order=3,
+            text_oe="Prose.",
+            paragraph_id=p3.id,
+            commit=False,
+        )
+        db_session.commit()
+
+        exporter = FullTranslationPDFExporter()
+        latex = exporter._render_two_columns(project)
+
+        assert "Official Chapter" in latex
+        assert "Official Section" in latex
+        assert "Auto Chapter" not in latex
+        assert "Lines 11-15" not in latex
+        assert r"\hspace*{2.40em}a1" in latex
+        assert r"\hspace*{2.40em}[...]" in latex
+        assert r"\newline \textbf{5}" in latex
+        assert r"\newline \textbf{10}" in latex
 
     def test_long_internal_space_runs_normalize_to_ten_spaces(self):
         """3+ internal spaces should normalize to a fixed 10-space gap."""

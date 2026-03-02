@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
 )
 
 from oeapp.models.project import Project
+from oeapp.services.wyrdcraeft_ingest import WyrdcraeftIngestService
 from oeapp.state import CURRENT_PROJECT_ID, ApplicationState
 
 from .mixins import TextInputMixin
@@ -99,15 +100,18 @@ class AppendTextDialog(TextInputMixin):
             self.dialog.reject()
             return
 
-        # Get text from input using mixin method
+        # Get ingest input from mixin method
         try:
-            text = self.get_text_from_input()
+            text, source_path = self.get_ingest_input()
         except ValueError as e:
             self.state.show_error(str(e))
             return
 
-        # Append text to project
-        project.append_oe_text(text)
+        WyrdcraeftIngestService().append_to_project(
+            project=project,
+            text=text,
+            source_path=source_path,
+        )
 
         # Refresh the UI by reloading the project
         self.main_window.reload_project()

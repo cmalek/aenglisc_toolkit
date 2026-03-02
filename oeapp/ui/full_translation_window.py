@@ -45,6 +45,7 @@ from oeapp.ui.widgets import HorizontalSeparatorWidget
 if TYPE_CHECKING:
     from oeapp.models import Idiom, Note
     from oeapp.models.project import Project
+    from oeapp.models.sentence import Sentence
     from oeapp.models.token import Token
     from oeapp.ui.main_window import MainWindow
 
@@ -55,6 +56,114 @@ TOKEN_HIGHLIGHT_PROPERTY: Final[int] = QTextFormat.UserProperty + 11  # type: ig
 SENTENCE_HIGHLIGHT_PROPERTY: Final[int] = QTextFormat.UserProperty + 12  # type: ignore[attr-defined]
 NOTE_ID_PROPERTY: Final[int] = QTextFormat.UserProperty + 13  # type: ignore[attr-defined]
 NOTE_HIGHLIGHT_PROPERTY: Final[int] = QTextFormat.UserProperty + 14  # type: ignore[attr-defined]
+
+
+def _is_paragraph_start(sentence: "Sentence") -> bool:
+    """
+    Return ``True`` when sentence is first in its paragraph.
+
+    Args:
+        sentence: Sentence to inspect.
+
+    Returns:
+        ``True`` if sentence starts its paragraph.
+
+    """
+    if not sentence.paragraph:
+        return False
+    ordered = sorted(sentence.paragraph.sentences, key=lambda s: s.display_order)
+    return bool(ordered and ordered[0].id == sentence.id)
+
+
+def _visible_titles(
+    previous: "Sentence | None", current: "Sentence"
+) -> list[str]:
+    """
+    Resolve visible chapter/section titles for sentence boundary.
+
+    Args:
+        previous: Previous rendered sentence.
+        current: Current sentence.
+
+    Returns:
+        List of titles to render (official titles only).
+
+    """
+    titles: list[str] = []
+    current_section = current.paragraph.section if current.paragraph else None
+    current_chapter = current_section.chapter if current_section else None
+    previous_section = (
+        previous.paragraph.section if previous and previous.paragraph else None
+    )
+    previous_chapter = previous_section.chapter if previous_section else None
+
+    chapter_changed = (
+        current_chapter is not None
+        and (previous_chapter is None or current_chapter.id != previous_chapter.id)
+    )
+    if (
+        current_chapter is not None
+        and chapter_changed
+        and current_chapter.title
+        and not current_chapter.title_auto
+    ):
+        titles.append(current_chapter.title)
+
+    section_changed = (
+        current_section is not None
+        and (previous_section is None or current_section.id != previous_section.id)
+    )
+    if (
+        current_section is not None
+        and section_changed
+        and current_section.title
+        and not current_section.title_auto
+    ):
+        titles.append(current_section.title)
+    return titles
+
+
+def _separator(
+    previous: "Sentence | None",
+    current: "Sentence",
+    has_titles: bool,
+) -> str:
+    """
+    Compute sentence separator for prose/verse flow.
+
+    Args:
+        previous: Previous rendered sentence.
+        current: Current sentence.
+        has_titles: Whether title lines were inserted before ``current``.
+
+    Returns:
+        Separator text to insert before ``current``.
+
+    """
+    if previous is None or has_titles:
+        return ""
+    if current.is_verse:
+        return "\n" if previous.is_verse else "\n\n"
+    if previous.is_verse:
+        return "\n\n"
+    return "\n\n" if _is_paragraph_start(current) else " "
+
+
+def _indent_multiline_plain(text: str, spaces: int = 4) -> str:
+    """
+    Prefix each non-empty line with fixed-space indentation.
+
+    Args:
+        text: Input text to indent.
+        spaces: Number of leading spaces per line.
+
+    Returns:
+        Indented text.
+
+    """
+    indent = " " * spaces
+    lines = text.split("\n")
+    return "\n".join(f"{indent}{line}" if line else line for line in lines)
 
 
 class FullProjectOldEnglishTextEdit(ThemeMixin, OldEnglishTextEdit):
@@ -113,27 +222,26 @@ class FullProjectOldEnglishTextEdit(ThemeMixin, OldEnglishTextEdit):
 
         cursor = QTextCursor(self.document())
 
-        for i, sentence in enumerate(self.project.sentences):
+        previous_sentence = None
+        for sentence in self.project.sentences:
             sentence_id = cast("int", sentence.id)
-            # Check if this sentence is the first in its paragraph
-            is_paragraph_start = False
-            if sentence.paragraph:
-                p_sentences = sorted(
-                    sentence.paragraph.sentences, key=lambda s: s.display_order
-                )
-                if p_sentences and p_sentences[0].id == sentence_id:
-                    is_paragraph_start = True
+            titles = _visible_titles(previous_sentence, sentence)
+            if titles:
+                if cursor.position() > 0:
+                    cursor.insertText("\n\n")
+                cursor.insertText("\n".join(titles))
+                cursor.insertText("\n")
 
-            if is_paragraph_start and i > 0:
-                cursor.insertText("\n\n")
-            elif i > 0:
-                cursor.insertText(" ")
+            gap = _separator(previous_sentence, sentence, bool(titles))
+            if gap:
+                cursor.insertText(gap)
 
             sentence_start = cursor.position()
 
             tokens, token_id_to_start = sentence.sorted_tokens
             text = sentence.text_oe
             last_pos = 0
+            at_line_start = True
 
             # Map of end_token_id -> list of note numbers
             token_to_note_numbers: dict[int, list[int]] = {}
@@ -155,7 +263,13 @@ class FullProjectOldEnglishTextEdit(ThemeMixin, OldEnglishTextEdit):
                     # Non-token text within sentence
                     fmt = QTextCharFormat()
                     fmt.setProperty(SENTENCE_ID_PROPERTY, sentence_id)
-                    cursor.insertText(text[last_pos:token_start], fmt)
+                    at_line_start = self._insert_with_verse_indent(
+                        cursor=cursor,
+                        segment=text[last_pos:token_start],
+                        fmt=fmt,
+                        is_verse=sentence.is_verse,
+                        at_line_start=at_line_start,
+                    )
 
                 # Format for token
                 fmt = QTextCharFormat()
@@ -163,7 +277,13 @@ class FullProjectOldEnglishTextEdit(ThemeMixin, OldEnglishTextEdit):
                 fmt.setProperty(SENTENCE_ID_PROPERTY, sentence_id)
 
                 start_in_doc = cursor.position()
-                cursor.insertText(token.surface, fmt)
+                at_line_start = self._insert_with_verse_indent(
+                    cursor=cursor,
+                    segment=token.surface,
+                    fmt=fmt,
+                    is_verse=sentence.is_verse,
+                    at_line_start=at_line_start,
+                )
                 end_in_doc = cursor.position()
 
                 self.token_positions[(sentence_id, token_id)] = (
@@ -190,10 +310,65 @@ class FullProjectOldEnglishTextEdit(ThemeMixin, OldEnglishTextEdit):
                 # Remaining non-token text
                 fmt = QTextCharFormat()
                 fmt.setProperty(SENTENCE_ID_PROPERTY, sentence_id)
-                cursor.insertText(text[last_pos:], fmt)
+                at_line_start = self._insert_with_verse_indent(
+                    cursor=cursor,
+                    segment=text[last_pos:],
+                    fmt=fmt,
+                    is_verse=sentence.is_verse,
+                    at_line_start=at_line_start,
+                )
+
+            if sentence.is_verse and sentence.verse_line_end is not None:
+                marker_fmt = QTextCharFormat()
+                marker_fmt.setProperty(SENTENCE_ID_PROPERTY, sentence_id)
+                cursor.insertText(f"\n{sentence.verse_line_end}", marker_fmt)
 
             sentence_end = cursor.position()
             self.sentence_positions[sentence_id] = (sentence_start, sentence_end)
+            previous_sentence = sentence
+
+    def _insert_with_verse_indent(
+        self,
+        *,
+        cursor: QTextCursor,
+        segment: str,
+        fmt: QTextCharFormat,
+        is_verse: bool,
+        at_line_start: bool,
+    ) -> bool:
+        """
+        Insert text while indenting verse lines by four spaces.
+
+        Args:
+            cursor: Target text cursor.
+            segment: Text segment to insert.
+            fmt: Character format for inserted text.
+            is_verse: Whether this sentence is verse.
+            at_line_start: Whether insertion begins at start-of-line.
+
+        Returns:
+            Whether insertion ends at start-of-line.
+
+        """
+        if not segment:
+            return at_line_start
+
+        if not is_verse:
+            cursor.insertText(segment, fmt)
+            return segment.endswith("\n")
+
+        for part in re.split(r"(\n)", segment):
+            if not part:
+                continue
+            if part == "\n":
+                cursor.insertText("\n", fmt)
+                at_line_start = True
+                continue
+            if at_line_start:
+                cursor.insertText("    ", fmt)
+            cursor.insertText(part, fmt)
+            at_line_start = False
+        return at_line_start
 
     def find_token_at_position(self, position: int) -> int | None:
         """
@@ -443,31 +618,34 @@ class FullProjectModernEnglishTextEdit(ThemeMixin, QTextEdit):
         self.sentence_positions.clear()
         cursor = QTextCursor(self.document())
 
-        for i, sentence in enumerate(self.project.sentences):
+        previous_sentence = None
+        for sentence in self.project.sentences:
             sentence_id = cast("int", sentence.id)
-            # Check if this sentence is the first in its paragraph
-            is_paragraph_start = False
-            if sentence.paragraph:
-                p_sentences = sorted(
-                    sentence.paragraph.sentences, key=lambda s: s.display_order
-                )
-                if p_sentences and p_sentences[0].id == sentence_id:
-                    is_paragraph_start = True
+            titles = _visible_titles(previous_sentence, sentence)
+            if titles:
+                if cursor.position() > 0:
+                    cursor.insertText("\n\n")
+                cursor.insertText("\n".join(titles))
+                cursor.insertText("\n")
 
-            if is_paragraph_start and i > 0:
-                cursor.insertText("\n\n")
-            elif i > 0:
-                cursor.insertText(" ")
+            gap = _separator(previous_sentence, sentence, bool(titles))
+            if gap:
+                cursor.insertText(gap)
 
             start = cursor.position()
             fmt = QTextCharFormat()
             fmt.setProperty(SENTENCE_ID_PROPERTY, sentence_id)
 
             text = sentence.text_modern or "[...]"
+            if sentence.is_verse:
+                text = _indent_multiline_plain(text, spaces=4)
             cursor.insertText(text, fmt)
+            if sentence.is_verse and sentence.verse_line_end is not None:
+                cursor.insertText(f"\n{sentence.verse_line_end}")
             end = cursor.position()
 
             self.sentence_positions[sentence_id] = (start, end)
+            previous_sentence = sentence
 
     def mousePressEvent(self, event: QMouseEvent) -> None:  # noqa: N802
         """

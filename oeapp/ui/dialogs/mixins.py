@@ -124,7 +124,9 @@ class TextInputMixin:
         # Create and show the QFileDialog at the desired position
         dialog = QFileDialog(self.dialog, "Select Text File")  # type: ignore[attr-defined]
         dialog.setFileMode(QFileDialog.FileMode.ExistingFile)
-        dialog.setNameFilter("Text Files (*.txt);;All Files (*)")
+        dialog.setNameFilter(
+            "Supported Files (*.txt *.xml *.tei *.md);;All Files (*)"
+        )
         # Position the dialog below the file_path_edit field
         dialog.move(global_point)
         if dialog.exec():
@@ -144,20 +146,43 @@ class TextInputMixin:
             ValueError: If no text is provided or file selection is invalid
 
         """
-        # Get text based on input method
-        if self.input_method_combo.currentIndex() == 0:  # Paste in text
-            text = self.text_edit.toPlainText()
-        else:  # Import from file
-            if not self.selected_file_path:
-                msg = "Please select a file to import."
-                raise ValueError(msg)
-            text = Path(self.file_path_edit.text()).read_text(encoding="utf-8")
+        text, source_path = self.get_ingest_input()
+        if source_path is not None:
+            text = source_path.read_text(encoding="utf-8")
 
-        if not text.strip():
+        if text is None or not text.strip():
             msg = "Please enter or import Old English text."
             raise ValueError(msg)
 
         return text
+
+    def get_ingest_input(self) -> tuple[str | None, Path | None]:
+        """
+        Return text/path suitable for wyrdcraeft ``DocumentIngestor``.
+
+        Returns:
+            Tuple of ``(text, source_path)``.
+
+        Raises:
+            ValueError: If no input is provided.
+
+        """
+        if self.input_method_combo.currentIndex() == 0:  # Paste in text
+            text = self.text_edit.toPlainText()
+            if not text.strip():
+                msg = "Please enter or import Old English text."
+                raise ValueError(msg)
+            return text, None
+
+        if not self.selected_file_path:
+            msg = "Please select a file to import."
+            raise ValueError(msg)
+
+        source_path = Path(self.file_path_edit.text())
+        if not source_path.exists():
+            msg = "Selected file does not exist."
+            raise ValueError(msg)
+        return None, source_path
 
     def _setup_text_input(self) -> None:
         """

@@ -10,6 +10,7 @@ from PySide6.QtCore import (
 )
 from PySide6.QtGui import (
     QFont,
+    QPalette,
 )
 from PySide6.QtWidgets import (
     QHBoxLayout,
@@ -55,6 +56,8 @@ from oeapp.utils import get_logo_pixmap
 if TYPE_CHECKING:
     from oeapp.models.token import Token
     from oeapp.ui.main_window import MainWindow
+
+THEME_DARK_LIGHTNESS_THRESHOLD = 128
 
 
 class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, QWidget):
@@ -400,23 +403,7 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
             layout: Layout to add the paragraph header to
 
         """
-        paragraph_order = (
-            self.sentence.paragraph.order if self.sentence.paragraph else 0
-        )
-        # Calculate sentence number in paragraph
-        sentence_num = 1
-        if self.sentence.paragraph:
-            sentences = sorted(
-                self.sentence.paragraph.sentences, key=lambda s: s.display_order
-            )
-            for i, s in enumerate(sentences, 1):
-                if s.id == self.sentence.id:
-                    sentence_num = i
-                    break
-
-        self.sentence_number_label = QLabel(
-            f"[{self.sentence.display_order}] ¶:{paragraph_order} S:{sentence_num}"
-        )
+        self.sentence_number_label = QLabel(self._line_reference_text())
         self.sentence_number_label.setFont(QFont("Helvetica", 14, QFont.Weight.Bold))
         return self.sentence_number_label
 
@@ -650,6 +637,43 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
         self.notes_panel.update_notes()
 
         layout.addStretch()
+        self._apply_verse_background_style()
+
+    def _line_reference_text(self) -> str:
+        """
+        Build the sentence/verse reference label used in card headers.
+
+        Returns:
+            The formatted reference label.
+
+        """
+        paragraph_order = (
+            self.sentence.paragraph.order if self.sentence.paragraph else 0
+        )
+        return (
+            f"[{self.sentence.display_order}] ¶:{paragraph_order} "
+            f"{self.sentence.reference_label}"
+        )
+
+    def _apply_verse_background_style(self) -> None:
+        """
+        Apply theme-relative verse card background for stanza sentences.
+        """
+        if not self.sentence.is_verse:
+            return
+        base = self.palette().color(QPalette.ColorRole.Base)
+        verse_bg = (
+            base.lighter(110)
+            if base.lightness() < THEME_DARK_LIGHTNESS_THRESHOLD
+            else base.darker(110)
+        )
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)  # noqa: FBT003
+        self.setStyleSheet(
+            "QWidget#sentence-card { "
+            f"background-color: {verse_bg.name()}; "
+            "border-radius: 6px; "
+            "}"
+        )
 
     # ========================================================================
     # Annotation related methods
@@ -1160,22 +1184,7 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
             # Update UI
             self._update_paragraph_button_state()
 
-            paragraph_order = (
-                self.sentence.paragraph.order if self.sentence.paragraph else 0
-            )
-            # Calculate sentence number in paragraph
-            sentence_num = 1
-            if self.sentence.paragraph:
-                sentences = sorted(
-                    self.sentence.paragraph.sentences, key=lambda s: s.display_order
-                )
-                for i, s in enumerate(sentences, 1):
-                    if s.id == self.sentence.id:
-                        sentence_num = i
-                        break
-            self.sentence_number_label.setText(
-                f"[{self.sentence.display_order}] ¶:{paragraph_order} S:{sentence_num}"
-            )
+            self.sentence_number_label.setText(self._line_reference_text())
 
             # Emit signal to refresh all cards
             if self.sentence.id:

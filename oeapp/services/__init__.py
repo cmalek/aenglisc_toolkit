@@ -11,6 +11,7 @@ from oeapp.services.migration import (
     MigrationMetadataService,
     MigrationService,
 )
+from oeapp.services.wyrdcraeft_ingest import WyrdcraeftIngestService
 
 __all__ = [
     "AnnotationPresetService",
@@ -23,4 +24,5 @@ __all__ = [
     "MigrationService",
     "ProjectExporter",
     "ProjectImporter",
+    "WyrdcraeftIngestService",
 ]

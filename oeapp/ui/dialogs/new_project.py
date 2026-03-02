@@ -1,5 +1,6 @@
 import contextlib
 import getpass
+from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
 from PySide6.QtWidgets import (
@@ -12,7 +13,7 @@ from PySide6.QtWidgets import (
 )
 
 from oeapp.exc import AlreadyExists
-from oeapp.models.project import Project
+from oeapp.services.wyrdcraeft_ingest import WyrdcraeftIngestService
 from oeapp.state import ApplicationState
 
 from .mixins import TextInputMixin
@@ -124,10 +125,11 @@ class NewProjectDialog(TextInputMixin):
         self.button_box.rejected.connect(self.dialog.reject)
         self.layout.addWidget(self.button_box)
 
-    def create_project(
+    def create_project(  # noqa: PLR0913
         self,
-        text: str,
         title: str,
+        text: str | None = None,
+        source_path: Path | None = None,
         source: str | None = None,
         translator: str | None = None,
         notes: str | None = None,
@@ -140,20 +142,23 @@ class NewProjectDialog(TextInputMixin):
         - If the text is not empty, create a new project from the text.
 
         Args:
-            text: Old English text to process
             title: Project title
+
+        Keyword Args:
+            text: Old English text to process
+            source_path: Source file path for ingestion
             source: Bibliographic source
             translator: Translator name
             notes: Project notes
 
         """
-        # Create project in the shared database
-        project = Project.create(
-            text=text,
+        project = WyrdcraeftIngestService().create_project(
             name=title,
             source=source,
             translator=translator,
             notes=notes,
+            text=text,
+            source_path=source_path,
         )
         self.main_window.load_project(project)
         self.main_window.setWindowTitle(f"Ænglisc Toolkit - {project.name}")
@@ -172,17 +177,18 @@ class NewProjectDialog(TextInputMixin):
         translator = self.translator_edit.text().strip() or None
         notes = self.notes_edit.toPlainText().strip() or None
 
-        # Get text from input using mixin method
+        # Get ingest input from mixin method
         try:
-            text = self.get_text_from_input()
+            text, source_path = self.get_ingest_input()
         except ValueError as e:
             self.state.show_error(str(e))
             return
 
         try:
             self.create_project(
-                text=text,
                 title=title,
+                text=text,
+                source_path=source_path,
                 source=source,
                 translator=translator,
                 notes=notes,

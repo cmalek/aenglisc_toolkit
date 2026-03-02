@@ -86,7 +86,7 @@
 <h3>JSON Export (Project Menu)</h3>
 <ul>
 <li><strong>Location</strong>: Project → Export...</li>
-<li><strong>Format</strong>: JSON file (.json)</li>
+<li><strong>Format</strong>: JSON file (<code>.json</code>) or compressed JSON (<code>.json.gz</code>)</li>
 <li><strong>Purpose</strong>: Complete project backup, sharing, or migration</li>
 <li><strong>Content</strong>: All project data including sentences, tokens, annotations, and notes</li>
 <li><strong>Use when</strong>: You want to backup, share, or move the entire project</li>
@@ -98,6 +98,7 @@
 <li>Go to <strong>Project → Export...</strong></li>
 <li>Choose a location to save the file</li>
 <li>The default filename is based on your project name (e.g., <code>my_project.json</code>)</li>
+<li>Optionally save as <code>my_project.json.gz</code> for a much smaller compressed backup</li>
 <li>Click <strong>Save</strong></li>
 </ol>
 <p>The export includes:</p>
@@ -117,6 +118,14 @@
 <li><strong>project</strong>: Project information (name, dates, etc.)</li>
 <li><strong>sentences</strong>: Array of all sentences with their tokens and annotations</li>
 </ul>
+<p>The JSON export is optimized for size while remaining machine-readable:</p>
+<ul>
+<li>Fields that are <code>null</code> are omitted</li>
+<li>Fields equal to schema defaults are omitted</li>
+<li>Omitted fields are reconstructed during import using schema defaults</li>
+<li>The default <code>.json</code> output is compact (minified) JSON</li>
+<li><code>.json.gz</code> stores the same JSON payload inside gzip compression</li>
+</ul>
 <h2>Importing a Project</h2>
 <h3>Step-by-Step Instructions</h3>
 <ol>
@@ -125,6 +134,7 @@
 <li>Click <strong>Open</strong></li>
 <li>The project will be imported into your database</li>
 </ol>
+<p>Import accepts both plain <code>.json</code> files and gzip-compressed <code>.json.gz</code> files.</p>
 <h3>What Happens During Import</h3>
 <ol>
 <li><strong>Version Check</strong>: The application checks if the export file is compatible with the current version</li>
@@ -184,10 +194,10 @@
 <h2>Important Notes</h2>
 <ul>
 <li><strong>Complete Export</strong>: JSON export includes everything - you can't export just part of a project</li>
-<li><strong>File Size</strong>: Large projects may create large JSON files (several MB for extensive texts)</li>
+<li><strong>File Size</strong>: Exports are compact by default and can be compressed further using <code>.json.gz</code></li>
 <li><strong>No Data Loss</strong>: All annotations, notes, and metadata are preserved in the export</li>
 <li><strong>One Project Per File</strong>: Each JSON file contains exactly one project</li>
-<li><strong>Readable Format</strong>: JSON files are text-based and can be opened in any text editor (though editing is not recommended)</li>
+<li><strong>Readable Format</strong>: JSON remains text-based and language-agnostic; use <code>.json</code> for readability and <code>.json.gz</code> for smallest backups</li>
 </ul>
 <h2>Troubleshooting</h2>
 <p><strong>Problem</strong>: Import fails with "migration version incompatible" error</p>

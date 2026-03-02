@@ -8,9 +8,13 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from oeapp.models.annotation import Annotation
+from oeapp.models.chapter import Chapter
 from oeapp.models.idiom import Idiom
 from oeapp.models.note import Note
+from oeapp.models.paragraph import Paragraph
 from oeapp.models.project import Project
+from oeapp.models.section import Section
+from oeapp.models.sentence import Sentence
 from oeapp.services.import_export import ProjectExporter, ProjectImporter
 from oeapp.services.import_export_schema import ProjectExportPayload
 from tests.conftest import create_test_project
@@ -530,6 +534,69 @@ class TestProjectImporter:
 
         project, _renamed = importer.import_project_json(str(import_file))
         assert project.name == "Null Annotation"
+
+    def test_round_trip_preserves_verse_spans_and_auto_titles(
+        self, db_session, tmp_path
+    ):
+        """Verse span metadata and title_auto flags should survive export/import."""
+        project = Project(name="Verse Roundtrip")
+        project.save()
+        chapter = Chapter.create(
+            project_id=project.id,
+            number=1,
+            title="Auto Prose Header ....",
+            title_auto=True,
+            commit=False,
+        )
+        section = Section.create(
+            chapter_id=chapter.id,
+            number=1,
+            title="Lines 1-5",
+            title_auto=True,
+            commit=False,
+        )
+        paragraph = Paragraph(section_id=section.id, order=1)
+        db_session.add(paragraph)
+        db_session.flush()
+        Sentence.create(
+            project_id=project.id,
+            display_order=1,
+            text_oe="Hwæt!\nwē Gār-Dena",
+            paragraph_id=paragraph.id,
+            verse_line_start=1,
+            verse_line_end=5,
+            commit=False,
+        )
+        db_session.commit()
+
+        mock_migration = MagicMock()
+        mock_migration.db_migration_version.return_value = "v1"
+        mock_migration.code_migration_version.return_value = "v1"
+        exporter = ProjectExporter(migration_service=mock_migration)
+        importer = ProjectImporter(migration_service=mock_migration)
+
+        export_file = tmp_path / "verse_roundtrip.json"
+        exporter.export_project_json(project.id, str(export_file))
+        exported = json.loads(export_file.read_text(encoding="utf-8"))
+
+        assert exported["project"]["chapters"][0]["title_auto"] is True
+        assert exported["project"]["chapters"][0]["sections"][0]["title_auto"] is True
+        assert exported["sentences"][0]["verse_line_start"] == 1
+        assert exported["sentences"][0]["verse_line_end"] == 5
+
+        project.delete()
+        db_session.commit()
+        imported_project, was_renamed = importer.import_project_json(str(export_file))
+        assert was_renamed is False
+
+        imported_chapter = imported_project.chapters[0]
+        imported_section = imported_chapter.sections[0]
+        imported_sentence = imported_project.sentences[0]
+        assert imported_chapter.title_auto is True
+        assert imported_section.title_auto is True
+        assert imported_sentence.verse_line_start == 1
+        assert imported_sentence.verse_line_end == 5
+        assert imported_sentence.reference_label == "Verse: 1-5"
 
     def test_load_field_mappings_io_error(self):
         """Test _load_field_mappings handles errors gracefully."""

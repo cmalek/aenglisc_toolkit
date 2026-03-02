@@ -558,20 +558,12 @@ class BaseTokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
             sentence: Sentence to display given sentence.
 
         """
-        paragraph_order = sentence.paragraph.order if sentence.paragraph else 0
-        # Calculate sentence number in paragraph
-        sentence_num = 1
-        if sentence.paragraph:
-            p_sentences = sorted(
-                sentence.paragraph.sentences, key=lambda s: s.display_order
-            )
-            for i, s in enumerate(p_sentences, 1):
-                if s.id == sentence.id:
-                    sentence_num = i
-                    break
-
         number_label = QLabel(
-            f"[{sentence.display_order}] ¶:{paragraph_order} S:{sentence_num}",
+            (
+                f"[{sentence.display_order}] "
+                f"¶:{sentence.paragraph.order if sentence.paragraph else 0} "
+                f"{sentence.reference_label}"
+            ),
             self.content_widget,
         )
         number_label.setFont(self.LINE_LABEL_FONT)

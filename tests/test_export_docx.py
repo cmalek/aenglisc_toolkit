@@ -71,9 +71,9 @@ class TestDOCXExporter:
         doc = Document(str(output_path))
         text = "\n".join([para.text for para in doc.paragraphs])
 
-        # Should contain paragraph and sentence number markers
+        # Should contain paragraph and sentence reference markers
         assert "¶[" in text
-        assert "S[" in text
+        assert "S:" in text
 
     def test_export_includes_paragraph_breaks(self, db_session, tmp_path):
         """Test export() adds extra blank lines for paragraph starts."""
@@ -144,6 +144,82 @@ class TestDOCXExporter:
         doc = Document(str(output_path))
         # Should still create document successfully
         assert len(doc.paragraphs) > 0
+
+    def test_export_hides_auto_titles_and_numbers_verse_stanzas(
+        self, db_session, tmp_path
+    ):
+        """DOCX export should hide auto titles and add verse 5-line markers."""
+        from oeapp.models.chapter import Chapter
+        from oeapp.models.paragraph import Paragraph
+        from oeapp.models.project import Project
+        from oeapp.models.section import Section
+        from oeapp.models.sentence import Sentence
+
+        project = Project(name="Verse Export")
+        project.save()
+        chapter1 = Chapter.create(
+            project_id=project.id,
+            number=1,
+            title="Official Chapter",
+            title_auto=False,
+            commit=False,
+        )
+        section1 = Section.create(
+            chapter_id=chapter1.id,
+            number=1,
+            title="Official Section",
+            title_auto=False,
+            commit=False,
+        )
+        paragraph1 = Paragraph(section_id=section1.id, order=1)
+        db_session.add(paragraph1)
+        db_session.flush()
+        Sentence.create(
+            project_id=project.id,
+            display_order=1,
+            text_oe="l1\nl2\nl3\nl4\nl5",
+            paragraph_id=paragraph1.id,
+            verse_line_start=1,
+            verse_line_end=5,
+            commit=False,
+        )
+        chapter2 = Chapter.create(
+            project_id=project.id,
+            number=2,
+            title="Auto Chapter ....",
+            title_auto=True,
+            commit=False,
+        )
+        section2 = Section.create(
+            chapter_id=chapter2.id,
+            number=1,
+            title="Lines 6-10",
+            title_auto=True,
+            commit=False,
+        )
+        paragraph2 = Paragraph(section_id=section2.id, order=1)
+        db_session.add(paragraph2)
+        db_session.flush()
+        Sentence.create(
+            project_id=project.id,
+            display_order=2,
+            text_oe="prose",
+            paragraph_id=paragraph2.id,
+            commit=False,
+        )
+        db_session.commit()
+
+        exporter = DOCXExporter()
+        output_path = tmp_path / "verse_titles.docx"
+        exporter.export(project.id, output_path)
+        doc = Document(str(output_path))
+        text = "\n".join([para.text for para in doc.paragraphs])
+
+        assert "Official Chapter" in text
+        assert "Official Section" in text
+        assert "Auto Chapter ...." not in text
+        assert "Lines 6-10" not in text
+        assert "\n5\n" in f"\n{text}\n"
 
     def test_export_with_annotations_includes_superscripts(self, db_session, tmp_path):
         """Test export() includes superscript POS annotations."""

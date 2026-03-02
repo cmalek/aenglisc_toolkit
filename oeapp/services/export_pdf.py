@@ -173,6 +173,8 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
     }
     #: The order of parts of speech, for rendering the glossary legend.
     _POS_ORDER: Final[list[str]] = ["N", "V", "A", "R", "D", "B", "C", "E", "I", "L"]
+    #: Fixed four-space verse indent expressed in em width.
+    _VERSE_INDENT_EM: Final[float] = 2.40
 
     def __init__(self) -> None:
         #: The logger instance.
@@ -459,34 +461,135 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
 
         """
         blocks = [r"\begin{paracol}{2}"]
-        for paragraph_sentences in self._group_sentences_by_paragraph(project):
-            oe_sentence_blocks: list[str] = []
-            mode_sentence_blocks: list[str] = []
-            for sentence in paragraph_sentences:
-                note_map = self._notes_by_end_token(sentence)
-                oe_sentence_blocks.append(self._render_oe_sentence(sentence, note_map))
-                mode_sentence_blocks.append(
-                    self._render_modern_sentence(sentence.text_modern or "[...]")
-                )
+        oe_parts: list[str] = []
+        mode_parts: list[str] = []
+        previous_sentence: Sentence | None = None
 
-            oe_text = " ".join(block for block in oe_sentence_blocks if block)
-            mode_text = " ".join(block for block in mode_sentence_blocks if block)
+        for sentence in project.sentences:
+            titles = self._visible_titles(previous_sentence, sentence)
+            if titles:
+                if oe_parts:
+                    oe_parts.append(r"\par ")
+                    mode_parts.append(r"\par ")
+                for title in titles:
+                    escaped_title = self._latex_escape(title)
+                    oe_parts.append(r"\textbf{" + escaped_title + r"}\newline ")
+                    mode_parts.append(r"\textbf{" + escaped_title + r"}\newline ")
 
-            blocks.append(r"\Needspace{6\baselineskip}")
-            blocks.append(r"\begin{samepage}")
-            blocks.append(r"\noindent\raggedright " + oe_text + r"\par")
-            blocks.append(r"\end{samepage}")
-            blocks.append(r"\switchcolumn[1]")
-            blocks.append(r"\begin{samepage}")
-            blocks.append(r"\noindent\raggedright " + mode_text + r"\par")
-            blocks.append(r"\end{samepage}")
-            # Synchronize after each paragraph pair so the next pair starts together.
-            blocks.append(r"\switchcolumn[0]*")
-            # Small stanza/paragraph separator.
-            blocks.append(r"\vspace{0.15em}")
+            sep = self._separator(previous_sentence, sentence, has_titles=bool(titles))
+            if sep:
+                oe_parts.append(sep)
+                mode_parts.append(sep)
 
+            note_map = self._notes_by_end_token(sentence)
+            oe_rendered = self._render_oe_sentence(sentence, note_map)
+            mode_rendered = self._render_modern_sentence(
+                sentence.text_modern or "[...]"
+            )
+            if sentence.is_verse:
+                oe_rendered = self._indent_rendered_lines(oe_rendered)
+                mode_rendered = self._indent_rendered_lines(mode_rendered)
+            oe_parts.append(oe_rendered)
+            mode_parts.append(mode_rendered)
+
+            if sentence.is_verse and sentence.verse_line_end is not None:
+                marker = self._latex_escape(str(sentence.verse_line_end))
+                oe_parts.append(r"\newline \textbf{" + marker + r"}")
+                mode_parts.append(r"\newline \textbf{" + marker + r"}")
+
+            previous_sentence = sentence
+
+        blocks.append(r"\noindent\raggedright " + "".join(oe_parts) + r"\par")
+        blocks.append(r"\switchcolumn")
+        blocks.append(r"\noindent\raggedright " + "".join(mode_parts) + r"\par")
         blocks.append(r"\end{paracol}")
         return "\n".join(blocks)
+
+    def _indent_rendered_lines(self, rendered: str) -> str:
+        """
+        Indent each rendered line by four-space equivalent width.
+
+        Args:
+            rendered: Rendered LaTeX content.
+
+        Returns:
+            Indented LaTeX content.
+
+        """
+        if not rendered:
+            return rendered
+        indent = rf"\hspace*{{{self._VERSE_INDENT_EM:.2f}em}}"
+        return indent + rendered.replace(r"\newline ", r"\newline " + indent)
+
+    def _visible_titles(
+        self, previous: Sentence | None, current: Sentence
+    ) -> list[str]:
+        """
+        Resolve chapter/section titles that should be rendered at this boundary.
+
+        Args:
+            previous: Previous sentence in render order.
+            current: Current sentence in render order.
+
+        Returns:
+            List of visible titles (official-only, auto titles suppressed).
+
+        """
+        titles: list[str] = []
+        current_section = current.paragraph.section if current.paragraph else None
+        current_chapter = current_section.chapter if current_section else None
+        previous_section = (
+            previous.paragraph.section if previous and previous.paragraph else None
+        )
+        previous_chapter = previous_section.chapter if previous_section else None
+
+        chapter_changed = (
+            current_chapter is not None
+            and (previous_chapter is None or current_chapter.id != previous_chapter.id)
+        )
+        if (
+            current_chapter is not None
+            and chapter_changed
+            and current_chapter.title
+            and not current_chapter.title_auto
+        ):
+            titles.append(current_chapter.title)
+
+        section_changed = (
+            current_section is not None
+            and (previous_section is None or current_section.id != previous_section.id)
+        )
+        if (
+            current_section is not None
+            and section_changed
+            and current_section.title
+            and not current_section.title_auto
+        ):
+            titles.append(current_section.title)
+        return titles
+
+    def _separator(
+        self, previous: Sentence | None, current: Sentence, has_titles: bool
+    ) -> str:
+        """
+        Return LaTeX separator between adjacent sentence render blocks.
+
+        Args:
+            previous: Previous sentence in render order.
+            current: Current sentence.
+            has_titles: Whether titles were rendered before ``current``.
+
+        Returns:
+            LaTeX separator string.
+
+        """
+        if previous is None or has_titles:
+            return ""
+        if current.is_verse:
+            return r"\newline " if previous.is_verse else r"\par "
+        if previous.is_verse:
+            return r"\par "
+        return r"\par " if self._is_paragraph_start(current) else " "
 
     def _group_sentences_by_paragraph(self, project: Project) -> list[list[Sentence]]:
         """

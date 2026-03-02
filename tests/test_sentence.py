@@ -211,6 +211,30 @@ class TestSentence:
         assert "paragraph_ref" in data
         assert "created_at" in data
 
+    def test_reference_label_uses_verse_span_when_present(self, db_session):
+        """Verse sentences should expose ``Verse: a-b`` labels."""
+        project = create_test_project(db_session)
+        sentence = Sentence.create(
+            project_id=project.id,
+            display_order=1,
+            text_oe="l1\nl2\nl3\nl4\nl5",
+            verse_line_start=1,
+            verse_line_end=5,
+        )
+        assert sentence.is_verse is True
+        assert sentence.reference_label == "Verse: 1-5"
+
+    def test_reference_label_uses_sentence_number_for_prose(self, db_session):
+        """Prose sentences should expose ``S:n`` labels."""
+        project = create_test_project(db_session)
+        sentence = Sentence.create(
+            project_id=project.id,
+            display_order=1,
+            text_oe="Se cyning",
+        )
+        assert sentence.is_verse is False
+        assert sentence.reference_label == "S:1"
+
     def test_from_json_creates_sentence(self, db_session):
         """Test from_json() creates sentence from data."""
         project = create_test_project(db_session)

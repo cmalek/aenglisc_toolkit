@@ -6,7 +6,10 @@ from PySide6.QtGui import QTextCursor
 from PySide6.QtWidgets import QScrollArea, QVBoxLayout, QLabel
 
 from oeapp.ui.full_translation_window import FullTranslationWindow, NOTE_HIGHLIGHT_PROPERTY, FullProjectNotesArea
+from oeapp.models.chapter import Chapter
+from oeapp.models.paragraph import Paragraph
 from oeapp.models.project import Project
+from oeapp.models.section import Section
 from oeapp.models.sentence import Sentence
 from oeapp.models.note import Note
 from oeapp.models.token import Token
@@ -283,3 +286,86 @@ class TestFullTranslationWindow:
         args, kwargs = full_window.main_window.messages.show_error.call_args
         assert "Bundled Tectonic binary is missing." in args[0]
         assert kwargs["title"] == "PDF Export Failed"
+
+    def test_full_translation_hides_auto_titles_and_renders_gapless_verse(
+        self, db_session, mock_main_window
+    ):
+        """Official titles render while auto titles are suppressed; verse stays gapless."""
+        project = Project(name="Verse Layout")
+        project.save()
+        chapter1 = Chapter.create(
+            project_id=project.id,
+            number=1,
+            title="Official Chapter",
+            title_auto=False,
+            commit=False,
+        )
+        section1 = Section.create(
+            chapter_id=chapter1.id,
+            number=1,
+            title="Official Section",
+            title_auto=False,
+            commit=False,
+        )
+        p1 = Paragraph(section_id=section1.id, order=1)
+        p2 = Paragraph(section_id=section1.id, order=2)
+        db_session.add_all([p1, p2])
+        db_session.flush()
+        Sentence.create(
+            project_id=project.id,
+            display_order=1,
+            text_oe="a1\na2\na3\na4\na5",
+            paragraph_id=p1.id,
+            verse_line_start=1,
+            verse_line_end=5,
+            commit=False,
+        )
+        Sentence.create(
+            project_id=project.id,
+            display_order=2,
+            text_oe="b1\nb2\nb3\nb4\nb5",
+            paragraph_id=p2.id,
+            verse_line_start=6,
+            verse_line_end=10,
+            commit=False,
+        )
+
+        chapter2 = Chapter.create(
+            project_id=project.id,
+            number=2,
+            title="Auto Chapter ....",
+            title_auto=True,
+            commit=False,
+        )
+        section2 = Section.create(
+            chapter_id=chapter2.id,
+            number=1,
+            title="Lines 11-15",
+            title_auto=True,
+            commit=False,
+        )
+        p3 = Paragraph(section_id=section2.id, order=1)
+        db_session.add(p3)
+        db_session.flush()
+        Sentence.create(
+            project_id=project.id,
+            display_order=3,
+            text_oe="prose sentence",
+            paragraph_id=p3.id,
+            commit=False,
+        )
+        db_session.commit()
+
+        window = FullTranslationWindow(project, mock_main_window)
+        oe_text = window.oe_edit.toPlainText()
+        mode_text = window.mode_edit.toPlainText()
+
+        assert "Official Chapter" in oe_text
+        assert "Official Section" in oe_text
+        assert "Auto Chapter ...." not in oe_text
+        assert "Lines 11-15" not in oe_text
+        assert "    a1" in oe_text
+        assert "a5\n5\n    b1" in oe_text
+        assert "a5\n5\n\n    b1" not in oe_text
+        assert "Official Chapter" in mode_text
+        assert "    [...]" in mode_text

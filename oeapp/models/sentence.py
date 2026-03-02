@@ -77,6 +77,10 @@ class Sentence(SaveDeleteMixin, Base):
     text_oe: Mapped[str] = mapped_column(String, nullable=False)
     #: The Modern English translation.
     text_modern: Mapped[str | None] = mapped_column(String, nullable=True)
+    #: The first verse line number represented by this sentence (for stanza cards).
+    verse_line_start: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    #: The last verse line number represented by this sentence (for stanza cards).
+    verse_line_end: Mapped[int | None] = mapped_column(Integer, nullable=True)
     #: The date and time the sentence was created.
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None), nullable=False
@@ -212,12 +216,14 @@ class Sentence(SaveDeleteMixin, Base):
         return session.scalar(stmt)
 
     @classmethod
-    def create(
+    def create(  # noqa: PLR0913
         cls,
         project_id: int,
         display_order: int,
         text_oe: str,
         paragraph_id: int | None = None,
+        verse_line_start: int | None = None,
+        verse_line_end: int | None = None,
         commit: bool = True,
     ) -> Sentence:
         """
@@ -232,6 +238,8 @@ class Sentence(SaveDeleteMixin, Base):
             display_order: Display order
             text_oe: Old English text
             paragraph_id: Paragraph ID
+            verse_line_start: First verse line number represented by this sentence
+            verse_line_end: Last verse line number represented by this sentence
 
         Keyword Args:
             commit: Whether to commit the changes to the database
@@ -275,6 +283,8 @@ class Sentence(SaveDeleteMixin, Base):
             display_order=display_order,
             paragraph_id=paragraph_id,
             text_oe=text_oe,
+            verse_line_start=verse_line_start,
+            verse_line_end=verse_line_end,
         )
         sentence.save(commit=False)
 
@@ -479,6 +489,8 @@ class Sentence(SaveDeleteMixin, Base):
             "display_order": self.display_order,
             "text_oe": self.text_oe,
             "text_modern": self.text_modern,
+            "verse_line_start": self.verse_line_start,
+            "verse_line_end": self.verse_line_end,
             "created_at": to_utc_iso(self.created_at),
             "updated_at": to_utc_iso(self.updated_at),
             "paragraph_ref": {
@@ -557,6 +569,8 @@ class Sentence(SaveDeleteMixin, Base):
             paragraph_id=paragraph_id,
             text_oe=sentence_data["text_oe"],
             text_modern=sentence_data.get("text_modern"),
+            verse_line_start=sentence_data.get("verse_line_start"),
+            verse_line_end=sentence_data.get("verse_line_end"),
         )
         created_at = from_utc_iso(sentence_data.get("created_at"))
         if created_at:
@@ -715,6 +729,42 @@ class Sentence(SaveDeleteMixin, Base):
             return 999999
 
         return sorted(notes, key=get_note_position)
+
+    @property
+    def is_verse(self) -> bool:
+        """
+        Return ``True`` when this sentence represents a verse stanza span.
+        """
+        return (
+            self.verse_line_start is not None
+            and self.verse_line_end is not None
+            and self.verse_line_start > 0
+            and self.verse_line_end >= self.verse_line_start
+        )
+
+    @property
+    def sentence_number_in_paragraph(self) -> int:
+        """
+        Return the sentence number within its paragraph (1-based).
+        """
+        if not self.paragraph:
+            return 1
+        sentences = sorted(self.paragraph.sentences, key=lambda s: s.display_order)
+        for i, sentence in enumerate(sentences, 1):
+            if sentence.id == self.id:
+                return i
+        return 1
+
+    @property
+    def reference_label(self) -> str:
+        """
+        Return the human-readable sentence reference label.
+
+        Returns ``Verse: a-b`` for verse sentences and ``S:n`` for prose.
+        """
+        if self.is_verse:
+            return f"Verse: {self.verse_line_start}-{self.verse_line_end}"
+        return f"S:{self.sentence_number_in_paragraph}"
 
     @property
     def sorted_notes(self) -> builtins.list[Note]:

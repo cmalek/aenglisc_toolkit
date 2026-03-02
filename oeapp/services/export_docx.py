@@ -172,6 +172,69 @@ class DOCXExporter(SessionMixin, AnnotationTextualMixin, TokenOccurrenceMixin):
         run._r.append(instr_text)
         run._r.append(fld_char2)
 
+    def _is_paragraph_start(self, sentence: "Sentence") -> bool:
+        """
+        Return ``True`` when sentence is first in its paragraph.
+
+        Args:
+            sentence: Sentence to inspect.
+
+        Returns:
+            ``True`` if sentence starts its paragraph.
+
+        """
+        if not sentence.paragraph:
+            return False
+        ordered = sorted(sentence.paragraph.sentences, key=lambda s: s.display_order)
+        return bool(ordered and ordered[0].id == sentence.id)
+
+    def _visible_titles(
+        self, previous: "Sentence | None", current: "Sentence"
+    ) -> list[str]:
+        """
+        Resolve chapter/section titles that should be rendered at this boundary.
+
+        Args:
+            previous: Previous sentence in render order.
+            current: Current sentence in render order.
+
+        Returns:
+            List of visible titles (official-only, auto titles suppressed).
+
+        """
+        titles: list[str] = []
+        current_section = current.paragraph.section if current.paragraph else None
+        current_chapter = current_section.chapter if current_section else None
+        previous_section = (
+            previous.paragraph.section if previous and previous.paragraph else None
+        )
+        previous_chapter = previous_section.chapter if previous_section else None
+
+        chapter_changed = (
+            current_chapter is not None
+            and (previous_chapter is None or current_chapter.id != previous_chapter.id)
+        )
+        if (
+            current_chapter is not None
+            and chapter_changed
+            and current_chapter.title
+            and not current_chapter.title_auto
+        ):
+            titles.append(current_chapter.title)
+
+        section_changed = (
+            current_section is not None
+            and (previous_section is None or current_section.id != previous_section.id)
+        )
+        if (
+            current_section is not None
+            and section_changed
+            and current_section.title
+            and not current_section.title_auto
+        ):
+            titles.append(current_section.title)
+        return titles
+
     def export(self, project_id: int, output_path: "Path") -> bool:  # noqa: PLR0912, PLR0915
         """
         Export project to DOCX file.
@@ -211,42 +274,35 @@ class DOCXExporter(SessionMixin, AnnotationTextualMixin, TokenOccurrenceMixin):
 
         doc.add_paragraph()  # Blank line after metadata
 
+        previous_sentence = None
         for sentence in project.sentences:
             text_modern = sentence.text_modern
 
-            # Add paragraph break if this sentence starts a paragraph
-            is_paragraph_start = False
-            if sentence.paragraph:
-                p_sentences = sorted(
-                    sentence.paragraph.sentences, key=lambda s: s.display_order
-                )
-                if p_sentences and p_sentences[0].id == sentence.id:
-                    is_paragraph_start = True
-
-            if is_paragraph_start:
-                doc.add_paragraph()  # Extra blank line for paragraph break
+            titles = self._visible_titles(previous_sentence, sentence)
+            if titles:
+                if previous_sentence is not None:
+                    doc.add_paragraph()
+                for title in titles:
+                    title_para = doc.add_paragraph()
+                    title_para.add_run(title).bold = True
 
             # Add sentence number with paragraph and sentence numbers
             sentence_num_para = doc.add_paragraph()
             paragraph_num = sentence.paragraph.order if sentence.paragraph else 0
-            # Calculate sentence number in paragraph
-            sentence_num = 1
-            if sentence.paragraph:
-                p_sentences = sorted(
-                    sentence.paragraph.sentences, key=lambda s: s.display_order
-                )
-                for i, s in enumerate(p_sentences, 1):
-                    if s.id == sentence.id:
-                        sentence_num = i
-                        break
-
             sentence_num_run = sentence_num_para.add_run(
-                f"¶[{paragraph_num}] S[{sentence_num}] "
+                f"¶[{paragraph_num}] {sentence.reference_label} "
             )
             sentence_num_run.bold = True
 
-            # Build Old English sentence with annotations
-            self._add_oe_sentence_with_annotations(doc, sentence)
+            if sentence.is_verse:
+                verse_para = doc.add_paragraph()
+                verse_para.add_run(sentence.text_oe)
+                if sentence.verse_line_end is not None:
+                    marker_para = doc.add_paragraph()
+                    marker_para.add_run(str(sentence.verse_line_end)).bold = True
+            else:
+                # Build Old English sentence with annotations
+                self._add_oe_sentence_with_annotations(doc, sentence)
 
             # Add translation
             if text_modern:
@@ -265,7 +321,17 @@ class DOCXExporter(SessionMixin, AnnotationTextualMixin, TokenOccurrenceMixin):
             self._add_notes(doc, sentence)
 
             # Blank line between sentences
-            doc.add_paragraph()
+            if (
+                sentence.is_verse
+                and previous_sentence is not None
+                and previous_sentence.is_verse
+            ):
+                # Keep stanza flow gapless.
+                pass
+            else:
+                doc.add_paragraph()
+
+            previous_sentence = sentence
 
         try:
             doc.save(str(output_path))
@@ -366,24 +432,27 @@ class DOCXExporter(SessionMixin, AnnotationTextualMixin, TokenOccurrenceMixin):
         current_oe_p = oe_cell.paragraphs[0]
         current_mode_p = mode_cell.paragraphs[0]
 
+        previous_sentence = None
         for sentence in project.sentences:
-            # Check if this sentence is the first in its paragraph
-            is_paragraph_start = False
-            if sentence.paragraph:
-                p_sentences = sorted(
-                    sentence.paragraph.sentences, key=lambda s: s.display_order
-                )
-                if p_sentences and p_sentences[0].id == sentence.id:
-                    is_paragraph_start = True
-
-            if is_paragraph_start:
-                # If not the first sentence, create new paragraphs in both cells
-                if sentence != project.sentences[0]:
+            titles = self._visible_titles(previous_sentence, sentence)
+            if titles:
+                if previous_sentence is not None:
                     current_oe_p = oe_cell.add_paragraph()
                     current_mode_p = mode_cell.add_paragraph()
-            # Add a space between sentences in the same paragraph
-            # But only if it's not the very first sentence
-            elif sentence != project.sentences[0]:
+                for title in titles:
+                    current_oe_p.add_run(title).bold = True
+                    current_mode_p.add_run(title).bold = True
+                    current_oe_p = oe_cell.add_paragraph()
+                    current_mode_p = mode_cell.add_paragraph()
+
+            is_paragraph_start = self._is_paragraph_start(sentence)
+            if (
+                (sentence.is_verse or is_paragraph_start)
+                and previous_sentence is not None
+            ):
+                current_oe_p = oe_cell.add_paragraph()
+                current_mode_p = mode_cell.add_paragraph()
+            elif previous_sentence is not None:
                 current_oe_p.add_run(" ")
                 current_mode_p.add_run(" ")
 
@@ -413,6 +482,15 @@ class DOCXExporter(SessionMixin, AnnotationTextualMixin, TokenOccurrenceMixin):
             mode_run = current_mode_p.add_run(sentence.text_modern or "[...]")
             if not sentence.text_modern:
                 mode_run.font.italic = True
+            if sentence.is_verse and sentence.verse_line_end is not None:
+                marker_oe = oe_cell.add_paragraph()
+                marker_oe.add_run(str(sentence.verse_line_end)).bold = True
+                marker_mode = mode_cell.add_paragraph()
+                marker_mode.add_run(str(sentence.verse_line_end)).bold = True
+                current_oe_p = oe_cell.add_paragraph()
+                current_mode_p = mode_cell.add_paragraph()
+
+            previous_sentence = sentence
 
         # Add notes at the end of the document (Endnotes Section)
         if project_notes:
