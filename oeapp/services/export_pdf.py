@@ -392,7 +392,7 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
             )
 
         return (
-            r"\documentclass[11pt]{article}"
+            r"\documentclass[10pt]{article}"
             "\n"
             r"\usepackage[utf8]{inputenc}"
             "\n"
@@ -786,7 +786,7 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
                 escaped = escaped[len(match.group(0)) :]
         escaped = re.sub(
             r"(?<=\S) {3,}(?=\S)",
-            self._space_run_to_standard_ten_space_gap,
+            self._normalize_verse_gap,
             escaped,
         )
         escaped = re.sub(r" {2}", self._space_run_to_hspace, escaped)
@@ -822,9 +822,9 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
         width_em = f"{extra_spaces * 0.6:.2f}"
         return " " + rf"\hspace*{{{width_em}em}}"
 
-    def _space_run_to_standard_ten_space_gap(self, _match: re.Match[str]) -> str:
+    def _normalize_verse_gap(self, _match: re.Match[str]) -> str:
         """
-        Normalize wide internal gaps to a fixed 10-space visual width.
+        Normalize wide internal gaps to a fixed 4 space visual width.
 
         Args:
             _match: The match object.
@@ -834,7 +834,7 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
 
         """
         # One literal space + width for 9 additional spaces.
-        return r" \hspace*{5.40em}"
+        return r" \hspace*{2.40em}"
 
     def _render_footnote(self, sentence: Sentence, note: Note) -> str:
         """
