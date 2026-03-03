@@ -142,7 +142,7 @@ class TestFullTranslationPDFExporter:
         assert r"\begin{multicols}{5}" in latex
         assert "How to Decode Annotations" in latex
         assert "A note here." in latex
-        assert r"The \hspace*{5.40em}king." in latex
+        assert r"The \hspace*{2.40em}king." in latex
         assert "m weak" in latex
         assert r"\textcolor[HTML]{666666}{[" in latex
         assert r"\switchcolumn" in latex
@@ -352,7 +352,7 @@ class TestFullTranslationPDFExporter:
         )
 
         assert rendered.startswith(r"\hspace*{1.80em}Hwæt")
-        assert r"\hspace*{5.40em}" in rendered
+        assert r"\hspace*{2.40em}" in rendered
         assert r"\newline \hspace*{1.80em}Gar-Dena" in rendered
         assert at_line_start is False
 
@@ -497,7 +497,7 @@ class TestFullTranslationPDFExporter:
         rendered_three = exporter._latex_escape_preserving_space_runs("Hwæt   we")
         rendered_many = exporter._latex_escape_preserving_space_runs("Hwæt        we")
         assert rendered_three == rendered_many
-        assert r"\hspace*{5.40em}" in rendered_three
+        assert r"\hspace*{2.40em}" in rendered_three
 
     def test_modern_spacing_normalizes_three_plus_spaces(self, db_session):
         """ModE column should use the same fixed wide-gap normalization."""
@@ -509,7 +509,7 @@ class TestFullTranslationPDFExporter:
 
         exporter = FullTranslationPDFExporter()
         latex = exporter._build_document_tex(project)
-        assert r"The \hspace*{5.40em}king." in latex
+        assert r"The \hspace*{2.40em}king." in latex
 
     def test_latex_escape_maps_old_english_diacritics(self):
         """Unicode OE diacritics should be emitted as explicit LaTeX accents."""
