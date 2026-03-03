@@ -72,6 +72,7 @@ class TestCopyAnnotation:
         annotation.case = "n"
         annotation.declension = "i"
         annotation.modern_english_meaning = "king"
+        annotation.sense = "ruler in this line"
         annotation.root = "cyning"
         annotation.uncertain = False
         annotation.save()
@@ -99,6 +100,7 @@ class TestCopyAnnotation:
         assert copied["case"] == "n"
         assert copied["declension"] == "i"
         assert copied["modern_english_meaning"] == "king"
+        assert copied["sense"] == "ruler in this line"
         assert copied["root"] == "cyning"
 
     def test_copy_annotation_copies_all_fields(self, db_session, qapp, mock_main_window):
@@ -132,6 +134,7 @@ class TestCopyAnnotation:
         annotation.conjunction_type = None
         annotation.adverb_degree = None
         annotation.modern_english_meaning = "to be"
+        annotation.sense = "to exist here"
         annotation.root = "bēon"
         annotation.save()
         db_session.refresh(token)
@@ -163,6 +166,7 @@ class TestCopyAnnotation:
         assert copied["verb_form"] == "f"
         assert copied["verb_direct_object_case"] == "a"
         assert copied["modern_english_meaning"] == "to be"
+        assert copied["sense"] == "to exist here"
         assert copied["root"] == "bēon"
 
 
@@ -229,6 +233,7 @@ class TestPasteAnnotation:
             "conjunction_type": None,
             "adverb_degree": None,
             "modern_english_meaning": "king",
+            "sense": "ruler in this line",
             "root": "cyning",
         }
         command_manager = mock_main_window.application_state.command_manager
@@ -289,6 +294,7 @@ class TestPasteAnnotation:
             "conjunction_type": None,
             "adverb_degree": None,
             "modern_english_meaning": None,
+            "sense": None,
             "root": None,
         }
         command_manager = mock_main_window.application_state.command_manager
@@ -327,6 +333,7 @@ class TestPasteAnnotation:
         existing.gender = None
         existing.number = "p"
         existing.modern_english_meaning = "old meaning"
+        existing.sense = "old sense"
         existing.save()
         db_session.refresh(token)
 
@@ -352,6 +359,7 @@ class TestPasteAnnotation:
             "conjunction_type": None,
             "adverb_degree": None,
             "modern_english_meaning": "new meaning",
+            "sense": "new sense",
             "root": None,
         }
 
@@ -370,6 +378,7 @@ class TestPasteAnnotation:
         assert token.annotation.gender == "m"
         assert token.annotation.number == "s"
         assert token.annotation.modern_english_meaning == "new meaning"
+        assert token.annotation.sense == "new sense"
 
 
 class TestCopyPasteIntegration:

@@ -51,6 +51,7 @@ class TestCommandManager:
                 "adverb_degree",
                 "last_inferred_json",
                 "modern_english_meaning",
+                "sense",
                 "root",
                 "confidence",
                 "updated_at",
@@ -199,6 +200,7 @@ class TestCommandManager:
                 "confidence",
                 "last_inferred_json",
                 "modern_english_meaning",
+                "sense",
                 "root",
             ]
         }
@@ -272,6 +274,7 @@ class TestCommandManager:
                 "confidence",
                 "last_inferred_json",
                 "modern_english_meaning",
+                "sense",
                 "root",
             ]
         }
@@ -352,6 +355,7 @@ class TestCommandManager:
                 "confidence",
                 "last_inferred_json",
                 "modern_english_meaning",
+                "sense",
                 "root",
             ]
         }

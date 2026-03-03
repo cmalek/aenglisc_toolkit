@@ -108,7 +108,7 @@ class TestTokenDetailsSidebar:
         # The method should not crash even if annotation is None
 
     def test_modern_english_meaning_formatting(self, db_session, qapp):
-        """Test that Modern English Meaning is split into two labels with correct styling."""
+        """Test definition and sense fields render as separate styled labels."""
         from PySide6.QtWidgets import QLabel
         from oeapp.models.annotation import Annotation
 
@@ -126,6 +126,7 @@ class TestTokenDetailsSidebar:
 
         annotation.pos = "N"  # Need POS for common fields to show
         annotation.modern_english_meaning = "the king; a ruler of a people"
+        annotation.sense = "ruler in this line"
         annotation.save()
 
         sidebar = TokenDetailsSidebar(parent=None)
@@ -138,23 +139,35 @@ class TestTokenDetailsSidebar:
             if isinstance(widget, QLabel):
                 labels.append(widget)
 
-        # Look for the "Modern English Meaning:" label and the value label
-        label_found = False
-        value_found = False
+        # Look for the definition and sense labels and their values
+        definition_label_found = False
+        definition_value_found = False
+        sense_label_found = False
+        sense_value_found = False
 
         for i, label in enumerate(labels):
-            if label.text() == "Modern English Meaning:":
-                label_found = True
+            if label.text() == "Definition of root word:":
+                definition_label_found = True
                 # The value label should be the next QLabel
                 if i + 1 < len(labels):
                     value_label = labels[i + 1]
                     if value_label.text() == "the king; a ruler of a people":
-                        value_found = True
+                        definition_value_found = True
+                        assert value_label.wordWrap() is True
+                        assert "background-color: palette(base)" in value_label.styleSheet()
+            if label.text() == "Sense in this instance:":
+                sense_label_found = True
+                if i + 1 < len(labels):
+                    value_label = labels[i + 1]
+                    if value_label.text() == "ruler in this line":
+                        sense_value_found = True
                         assert value_label.wordWrap() is True
                         assert "background-color: palette(base)" in value_label.styleSheet()
 
-        assert label_found is True
-        assert value_found is True
+        assert definition_label_found is True
+        assert definition_value_found is True
+        assert sense_label_found is True
+        assert sense_value_found is True
 
 
     def test_verb_direct_object_case_rendering(self, db_session, qapp):

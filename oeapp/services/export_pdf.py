@@ -48,7 +48,7 @@ class GlossaryEntry:
     #: The modern English meanings of the glossary entry.
     meanings: list[str] = field(default_factory=list)
     #: The attested forms of the glossary entry from the text.
-    examples: list[tuple[str, str]] = field(default_factory=list)
+    examples: list[tuple[str, str, str | None]] = field(default_factory=list)
     #: Other root spellings that normalize to the same root.
     root_variants: list[str] = field(default_factory=list)
     #: Verb class label for verb entries.
@@ -904,7 +904,9 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
         """
         entries: dict[tuple[str, str, str | None], GlossaryEntry] = {}
         meaning_seen: dict[tuple[str, str, str | None], set[str]] = {}
-        example_seen: dict[tuple[str, str, str | None], set[tuple[str, str]]] = {}
+        example_seen: dict[
+            tuple[str, str, str | None], set[tuple[str, str, str | None]]
+        ] = {}
 
         for sentence in project.sentences:
             for token in sorted(sentence.tokens, key=lambda t: t.order_index):
@@ -967,7 +969,7 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
         annotation: Annotation,
         token: Token,
         seen_meanings: set[str],
-        seen_examples: set[tuple[str, str]],
+        seen_examples: set[tuple[str, str, str | None]],
     ) -> None:
         """
         Merge one attestation into an existing glossary entry.
@@ -985,15 +987,20 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
             if norm not in seen_meanings:
                 entry.meanings.append(meaning)
                 seen_meanings.add(norm)
-            code = (
-                ""
-                if annotation.pos in ("C", "E")
-                else self._attested_form_code(annotation)
-            )
-            example = (token.surface.lower(), code)
-            if example not in seen_examples:
-                entry.examples.append(example)
-                seen_examples.add(example)
+
+        code = (
+            "" if annotation.pos in ("C", "E") else self._attested_form_code(annotation)
+        )
+        sense = annotation.sense.strip() if annotation.sense else None
+        example = (token.surface.lower(), code, sense)
+        example_norm = (
+            token.surface.lower(),
+            code,
+            sense.casefold() if sense else None,
+        )
+        if example_norm not in seen_examples:
+            entry.examples.append(example)
+            seen_examples.add(example_norm)
         if annotation.gender:
             entry.used_genders.add(annotation.gender)
         if annotation.case:
@@ -1193,20 +1200,17 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
                 self._latex_escape("; ".join(entry.meanings)) if entry.meanings else "?"
             )
             rendered_examples: list[str] = []
-            for surface, code in entry.examples:
-                if entry.pos in ("E", "C"):
-                    rendered_examples.append(
-                        r"\textbf{" + self._latex_escape(surface) + r"}"
+            for surface, code, sense in entry.examples:
+                rendered = r"\textbf{" + self._latex_escape(surface) + r"}"
+                if sense:
+                    rendered += r" \textit{" + self._latex_escape(sense) + r"}"
+                if entry.pos not in ("E", "C"):
+                    rendered += (
+                        r" \textcolor[HTML]{666666}{["
+                        + self._latex_escape(code)
+                        + r"]}"
                     )
-                    continue
-                rendered_examples.append(
-                    r"\textbf{"
-                    + self._latex_escape(surface)
-                    + r"} "
-                    + r"\textcolor[HTML]{666666}{["
-                    + self._latex_escape(code)
-                    + r"]}"
-                )
+                rendered_examples.append(rendered)
             examples = "; ".join(rendered_examples)
             if not examples:
                 examples = ""

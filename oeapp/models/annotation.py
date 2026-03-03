@@ -189,6 +189,8 @@ class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
     last_inferred_json: Mapped[str | None] = mapped_column(String, nullable=True)
     #: The modern English meaning.
     modern_english_meaning: Mapped[str | None] = mapped_column(String, nullable=True)
+    #: The contextual sense in this attested instance.
+    sense: Mapped[str | None] = mapped_column(String, nullable=True)
     #: The root.
     root: Mapped[str | None] = mapped_column(String, nullable=True)
     #: Normalized root used for grouping/search.
@@ -266,6 +268,7 @@ class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
                 "confidence": self.confidence,
                 "last_inferred_json": self.last_inferred_json,
                 "modern_english_meaning": self.modern_english_meaning,
+                "sense": self.sense,
                 "root": self.root,
                 "root_normalized": self.root_normalized,
             }
@@ -309,6 +312,7 @@ class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
             and self.confidence is None
             and self.last_inferred_json is None
             and self.modern_english_meaning is None
+            and self.sense is None
             and self.root is None
             and self.root_normalized is None
         )
@@ -399,7 +403,7 @@ class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
                 )
         return annotation
 
-    def from_annotation(
+    def from_annotation(  # noqa: PLR0915
         self,
         annotation: "Annotation",
         commit: bool = True,
@@ -458,6 +462,7 @@ class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
         self.confidence = annotation.confidence
         self.last_inferred_json = annotation.last_inferred_json
         self.modern_english_meaning = annotation.modern_english_meaning
+        self.sense = annotation.sense
         self.root = annotation.root
         self.root_normalized = annotation.root_normalized
         if commit:
@@ -585,6 +590,7 @@ class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
             "confidence": ann_data.get("confidence"),
             "last_inferred_json": ann_data.get("last_inferred_json"),
             "modern_english_meaning": ann_data.get("modern_english_meaning"),
+            "sense": ann_data.get("sense"),
             "root": ann_data.get("root"),
             "root_normalized": ann_data.get(
                 "root_normalized", normalize_old_english(ann_data.get("root"))

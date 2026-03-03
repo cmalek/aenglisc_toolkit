@@ -88,7 +88,8 @@ The following fields are available for all POS types in the Metadata section:
 
 - **Confidence**: Set confidence level from 0-100% using the slider
 - **TODO**: Mark annotation as needing review
-- **Modern English Meaning**: Enter the modern English translation/meaning of the word (e.g., "time, season")
+- **Definition of root word**: Enter the dictionary definition for the root word (e.g., "time, season")
+- **Meaning/Sense in this instance**: Enter the contextual sense for this attested use (e.g., "season in this line")
 - **Root**: Enter the root form of the word (e.g., "sumor")
 
 `Root` and word surface forms are also stored in normalized internal forms for grouping/search:

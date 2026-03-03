@@ -37,7 +37,7 @@ The application has two formatted document exports:
 - One entry per unique `(normalized root, part-of-speech)`
 - Display uses an original root form (with diacritics/dashes preserved), with alternate spellings shown as variants
 - Senses are merged and deduplicated
-- Attested forms are listed with compact DB-code annotations
+- Attested forms are listed with compact DB-code annotations and optional italicized contextual senses in parentheses
 - Verb classifier metadata may include:
 
     - `[impers]` (impersonal)

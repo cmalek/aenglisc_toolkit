@@ -611,15 +611,15 @@ class BaseTokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
 
     def modern_english_meaning(self, annotation: "Annotation") -> None:
         """
-        Display the modern English meaning field.
+        Display the root-word definition field.
 
         Args:
             annotation: Annotation to display
 
         """
-        # Modern English Meaning Label
+        # Root-word definition label
 
-        mod_e_label = QLabel("Modern English Meaning:", self.content_widget)
+        mod_e_label = QLabel("Definition of root word:", self.content_widget)
         mod_e_label.setWordWrap(True)
         mod_e_label.setFont(QFont("Helvetica", 14, QFont.Weight.Bold))
         if not annotation.modern_english_meaning:
@@ -637,7 +637,7 @@ class BaseTokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
         )
         self.content_layout.addWidget(mod_e_label)
 
-        # Modern English Meaning Value
+        # Root-word definition value
         mod_e_value_text = annotation.modern_english_meaning or "?"
         mod_e_value_label = QLabel(mod_e_value_text, self.content_widget)
         mod_e_value_label.setWordWrap(True)
@@ -663,6 +663,58 @@ class BaseTokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
             )
             mod_e_value_label.setMinimumWidth(0)
             mod_e_value_label.setMaximumHeight(16777215)
+
+    def sense(self, annotation: "Annotation") -> None:
+        """
+        Display the contextual sense field.
+
+        Args:
+            annotation: Annotation to display
+
+        """
+        sense_label = QLabel("Sense in this instance:", self.content_widget)
+        sense_label.setWordWrap(True)
+        sense_label.setFont(QFont("Helvetica", 14, QFont.Weight.Bold))
+        if not annotation.sense:
+            sense_label.setStyleSheet("color: palette(text-muted); font-style: bold;")
+            container = QHBoxLayout()
+            container.setContentsMargins(0, 0, 0, 0)
+            container.addWidget(sense_label)
+            container.addSpacing(30)
+            sense_value_label = QLabel("?", self.content_widget)
+            container.addWidget(sense_value_label)
+            self.content_layout.addLayout(container)
+            return
+        sense_label.setStyleSheet(
+            "color: palette(text); font-family: Helvetica; font-weight: bold;"
+        )
+        self.content_layout.addWidget(sense_label)
+
+        sense_value_text = annotation.sense or "?"
+        sense_value_label = QLabel(sense_value_text, self.content_widget)
+        sense_value_label.setWordWrap(True)
+        self.content_layout.addWidget(sense_value_label)
+        if not annotation.sense:
+            sense_value_label.setStyleSheet(
+                "color: palette(text-muted); font-style: italic;"
+            )
+        else:
+            sense_value_label.setStyleSheet(
+                "background-color: palette(base); color: palette(text); "
+                "font-family: Helvetica; "
+                "font-weight: normal; padding: 5px; border-radius: 3px;"
+            )
+            sense_value_label.setSizePolicy(
+                sense_value_label.sizePolicy().horizontalPolicy(),
+                sense_value_label.sizePolicy().verticalPolicy(),
+            )
+            sense_value_label.setMaximumWidth(
+                int(sense_value_label.parentWidget().width())  # type: ignore[union-attr]
+                if sense_value_label.parentWidget()
+                else 16777215
+            )
+            sense_value_label.setMinimumWidth(0)
+            sense_value_label.setMaximumHeight(16777215)
 
     def confidence(self, annotation: "Annotation") -> None:
         """
@@ -710,6 +762,7 @@ class BaseTokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
         self.content_layout.addSpacing(30)
         self.rule()
         self.modern_english_meaning(annotation)
+        self.sense(annotation)
         self.content_layout.addStretch()
 
     def render_idiom(self, idiom: "Idiom", sentence: "Sentence") -> None:
@@ -776,6 +829,7 @@ class BaseTokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
             self.root(annotation)
             self.confidence(annotation)
             self.modern_english_meaning(annotation)
+            self.sense(annotation)
         else:
             no_ann_label = QLabel(
                 "No annotation available for this idiom.", self.content_widget

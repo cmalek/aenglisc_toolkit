@@ -54,6 +54,7 @@ class TestAnnotation:
             article_type="d",
             confidence=75,
             modern_english_meaning="king",
+            sense="ruler in this line",
             root="cyning",
         )
         annotation.save()
@@ -85,6 +86,7 @@ class TestAnnotation:
         assert _annotation.article_type == "d"
         assert _annotation.confidence == 75
         assert _annotation.modern_english_meaning == "king"
+        assert _annotation.sense == "ruler in this line"
         assert _annotation.root == "cyning"
         assert _annotation.root_normalized == "cyning"
 
@@ -193,6 +195,7 @@ class TestAnnotation:
         annotation.adverb_degree = "p"
         annotation.confidence = 75
         annotation.modern_english_meaning = "king"
+        annotation.sense = "ruler in this line"
         annotation.root = "cyning"
         annotation.last_inferred_json = '{"some": "data"}'
         annotation.save()
@@ -223,6 +226,7 @@ class TestAnnotation:
         assert data["adverb_degree"] == "p"
         assert data["confidence"] == 75
         assert data["modern_english_meaning"] == "king"
+        assert data["sense"] == "ruler in this line"
         assert data["root"] == "cyning"
         assert data["root_normalized"] == "cyning"
         assert data["last_inferred_json"] == '{"some": "data"}'
@@ -250,6 +254,7 @@ class TestAnnotation:
             "number": "s",
             "case": "n",
             "modern_english_meaning": "king",
+            "sense": "ruler in this line",
             "root": "cyning",
         }
         annotation = Annotation.from_json(token.id, ann_data)
@@ -259,6 +264,7 @@ class TestAnnotation:
         assert annotation.gender == "m"
         assert annotation.number == "s"
         assert annotation.case == "n"
+        assert annotation.sense == "ruler in this line"
         assert annotation.verb_requires_infinitive is False
         assert annotation.verb_impersonal is False
         assert annotation.verb_transitivity == "transitive"
@@ -637,6 +643,7 @@ class TestAnnotationFromAnnotation:
             confidence=90,
             last_inferred_json='{"foo": "bar"}',
             modern_english_meaning="king",
+            sense="ruler in this line",
             root="cyning",
         )
         target = Annotation(token_id=token.id)
@@ -669,6 +676,7 @@ class TestAnnotationFromAnnotation:
         assert target.confidence == 90
         assert target.last_inferred_json == '{"foo": "bar"}'
         assert target.modern_english_meaning == "king"
+        assert target.sense == "ruler in this line"
         assert target.root == "cyning"
 
     def test_root_normalized_updates_with_root_changes(self, db_session):

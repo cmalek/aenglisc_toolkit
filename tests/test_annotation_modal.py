@@ -451,6 +451,7 @@ class TestAnnotationModal:
         ann = db_session.get(Annotation, token.id)
         ann.confidence = 42
         ann.modern_english_meaning = "test meaning"
+        ann.sense = "contextual use"
         ann.root = "test root"
         ann.pos = "N" # POS must be set for load() to proceed past the first check
         ann.save()
@@ -461,6 +462,7 @@ class TestAnnotationModal:
         assert modal.confidence_slider.value() == 42
         assert modal.confidence_label.text() == "42%"
         assert modal.modern_english_edit.text() == "test meaning"
+        assert modal.sense_edit.text() == "contextual use"
         assert modal.root_edit.text() == "test root"
 
     def test_metadata_fields_save(self, qtbot, token, db_session):
@@ -470,6 +472,7 @@ class TestAnnotationModal:
 
         modal.confidence_slider.setValue(85)
         modal.modern_english_edit.setText("  saved meaning  ")
+        modal.sense_edit.setText("  contextual use  ")
         modal.root_edit.setText("  saved root  ")
 
         qtbot.mouseClick(modal.apply_button, Qt.LeftButton)
@@ -477,6 +480,7 @@ class TestAnnotationModal:
         ann = modal.annotation
         assert ann.confidence == 85
         assert ann.modern_english_meaning == "saved meaning" # trimmed
+        assert ann.sense == "contextual use" # trimmed
         assert ann.root == "saved root" # trimmed
 
     def test_metadata_fields_clear(self, qtbot, token):
@@ -486,6 +490,7 @@ class TestAnnotationModal:
 
         modal.confidence_slider.setValue(10)
         modal.modern_english_edit.setText("something")
+        modal.sense_edit.setText("instance")
         modal.root_edit.setText("something else")
         modal.todo_check.setChecked(True)
 
@@ -493,6 +498,7 @@ class TestAnnotationModal:
 
         assert modal.confidence_slider.value() == 100
         assert modal.modern_english_edit.text() == ""
+        assert modal.sense_edit.text() == ""
         assert modal.root_edit.text() == ""
         assert modal.todo_check.isChecked() == False
 

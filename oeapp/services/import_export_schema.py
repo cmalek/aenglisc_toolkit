@@ -64,6 +64,8 @@ class AnnotationJson(BaseModel):
     last_inferred_json: str | None = None
     #: The modern English meaning.
     modern_english_meaning: str | None = None
+    #: The contextual sense for this attested instance.
+    sense: str | None = None
     #: The root.
     root: str | None = None
     #: The normalized root.

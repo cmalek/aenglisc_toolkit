@@ -60,6 +60,7 @@ def _build_full_project(db_session) -> Project:
     assert token_annotation is not None
     token_annotation.pos = "N"
     token_annotation.gender = "m"
+    token_annotation.sense = "contextual use"
     token_annotation.save()
 
     note = Note(
@@ -147,6 +148,7 @@ class TestProjectExporter:
         assert "idioms" in data["sentences"][0]
         _assert_no_row_ids(data)
         token_annotation = data["sentences"][0]["tokens"][0]["annotation"]
+        assert token_annotation["sense"] == "contextual use"
         assert "verb_requires_infinitive" not in token_annotation
         assert "verb_impersonal" not in token_annotation
         assert "verb_transitivity" not in token_annotation

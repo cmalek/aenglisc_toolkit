@@ -77,6 +77,7 @@ The exported PDF includes these sections in this order:
 - Footnote markers are placed from note spans and rendered as real PDF footnotes.
 - The glossary is built from word annotations (normalized root + part of speech groupings).
 - Root display preserves original diacritics/dashes and can show alternate variants.
+- Attested forms can include an italicized contextual sense in parentheses when provided.
 - Verb entries can include contextual markers such as `[impers]`, `[intrans]`, and `(+ inf)`.
 
 ## Back to Start Here

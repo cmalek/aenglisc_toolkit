@@ -404,6 +404,7 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         self.build_confidence_slider(layout)
         self.build_todo_check(layout)
         self.build_modern_english_edit(layout)
+        self.build_sense_edit(layout)
         self.build_root_edit(layout)
         group.setLayout(layout)
         container.addWidget(group)
@@ -444,19 +445,36 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
 
     def build_modern_english_edit(self, container: QVBoxLayout) -> None:
         """
-        Set up the modern English edit.
+        Set up the root-word definition edit.
 
         This is where :attr:`modern_english_edit` is set up.
 
         Args:
-            container: Container layout to add the modern English edit to
+            container: Container layout to add the definition edit to
 
         """
         layout = QHBoxLayout()
-        layout.addWidget(QLabel("Modern English Meaning:", self))
+        layout.addWidget(QLabel("Definition of root word:", self))
         self.modern_english_edit = QLineEdit(self)
         self.modern_english_edit.setPlaceholderText("e.g., time, season")
         layout.addWidget(self.modern_english_edit)
+        container.addLayout(layout)
+
+    def build_sense_edit(self, container: QVBoxLayout) -> None:
+        """
+        Set up the contextual sense edit.
+
+        This is where :attr:`sense_edit` is set up.
+
+        Args:
+            container: Container layout to add the contextual sense edit to
+
+        """
+        layout = QHBoxLayout()
+        layout.addWidget(QLabel("Meaning/Sense in this instance:", self))
+        self.sense_edit = QLineEdit(self)
+        self.sense_edit.setPlaceholderText("e.g., ruler in this passage")
+        layout.addWidget(self.sense_edit)
         container.addLayout(layout)
 
     def build_root_edit(self, container: QVBoxLayout) -> None:
@@ -597,6 +615,8 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
             self.confidence_slider.setValue(self.annotation.confidence)
         if self.annotation.modern_english_meaning:
             self.modern_english_edit.setText(self.annotation.modern_english_meaning)
+        if self.annotation.sense:
+            self.sense_edit.setText(self.annotation.sense)
         if self.annotation.root:
             self.root_edit.setText(self.annotation.root)
 
@@ -639,6 +659,11 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
             self.annotation.modern_english_meaning = modern_english_text
         else:
             self.annotation.modern_english_meaning = None
+        sense_text = self.sense_edit.text().strip()
+        if sense_text:
+            self.annotation.sense = sense_text
+        else:
+            self.annotation.sense = None
         root_text = self.root_edit.text().strip()
         if root_text:
             self.annotation.root = root_text
@@ -916,6 +941,7 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
             - Confidence slider to 100
             - Todo check to False
             - Modern English edit to empty string
+            - Sense edit to empty string
             - Root edit to empty string
         """
         # Set to index 0 (empty/None selection)
@@ -926,4 +952,5 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         self.confidence_slider.setValue(100)
         self.todo_check.setChecked(False)
         self.modern_english_edit.clear()
+        self.sense_edit.clear()
         self.root_edit.clear()

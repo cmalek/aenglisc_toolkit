@@ -849,6 +849,7 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
             "conjunction_type": annotation.conjunction_type,
             "confidence": annotation.confidence,
             "modern_english_meaning": annotation.modern_english_meaning,
+            "sense": annotation.sense,
             "root": annotation.root,
             "root_normalized": annotation.root_normalized,
         }

@@ -182,8 +182,8 @@ class TestFullTranslationPDFExporter:
         noun_entry = next(entry for entry in entries if entry.root == "ic")
         verb_entry = next(entry for entry in entries if entry.root == "singan")
 
-        assert ("ic", "ns") in noun_entry.examples
-        assert ("singe", "pri1s") in verb_entry.examples
+        assert ("ic", "ns", None) in noun_entry.examples
+        assert ("singe", "pri1s", None) in verb_entry.examples
 
     def test_verb_glossary_renders_impers_intrans_infinitive_metadata(self, db_session):
         """Verb glossary should render impers/intrans markers and (+ inf)."""
@@ -283,12 +283,46 @@ class TestFullTranslationPDFExporter:
         adj_entry = next(entry for entry in entries if entry.root == "swift" and entry.pos == "A")
         pro_entry = next(entry for entry in entries if entry.root == "he" and entry.pos == "R")
 
-        assert ("word", "ns") in noun_entry.examples
-        assert ("word", "dp") in noun_entry.examples
-        assert ("swift", "psmns") in adj_entry.examples
-        assert ("swift", "cwfap") in adj_entry.examples
-        assert ("him", "psd") in pro_entry.examples
-        assert ("him", "rxpla") in pro_entry.examples
+        assert ("word", "ns", None) in noun_entry.examples
+        assert ("word", "dp", None) in noun_entry.examples
+        assert ("swift", "psmns", None) in adj_entry.examples
+        assert ("swift", "cwfap", None) in adj_entry.examples
+        assert ("him", "psd", None) in pro_entry.examples
+        assert ("him", "rxpla", None) in pro_entry.examples
+
+    def test_glossary_attested_forms_render_optional_sense_without_parentheses(
+        self, db_session
+    ):
+        """Attested forms should include italicized sense only when present."""
+        from tests.conftest import create_test_project
+
+        project = create_test_project(db_session, name="Sense Render", text="Se cyning.")
+        sentence = project.sentences[0]
+        token_with_sense, token_without_sense = sentence.tokens[:2]
+
+        token_with_sense.annotation.pos = "N"
+        token_with_sense.annotation.root = "cyning"
+        token_with_sense.annotation.case = "n"
+        token_with_sense.annotation.number = "s"
+        token_with_sense.annotation.modern_english_meaning = "king"
+        token_with_sense.annotation.sense = "ruler in this line"
+        token_with_sense.annotation.save()
+
+        token_without_sense.annotation.pos = "N"
+        token_without_sense.annotation.root = "cyning"
+        token_without_sense.annotation.case = "a"
+        token_without_sense.annotation.number = "s"
+        token_without_sense.annotation.modern_english_meaning = "king"
+        token_without_sense.annotation.save()
+
+        exporter = FullTranslationPDFExporter()
+        latex = exporter._build_document_tex(project)
+
+        assert r"\textit{ruler in this line}" in latex
+        assert (
+            r"\textit{ruler in this line} \textcolor[HTML]{666666}{[ns]}" in latex
+        )
+        assert "()" not in latex
 
     def test_conjunction_has_no_classification_or_bracketed_attested_code(self, db_session):
         """Conjunction entries omit classification and bracketed attested-form codes."""
