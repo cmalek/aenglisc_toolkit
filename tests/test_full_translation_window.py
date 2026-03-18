@@ -191,6 +191,7 @@ class TestFullTranslationWindow:
         window = FullTranslationWindow(project, mock_main_window)
 
         assert len(window.project_notes) == 0
+        assert window.show_notes_btn.isEnabled() is False
         # Should show the "No notes" label
         found_no_notes_label = False
         for i in range(window.notes_area.main_layout.count()):
@@ -201,7 +202,7 @@ class TestFullTranslationWindow:
         assert found_no_notes_label
 
     def test_project_metadata_banner(self, db_session, mock_main_window):
-        """Test that project metadata (source, translator, notes) is displayed in the banner."""
+        """Test that source/translator metadata appears in the banner, but notes do not."""
         project = Project.create(
             name="Metadata Project",
             text="Sentence one.",
@@ -214,14 +215,11 @@ class TestFullTranslationWindow:
         assert hasattr(window, "source_banner")
         assert window.source_label.text() == "<b>Source:</b> Test Source"
         assert window.translator_label.text() == "<b>Translator:</b> <i>Test Translator</i>"
-        assert window.notes_label.text() == f"<i>{project.notes}</i>"
-
-        # Verify width constraint and wrapping
-        assert window.notes_label.wordWrap() is True
-        assert window.notes_label.maximumWidth() == 800
+        assert not hasattr(window, "notes_label")
+        assert window.show_notes_btn.isEnabled() is True
 
     def test_banner_visibility_with_only_notes(self, db_session, mock_main_window):
-        """Test that the banner is visible even if only project notes are present."""
+        """Notes-only projects should not render a body banner."""
         project = Project.create(
             name="Notes Only Project",
             text="Sentence one.",
@@ -229,10 +227,31 @@ class TestFullTranslationWindow:
         )
         window = FullTranslationWindow(project, mock_main_window)
 
-        assert hasattr(window, "source_banner")
-        assert not hasattr(window, "source_label")
-        assert not hasattr(window, "translator_label")
-        assert window.notes_label.text() == "<i>Only notes here.</i>"
+        assert not hasattr(window, "source_banner")
+        assert window.show_notes_btn.isEnabled() is True
+
+    def test_show_notes_button_is_left_of_show_details(self, full_window):
+        """Show notes button should appear before Show Details in the toolbar."""
+        notes_index = full_window.toolbar_layout.indexOf(full_window.show_notes_btn)
+        details_index = full_window.toolbar_layout.indexOf(full_window.toggle_sidebar_btn)
+        assert notes_index < details_index
+
+    def test_show_notes_dialog_non_modal(self, db_session, mock_main_window):
+        """Show notes should open a non-modal dialog with project notes text."""
+        project = Project.create(
+            name="Dialog Notes Project",
+            text="Sentence one.",
+            notes="Line one.\nLine two."
+        )
+        window = FullTranslationWindow(project, mock_main_window)
+        window._show_project_notes()
+
+        assert window.project_notes_dialog is not None
+        assert window.project_notes_dialog.isModal() is False
+        assert window.project_notes_dialog.windowModality() == Qt.WindowModality.NonModal
+        assert window.project_notes_dialog.isVisible() is True
+        assert window.project_notes_dialog_text is not None
+        assert window.project_notes_dialog_text.toPlainText() == project.notes
 
     def test_export_button_uses_pdf_label(self, full_window):
         """The Full Translation toolbar export button should target PDF."""

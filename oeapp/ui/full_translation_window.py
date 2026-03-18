@@ -23,6 +23,7 @@ from PySide6.QtGui import (
     QTextFormat,
 )
 from PySide6.QtWidgets import (
+    QDialog,
     QFileDialog,
     QHBoxLayout,
     QLabel,
@@ -931,6 +932,8 @@ class FullTranslationWindow(QMainWindow):
         self.resize(1200, 800)
 
         self.project_notes: list[tuple[int, Note]] = []
+        self.project_notes_dialog: QDialog | None = None
+        self.project_notes_dialog_text: QTextEdit | None = None
         self._collect_project_notes()
         self.build()
 
@@ -983,15 +986,12 @@ class FullTranslationWindow(QMainWindow):
         """
         Build the source banner.
 
-        - If the project has a source, translator, or notes, build a banner with
+        - If the project has a source or translator, build a banner with
           the source information.
-        - The banner is a vertical layout with the source, translator, and notes.
-        - The notes are limited to 800px width and wrap.
-        - If there are notes and either source or translator, a top border is added
-          to the notes section.
+        - The banner is a vertical layout with the source and translator.
 
         """
-        if self.project.source or self.project.translator or self.project.notes:
+        if self.project.source or self.project.translator:
             self.source_banner = QWidget()
             self.source_banner.setObjectName("source_banner")
             self.source_banner.setStyleSheet(
@@ -1029,20 +1029,6 @@ class FullTranslationWindow(QMainWindow):
                 self.translator_label.setContentsMargins(0, 0, 0, 5)
                 self.source_layout.addWidget(self.translator_label)
 
-            # Notes row
-            if self.project.notes:
-                notes_html = self.project.notes.replace("\n", "<br/>")
-                text = f"<i>{notes_html}</i>"
-                self.notes_label = QLabel(text)
-                self.notes_label.setWordWrap(True)
-                self.notes_label.setMaximumWidth(800)
-                self.notes_label.setContentsMargins(0, 0, 0, 5)
-                # Ensure the label can grow vertically and its height is respected
-                self.notes_label.setSizePolicy(
-                    QSizePolicy.Policy.Preferred, QSizePolicy.Policy.MinimumExpanding
-                )
-                self.source_layout.addWidget(self.notes_label)
-
             self.main_layout.addWidget(self.source_banner, 0)  # 0 stretch factor
             self.main_layout.addWidget(HorizontalSeparatorWidget(), 0)
 
@@ -1056,6 +1042,7 @@ class FullTranslationWindow(QMainWindow):
         )
         self.toolbar_layout = QHBoxLayout(self.toolbar)
         self.build_search_input()
+        self.build_show_notes_btn()
         self.build_toggle_sidebar_btn()
         self.build_export_btn()
         self.main_layout.addWidget(self.toolbar, 0)  # 0 stretch factor
@@ -1086,6 +1073,16 @@ class FullTranslationWindow(QMainWindow):
         self.export_btn = QPushButton("Export PDF")
         self.export_btn.clicked.connect(self._export_pdf)
         self.toolbar_layout.addWidget(self.export_btn)
+
+    def build_show_notes_btn(self) -> None:
+        """
+        Build the show-notes button.
+        """
+        self.show_notes_btn = QPushButton("Show notes")
+        has_project_notes = bool(self.project.notes and self.project.notes.strip())
+        self.show_notes_btn.setEnabled(has_project_notes)
+        self.show_notes_btn.clicked.connect(self._show_project_notes)
+        self.toolbar_layout.addWidget(self.show_notes_btn)
 
     def build_content(self) -> None:
         """
@@ -1325,6 +1322,34 @@ class FullTranslationWindow(QMainWindow):
         self.animation.start()
 
         self.toggle_sidebar_btn.setText("Hide Details" if checked else "Show Details")
+
+    def _show_project_notes(self) -> None:
+        """
+        Event handler for :attr:`show_notes_btn.clicked` signal: Open project notes
+        in a non-modal dialog.
+        """
+        if self.project_notes_dialog is None:
+            self.project_notes_dialog = QDialog(self)
+            self.project_notes_dialog.setWindowTitle(
+                f"Project Notes - {self.project.name}"
+            )
+            self.project_notes_dialog.setModal(False)
+            self.project_notes_dialog.setWindowModality(
+                Qt.WindowModality.NonModal
+            )
+            self.project_notes_dialog.resize(700, 450)
+            layout = QVBoxLayout(self.project_notes_dialog)
+            self.project_notes_dialog_text = QTextEdit()
+            self.project_notes_dialog_text.setReadOnly(True)
+            layout.addWidget(self.project_notes_dialog_text)
+
+        if self.project_notes_dialog_text is not None:
+            notes_text = self.project.notes or "No project notes available."
+            self.project_notes_dialog_text.setPlainText(notes_text)
+
+        self.project_notes_dialog.show()
+        self.project_notes_dialog.raise_()
+        self.project_notes_dialog.activateWindow()
 
     def _navigate_to_main_sentence(self, sentence_id: int) -> None:
         """
