@@ -10,10 +10,12 @@ from PySide6.QtCore import (
     QPropertyAnimation,
     Qt,
     QTimer,
+    QUrl,
     Signal,
 )
 from PySide6.QtGui import (
     QColor,
+    QDesktopServices,
     QFont,
     QMouseEvent,
     QTextCharFormat,
@@ -1352,9 +1354,20 @@ class FullTranslationWindow(QMainWindow):
         if file_path:
             if not file_path.lower().endswith(".pdf"):
                 file_path += ".pdf"
+            output_path = Path(file_path)
             exporter = FullTranslationPDFExporter()
-            if exporter.export_side_by_side_pdf(self.project.id, Path(file_path)):
+            if exporter.export_side_by_side_pdf(self.project.id, output_path):
                 self.main_window.messages.show_message("Exported successfully")
+                if not QDesktopServices.openUrl(
+                    QUrl.fromLocalFile(str(output_path.resolve()))
+                ):
+                    self.main_window.messages.show_warning(
+                        (
+                            "The PDF was exported, but it could not be opened "
+                            f"automatically.\n\n{output_path}"
+                        ),
+                        title="Open Exported PDF Failed",
+                    )
             else:
                 detail = exporter.last_error or "Unknown export error."
                 self.main_window.messages.show_error(

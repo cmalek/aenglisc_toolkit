@@ -242,6 +242,7 @@ class TestFullTranslationWindow:
         """Export action should call the PDF exporter with selected path."""
         selected_path = "/tmp/test-full-translation.pdf"
         calls: list[tuple[int, Path]] = []
+        open_calls: list[str] = []
 
         monkeypatch.setattr(
             "oeapp.ui.full_translation_window.QFileDialog.getSaveFileName",
@@ -256,11 +257,43 @@ class TestFullTranslationWindow:
             "oeapp.ui.full_translation_window.FullTranslationPDFExporter.export_side_by_side_pdf",
             fake_export,
         )
+        monkeypatch.setattr(
+            "oeapp.ui.full_translation_window.QDesktopServices.openUrl",
+            lambda url: open_calls.append(url.toLocalFile()) or True,
+        )
 
         full_window._export_pdf()
 
         assert calls == [(full_window.project.id, Path(selected_path))]
+        assert open_calls == [str(Path(selected_path).resolve())]
         full_window.main_window.messages.show_message.assert_called_once()
+        full_window.main_window.messages.show_warning.assert_not_called()
+
+    def test_export_pdf_warns_when_auto_open_fails(self, full_window, monkeypatch):
+        """Successful export should warn if the PDF cannot be opened automatically."""
+        selected_path = "/tmp/test-full-translation.pdf"
+
+        monkeypatch.setattr(
+            "oeapp.ui.full_translation_window.QFileDialog.getSaveFileName",
+            lambda *args, **kwargs: (selected_path, "PDF Files (*.pdf)"),
+        )
+        monkeypatch.setattr(
+            "oeapp.ui.full_translation_window.FullTranslationPDFExporter.export_side_by_side_pdf",
+            lambda *args, **kwargs: True,
+        )
+        monkeypatch.setattr(
+            "oeapp.ui.full_translation_window.QDesktopServices.openUrl",
+            lambda url: False,
+        )
+
+        full_window._export_pdf()
+
+        full_window.main_window.messages.show_message.assert_called_once()
+        full_window.main_window.messages.show_warning.assert_called_once()
+        args, kwargs = full_window.main_window.messages.show_warning.call_args
+        assert "could not be opened automatically" in args[0]
+        assert selected_path in args[0]
+        assert kwargs["title"] == "Open Exported PDF Failed"
 
     def test_export_pdf_failure_shows_detailed_error(self, full_window, monkeypatch):
         """Failed export should display exporter-provided error details."""
@@ -279,10 +312,16 @@ class TestFullTranslationWindow:
             "oeapp.ui.full_translation_window.FullTranslationPDFExporter.export_side_by_side_pdf",
             fake_export,
         )
+        open_url = MagicMock()
+        monkeypatch.setattr(
+            "oeapp.ui.full_translation_window.QDesktopServices.openUrl",
+            open_url,
+        )
 
         full_window._export_pdf()
 
         full_window.main_window.messages.show_error.assert_called_once()
+        open_url.assert_not_called()
         args, kwargs = full_window.main_window.messages.show_error.call_args
         assert "Bundled Tectonic binary is missing." in args[0]
         assert kwargs["title"] == "PDF Export Failed"
