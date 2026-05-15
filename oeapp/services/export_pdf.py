@@ -174,7 +174,7 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
     #: The order of parts of speech, for rendering the glossary legend.
     _POS_ORDER: Final[list[str]] = ["N", "V", "A", "R", "D", "B", "C", "E", "I", "L"]
     #: Fixed four-space verse indent expressed in em width.
-    _VERSE_INDENT_EM: Final[float] = 2.40
+    _VERSE_INDENT_EM: Final[float] = 2
 
     def __init__(self) -> None:
         #: The logger instance.
@@ -392,7 +392,7 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
             )
 
         return (
-            r"\documentclass[10pt]{article}"
+            r"\documentclass[9pt]{article}"
             "\n"
             r"\usepackage[utf8]{inputenc}"
             "\n"
@@ -507,7 +507,7 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
 
     def _indent_rendered_lines(self, rendered: str) -> str:
         """
-        Indent each rendered line by four-space equivalent width.
+        Indent each rendered line by :attr:`_VERSE_INDENT_EM` em width.
 
         Args:
             rendered: Rendered LaTeX content.
@@ -543,9 +543,8 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
         )
         previous_chapter = previous_section.chapter if previous_section else None
 
-        chapter_changed = (
-            current_chapter is not None
-            and (previous_chapter is None or current_chapter.id != previous_chapter.id)
+        chapter_changed = current_chapter is not None and (
+            previous_chapter is None or current_chapter.id != previous_chapter.id
         )
         if (
             current_chapter is not None
@@ -555,9 +554,8 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
         ):
             titles.append(current_chapter.title)
 
-        section_changed = (
-            current_section is not None
-            and (previous_section is None or current_section.id != previous_section.id)
+        section_changed = current_section is not None and (
+            previous_section is None or current_section.id != previous_section.id
         )
         if (
             current_section is not None
@@ -806,7 +804,7 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
         width_em = f"{count * 0.6:.2f}"
         return rf"\hspace*{{{width_em}em}}"
 
-    def _space_run_to_hspace(self, match: re.Match[str]) -> str:
+    def _space_run_to_hspace(self, match: re.Match[str]) -> str:  # noqa: ARG002
         """
         Convert runs of spaces into one normal space + explicit width.
 
@@ -817,9 +815,7 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
             The converted text.
 
         """
-        count = len(match.group(0))
-        extra_spaces = count - 1
-        width_em = f"{extra_spaces * 0.6:.2f}"
+        width_em = f"{self._VERSE_INDENT_EM:.2f}"
         return " " + rf"\hspace*{{{width_em}em}}"
 
     def _normalize_verse_gap(self, _match: re.Match[str]) -> str:

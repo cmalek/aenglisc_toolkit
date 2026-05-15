@@ -1,18 +1,5 @@
 # AGENTS.md
 
-## Local Overrides
-
-This repository inherits shared defaults from:
-- `../AGENTS.md` (workspace-root shared instructions)
-
-## Repository Bootstrap Requirements
-
-These requirements apply at the start of every new session in this repository.
-
-1. Read `../AGENTS.md` before planning or implementation.
-2. Treat the shared file as mandatory for this repository, not optional guidance.
-3. Confirm in an early progress update that the shared file was read.
-
 ## Tooling Preflight Evidence (Required)
 
 Before planning or implementation, every agent must provide concise evidence of:
@@ -25,29 +12,71 @@ Before planning or implementation, every agent must provide concise evidence of:
 In an early progress update, include the tool names used and one line on what each returned.
 If a tool is not relevant for the task, state that explicitly in one line.
 
-## Memory MCP Usage (MUST)
-
-For memory-related preflight and recall work, agents MUST use Memory MCP tools directly.
-
-1. Use `mcp__memory-mcp__memory_search` to satisfy memory preflight/context lookup.
-2. Do not use shell/CLI commands (for example, `memory ...`) as a substitute for Memory MCP preflight evidence.
-3. If Memory MCP appears unavailable or errors, run `mcp__memory-mcp__memory_health` or `mcp__memory-mcp__memory_stats` and report the exact blocker in the progress update.
-4. Only proceed with fallback preflight context (`aidex`/`code-index`) after explicitly documenting the Memory MCP blocker.
-
 ## Post-Implementation Quality Gate (Required)
 
 After implementation edits are complete:
 
 1. Run `ruff` on the touched files (or broader target if the task requires it).
 2. Run `mypy` on the touched files (or broader target if the task requires it).
-3. Fix all problems reported by those runs before finishing the task.
+3. Run `make napoleon-gate` to enforce no new Napoleon documentation violations.
+4. Fix all problems reported by those runs before finishing the task.
 
-## Migration Creation (MUST)
+## Implementation Priority (Required)
 
-When a schema migration is required, agents MUST follow this workflow:
+Always choose the correct, direct implementation of product code over workarounds
+added only to avoid doc-gate noise, baseline drift, or other documentation-tool
+friction.
 
-1. Always create migrations with `bin/create_migration.py "<message>"` (never hand-create Alembic files).
-2. Set `OE_ANNOTATOR_DB_PATH` to a writable local/test DB path before running migration commands, to avoid writing under `~/Library/Application Support/...` in sandboxed sessions.
-3. Hard preflight guarantee: before running `bin/create_migration.py`, verify the target DB's `alembic_version` equals Alembic `head`. Do not run migration autogenerate until this is true.
-4. If the DB is not at head (or autogenerate reports `Target database is not up to date`), initialize the temporary DB from current models (import `oeapp.models`, run `Base.metadata.create_all(...)`), stamp `alembic_version` to current head, verify again, then run `bin/create_migration.py`.
-5. Review the generated migration and ensure it contains only the intended schema changes; do not keep spurious full-schema diffs.
+Specifically:
+
+1. Do not add runtime patching, indirection, monkey-patching, startup hooks, or
+   similar architectural workarounds solely to avoid touching the correct source
+   file.
+2. If the correct implementation lives in a legacy file with noisy documentation
+   or baseline issues, implement it there anyway.
+3. Then report the quality-gate blocker clearly and separately, including which
+   failures are pre-existing or unrelated.
+4. Architecture and code correctness take priority over avoiding documentation
+   churn.
+
+## Human-Comprehensible Architecture Preference (Required)
+
+For most non-trivial behavior in this repository, prefer implementing cohesive,
+human-comprehensible classes over large collections of loosely related free
+functions, even when those classes are mostly stateless.
+
+Reason:
+
+1. Clear class responsibilities and interactions make it easier for humans to
+   cognitively model the system.
+2. Prefer classes that represent real workflow boundaries, owned
+   responsibilities, or stable concepts in the domain.
+3. Avoid creating classes that are just arbitrary namespaces, but when the
+   alternative is a mass of individual functions with shared implicit context,
+   prefer the class-oriented design.
+4. Favor constructor injection and explicit collaborators when that improves
+   readability and makes the system easier for humans to follow.
+
+## Documentation Contract (Required)
+
+For all non-test Python code in this repository:
+
+1. Class docstrings must describe the class contract and include constructor `Args:` when constructor arguments exist.
+2. Function/method docstrings must include:
+   - brief description
+   - `Side Effects:` (only when there are real side effects; omit otherwise)
+   - `Args:` (only when positional args exist; omit otherwise)
+   - `Keyword Args:` (only when keyword args exist; omit otherwise)
+   - `Raises:` (only when meaningful exceptions are raised; omit otherwise)
+   - `Returns:` or `Yields:` (only when applicable; omit otherwise)
+   - Do not add placeholder content such as `None.` for empty/inapplicable sections.
+   - Never add `Args:`/`Keyword Args:`/`Returns:`/`Yields:` sections when they would be empty or semantically `None`.
+3. Document all of the following with Napoleon `#:` comments:
+   - class attributes
+   - instance attributes assigned in `__init__`
+   - module-level global variables
+
+Enforcement command:
+
+- `make napoleon-gate` (no new violations vs baseline)
+- `make napoleon-gate-strict` (all violations; use when explicitly requested)
