@@ -317,6 +317,48 @@ class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
             and self.root_normalized is None
         )
 
+    def is_safe_to_auto_fill(self) -> bool:
+        """
+        Determine whether remembered-annotation apply may overwrite this annotation.
+
+        Returns:
+            True when the annotation is still only the untouched placeholder state.
+
+        """
+        # Keep this logic separate from ``is_effectively_empty`` so remembered
+        # apply can evolve without silently changing export/copy semantics.
+        return (
+            self.pos is None
+            and self.gender is None
+            and self.number is None
+            and self.case is None
+            and self.declension is None
+            and self.article_type is None
+            and self.pronoun_type is None
+            and self.pronoun_number is None
+            and self.verb_class is None
+            and self.verb_tense is None
+            and self.verb_person is None
+            and self.verb_mood is None
+            and self.verb_aspect is None
+            and self.verb_form is None
+            and self.verb_direct_object_case is None
+            and self.verb_requires_infinitive is False
+            and self.verb_impersonal is False
+            and self.verb_transitivity == "transitive"
+            and self.prep_case is None
+            and self.adjective_inflection is None
+            and self.adjective_degree is None
+            and self.conjunction_type is None
+            and self.adverb_degree is None
+            and self.confidence is None
+            and self.last_inferred_json is None
+            and self.modern_english_meaning is None
+            and self.sense is None
+            and self.root is None
+            and self.root_normalized is None
+        )
+
     @classmethod
     def from_json(  # noqa: PLR0912
         cls,

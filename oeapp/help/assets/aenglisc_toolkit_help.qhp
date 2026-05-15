@@ -13,6 +13,7 @@
     <section title="Settings" ref="settings.html" />
     <section title="Keybindings" ref="keybindings.html" />
     <section title="Annotation Guide" ref="annotation-guide.html" />
+    <section title="Remembered Annotations" ref="remembered-annotations.html" />
     <section title="Idioms Guide" ref="idioms-guide.html" />
     <section title="Incremental Annotation" ref="incremental-annotation.html" />
     <section title="Notes Guide" ref="notes-guide.html" />
@@ -31,6 +32,7 @@
 <keyword name="Settings" id="settings" ref="settings.html" />
 <keyword name="Keybindings" id="keybindings" ref="keybindings.html" />
 <keyword name="Annotation Guide" id="annotation-guide" ref="annotation-guide.html" />
+<keyword name="Remembered Annotations" id="remembered-annotations" ref="remembered-annotations.html" />
 <keyword name="Idioms Guide" id="idioms-guide" ref="idioms-guide.html" />
 <keyword name="Incremental Annotation" id="incremental-annotation" ref="incremental-annotation.html" />
 <keyword name="Notes Guide" id="notes-guide" ref="notes-guide.html" />
@@ -48,6 +50,7 @@
 <file>settings.html</file>
 <file>keybindings.html</file>
 <file>annotation-guide.html</file>
+<file>remembered-annotations.html</file>
 <file>idioms-guide.html</file>
 <file>incremental-annotation.html</file>
 <file>notes-guide.html</file>

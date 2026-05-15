@@ -38,6 +38,7 @@ from oeapp.services import (
     ProjectExporter,
     ProjectImporter,
 )
+from oeapp.services.remembered_annotation_service import RememberedAnnotationService
 from oeapp.state import (
     COPIED_ANNOTATION,
     CURRENT_CHAPTER_ID,
@@ -54,6 +55,7 @@ from oeapp.ui.dialogs import (
     MigrationFailureDialog,
     NewProjectDialog,
     OpenProjectDialog,
+    RememberedAnnotationsDialog,
     RestoreDialog,
     SettingsDialog,
 )
@@ -1331,6 +1333,57 @@ class MainWindowActions(ThemeMixin):
             self.messages.show_message("Paste failed")
 
         return True
+
+    def remember_token_annotation(self, token: "Token", project_id: int | None) -> None:
+        """
+        Remember one token annotation into global or project scope.
+
+        Args:
+            token: Token whose annotation should be remembered.
+            project_id: Scope discriminator. ``None`` means global.
+
+        """
+        annotation = token.annotation
+        if annotation is None or annotation.is_safe_to_auto_fill():
+            self.messages.show_warning("Token has no annotation to remember")
+            return
+        RememberedAnnotationService().remember_token_annotation(token, project_id)
+        scope_text = "globally" if project_id is None else "for project"
+        self.messages.show_message(f"Remembered '{token.surface}' {scope_text}")
+
+    def apply_remembered_annotations(self) -> None:
+        """
+        Apply remembered annotations across the current project.
+
+        """
+        project_id = self.application_state.get(CURRENT_PROJECT_ID)
+        if not isinstance(project_id, int):
+            self.messages.show_warning("No project open")
+            return
+
+        plan = RememberedAnnotationService().plan_apply(project_id)
+        if plan.applied_count == 0:
+            self.messages.show_message(plan.message, duration=3000)
+            return
+
+        if not self.command_manager.execute(plan.command):
+            self.messages.show_error("Failed to apply remembered annotations")
+            return
+
+        self.main_window.refresh_project()
+        self.messages.show_message(plan.message, duration=3000)
+
+    def show_project_remembered_annotations_dialog(self) -> None:
+        """
+        Open the project-scoped remembered annotation management dialog.
+
+        """
+        project_id = self.application_state.get(CURRENT_PROJECT_ID)
+        if not isinstance(project_id, int):
+            self.messages.show_warning("No project open")
+            return
+        dialog = RememberedAnnotationsDialog(project_id, parent=self.main_window)
+        dialog.exec()
 
     def autosave(self) -> None:
         """

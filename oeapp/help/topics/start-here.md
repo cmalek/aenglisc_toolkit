@@ -47,6 +47,7 @@ Think of it as an efficiency scaffold for the translator: it provides structure,
 - [Settings](settings.html)
 - [Keyboard Shortcuts](keybindings.html)
 - [Annotation Guide](annotation-guide.html)
+- [Remembered Annotations](remembered-annotations.html)
 - [Idioms Guide](idioms-guide.html)
 - [Incremental Annotation](incremental-annotation.html)
 - [Notes Guide](notes-guide.html)

@@ -12,6 +12,7 @@ from oeapp.ui.dialogs import (
     AppendTextDialog,
     NewProjectDialog,
     OpenProjectDialog,
+    RememberedAnnotationsDialog,
 )
 from oeapp.ui.dialogs.log_viewer import LogViewerDialog
 from oeapp.ui.full_translation_window import FullTranslationWindow
@@ -275,6 +276,32 @@ class ToolsMenu:
         pos_presets_action.triggered.connect(show_dialog)
         self.tools_menu.addAction(pos_presets_action)
 
+        self.tools_menu.addSeparator()
+
+        apply_remembered_action = QAction(
+            "Apply Remembered Annotations", self.tools_menu
+        )
+        apply_remembered_action.triggered.connect(
+            self.main_window.action_service.apply_remembered_annotations
+        )
+        self.tools_menu.addAction(apply_remembered_action)
+
+        global_remembered_action = QAction(
+            "Global Remembered Annotations...", self.tools_menu
+        )
+        global_remembered_action.triggered.connect(
+            self._show_global_remembered_annotations_dialog
+        )
+        self.tools_menu.addAction(global_remembered_action)
+
+        project_remembered_action = QAction(
+            "Project Remembered Annotations...", self.tools_menu
+        )
+        project_remembered_action.triggered.connect(
+            self._show_project_remembered_annotations_dialog
+        )
+        self.tools_menu.addAction(project_remembered_action)
+
     # ------------------------------------------------------------
     # Event handlers
     # ------------------------------------------------------------
@@ -286,6 +313,15 @@ class ToolsMenu:
         """
         dialog = AnnotationPresetManagementDialog()
         dialog.exec()
+
+    def _show_global_remembered_annotations_dialog(self) -> None:
+        """Open the global remembered annotation management dialog."""
+        dialog = RememberedAnnotationsDialog(None, parent=self.main_window)
+        dialog.exec()
+
+    def _show_project_remembered_annotations_dialog(self) -> None:
+        """Open the project-scoped remembered annotation management dialog."""
+        self.main_window.action_service.show_project_remembered_annotations_dialog()
 
 
 class PreferencesMenu:
@@ -432,13 +468,16 @@ class HelpMenu:
 
         """
         self.help_menu.addSeparator()
+        def show_help_topic(topic_title: str) -> None:
+            self.main_window.show_help(topic=topic_title)
+
         for topic in HELP_TOPICS:
             topic_action = QAction(topic.title, self.help_menu)
             if not _is_offscreen_qt_platform():
                 topic_action.setMenuRole(QAction.MenuRole.NoRole)
             topic_action.triggered.connect(
-                lambda checked=False, topic_title=topic.title: self.main_window.show_help(
-                    topic=topic_title
+                lambda _checked=False, topic_title=topic.title: show_help_topic(
+                    topic_title
                 )
             )
             self.help_menu.addAction(topic_action)

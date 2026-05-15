@@ -18,6 +18,7 @@ from .token import Token
 
 if TYPE_CHECKING:
     from oeapp.models.chapter import Chapter
+    from oeapp.models.remembered_annotation import RememberedAnnotation
 
 
 class Project(SaveDeleteMixin, Base):
@@ -61,6 +62,14 @@ class Project(SaveDeleteMixin, Base):
         back_populates="project",
         cascade="all, delete-orphan",
         order_by="Sentence.display_order",
+    )
+    remembered_annotations: Mapped[
+        builtins.list["RememberedAnnotation"]
+    ] = relationship(
+        "RememberedAnnotation",
+        back_populates="project",
+        cascade="all, delete-orphan",
+        order_by="RememberedAnnotation.token_text",
     )
 
     @classmethod
@@ -350,6 +359,9 @@ class Project(SaveDeleteMixin, Base):
             "notes": self.notes,
             "created_at": to_utc_iso(self.created_at),
             "updated_at": to_utc_iso(self.updated_at),
+            "remembered_annotations": [
+                remembered.to_json() for remembered in self.remembered_annotations
+            ],
             "chapters": [
                 chapter.to_json()
                 for chapter in sorted(self.chapters, key=lambda c: c.number)
@@ -682,7 +694,13 @@ def touch_project_on_change(session, flush_context, instances):  # noqa: ARG001,
             continue
 
         classname = obj.__class__.__name__
-        if classname not in ("Sentence", "Token", "Annotation", "Note"):
+        if classname not in (
+            "Sentence",
+            "Token",
+            "Annotation",
+            "Note",
+            "RememberedAnnotation",
+        ):
             continue
 
         project = None
@@ -713,6 +731,10 @@ def touch_project_on_change(session, flush_context, instances):  # noqa: ARG001,
                         sentence = session.get(Sentence, token.sentence_id)
                     if sentence:
                         project = sentence.project
+            elif classname == "RememberedAnnotation":
+                project = obj.project
+                if not project and obj.project_id:
+                    project = session.get(Project, obj.project_id)
         except Exception:
             logger.exception("project.touch_on_change.error")
             # If relationship is not accessible, skip

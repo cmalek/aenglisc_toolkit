@@ -1,9 +1,9 @@
+# ruff: noqa: S101
 """Tests for QtHelp path resolution and runtime sync."""
 
 from pathlib import Path
 
 import pytest
-
 from oeapp.help import help_paths
 
 
@@ -26,8 +26,14 @@ def test_resolve_help_paths_uses_resource_and_app_data_locations(tmp_path, monke
     assert paths.bundled_qch_file == _bundle_dir(tmp_path) / "aenglisc_toolkit_help.qch"
     assert paths.bundled_qhc_file == _bundle_dir(tmp_path) / "aenglisc_toolkit_help.qhc"
     assert paths.runtime_help_dir == tmp_path / "appdata" / "help"
-    assert paths.runtime_qch_file == paths.runtime_help_dir / "aenglisc_toolkit_help.qch"
-    assert paths.runtime_collection_file == paths.runtime_help_dir / "aenglisc_toolkit_help.qhc"
+    assert (
+        paths.runtime_qch_file
+        == paths.runtime_help_dir / "aenglisc_toolkit_help.qch"
+    )
+    assert (
+        paths.runtime_collection_file
+        == paths.runtime_help_dir / "aenglisc_toolkit_help.qhc"
+    )
 
 
 def test_ensure_runtime_help_assets_raises_when_bundled_artifacts_missing(
@@ -83,4 +89,10 @@ def test_ensure_runtime_help_assets_copies_qch_and_qhc(
 def test_search_guide_markdown_exists():
     """Search guide markdown topic should exist in source topics."""
     topic_path = Path("oeapp/help/topics/search-guide.md")
+    assert topic_path.exists()
+
+
+def test_remembered_annotations_markdown_exists():
+    """Remembered annotations help topic should exist in source topics."""
+    topic_path = Path("oeapp/help/topics/remembered-annotations.md")
     assert topic_path.exists()

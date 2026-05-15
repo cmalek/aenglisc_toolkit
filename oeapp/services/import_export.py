@@ -11,6 +11,7 @@ from pydantic import ValidationError
 from oeapp.models.chapter import Chapter
 from oeapp.models.mixins import SessionMixin
 from oeapp.models.project import Project
+from oeapp.models.remembered_annotation import RememberedAnnotation
 from oeapp.models.sentence import Sentence
 from oeapp.utils import from_utc_iso
 
@@ -129,12 +130,14 @@ class ProjectExporter(SessionMixin):
             export_text = json.dumps(serialized_data, **json_kwargs)
             export_path = Path(filename)
             if export_path.suffix == ".gz":
-                with export_path.open("wb") as f:
-                    with gzip.GzipFile(fileobj=f, mode="wb") as gz_file:
-                        gz_file.write(export_text.encode("utf-8"))
+                with (
+                    export_path.open("wb") as binary_file,
+                    gzip.GzipFile(fileobj=binary_file, mode="wb") as gz_file,
+                ):
+                    gz_file.write(export_text.encode("utf-8"))
             else:
-                with export_path.open("w", encoding="utf-8") as f:
-                    f.write(export_text)
+                with export_path.open("w", encoding="utf-8") as text_file:
+                    text_file.write(export_text)
         except (OSError, PermissionError) as e:
             msg = f"Failed to write export file:\n{e!s}"
             raise ValueError(msg) from e
@@ -194,7 +197,10 @@ class ProjectImporter(SessionMixin):
             return True
 
         mime_type, encoding = mimetypes.guess_type(path.name)
-        if encoding == "gzip" or mime_type in {"application/gzip", "application/x-gzip"}:
+        if encoding == "gzip" or mime_type in {
+            "application/gzip",
+            "application/x-gzip",
+        }:
             return True
 
         return path.name.endswith(".gz")
@@ -461,6 +467,20 @@ class ProjectImporter(SessionMixin):
         for chapter_data in project_data.get("chapters", []):
             Chapter.from_json(project_id, chapter_data, commit=False)
 
+    def _create_remembered_annotations(
+        self, project_id: int, project_data: dict[str, Any]
+    ) -> None:
+        """
+        Create project-scoped remembered annotations from JSON data.
+
+        Args:
+            project_id: Project ID to attach remembered entries to.
+            project_data: Project data dictionary.
+
+        """
+        for remembered_data in project_data.get("remembered_annotations", []):
+            RememberedAnnotation.from_json(project_id, remembered_data, commit=False)
+
     @staticmethod
     def _paragraph_lookup_key(
         chapter_number: int, section_number: int, paragraph_order: int
@@ -559,6 +579,7 @@ class ProjectImporter(SessionMixin):
         # Create project
         project_data = payload.project.model_dump()
         project, was_renamed = self._create_project(project_data)
+        self._create_remembered_annotations(project.id, project_data)
 
         # Create hierarchy first (chapters -> sections -> paragraphs)
         self._create_hierarchy(project.id, project_data)

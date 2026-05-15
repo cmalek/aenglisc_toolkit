@@ -77,3 +77,44 @@ class AnnotateTokenCommand(SessionMixin, Command):
         """Get command description."""
         target = f"token {self.token_id}" if self.token_id else f"idiom {self.idiom_id}"
         return f"Annotate {target}"
+
+
+@dataclass
+class ApplyRememberedAnnotationsCommand(SessionMixin, Command):
+    """Command for batch-applying remembered annotations to tokens."""
+
+    #: Token IDs updated by this apply pass.
+    token_ids: list[int] = field(default_factory=list)
+    #: Per-token annotation state before apply.
+    before: dict[int, dict[str, Any]] = field(default_factory=dict)
+    #: Per-token annotation state after apply.
+    after: dict[int, dict[str, Any]] = field(default_factory=dict)
+
+    def execute(self) -> bool:
+        """Apply the remembered annotation payloads to all target tokens."""
+        session = self._get_session()
+        try:
+            for token_id in self.token_ids:
+                Annotation.from_json(token_id, self.after[token_id], commit=False)
+            session.commit()
+        except Exception:  # noqa: BLE001
+            session.rollback()
+            return False
+        return True
+
+    def undo(self) -> bool:
+        """Restore the pre-apply annotation payloads for all target tokens."""
+        session = self._get_session()
+        try:
+            for token_id in self.token_ids:
+                Annotation.from_json(token_id, self.before[token_id], commit=False)
+            session.commit()
+        except Exception:  # noqa: BLE001
+            session.rollback()
+            return False
+        return True
+
+    def get_description(self) -> str:
+        """Get command description."""
+        token_count = len(self.token_ids)
+        return f"Apply remembered annotations to {token_count} token(s)"

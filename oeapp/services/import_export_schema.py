@@ -234,8 +234,73 @@ class ProjectJson(BaseModel):
     created_at: str | None = None
     #: The date and time the project was last updated.
     updated_at: str | None = None
+    #: Project-scoped remembered annotation entries.
+    remembered_annotations: list[RememberedAnnotationJson] = []
     #: The chapters in the project.
     chapters: list[ChapterJson] = []
+
+
+class RememberedAnnotationJson(BaseModel):
+    """Remembered annotation payload."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    #: The exact token surface used for remembered matching.
+    token_text: str
+    #: The part of speech.
+    pos: str | None = None
+    #: The gender.
+    gender: str | None = None
+    #: The number.
+    number: str | None = None
+    #: The case.
+    case: str | None = None
+    #: The declension.
+    declension: str | None = None
+    #: The article type.
+    article_type: str | None = None
+    #: The pronoun type.
+    pronoun_type: str | None = None
+    #: The pronoun number.
+    pronoun_number: str | None = None
+    #: The verb class.
+    verb_class: str | None = None
+    #: The verb tense.
+    verb_tense: str | None = None
+    #: The verb person.
+    verb_person: str | None = None
+    #: The verb mood.
+    verb_mood: str | None = None
+    #: The verb aspect.
+    verb_aspect: str | None = None
+    #: The verb form.
+    verb_form: str | None = None
+    #: The verb direct object case.
+    verb_direct_object_case: str | None = None
+    #: Whether the verb requires an infinitive complement.
+    verb_requires_infinitive: bool = False
+    #: Whether the verb is impersonal.
+    verb_impersonal: bool = False
+    #: Verb transitivity type.
+    verb_transitivity: str = "transitive"
+    #: The preposition case.
+    prep_case: str | None = None
+    #: The adjective inflection.
+    adjective_inflection: str | None = None
+    #: The adjective degree.
+    adjective_degree: str | None = None
+    #: The conjunction type.
+    conjunction_type: str | None = None
+    #: The adverb degree.
+    adverb_degree: str | None = None
+    #: The modern English meaning.
+    modern_english_meaning: str | None = None
+    #: The root.
+    root: str | None = None
+    #: The normalized root.
+    root_normalized: str | None = None
+    #: The date and time the remembered annotation was last updated.
+    updated_at: str | None = None
 
 
 class ProjectExportPayload(BaseModel):

@@ -22,6 +22,11 @@ HELP_TOPICS: Final[tuple[HelpTopic, ...]] = (
     HelpTopic("Settings", "settings.md", "settings.html"),
     HelpTopic("Keybindings", "keybindings.md", "keybindings.html"),
     HelpTopic("Annotation Guide", "annotation-guide.md", "annotation-guide.html"),
+    HelpTopic(
+        "Remembered Annotations",
+        "remembered-annotations.md",
+        "remembered-annotations.html",
+    ),
     HelpTopic("Idioms Guide", "idioms-guide.md", "idioms-guide.html"),
     HelpTopic(
         "Incremental Annotation",

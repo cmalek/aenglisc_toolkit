@@ -42,6 +42,7 @@ from oeapp.ui.dialogs.pos_form_system import (
 from oeapp.ui.mixins import AnnotationLookupsMixin
 
 if TYPE_CHECKING:
+    from oeapp.models.remembered_annotation import RememberedAnnotation
     from oeapp.models.token import Token
     from oeapp.types import PresetPos
 
@@ -85,7 +86,7 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
     # -------------------------------------------------------------------------
 
     # Signal emitted when annotation is applied
-    annotation_applied = Signal(Annotation)
+    annotation_applied = Signal(object)
 
     # -------------------------------------------------------------------------
     # Constants
@@ -107,6 +108,7 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         self,
         token: "Token | None" = None,
         idiom: Idiom | None = None,
+        remembered_annotation: "RememberedAnnotation | None" = None,
         annotation: Annotation | None = None,
         parent: QWidget | None = None,
     ) -> None:
@@ -116,6 +118,8 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         Args:
             token: Token to annotate (exclusive with idiom)
             idiom: Idiom to annotate (exclusive with token)
+            remembered_annotation: Remembered annotation to edit (exclusive with
+                token and idiom)
 
         Keyword Args:
             annotation: Existing annotation (if any)
@@ -129,8 +133,12 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         self.token = token
         self.idiom = idiom
+        self.remembered_annotation = remembered_annotation
+        self.annotation: Annotation | RememberedAnnotation
 
-        if self.token:
+        if self.remembered_annotation is not None:
+            self.annotation = self.remembered_annotation
+        elif self.token:
             self._init_token_annotation(annotation)
         elif self.idiom:
             self._init_idiom_annotation(annotation)
@@ -191,13 +199,15 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
             self.annotation = Annotation(idiom_id=cast("int", idiom.id))
 
         # Link back for creation if needed
-        self.annotation.idiom = idiom
+        cast("Annotation", self.annotation).idiom = idiom
 
     @property
     def title_text(self) -> str:
         """
         Get the title text for the dialog.
         """
+        if self.remembered_annotation is not None:
+            return self.remembered_annotation.token_text
         return self.token.surface if self.token else "Idiom"
 
     def build(self):
@@ -212,7 +222,8 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         - Builds the action buttons
 
         """
-        self.setWindowTitle(f"Annotate: {self.title_text}")
+        title = "Remember Annotation" if self.remembered_annotation else "Annotate"
+        self.setWindowTitle(f"{title}: {self.title_text}")
         self.setModal(True)
         self.resize(self.DIALOG_WIDTH, self.DIALOG_HEIGHT)
 
@@ -373,6 +384,9 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         self.apply_preset_button.setEnabled(False)
         self.apply_preset_button.clicked.connect(self._on_preset_apply)
         layout.addWidget(self.apply_preset_button)
+        if self.remembered_annotation is not None:
+            self.preset_combo.setEnabled(False)
+            self.apply_preset_button.setEnabled(False)
         container.addLayout(layout)
 
     def build_pos_dynamic_section(self, container: QVBoxLayout) -> None:
@@ -428,6 +442,9 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         self.confidence_slider.valueChanged.connect(
             lambda v: self.confidence_label.setText(f"{v}%")
         )
+        if self.remembered_annotation is not None:
+            self.confidence_slider.setEnabled(False)
+            self.confidence_label.setEnabled(False)
         layout.addWidget(self.confidence_slider)
         layout.addWidget(self.confidence_label)
         container.addLayout(layout)
@@ -441,6 +458,8 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
 
         """
         self.todo_check = QCheckBox("TODO (needs review)", self)
+        if self.remembered_annotation is not None:
+            self.todo_check.setEnabled(False)
         container.addWidget(self.todo_check)
 
     def build_modern_english_edit(self, container: QVBoxLayout) -> None:
@@ -474,6 +493,11 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         layout.addWidget(QLabel("Meaning/Sense in this instance:", self))
         self.sense_edit = QLineEdit(self)
         self.sense_edit.setPlaceholderText("e.g., ruler in this passage")
+        if self.remembered_annotation is not None:
+            self.sense_edit.setEnabled(False)
+            self.sense_edit.setPlaceholderText(
+                "Sense is not stored for remembered annotations"
+            )
         layout.addWidget(self.sense_edit)
         container.addLayout(layout)
 
@@ -513,6 +537,8 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         self.save_as_preset_button = QPushButton("Save as Preset", self)
         self.save_as_preset_button.setEnabled(False)
         self.save_as_preset_button.clicked.connect(self._on_save_as_preset)
+        if self.remembered_annotation is not None:
+            self.save_as_preset_button.setEnabled(False)
         layout.addWidget(self.save_as_preset_button)
 
         layout.addStretch()
@@ -609,14 +635,18 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         # Trigger field creation
         self._on_pos_changed()
 
-        self.part_of_speech_manager.load_from_annotation(self.annotation)
+        self.part_of_speech_manager.load_from_annotation(cast("Annotation", self.annotation))
         # Load metadata
-        if self.annotation.confidence is not None:
-            self.confidence_slider.setValue(self.annotation.confidence)
+        if self.remembered_annotation is None:
+            annotation = cast("Annotation", self.annotation)
+            if annotation.confidence is not None:
+                self.confidence_slider.setValue(annotation.confidence)
         if self.annotation.modern_english_meaning:
             self.modern_english_edit.setText(self.annotation.modern_english_meaning)
-        if self.annotation.sense:
-            self.sense_edit.setText(self.annotation.sense)
+        if self.remembered_annotation is None:
+            annotation = cast("Annotation", self.annotation)
+            if annotation.sense:
+                self.sense_edit.setText(annotation.sense)
         if self.annotation.root:
             self.root_edit.setText(self.annotation.root)
 
@@ -650,20 +680,24 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
                 self.part_of_speech_manager.extract_indices()
             )
         # Update the annotation with the values from the Part of Speech form
-        self.part_of_speech_manager.update_annotation(self.annotation)
+        self.part_of_speech_manager.update_annotation(cast("Annotation", self.annotation))
 
         # Extract metadata
-        self.annotation.confidence = self.confidence_slider.value()
+        if self.remembered_annotation is None:
+            annotation = cast("Annotation", self.annotation)
+            annotation.confidence = self.confidence_slider.value()
         modern_english_text = self.modern_english_edit.text().strip()
         if modern_english_text:
             self.annotation.modern_english_meaning = modern_english_text
         else:
             self.annotation.modern_english_meaning = None
-        sense_text = self.sense_edit.text().strip()
-        if sense_text:
-            self.annotation.sense = sense_text
-        else:
-            self.annotation.sense = None
+        if self.remembered_annotation is None:
+            annotation = cast("Annotation", self.annotation)
+            sense_text = self.sense_edit.text().strip()
+            if sense_text:
+                annotation.sense = sense_text
+            else:
+                annotation.sense = None
         root_text = self.root_edit.text().strip()
         if root_text:
             self.annotation.root = root_text
@@ -843,7 +877,9 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         if hasattr(self, "preset_combo"):
             self.preset_combo.setCurrentIndex(0)
         # Update Save as Preset button state
-        self.save_as_preset_button.setEnabled(pos in ("N", "V", "A", "R", "D"))
+        self.save_as_preset_button.setEnabled(
+            self.remembered_annotation is None and pos in ("N", "V", "A", "R", "D")
+        )
 
         # Build the Part of Speech form
         self.part_of_speech_manager.select(pos)
@@ -853,7 +889,8 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
 
         self._update_status_label()
         # Update preset dropdown after POS change
-        self._update_preset_dropdown()
+        if self.remembered_annotation is None:
+            self._update_preset_dropdown()
 
     def _on_save_as_preset(self) -> None:
         """

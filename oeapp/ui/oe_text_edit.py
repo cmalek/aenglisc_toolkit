@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING, Final, cast
 
 from PySide6.QtCore import QPoint, Qt, QTimer, Signal
 from PySide6.QtGui import (
+    QContextMenuEvent,
     QKeyEvent,
     QKeySequence,
     QMouseEvent,
@@ -11,6 +12,7 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import QTextEdit, QWidget
 
 from oeapp.models import Idiom
+from oeapp.state import CURRENT_PROJECT_ID, ApplicationState
 from oeapp.ui.highlighting import (
     SearchHighlighter,
     SingleInstanceHighlighter,
@@ -1259,6 +1261,60 @@ class OldEnglishTextEdit(QTextEdit):
         """
         super().mouseDoubleClickEvent(event)
         self.annotate_token(event.position().toPoint())
+
+    def contextMenuEvent(self, event: QContextMenuEvent) -> None:  # noqa: N802
+        """
+        Show a token-aware context menu for remembered annotation actions.
+
+        Args:
+            event: Context menu event.
+
+        """
+        menu = self.createStandardContextMenu()
+        if self.in_edit_mode or not self._main_window:
+            menu.exec(event.globalPos())
+            return
+
+        token = self.get_token(self.find_token_at_position(self.cursorForPosition(event.pos()).position()) or -1)  # noqa: E501
+        current_range = self.current_range()
+        single_range = (
+            current_range is not None and current_range[0] == current_range[1]
+        )
+        range_blocks_remember = current_range is not None and not single_range
+        can_remember = (
+            token is not None
+            and not range_blocks_remember
+            and token.annotation is not None
+            and not token.annotation.is_safe_to_auto_fill()
+        )
+
+        if token is not None:
+            self.set_selected_token_index(token.order_index, emit=False)
+
+        menu.addSeparator()
+        remember_global = menu.addAction("Remember globally")
+        remember_project = menu.addAction("Remember for project")
+        remember_global.setEnabled(can_remember)
+        remember_project.setEnabled(can_remember)
+
+        state = ApplicationState()
+        project_id = state.get(CURRENT_PROJECT_ID)
+        remember_project.setEnabled(can_remember and isinstance(project_id, int))
+
+        if can_remember:
+            remember_global.triggered.connect(
+                lambda: self._main_window.action_service.remember_token_annotation(
+                    cast("Token", token), None
+                )
+            )
+            if isinstance(project_id, int):
+                remember_project.triggered.connect(
+                    lambda: self._main_window.action_service.remember_token_annotation(
+                        cast("Token", token), project_id
+                    )
+                )
+
+        menu.exec(event.globalPos())
 
     def keyPressEvent(self, event: QKeyEvent) -> None:  # noqa: N802, PLR0911, PLR0912
         """

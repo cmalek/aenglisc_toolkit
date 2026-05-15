@@ -12,6 +12,7 @@ from .migration_failure import MigrationFailureDialog
 from .new_project import NewProjectDialog
 from .note_dialog import NoteDialog
 from .open_project import OpenProjectDialog
+from .remembered_annotations_dialog import RememberedAnnotationsDialog
 from .restore import RestoreDialog
 from .sentence_filters import (
     CaseFilterDialog,
@@ -37,6 +38,7 @@ __all__ = [
     "NumberFilterDialog",
     "OpenProjectDialog",
     "PartOfSpeechFilterDialog",
+    "RememberedAnnotationsDialog",
     "RestoreDialog",
     "SentenceFilterDialog",
     "SettingsDialog",

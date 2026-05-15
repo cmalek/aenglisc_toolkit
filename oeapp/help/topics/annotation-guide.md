@@ -125,3 +125,4 @@ The system remembers your last-used values for each POS type, making it faster t
 ## Back to Start Here
 
 - [Start Here](start-here.html)
+- [Remembered Annotations](remembered-annotations.html)

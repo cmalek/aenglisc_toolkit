@@ -7,6 +7,7 @@ from oeapp.models.idiom import Idiom
 from oeapp.models.note import Note
 from oeapp.models.paragraph import Paragraph
 from oeapp.models.project import Project
+from oeapp.models.remembered_annotation import RememberedAnnotation
 from oeapp.models.section import Section
 from oeapp.models.sentence import Sentence
 from oeapp.models.token import Token
@@ -19,6 +20,7 @@ __all__ = [
     "Note",
     "Paragraph",
     "Project",
+    "RememberedAnnotation",
     "Section",
     "Sentence",
     "Token",
