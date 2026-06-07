@@ -2,12 +2,10 @@
 
 import sys
 from contextlib import suppress
-from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Final, Literal, cast
+from typing import TYPE_CHECKING, Any, Final, cast
 
 from PySide6.QtCore import QPoint, QSettings, Qt, QTimer
-from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -30,6 +28,7 @@ from oeapp.db import run_pragma_optimize
 from oeapp.exc import MigrationFailed
 from oeapp.help.help_engine import HelpEngineError
 from oeapp.models.project import Project
+from oeapp.models.search_result import SearchResult
 from oeapp.services import (
     AutosaveService,
     BackupService,
@@ -39,14 +38,7 @@ from oeapp.services import (
     ProjectImporter,
 )
 from oeapp.services.remembered_annotation_service import RememberedAnnotationService
-from oeapp.state import (
-    COPIED_ANNOTATION,
-    CURRENT_CHAPTER_ID,
-    CURRENT_PROJECT_ID,
-    CURRENT_SECTION_ID,
-    SELECTED_SENTENCE_CARD,
-    ApplicationState,
-)
+from oeapp.state import AppContext
 from oeapp.ui.dialogs import (
     BackupsViewDialog,
     DeleteProjectDialog,
@@ -61,48 +53,17 @@ from oeapp.ui.dialogs import (
 )
 from oeapp.ui.dialogs.help_center_dialog import HelpCenterDialog
 from oeapp.ui.menus import MainMenu
-from oeapp.ui.mixins import ThemeMixin
+from oeapp.ui.project_workspace import ProjectUI
+from oeapp.ui.search_controller import SearchController
 from oeapp.ui.sentence_card import SentenceCard
 from oeapp.ui.shortcuts import GlobalShortcuts
 from oeapp.ui.token_details_sidebar import TokenDetailsSidebar
-from oeapp.utils import get_logo_pixmap, normalize_old_english
+from oeapp.utils import get_logo_pixmap
 
 if TYPE_CHECKING:
     from PySide6.QtGui import QKeyEvent
 
-    from oeapp.models.annotation import Annotation
-    from oeapp.models.idiom import Idiom
-    from oeapp.models.sentence import Sentence
     from oeapp.models.token import Token
-
-
-@dataclass(slots=True)
-class SearchResult:
-    """
-    Search result descriptor used for project-wide navigation.
-
-    Attributes:
-        chapter_id: Owning chapter id.
-        section_id: Owning section id.
-        sentence_id: Owning sentence id.
-        match_kind: Match source kind.
-        token_id: Matched token id for OE matches.
-        match_count: Number of matches represented by this result.
-
-    """
-
-    #: Owning chapter id.
-    chapter_id: int
-    #: Owning section id.
-    section_id: int
-    #: Owning sentence id.
-    sentence_id: int
-    #: Match source kind.
-    match_kind: Literal["oe_surface", "oe_root", "mode_text", "note_text"]
-    #: Matched token id for OE matches.
-    token_id: int | None = None
-    #: Number of matches represented by this result.
-    match_count: int = 1
 
 
 class MainWindow(QMainWindow):
@@ -118,7 +79,7 @@ class MainWindow(QMainWindow):
         "border-left: 3px solid palette(highlight); }"
     )
 
-    def __init__(self) -> None:
+    def __init__(self, app_context: AppContext | None = None) -> None:
         super().__init__()
         #: Messages
         self.messages = Messages(self)
@@ -136,12 +97,11 @@ class MainWindow(QMainWindow):
 
         #: Sentence cards
         self.sentence_cards: list[SentenceCard] = []
+        #: Stable application context.
+        self.app_context = app_context or AppContext()
+        self.app_context.set_main_window(self)
         #: Main window actions
-        self.action_service = MainWindowActions(self)
-        #: The application state
-        self.application_state = ApplicationState()
-        self.application_state.reset()
-        self.application_state.set_main_window(self)
+        self.action_service = MainWindowActions(self, self.app_context)
         #: Autosave service
         self.autosave_service: AutosaveService | None = AutosaveService(
             self.action_service.autosave
@@ -369,7 +329,7 @@ class MainWindow(QMainWindow):
         if index < 0:
             return
         chapter_id = self.chapter_combo.itemData(index)
-        self.application_state[CURRENT_CHAPTER_ID] = chapter_id
+        self.app_context.current_chapter_id = chapter_id
         self.project_ui.update_sections_for_chapter(chapter_id)
 
     def _on_prev_section_clicked(self) -> None:
@@ -389,7 +349,7 @@ class MainWindow(QMainWindow):
         if index < 0:
             return
         section_id = self.section_combo.itemData(index)
-        self.application_state[CURRENT_SECTION_ID] = section_id
+        self.app_context.current_section_id = section_id
         self.project_ui.load_section(section_id)
 
     def keyPressEvent(self, event: "QKeyEvent") -> None:  # noqa: N802
@@ -597,7 +557,7 @@ class MainWindow(QMainWindow):
         - If there are projects, show OpenProjectDialog.
         """
         # Check if there are any projects in the database
-        if bool(Project.first()) and self.application_state.session:
+        if bool(Project.first()) and self.app_context.session:
             # Projects exist, show OpenProjectDialog
             OpenProjectDialog(self).execute()
         else:
@@ -684,10 +644,9 @@ class MainWindow(QMainWindow):
         dialog = RestoreDialog(self)
         dialog.execute()
         # After restore, we may need to reload
-        if CURRENT_PROJECT_ID in self.application_state:
-            project = Project.get(
-                self.application_state[CURRENT_PROJECT_ID],
-            )
+        project_id = self.app_context.current_project_id
+        if project_id is not None:
+            project = Project.get(project_id)
             if project:
                 self.project_ui.load(project)
 
@@ -734,7 +693,7 @@ class MainWindow(QMainWindow):
         self.project_ui.refresh()
 
 
-class MainWindowActions(ThemeMixin):
+class MainWindowActions:
     """
     Main window actions.  We separate the work from the UI to make the code more
     readable and maintainable.
@@ -744,32 +703,70 @@ class MainWindowActions(ThemeMixin):
 
     """
 
-    def __init__(self, main_window: MainWindow) -> None:
+    def __init__(self, main_window: MainWindow, app_context: AppContext) -> None:
         """
         Initialize main window actions.
+
+        Args:
+            main_window: Main window instance.
+            app_context: Shared application context.
+
         """
+        #: Main window instance.
         self.main_window = main_window
         #: Backup service
         self.backup_service = BackupService()
-        #: Application state
-        self.application_state = ApplicationState()
+        #: Stable app context.
+        self.app_context = app_context
         #: Messages
         self.messages = main_window.messages
+        #: Search UI state and navigation
+        self._search_controller = SearchController(
+            main_window, self.app_context
+        )
 
-        #: Ordered search results across the entire project.
-        self.search_results: list[SearchResult] = []
-        #: Total number of matched occurrences across all results.
-        self.search_total_matches: int = 0
-        #: Current match index in search_results
-        self.current_match_index: int = -1
-        #: Sentence-to-token map for OE normalized matches.
-        self._search_token_map: dict[int, set[int]] = {}
-        #: Starting location when search mode first becomes active.
-        self._search_origin: tuple[int, int, int] | None = None
+    @property
+    def search_results(self) -> list[SearchResult]:
+        """
+        Ordered search results across the entire project.
+
+        Returns:
+            Current ordered search results.
+
+        """
+        return self._search_controller.search_results
+
+    @property
+    def search_total_matches(self) -> int:
+        """
+        Total number of matched occurrences across all results.
+
+        Returns:
+            Total match count for the active search.
+
+        """
+        return self._search_controller.search_total_matches
+
+    @property
+    def current_match_index(self) -> int:
+        """
+        Current match index in search_results.
+
+        Returns:
+            Zero-based index of the active search result.
+
+        """
+        return self._search_controller.current_match_index
 
     @property
     def sentence_cards(self) -> list[SentenceCard]:
-        """Get the current sentence cards from main window."""
+        """
+        Get the current sentence cards from main window.
+
+        Returns:
+            Sentence cards currently loaded in the workspace.
+
+        """
         return self.main_window.sentence_cards
 
     def perform_search(self, pattern: str, scope: str) -> None:
@@ -781,67 +778,15 @@ class MainWindowActions(ThemeMixin):
             scope: Search scope ("OE Text", "ModE text", "Notes", "All")
 
         """
-        if not pattern.strip():
-            self._reset_search_matches()
-            self._search_origin = None
-            self._apply_visible_highlights("", scope, None, {})
-            self._update_search_ui(0)
-            return
-
-        self._capture_search_origin()
-        normalized_oe = self._normalized_oe_query(pattern, scope)
-        results, total, token_map = self._build_search_results(
-            pattern, scope, normalized_oe
-        )
-        self.search_results = results
-        self.search_total_matches = total
-        self._search_token_map = token_map
-        self.current_match_index = -1 if not results else 0
-        self._apply_visible_highlights(pattern, scope, normalized_oe, token_map)
-        self._update_search_ui(total)
-
-    def _update_search_ui(self, total_matches: int) -> None:
-        """
-        Update search UI elements based on search results.
-
-        Args:
-            total_matches: Total number of matches
-
-        """
-        # Update counter label
-        current = self.current_match_index + 1 if self.current_match_index >= 0 else 0
-        self.main_window.search_counter_label.setText(f"{current} / {total_matches}")
-
-        # Update input background color
-        if self.main_window.search_input.text():
-            if total_matches == 0:
-                self.main_window.search_input.setStyleSheet(
-                    f"background-color: {self.reddish.name()};"
-                )
-            else:
-                self.main_window.search_input.setStyleSheet("")
-        else:
-            self.main_window.search_input.setStyleSheet("")
+        self._search_controller.perform_search(pattern, scope)
 
     def next_match(self) -> None:
         """Navigate to the next matching search result."""
-        if not self.search_results:
-            return
-
-        self.current_match_index = (self.current_match_index + 1) % len(
-            self.search_results
-        )
-        self._focus_current_match()
+        self._search_controller.next_match()
 
     def prev_match(self) -> None:
         """Navigate to the previous matching search result."""
-        if not self.search_results:
-            return
-
-        self.current_match_index = (self.current_match_index - 1) % len(
-            self.search_results
-        )
-        self._focus_current_match()
+        self._search_controller.prev_match()
 
     def focus_search_input(self) -> None:
         """Focus the search input."""
@@ -851,19 +796,7 @@ class MainWindowActions(ThemeMixin):
 
     def focus_first_match(self) -> None:
         """Focus the first match in search results."""
-        if self.search_results:
-            self.current_match_index = 0
-            self._focus_current_match()
-
-    def _focus_current_match(self) -> None:
-        """
-        Focus the current search result and update the search counter.
-
-        """
-        if 0 <= self.current_match_index < len(self.search_results):
-            result = self.search_results[self.current_match_index]
-            self._focus_result(result)
-            self._update_search_ui(self.search_total_matches)
+        self._search_controller.focus_first_match()
 
     def clear_search(self, restore_origin_focus: bool = False) -> None:
         """
@@ -873,252 +806,7 @@ class MainWindowActions(ThemeMixin):
             restore_origin_focus: Whether to restore focus to search origin ModE field.
 
         """
-        scope = self.main_window.search_scope_combo.currentText()
-        self.main_window.search_input.blockSignals(True)  # noqa: FBT003
-        self.main_window.search_input.clear()
-        self.main_window.search_input.blockSignals(False)  # noqa: FBT003
-        self._reset_search_matches()
-        self._apply_visible_highlights("", scope, None, {})
-        self._update_search_ui(0)
-        self.main_window.search_input.setStyleSheet("")
-        if restore_origin_focus:
-            self._restore_origin_focus()
-        else:
-            self._search_origin = None
-
-    def _reset_search_matches(self) -> None:
-        """Reset in-memory search results and counters."""
-        self.search_results = []
-        self.search_total_matches = 0
-        self.current_match_index = -1
-        self._search_token_map = {}
-
-    def _capture_search_origin(self) -> None:
-        """Capture the sentence location where search mode started."""
-        if self._search_origin is not None:
-            return
-        card = self._focused_or_selected_card()
-        if card is None:
-            return
-        sentence = card.sentence
-        if not sentence.paragraph:
-            return
-        section = sentence.paragraph.section
-        chapter = section.chapter
-        self._search_origin = (chapter.id, section.id, sentence.id)
-
-    def _focused_or_selected_card(self) -> SentenceCard | None:
-        """Find the best sentence card candidate for focus restoration."""
-        for card in self.sentence_cards:
-            if card.has_focus:
-                return card
-        selected = self.application_state.get(SELECTED_SENTENCE_CARD)
-        if isinstance(selected, SentenceCard):
-            return selected
-        return self.sentence_cards[0] if self.sentence_cards else None
-
-    def _normalized_oe_query(self, pattern: str, scope: str) -> str | None:
-        """Return normalized OE search query for OE-aware scopes."""
-        if scope not in {"OE Text", "Notes", "All"}:
-            return None
-        normalized = normalize_old_english(pattern)
-        return normalized or None
-
-    def _build_search_results(
-        self, pattern: str, scope: str, normalized_oe: str | None
-    ) -> tuple[list[SearchResult], int, dict[int, set[int]]]:
-        """
-        Build ordered search results for the current project.
-
-        Args:
-            pattern: Raw search pattern.
-            scope: Search scope.
-            normalized_oe: Normalized query for OE fields, if enabled.
-
-        Returns:
-            Tuple of ordered results, total match count, and sentence token map.
-
-        """
-        if CURRENT_PROJECT_ID not in self.application_state:
-            return [], 0, {}
-        project = Project.get(self.application_state[CURRENT_PROJECT_ID])
-        if project is None:
-            return [], 0, {}
-        results: list[SearchResult] = []
-        token_map: dict[int, set[int]] = {}
-        total_matches = 0
-        needle = pattern.lower()
-        for chapter in sorted(project.chapters, key=lambda c: c.number):
-            chapter_results, chapter_total, chapter_tokens = self._chapter_matches(
-                chapter, needle, scope, normalized_oe
-            )
-            results.extend(chapter_results)
-            total_matches += chapter_total
-            for sentence_id, token_ids in chapter_tokens.items():
-                token_map.setdefault(sentence_id, set()).update(token_ids)
-        return results, total_matches, token_map
-
-    def _chapter_matches(
-        self, chapter, needle: str, scope: str, normalized_oe: str | None
-    ) -> tuple[list[SearchResult], int, dict[int, set[int]]]:
-        """Collect search results for a chapter."""
-        chapter_results: list[SearchResult] = []
-        chapter_total = 0
-        token_map: dict[int, set[int]] = {}
-        for section in sorted(chapter.sections, key=lambda s: s.number):
-            section_results, section_total, section_tokens = self._section_matches(
-                section, chapter.id, needle, scope, normalized_oe
-            )
-            chapter_results.extend(section_results)
-            chapter_total += section_total
-            token_map.update(section_tokens)
-        return chapter_results, chapter_total, token_map
-
-    def _section_matches(
-        self,
-        section,
-        chapter_id: int,
-        needle: str,
-        scope: str,
-        normalized_oe: str | None,
-    ) -> tuple[list[SearchResult], int, dict[int, set[int]]]:
-        """Collect search results for a section."""
-        results: list[SearchResult] = []
-        total = 0
-        token_map: dict[int, set[int]] = {}
-        for paragraph in sorted(section.paragraphs, key=lambda p: p.order):
-            for sentence in sorted(paragraph.sentences, key=lambda s: s.display_order):
-                sentence_results, sentence_total, token_ids = self._sentence_matches(
-                    chapter_id, section.id, sentence, needle, scope, normalized_oe
-                )
-                results.extend(sentence_results)
-                total += sentence_total
-                if token_ids:
-                    token_map[sentence.id] = token_ids
-        return results, total, token_map
-
-    def _sentence_matches(  # noqa: PLR0913
-        self,
-        chapter_id: int,
-        section_id: int,
-        sentence,
-        needle: str,
-        scope: str,
-        normalized_oe: str | None,
-    ) -> tuple[list[SearchResult], int, set[int]]:
-        """Collect search results for a sentence."""
-        results: list[SearchResult] = []
-        total = 0
-        token_ids: set[int] = set()
-        if normalized_oe and scope in {"OE Text", "Notes", "All"}:
-            for token in sentence.sorted_tokens[0]:
-                token_id = token.id
-                if token_id is None:
-                    continue
-                surface = (
-                    token.surface_normalized
-                    or normalize_old_english(token.surface)
-                    or ""
-                )
-                if normalized_oe in surface:
-                    results.append(
-                        SearchResult(
-                            chapter_id, section_id, sentence.id, "oe_surface", token_id
-                        )
-                    )
-                    total += 1
-                    token_ids.add(token_id)
-                root = (
-                    token.annotation.root_normalized
-                    or normalize_old_english(token.annotation.root)
-                    if token.annotation
-                    else None
-                )
-                if root and normalized_oe in root:
-                    results.append(
-                        SearchResult(
-                            chapter_id, section_id, sentence.id, "oe_root", token_id
-                        )
-                    )
-                    total += 1
-                    token_ids.add(token_id)
-        if scope in {"ModE text", "All"} and sentence.text_modern:
-            count = sentence.text_modern.lower().count(needle)
-            if count > 0:
-                results.append(
-                    SearchResult(
-                        chapter_id,
-                        section_id,
-                        sentence.id,
-                        "mode_text",
-                        match_count=count,
-                    )
-                )
-                total += count
-        if scope in {"Notes", "All"}:
-            for note in sentence.sorted_notes:
-                count = note.note_text_md.lower().count(needle)
-                if count > 0:
-                    results.append(
-                        SearchResult(
-                            chapter_id,
-                            section_id,
-                            sentence.id,
-                            "note_text",
-                            match_count=count,
-                        )
-                    )
-                    total += count
-        return results, total, token_ids
-
-    def _apply_visible_highlights(
-        self,
-        pattern: str,
-        scope: str,
-        normalized_oe: str | None,
-        token_map: dict[int, set[int]],
-    ) -> None:
-        """Apply search highlights on currently loaded sentence cards."""
-        for card in self.sentence_cards:
-            token_ids = token_map.get(card.sentence.id, set())
-            card.highlight_search(pattern, scope, normalized_oe, token_ids)
-
-    def _focus_result(self, result: SearchResult) -> None:
-        """Navigate to and focus a specific search result."""
-        card = self.main_window.project_ui.navigate_to_sentence(
-            result.chapter_id, result.section_id, result.sentence_id
-        )
-        if card is None:
-            return
-        query = self.main_window.search_input.text()
-        scope = self.main_window.search_scope_combo.currentText()
-        normalized_oe = self._normalized_oe_query(query, scope)
-        self._apply_visible_highlights(
-            query, scope, normalized_oe, self._search_token_map
-        )
-        self.main_window.ensure_visible(card)
-        if result.match_kind in {"oe_surface", "oe_root"}:
-            card.focus_token_by_id(result.token_id)
-            return
-        if result.match_kind == "mode_text":
-            card.focus_translation()
-            return
-        card.setFocus(Qt.FocusReason.OtherFocusReason)
-
-    def _restore_origin_focus(self) -> None:
-        """Restore focus to the ModE field where search mode began."""
-        if self._search_origin is not None:
-            chapter_id, section_id, sentence_id = self._search_origin
-            card = self.main_window.project_ui.navigate_to_sentence(
-                chapter_id, section_id, sentence_id
-            )
-            if card is not None:
-                card.focus_translation()
-                self._search_origin = None
-                return
-        if self.sentence_cards:
-            self.sentence_cards[0].focus_translation()
-        self._search_origin = None
+        self._search_controller.clear_search(restore_origin_focus=restore_origin_focus)
 
     def scroll_to_end(self) -> None:
         """
@@ -1166,7 +854,7 @@ class MainWindowActions(ThemeMixin):
     @property
     def command_manager(self):
         """Get the current command manager from main window."""
-        return self.application_state.command_manager
+        return self.app_context.command_manager
 
     @property
     def autosave_service(self):
@@ -1247,7 +935,7 @@ class MainWindowActions(ThemeMixin):
 
         """
         # Check if a token is selected
-        card = self.application_state.get(SELECTED_SENTENCE_CARD)
+        card = self._selected_sentence_card()
         if card is None:
             return False
         current_token_index = card.oe_text_edit.current_token_index()
@@ -1268,9 +956,22 @@ class MainWindowActions(ThemeMixin):
 
         # Extract annotation fields
         annotation = token.annotation
-        self.application_state[COPIED_ANNOTATION] = annotation.to_json()
+        self.app_context.copied_annotation = annotation.to_json()
         self.messages.show_message("Annotation copied")
         return True
+
+    def _selected_sentence_card(self) -> SentenceCard | None:
+        """
+        Get the workspace-local selected sentence card.
+
+        Returns:
+            Selected sentence card, or ``None`` when no card is selected.
+
+        """
+        project_ui = getattr(self.main_window, "project_ui", None)
+        if project_ui is None:
+            return None
+        return project_ui.get_selected_sentence_card()
 
     def paste_annotation(self) -> bool:
         """
@@ -1282,16 +983,20 @@ class MainWindowActions(ThemeMixin):
 
         """
         # Check if a token is selected
-        card = self.application_state.get(SELECTED_SENTENCE_CARD)
+        card = self._selected_sentence_card()
         if card is None:
             return False
-        current_token_index = card.oe_text_edit.selector.current_token_index()
-        if card is None or current_token_index is None:
+        selector = card.oe_text_edit.selector
+        current_token_index = (
+            selector.current_token_index() if selector is not None else None
+        )
+        if current_token_index is None:
             # No token selected, allow normal clipboard behavior
             return False
 
         # Check if there's a copied annotation
-        if COPIED_ANNOTATION not in self.application_state:
+        copied_annotation = self.app_context.copied_annotation
+        if copied_annotation is None:
             self.messages.show_message("No annotation to paste")
             return True  # Return True to indicate we handled the event
 
@@ -1315,12 +1020,12 @@ class MainWindowActions(ThemeMixin):
         command = AnnotateTokenCommand(
             token_id=token.id,
             before=before_state,
-            after=self.application_state[COPIED_ANNOTATION],
+            after=copied_annotation,
         )
 
         if self.command_manager.execute(command):
             # Refresh the token from database to update relationships
-            self.application_state.session.refresh(token)
+            self.app_context.session.refresh(token)
 
             # Refresh the sentence card
             card.set_tokens()
@@ -1356,8 +1061,8 @@ class MainWindowActions(ThemeMixin):
         Apply remembered annotations across the current project.
 
         """
-        project_id = self.application_state.get(CURRENT_PROJECT_ID)
-        if not isinstance(project_id, int):
+        project_id = self.app_context.current_project_id
+        if project_id is None:
             self.messages.show_warning("No project open")
             return
 
@@ -1378,8 +1083,8 @@ class MainWindowActions(ThemeMixin):
         Open the project-scoped remembered annotation management dialog.
 
         """
-        project_id = self.application_state.get(CURRENT_PROJECT_ID)
-        if not isinstance(project_id, int):
+        project_id = self.app_context.current_project_id
+        if project_id is None:
             self.messages.show_warning("No project open")
             return
         dialog = RememberedAnnotationsDialog(project_id, parent=self.main_window)
@@ -1395,8 +1100,8 @@ class MainWindowActions(ThemeMixin):
         - Show a message in the status bar that the project has been saved.
 
         """
-        project_id = self.application_state.get(CURRENT_PROJECT_ID)
-        if not isinstance(project_id, int):
+        project_id = self.app_context.current_project_id
+        if project_id is None:
             return
         project = Project.get(project_id)
         if project is None:
@@ -1446,7 +1151,7 @@ class MainWindowActions(ThemeMixin):
             )
             if dialog.execute():
                 # User chose to open the project
-                ProjectUI(self.main_window).load(imported_project)
+                self.main_window.project_ui.load(imported_project)
                 self.main_window.setWindowTitle(
                     f"Ænglisc Toolkit - {imported_project.name}"
                 )
@@ -1475,7 +1180,7 @@ class MainWindowActions(ThemeMixin):
 
         Args:
             project_id: Optional project ID to export. If not provided, uses
-                the value of :data:`CURRENT_PROJECT_ID` in :data:`application_state`.
+                :attr:`oeapp.state.AppContext.current_project_id`.
             parent: Optional parent widget for the file dialog. If not provided,
                 uses self.
 
@@ -1483,8 +1188,12 @@ class MainWindowActions(ThemeMixin):
             True if export was successful, False if canceled or failed
 
         """
-        target_project_id = project_id or self.application_state[CURRENT_PROJECT_ID]
-        if not self.application_state.session or not target_project_id:
+        target_project_id = (
+            project_id
+            if isinstance(project_id, int)
+            else self.app_context.current_project_id
+        )
+        if not self.app_context.session or target_project_id is None:
             self.messages.show_warning("No project open")
             return False
 
@@ -1547,11 +1256,12 @@ class MainWindowActions(ThemeMixin):
         """
         Edit the current project's metadata.
         """
-        if CURRENT_PROJECT_ID not in self.application_state:
+        project_id = self.app_context.current_project_id
+        if project_id is None:
             self.messages.show_warning("No project open")
             return
 
-        project = Project.get(self.application_state[CURRENT_PROJECT_ID])
+        project = Project.get(project_id)
         if project is None:
             self.messages.show_warning("Project not found")
             return
@@ -1563,10 +1273,8 @@ class MainWindowActions(ThemeMixin):
         """
         Export project to DOCX.
         """
-        if (
-            not self.application_state.session
-            or CURRENT_PROJECT_ID not in self.application_state
-        ):
+        project_id = self.app_context.current_project_id
+        if not self.app_context.session or project_id is None:
             self.messages.show_warning("No project open")
             return
 
@@ -1588,9 +1296,7 @@ class MainWindowActions(ThemeMixin):
 
         exporter = DOCXExporter()
         try:
-            export_success = exporter.export(
-                self.application_state[CURRENT_PROJECT_ID], Path(file_path)
-            )
+            export_success = exporter.export(project_id, Path(file_path))
         except PermissionError as e:
             self.messages.show_error(
                 f"Export failed: Permission denied.\n{e!s}",
@@ -1705,545 +1411,3 @@ class Messages:
         if logo_pixmap:
             msg_box.setIconPixmap(logo_pixmap)
         msg_box.exec()
-
-
-class ProjectUI:
-    """
-    Build out the UI for a particular project inside the main window.
-
-    Important:
-        Only run ``ProjectUI(main_window).load(project_id)`` once the main
-        window has been built, because it needs to access the main window's
-        content+layout.
-
-    """
-
-    def __init__(self, main_window: MainWindow) -> None:
-        self.main_window = main_window
-        self.application_state = main_window.application_state
-        self.action_service = main_window.action_service
-        self.command_manager = self.action_service.command_manager
-        self.sentence_cards: list[SentenceCard] = []
-        self.content_layout: QVBoxLayout = cast(
-            "QVBoxLayout", self.main_window.content_layout
-        )
-        self.token_details_sidebar = main_window.token_details_sidebar
-        self.show_message = main_window.messages.show_message
-        self.show_warning = main_window.messages.show_warning
-        self.show_error = main_window.messages.show_error
-        self.show_information = main_window.messages.show_information
-
-    @property
-    def autosave_service(self) -> AutosaveService | None:
-        """Get the autosave service owned by the main window."""
-        return self.main_window.autosave_service
-
-    def load(self, project: Project, clear_search: bool = True) -> None:
-        """
-        Build the project.
-
-        Args:
-            project: Project to load
-            clear_search: Whether to clear the search toolbar
-
-        """
-        # Clear or re-apply search
-        if clear_search:
-            self.main_window._clear_search_without_focus_restore()
-        else:
-            self.main_window.action_service.perform_search(
-                self.main_window.search_input.text(),
-                self.main_window.search_scope_combo.currentText(),
-            )
-
-        if self.main_window.autosave_service:
-            self.main_window.autosave_service.cancel()
-
-        self.application_state[CURRENT_PROJECT_ID] = project.id
-
-        # Update chapter dropdown
-        self.main_window.chapter_combo.blockSignals(True)  # noqa: FBT003
-        self.main_window.chapter_combo.clear()
-        for chapter in project.chapters:
-            self.main_window.chapter_combo.addItem(chapter.display_title, chapter.id)
-        self.main_window.chapter_combo.blockSignals(False)  # noqa: FBT003
-
-        # Select first chapter if available
-        if project.chapters:
-            self.main_window.chapter_combo.setCurrentIndex(0)
-            chapter_id = project.chapters[0].id
-            self.application_state[CURRENT_CHAPTER_ID] = chapter_id
-            self.update_sections_for_chapter(chapter_id)
-        else:
-            # Handle empty project (should not happen with new logic)
-            self.main_window.section_combo.clear()
-            self._clear_content()
-
-    def update_sections_for_chapter(self, chapter_id: int) -> None:
-        """Update section dropdown for the given chapter."""
-        # Import here to avoid circular import
-        from oeapp.models.chapter import Chapter  # noqa: PLC0415
-
-        chapter = Chapter.get(chapter_id)
-        if not chapter:
-            return
-
-        self.main_window.section_combo.blockSignals(True)  # noqa: FBT003
-        self.main_window.section_combo.clear()
-        for section in chapter.sections:
-            self.main_window.section_combo.addItem(section.display_title, section.id)
-        self.main_window.section_combo.blockSignals(False)  # noqa: FBT003
-
-        if chapter.sections:
-            self.main_window.section_combo.setCurrentIndex(0)
-            section_id = chapter.sections[0].id
-            self.application_state[CURRENT_SECTION_ID] = section_id
-            self.load_section(section_id)
-        else:
-            self._clear_content()
-
-    def load_section(self, section_id: int) -> None:
-        """Load sentences for the given section."""
-        # Import here to avoid circular import
-        from oeapp.models.section import Section  # noqa: PLC0415
-
-        section = Section.get(section_id)
-        if not section:
-            return
-
-        self._clear_content()
-        self.sentence_cards = []
-        self.main_window.sentence_cards = []
-
-        for paragraph in section.paragraphs:
-            # Add paragraph separator if not the first paragraph in section
-            if paragraph.order > 1:
-                self._add_paragraph_separator()
-
-            for sentence in paragraph.sentences:
-                card = SentenceCard(
-                    sentence,
-                    command_manager=self.application_state.command_manager,
-                    main_window=self.main_window,
-                )
-                self.sentence_cards.append(card)
-                self.main_window.sentence_cards.append(card)
-                self.content_layout.addWidget(card)
-                self._connect_card_signals(card)
-
-    def find_sentence_card(self, sentence_id: int) -> SentenceCard | None:
-        """
-        Find a loaded sentence card by sentence id.
-
-        Args:
-            sentence_id: Target sentence id.
-
-        Returns:
-            Matching sentence card when loaded, else ``None``.
-
-        """
-        for card in self.sentence_cards:
-            if card.sentence.id == sentence_id:
-                return card
-        return None
-
-    def _set_combo_to_data(self, combo: QComboBox, target_id: int) -> bool:
-        """
-        Set combo current index by item data id.
-
-        Args:
-            combo: Combo box to update.
-            target_id: Item data id to activate.
-
-        Returns:
-            ``True`` when target exists in combo, else ``False``.
-
-        """
-        for index in range(combo.count()):
-            if combo.itemData(index) == target_id:
-                combo.setCurrentIndex(index)
-                return True
-        return False
-
-    def navigate_to_sentence(
-        self, chapter_id: int, section_id: int, sentence_id: int
-    ) -> SentenceCard | None:
-        """
-        Load chapter/section for a sentence and return its sentence card.
-
-        Args:
-            chapter_id: Target chapter id.
-            section_id: Target section id.
-            sentence_id: Target sentence id.
-
-        Returns:
-            Loaded sentence card when found, else ``None``.
-
-        """
-        if not self._set_combo_to_data(self.main_window.chapter_combo, chapter_id):
-            return None
-        if not self._set_combo_to_data(self.main_window.section_combo, section_id):
-            return None
-        return self.find_sentence_card(sentence_id)
-
-    def _clear_content(self) -> None:
-        """Clear existing content from the layout."""
-        for i in reversed(range(self.content_layout.count())):
-            item = self.content_layout.itemAt(i)
-            if item and item.widget():
-                widget = item.widget()
-                if widget:
-                    widget.deleteLater()
-
-    def _add_paragraph_separator(self) -> None:
-        """Add a paragraph separator to the layout."""
-        separator = QWidget()
-        separator.setFixedHeight(20)
-        palette = separator.palette()
-        mid = palette.color(QPalette.ColorRole.Mid)
-        h, s, v, a = mid.getHsv()  # type: ignore[misc]
-        v = min(v, 255)  # type: ignore[has-type]
-        v = int((v + 255 + 20) % 255)
-        background = QColor.fromHsv(h, s, v, a)  # type: ignore[has-type]
-        h, s, v, a = mid.getHsv()  # type: ignore[misc]
-        v = min(v, 0)  # type: ignore[has-type]
-        v = int((v + 255 + 20) % 255)
-        border = QColor.fromHsv(h, s, v, a)  # type: ignore[has-type]
-        separator.setStyleSheet(
-            f"background-color: {background.name()}; "
-            f"border-top: 2px solid {border.name()};"
-            f"border-bottom: 2px solid {border.name()};"
-        )
-        self.content_layout.addWidget(separator)
-
-    def _connect_card_signals(self, card: SentenceCard) -> None:
-        """Connect signals for a sentence card."""
-        card.translation_edit.textChanged.connect(self._on_translation_changed)
-        card.oe_text_edit.textChanged.connect(self._on_sentence_text_changed)
-        card.sentence_merged.connect(self._on_sentence_merged)
-        card.sentence_added.connect(self._on_sentence_added)
-        card.sentence_deleted.connect(self._on_sentence_deleted)
-        card.token_selected_for_details.connect(self._on_token_selected_for_details)
-        card.idiom_selected_for_details.connect(self._on_idiom_selected_for_details)
-        card.annotation_applied.connect(self._on_annotation_applied)
-        card.edit_mode_started.connect(
-            lambda: self.main_window.update_search_ui_state(True)  # noqa: FBT003
-        )
-        card.edit_mode_finished.connect(
-            lambda: self.main_window.update_search_ui_state(False)  # noqa: FBT003
-        )
-        card.edit_mode_started.connect(
-            self.main_window._clear_search_without_focus_restore
-        )
-
-    def reload(self) -> None:
-        """
-        Reload the entire project structure from database.
-
-        This is needed after structural changes like merge/undo merge
-        that change the number of sentences.
-        """
-        if (
-            not self.application_state.session
-            or CURRENT_PROJECT_ID not in self.application_state
-        ):
-            return
-
-        # Reload project from database
-        project = Project.get(self.application_state[CURRENT_PROJECT_ID])
-        if project is None:
-            return
-
-        # Preserve existing services
-        existing_command_manager = self.command_manager
-
-        # Refresh the project configuration (reloads all sentence cards)
-        # Search is reapplied after reload
-        self.load(project, clear_search=False)
-
-        # Restore preserved services
-        if existing_command_manager:
-            self.command_manager = existing_command_manager
-
-        # Update all sentence cards to use the preserved command manager
-        for card in self.sentence_cards:
-            card.command_manager = self.application_state.command_manager
-
-        # Ensure UI is updated/repainted
-        self.main_window.reload_main_window()
-
-    def refresh(self) -> None:
-        """
-        Refresh all sentence cards from database.
-
-        - If there is no database or the current project ID is not set, do nothing.
-        - Reload annotations for all sentence cards.
-        """
-        if (
-            not self.application_state.session
-            or CURRENT_PROJECT_ID not in self.application_state
-        ):
-            return
-        # Reload annotations for all cards
-        for card in self.sentence_cards:
-            if card.sentence.id:
-                card.set_tokens()
-
-        # Re-apply search highlighting after refresh
-        self.main_window.action_service.perform_search(
-            self.main_window.search_input.text(),
-            self.main_window.search_scope_combo.currentText(),
-        )
-
-    def save(self) -> None:
-        """
-        Save current project.
-        """
-        if (
-            not self.application_state.session
-            or CURRENT_PROJECT_ID not in self.application_state
-        ):
-            self.show_warning("No project open")
-            return
-        if self.autosave_service:
-            self.autosave_service.save_now()
-            self.show_message("Project saved")
-        else:
-            self.show_information("Project saved (autosave enabled)", title="Info")
-
-    def _on_translation_changed(self) -> None:
-        """
-        Handle translation text change by autosaving.
-        """
-        if self.autosave_service:
-            self.show_message("Saving...", duration=500)
-            self.autosave_service.trigger()
-
-    def _on_sentence_text_changed(self):
-        """
-        Handle sentence text change by autosaving.
-        """
-        if self.autosave_service:
-            self.show_message("Saving...", duration=500)
-            self.autosave_service.trigger()
-
-    def _on_sentence_merged(self) -> None:
-        """
-        Handle sentence merge signal.
-
-        Reloads the project from the database to refresh all sentence cards
-        after a merge operation.
-
-        """
-        if (
-            not self.application_state.session
-            or CURRENT_PROJECT_ID not in self.application_state
-        ):
-            return
-
-        # Reload project from database
-        project = Project.get(self.application_state[CURRENT_PROJECT_ID])
-        if project is None:
-            return
-
-        # Preserve existing command manager to keep undo history
-        existing_command_manager = self.application_state.command_manager
-
-        # Refresh the project configuration (reloads all sentence cards)
-        # Search is reapplied after merge
-        self.load(project, clear_search=False)
-
-        # Restore preserved services
-        if existing_command_manager:
-            self.command_manager = existing_command_manager
-
-        # Update all sentence cards to use the preserved command manager
-        for card in self.sentence_cards:
-            card.command_manager = self.command_manager
-
-        # Ensure UI is updated/repainted
-        self.main_window.reload_main_window()
-
-        self.show_message("Sentences merged", duration=2000)
-
-    def _on_sentence_added(self, sentence_id: int) -> None:
-        """
-        Handle sentence added signal.
-
-        Reloads the project from the database to refresh all sentence cards
-        after adding a new sentence, then puts the new sentence card in edit mode.
-
-        Args:
-            sentence_id: ID of the newly added sentence
-
-        """
-        if (
-            not self.application_state.session
-            or CURRENT_PROJECT_ID not in self.application_state
-        ):
-            return
-
-        # Reload project from database
-        project = Project.get(self.application_state[CURRENT_PROJECT_ID])
-        if project is None:
-            return
-
-        # Preserve existing command manager to keep undo history
-        existing_command_manager = self.application_state.command_manager
-
-        # Refresh the project configuration (reloads all sentence cards)
-        self.load(project)
-
-        # Restore preserved services
-        if existing_command_manager:
-            self.command_manager = existing_command_manager
-
-        # Update all sentence cards to use the preserved command manager
-        for card in self.sentence_cards:
-            card.command_manager = self.command_manager
-
-        # Find the sentence card with matching sentence.id
-        new_card = None
-        for card in self.sentence_cards:
-            if card.sentence.id == sentence_id:
-                new_card = card
-                break
-
-        # Ensure UI is updated/repainted before final focus handoff.
-        self.main_window.reload_main_window()
-
-        if new_card:
-            # Defer focus to the next event-loop cycle so it is not overridden
-            # by immediate post-load UI updates.
-            _new_card = cast("SentenceCard", new_card)
-
-            def _focus_new_card(card: SentenceCard = _new_card) -> None:
-                self.main_window.ensure_visible(card)
-                card.enter_edit_mode()
-                card.flash_added()
-
-            QTimer.singleShot(0, _focus_new_card)
-
-        self.show_message("Sentence added", duration=2000)
-
-    def _on_sentence_deleted(self, sentence_id: int) -> None:  # noqa: ARG002
-        """
-        Handle sentence deleted signal.
-
-        Reloads the project from the database to refresh all sentence cards
-        after a deletion operation.
-
-        Args:
-            sentence_id: ID of the deleted sentence
-
-        """
-        if (
-            not self.application_state.session
-            or CURRENT_PROJECT_ID not in self.application_state
-        ):
-            return
-
-        # Reload project from database
-        project = Project.get(self.application_state[CURRENT_PROJECT_ID])
-        if project is None:
-            return
-
-        # Preserve existing command manager to keep undo history
-        existing_command_manager = self.application_state.command_manager
-
-        # Refresh the project configuration (reloads all sentence cards)
-        # Search is reapplied after deletion
-        self.load(project, clear_search=False)
-
-        # Restore preserved services
-        if existing_command_manager:
-            self.command_manager = existing_command_manager
-
-        # Update all sentence cards to use the preserved command manager
-        for card in self.sentence_cards:
-            card.command_manager = self.command_manager
-
-        # Ensure UI is updated/repainted
-        self.main_window.reload_main_window()
-
-        self.show_message("Sentence deleted", duration=2000)
-
-    def _on_token_selected_for_details(
-        self, token: "Token", sentence: "Sentence", sentence_card: SentenceCard
-    ) -> None:
-        """
-        Handle token selection for details sidebar.
-
-        Args:
-            token: Selected token
-            sentence: Sentence containing the token
-            sentence_card: Sentence card containing the token
-
-        """
-        # Clear selection on all other sentence cards to ensure only one selection
-        # exists across the entire project view
-        for other_card in self.sentence_cards:
-            if other_card != sentence_card:
-                other_card.clear_token_selection()
-
-        # Check if token is being deselected (selected_token_index is None)
-        if sentence_card.oe_text_edit.current_token_index() is None:
-            # Clear sidebar
-            self.token_details_sidebar.clear_sidebar()
-            if SELECTED_SENTENCE_CARD in self.application_state:
-                del self.application_state[SELECTED_SENTENCE_CARD]
-        else:
-            # Update sidebar with token details
-            self.token_details_sidebar.render_token(token, sentence)
-
-            # Store reference to currently selected sentence card
-            self.application_state[SELECTED_SENTENCE_CARD] = sentence_card
-
-    def _on_idiom_selected_for_details(
-        self, idiom: "Idiom", sentence: "Sentence", sentence_card: SentenceCard
-    ) -> None:
-        """
-        Handle idiom selection for details sidebar.
-
-        Args:
-            idiom: Selected idiom
-            sentence: Sentence containing the idiom
-            sentence_card: Sentence card containing the idiom
-
-        """
-        # Clear selection on all other sentence cards
-        for other_card in self.sentence_cards:
-            if other_card != sentence_card:
-                other_card.clear_token_selection()
-
-        # Update sidebar with idiom details
-        self.token_details_sidebar.render_idiom(idiom, sentence)
-
-        # Store reference to currently selected sentence card
-        self.application_state[SELECTED_SENTENCE_CARD] = sentence_card
-
-    def _on_annotation_applied(self, annotation: "Annotation") -> None:
-        """
-        Handle annotation applied signal.
-
-        If the annotation is for the currently selected token in the sidebar,
-        refresh the sidebar.
-
-        Args:
-            annotation: Applied annotation
-
-        """
-        # Check if this annotation is for the currently selected token
-        if CURRENT_PROJECT_ID not in self.application_state:
-            return
-        card = self.application_state.get(SELECTED_SENTENCE_CARD)
-        if card is not None and card.oe_text_edit.current_token_index() is not None:
-            order_index = card.oe_text_edit.current_token_index()
-            token = card.oe_text_edit.tokens_by_index.get(order_index)
-            if token and token.id == annotation.token_id:
-                # Refresh sidebar with updated annotation
-                # Refresh token from database to ensure annotation relationship
-                # is up-to-date
-                if self.application_state.session:
-                    self.application_state.session.refresh(token)
-                self.token_details_sidebar.render_token(token, card.sentence)

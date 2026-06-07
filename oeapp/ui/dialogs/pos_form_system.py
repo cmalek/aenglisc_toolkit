@@ -454,12 +454,6 @@ class PresetPartOfSpeechFieldsBase(AnnotationLookupsMixin):
         for combo in self.fields.values():
             combo.setCurrentIndex(0)
 
-    def bind_dialog_attributes(self, dialog: object) -> None:
-        """Bind object-name combos as attributes on the dialog for compatibility."""
-        for spec in self.FIELD_SPECS:
-            if spec.object_name and spec.attr in self.fields:
-                setattr(dialog, spec.object_name, self.fields[spec.attr])
-
     def load_from_values(self, field_values: Mapping[str, str | bool | None]) -> None:
         """Load preset field values into rendered widgets."""
         for attr, value in field_values.items():
@@ -746,9 +740,18 @@ class PresetPosFormManager:
         """Reset rendered fields."""
         self.current.reset()
 
-    def bind_dialog_attributes(self, dialog: object) -> None:
-        """Expose combo attributes on the dialog for compatibility."""
-        self.current.bind_dialog_attributes(dialog)
+    def field(self, attr: str) -> QComboBox | None:
+        """
+        Return one managed combo widget by field attribute.
+
+        Args:
+            attr: Field attribute name.
+
+        Returns:
+            Managed combo box, or ``None`` if the field is not rendered.
+
+        """
+        return self.current.fields.get(attr)
 
     def load_from_values(self, field_values: Mapping[str, str | bool | None]) -> None:
         """Load values into managed fields."""

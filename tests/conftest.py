@@ -34,7 +34,8 @@ from oeapp.commands import CommandManager
 from PySide6.QtWidgets import QMenuBar, QWidget
 import pytest
 
-from oeapp.state import CURRENT_PROJECT_ID, ApplicationState
+from oeapp.db import clear_runtime_session, set_runtime_session
+from oeapp.state import AppContext
 
 # CRITICAL: Create QApplication BEFORE any Qt imports to prevent segmentation faults
 # This must happen at module import time, before any test modules are imported
@@ -104,12 +105,11 @@ def db_session():
     engine = create_engine_with_path(db_path)
     Base.metadata.create_all(engine)
     SessionFactory = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-    state = ApplicationState()
-    state.reset()
-    state.session = SessionFactory()
-    state.session.info["db_path"] = db_path
+    session = SessionFactory()
+    set_runtime_session(session)
+    session.info["db_path"] = db_path
 
-    yield state.session
+    yield session
 
     try:
         from PySide6.QtWidgets import QApplication
@@ -126,10 +126,10 @@ def db_session():
     except RuntimeError:
         pass
 
-    state.session.close()
+    session.close()
     engine.dispose()
     os.unlink(temp_db.name)
-    state._instance = None
+    clear_runtime_session(close=False)
 
 
 @pytest.fixture
@@ -161,11 +161,6 @@ def mock_main_window(db_session):
 @pytest.fixture
 def command_setup(db_session):
     """Set up test database and base objects."""
-    state = ApplicationState()
-    state.reset()
-    state.session = db_session
-    # db_session already sets state.session and calls state.reset()
-
     # Create test project and sentence
     project = Project(name="Test Project")
     project.save()
@@ -182,8 +177,6 @@ def command_setup(db_session):
 
     # Use a command manager with small limit for tests
     command_manager = CommandManager(db_session, max_commands=10)
-    state.command_manager = command_manager
-
     return {
         "session": db_session,
         "project_id": project_id,
@@ -220,11 +213,9 @@ class MockMainWindow(QWidget):
         self.show_information = MagicMock()
         self.show_warning = MagicMock()
         self.show_error = MagicMock()
-        self.application_state = ApplicationState()
-        self.application_state.reset()
-        self.application_state.set_main_window(self)
-        self.application_state.session = session
-        self.application_state[CURRENT_PROJECT_ID] = None
+        self.app_context = AppContext(session=session)
+        self.app_context.set_main_window(self)
+        self.app_context.current_project_id = None
 
         self.menuBar = MagicMock()
         self.menuBar.return_value = QMenuBar()
@@ -232,6 +223,7 @@ class MockMainWindow(QWidget):
         self.token_details_sidebar = MagicMock()
         self.sentence_cards = []
         self.clear_selected_tokens = MagicMock()
+        self.project_ui = _MockProjectUI()
 
         self.messages = MagicMock()
         self.messages.show_information = MagicMock()
@@ -262,6 +254,25 @@ class MockMainWindow(QWidget):
         self.reload_project = MagicMock()
         self.refresh_project = MagicMock()
         self.setWindowTitle = MagicMock()
+
+
+class _MockProjectUI:
+    """Minimal workspace selection holder for tests."""
+
+    def __init__(self) -> None:
+        self._selected_sentence_card = None
+
+    def get_selected_sentence_card(self):
+        """Return selected sentence card for action tests."""
+        return self._selected_sentence_card
+
+    def set_selected_sentence_card(self, card) -> None:
+        """Store selected sentence card for action tests."""
+        self._selected_sentence_card = card
+
+    def clear_selected_sentence_card(self) -> None:
+        """Clear the selected sentence card."""
+        self._selected_sentence_card = None
 
 
 

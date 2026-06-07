@@ -485,8 +485,8 @@ class TestFullTranslationPDFExporter:
         assert "Official Section" in latex
         assert "Auto Chapter" not in latex
         assert "Lines 11-15" not in latex
-        assert r"\hspace*{2.40em}a1" in latex
-        assert r"\hspace*{2.40em}[...]" in latex
+        assert r"\hspace*{2.00em}a1" in latex
+        assert r"\hspace*{2.00em}[...]" in latex
         assert r"\newline \textbf{5}" in latex
         assert r"\newline \textbf{10}" in latex
 

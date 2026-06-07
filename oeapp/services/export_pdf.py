@@ -11,6 +11,12 @@ from typing import TYPE_CHECKING, Final
 
 from oeapp.mixins import AnnotationTextualMixin
 from oeapp.models.project import Project
+from oeapp.models.text_flow import (
+    is_paragraph_start,
+    latex_separator,
+    sentence_separator_kind,
+    visible_titles,
+)
 from oeapp.services.logs import get_logger
 from oeapp.services.pdf_engine import PDFEngineError, compile_latex_with_tectonic
 from oeapp.utils import normalize_old_english
@@ -174,7 +180,7 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
     #: The order of parts of speech, for rendering the glossary legend.
     _POS_ORDER: Final[list[str]] = ["N", "V", "A", "R", "D", "B", "C", "E", "I", "L"]
     #: Fixed four-space verse indent expressed in em width.
-    _VERSE_INDENT_EM: Final[float] = 2
+    _VERSE_INDENT_EM: Final[float] = 2.0
 
     def __init__(self) -> None:
         #: The logger instance.
@@ -466,7 +472,7 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
         previous_sentence: Sentence | None = None
 
         for sentence in project.sentences:
-            titles = self._visible_titles(previous_sentence, sentence)
+            titles = visible_titles(previous_sentence, sentence)
             if titles:
                 if oe_parts:
                     oe_parts.append(r"\par ")
@@ -476,7 +482,11 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
                     oe_parts.append(r"\textbf{" + escaped_title + r"}\newline ")
                     mode_parts.append(r"\textbf{" + escaped_title + r"}\newline ")
 
-            sep = self._separator(previous_sentence, sentence, has_titles=bool(titles))
+            sep = latex_separator(
+                sentence_separator_kind(
+                    previous_sentence, sentence, has_titles=bool(titles)
+                )
+            )
             if sep:
                 oe_parts.append(sep)
                 mode_parts.append(sep)
@@ -521,74 +531,6 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
         indent = rf"\hspace*{{{self._VERSE_INDENT_EM:.2f}em}}"
         return indent + rendered.replace(r"\newline ", r"\newline " + indent)
 
-    def _visible_titles(
-        self, previous: Sentence | None, current: Sentence
-    ) -> list[str]:
-        """
-        Resolve chapter/section titles that should be rendered at this boundary.
-
-        Args:
-            previous: Previous sentence in render order.
-            current: Current sentence in render order.
-
-        Returns:
-            List of visible titles (official-only, auto titles suppressed).
-
-        """
-        titles: list[str] = []
-        current_section = current.paragraph.section if current.paragraph else None
-        current_chapter = current_section.chapter if current_section else None
-        previous_section = (
-            previous.paragraph.section if previous and previous.paragraph else None
-        )
-        previous_chapter = previous_section.chapter if previous_section else None
-
-        chapter_changed = current_chapter is not None and (
-            previous_chapter is None or current_chapter.id != previous_chapter.id
-        )
-        if (
-            current_chapter is not None
-            and chapter_changed
-            and current_chapter.title
-            and not current_chapter.title_auto
-        ):
-            titles.append(current_chapter.title)
-
-        section_changed = current_section is not None and (
-            previous_section is None or current_section.id != previous_section.id
-        )
-        if (
-            current_section is not None
-            and section_changed
-            and current_section.title
-            and not current_section.title_auto
-        ):
-            titles.append(current_section.title)
-        return titles
-
-    def _separator(
-        self, previous: Sentence | None, current: Sentence, has_titles: bool
-    ) -> str:
-        """
-        Return LaTeX separator between adjacent sentence render blocks.
-
-        Args:
-            previous: Previous sentence in render order.
-            current: Current sentence.
-            has_titles: Whether titles were rendered before ``current``.
-
-        Returns:
-            LaTeX separator string.
-
-        """
-        if previous is None or has_titles:
-            return ""
-        if current.is_verse:
-            return r"\newline " if previous.is_verse else r"\par "
-        if previous.is_verse:
-            return r"\par "
-        return r"\par " if self._is_paragraph_start(current) else " "
-
     def _group_sentences_by_paragraph(self, project: Project) -> list[list[Sentence]]:
         """
         Group ordered sentences by paragraph boundaries.
@@ -604,7 +546,7 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
         current: list[Sentence] = []
 
         for sentence in project.sentences:
-            if self._is_paragraph_start(sentence) and current:
+            if is_paragraph_start(sentence) and current:
                 paragraphs.append(current)
                 current = [sentence]
             else:
@@ -614,22 +556,6 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
             paragraphs.append(current)
 
         return paragraphs
-
-    def _is_paragraph_start(self, sentence: Sentence) -> bool:
-        """
-        Return ``True`` if sentence is first in its paragraph.
-
-        Args:
-            sentence: The sentence to check.
-
-        Returns:
-            ``True`` if sentence is first in its paragraph, ``False`` otherwise.
-
-        """
-        if not sentence.paragraph:
-            return False
-        ordered = sorted(sentence.paragraph.sentences, key=lambda s: s.display_order)
-        return bool(ordered and ordered[0].id == sentence.id)
 
     def _notes_by_end_token(self, sentence: Sentence) -> dict[int, list[Note]]:
         """

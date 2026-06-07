@@ -14,7 +14,6 @@ from PySide6.QtWidgets import (
 
 from oeapp.exc import AlreadyExists
 from oeapp.services.wyrdcraeft_ingest import WyrdcraeftIngestService
-from oeapp.state import ApplicationState
 
 from .mixins import TextInputMixin
 
@@ -48,7 +47,7 @@ class NewProjectDialog(TextInputMixin):
         """
         super().__init__()
         self.main_window = main_window
-        self.state = ApplicationState()
+        self.app_context = main_window.app_context
 
     def build(self) -> None:
         """
@@ -162,7 +161,7 @@ class NewProjectDialog(TextInputMixin):
         )
         self.main_window.load_project(project)
         self.main_window.setWindowTitle(f"Ænglisc Toolkit - {project.name}")
-        self.state.show_message("Project created")
+        self.app_context.show_message("Project created")
 
     def new_project(self) -> None:
         """
@@ -170,7 +169,7 @@ class NewProjectDialog(TextInputMixin):
         """
         title = self.title_edit.text()
         if not title.strip():
-            self.state.show_error("Please enter a project title.")
+            self.app_context.show_error("Please enter a project title.")
             return
 
         source = self.source_edit.toPlainText().strip() or None
@@ -181,7 +180,7 @@ class NewProjectDialog(TextInputMixin):
         try:
             text, source_path = self.get_ingest_input()
         except ValueError as e:
-            self.state.show_error(str(e))
+            self.app_context.show_error(str(e))
             return
 
         try:
@@ -193,9 +192,11 @@ class NewProjectDialog(TextInputMixin):
                 translator=translator,
                 notes=notes,
             )
-            self.state.show_message(f'Project created: "{title!s}"', duration=2000)
+            self.app_context.show_message(
+                f'Project created: "{title!s}"', duration=2000
+            )
         except AlreadyExists:
-            self.state.show_error(
+            self.app_context.show_error(
                 f'Project with title "{title!s}" already exists. Please '
                 "choose a different title or delete the existing project."
             )

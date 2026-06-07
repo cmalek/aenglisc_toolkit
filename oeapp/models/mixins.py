@@ -16,12 +16,9 @@ class SessionMixin:
             SQLAlchemy session
 
         """
-        # Avoid circular import
-        from oeapp.state import ApplicationState  # noqa: PLC0415
+        from oeapp.db import get_runtime_session  # noqa: PLC0415
 
-        state = ApplicationState()
-        assert state.session is not None, "Session is not set"  # noqa: S101
-        return state.session
+        return get_runtime_session()
 
 
 class SaveDeleteMixin(SessionMixin):

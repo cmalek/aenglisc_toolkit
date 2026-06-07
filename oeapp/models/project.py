@@ -10,7 +10,8 @@ from sqlalchemy.orm import Mapped, Session, mapped_column, relationship
 
 from oeapp.db import Base
 from oeapp.exc import AlreadyExists
-from oeapp.utils import from_utc_iso, to_utc_iso
+from oeapp.models.search_result import ProjectSearchMatches, SearchResult
+from oeapp.utils import from_utc_iso, normalize_old_english, to_utc_iso
 
 from .mixins import SaveDeleteMixin
 from .sentence import Sentence
@@ -19,6 +20,7 @@ from .token import Token
 if TYPE_CHECKING:
     from oeapp.models.chapter import Chapter
     from oeapp.models.remembered_annotation import RememberedAnnotation
+    from oeapp.models.section import Section
 
 
 class Project(SaveDeleteMixin, Base):
@@ -658,9 +660,6 @@ class Project(SaveDeleteMixin, Base):
         """
         Get the total number of tokens in the project.
 
-        Args:
-            text: Old English text to process and add to the project
-
         Returns:
             Total number of tokens in the project
 
@@ -675,6 +674,215 @@ class Project(SaveDeleteMixin, Base):
             )
             or 0
         )
+
+    def search_matches(self, pattern: str, scope: str) -> ProjectSearchMatches:
+        """
+        Build ordered project-wide search results for the given pattern and scope.
+
+        Args:
+            pattern: Raw search pattern.
+            scope: Search scope ("OE Text", "ModE text", "Notes", "All").
+
+        Returns:
+            Ordered results, total match count, and sentence token highlight map.
+
+        """
+        normalized_oe: str | None = None
+        if scope in {"OE Text", "Notes", "All"}:
+            normalized = normalize_old_english(pattern)
+            normalized_oe = normalized or None
+        needle = pattern.lower()
+        results: builtins.list[SearchResult] = []
+        token_map: dict[int, set[int]] = {}
+        total_matches = 0
+        for chapter in sorted(self.chapters, key=lambda chapter: chapter.number):
+            chapter_results, chapter_total, chapter_tokens = (
+                self._chapter_search_matches(chapter, needle, scope, normalized_oe)
+            )
+            results.extend(chapter_results)
+            total_matches += chapter_total
+            for sentence_id, token_ids in chapter_tokens.items():
+                token_map.setdefault(sentence_id, set()).update(token_ids)
+        return ProjectSearchMatches(
+            results=results,
+            total_match_count=total_matches,
+            token_map=token_map,
+        )
+
+    def _chapter_search_matches(
+        self,
+        chapter: "Chapter",
+        needle: str,
+        scope: str,
+        normalized_oe: str | None,
+    ) -> tuple[builtins.list[SearchResult], int, dict[int, set[int]]]:
+        """
+        Collect search results for a chapter.
+
+        Args:
+            chapter: Chapter to search.
+            needle: Lowercased raw search pattern.
+            scope: Search scope.
+            normalized_oe: Normalized query for OE fields, if enabled.
+
+        Returns:
+            Tuple of ordered results, total match count, and sentence token map.
+
+        """
+        chapter_results: builtins.list[SearchResult] = []
+        chapter_total = 0
+        token_map: dict[int, set[int]] = {}
+        for section in sorted(chapter.sections, key=lambda item: item.number):
+            section_results, section_total, section_tokens = (
+                self._section_search_matches(
+                    section, chapter.id, needle, scope, normalized_oe
+                )
+            )
+            chapter_results.extend(section_results)
+            chapter_total += section_total
+            token_map.update(section_tokens)
+        return chapter_results, chapter_total, token_map
+
+    def _section_search_matches(
+        self,
+        section: "Section",
+        chapter_id: int,
+        needle: str,
+        scope: str,
+        normalized_oe: str | None,
+    ) -> tuple[builtins.list[SearchResult], int, dict[int, set[int]]]:
+        """
+        Collect search results for a section.
+
+        Args:
+            section: Section to search.
+            chapter_id: Owning chapter id.
+            needle: Lowercased raw search pattern.
+            scope: Search scope.
+            normalized_oe: Normalized query for OE fields, if enabled.
+
+        Returns:
+            Tuple of ordered results, total match count, and sentence token map.
+
+        """
+        results: builtins.list[SearchResult] = []
+        total = 0
+        token_map: dict[int, set[int]] = {}
+        for paragraph in sorted(section.paragraphs, key=lambda item: item.order):
+            for sentence in sorted(
+                paragraph.sentences, key=lambda item: item.display_order
+            ):
+                sentence_results, sentence_total, token_ids = (
+                    self._sentence_search_matches(
+                        chapter_id,
+                        section.id,
+                        sentence,
+                        needle,
+                        scope,
+                        normalized_oe,
+                    )
+                )
+                results.extend(sentence_results)
+                total += sentence_total
+                if token_ids:
+                    token_map[sentence.id] = token_ids
+        return results, total, token_map
+
+    def _sentence_search_matches(  # noqa: PLR0913
+        self,
+        chapter_id: int,
+        section_id: int,
+        sentence: Sentence,
+        needle: str,
+        scope: str,
+        normalized_oe: str | None,
+    ) -> tuple[builtins.list[SearchResult], int, set[int]]:
+        """
+        Collect search results for a sentence.
+
+        Args:
+            chapter_id: Owning chapter id.
+            section_id: Owning section id.
+            sentence: Sentence to search.
+            needle: Lowercased raw search pattern.
+            scope: Search scope.
+            normalized_oe: Normalized query for OE fields, if enabled.
+
+        Returns:
+            Tuple of ordered results, total match count, and matched token ids.
+
+        """
+        results: builtins.list[SearchResult] = []
+        total = 0
+        token_ids: set[int] = set()
+        if normalized_oe and scope in {"OE Text", "Notes", "All"}:
+            for token in sentence.sorted_tokens[0]:
+                token_id = token.id
+                if token_id is None:
+                    continue
+                surface = (
+                    token.surface_normalized
+                    or normalize_old_english(token.surface)
+                    or ""
+                )
+                if normalized_oe in surface:
+                    results.append(
+                        SearchResult(
+                            chapter_id,
+                            section_id,
+                            sentence.id,
+                            "oe_surface",
+                            token_id,
+                        )
+                    )
+                    total += 1
+                    token_ids.add(token_id)
+                root = (
+                    token.annotation.root_normalized
+                    or normalize_old_english(token.annotation.root)
+                    if token.annotation
+                    else None
+                )
+                if root and normalized_oe in root:
+                    results.append(
+                        SearchResult(
+                            chapter_id,
+                            section_id,
+                            sentence.id,
+                            "oe_root",
+                            token_id,
+                        )
+                    )
+                    total += 1
+                    token_ids.add(token_id)
+        if scope in {"ModE text", "All"} and sentence.text_modern:
+            count = sentence.text_modern.lower().count(needle)
+            if count > 0:
+                results.append(
+                    SearchResult(
+                        chapter_id,
+                        section_id,
+                        sentence.id,
+                        "mode_text",
+                        match_count=count,
+                    )
+                )
+                total += count
+        if scope in {"Notes", "All"}:
+            for note in sentence.sorted_notes:
+                count = note.note_text_md.lower().count(needle)
+                if count > 0:
+                    results.append(
+                        SearchResult(
+                            chapter_id,
+                            section_id,
+                            sentence.id,
+                            "note_text",
+                            match_count=count,
+                        )
+                    )
+                    total += count
+        return results, total, token_ids
 
 
 @event.listens_for(Session, "before_flush")

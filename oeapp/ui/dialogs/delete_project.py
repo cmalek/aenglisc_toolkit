@@ -14,7 +14,6 @@ from PySide6.QtWidgets import (
 )
 
 from oeapp.models.project import Project
-from oeapp.state import CURRENT_PROJECT_ID, ApplicationState
 from oeapp.utils import get_logo_pixmap
 
 from .new_project import NewProjectDialog
@@ -45,7 +44,7 @@ class DeleteProjectDialog:
         Initialize delete project dialog.
         """
         self.main_window = main_window
-        self.state = ApplicationState()
+        self.app_context = main_window.app_context
         self.selected_project_id: int | None = None
 
     def build(self) -> None:
@@ -163,7 +162,7 @@ class DeleteProjectDialog:
         """
         project = self._get_selected_project()
         if not project:
-            self.state.show_warning("Please select a project to delete.")
+            self.app_context.show_warning("Please select a project to delete.")
             return
 
         # Export the project using export_project_json
@@ -175,7 +174,7 @@ class DeleteProjectDialog:
         if export_success:
             self._delete_project(project)
 
-    def _delete_project(self, project: Project | None = None) -> None:
+    def _delete_project(self, project: Project | None = None) -> None:  # noqa: PLR0912
         """
         Delete the selected project.
 
@@ -187,7 +186,7 @@ class DeleteProjectDialog:
             project = self._get_selected_project()
 
         if not project:
-            self.state.show_warning("Please select a project to delete.")
+            self.app_context.show_warning("Please select a project to delete.")
             return
 
         # Confirm deletion
@@ -210,13 +209,13 @@ class DeleteProjectDialog:
             return
 
         # Check if this is the currently open project
-        is_current_project = self.state[CURRENT_PROJECT_ID] == project.id
+        is_current_project = self.app_context.current_project_id == project.id
 
         # Delete the project
         try:
             project.delete()
         except Exception as e:  # noqa: BLE001
-            self.state.show_error(
+            self.app_context.show_error(
                 f"Failed to delete project:\n{e!s}", title="Delete Error"
             )
             return
@@ -224,7 +223,7 @@ class DeleteProjectDialog:
         # If we deleted the current project, clear the UI
         if is_current_project:
             # Clear current project
-            del self.state[CURRENT_PROJECT_ID]
+            self.app_context.current_project_id = None
 
             # Clear sentence cards
             layout = cast("QVBoxLayout", self.main_window.content_layout)
@@ -239,8 +238,8 @@ class DeleteProjectDialog:
             self.main_window.sentence_cards = []
             if self.main_window.autosave_service:
                 self.main_window.autosave_service.cancel()
-            self.state.reset()
-            self.state.set_main_window(self.main_window)
+            self.app_context.reset()
+            self.app_context.set_main_window(self.main_window)
 
             # Reset window title
             self.main_window.setWindowTitle("Ænglisc Toolkit")
@@ -256,15 +255,15 @@ class DeleteProjectDialog:
                 self.dialog.accept()
                 OpenProjectDialog(self.main_window).execute()
 
-            self.state.show_message("Project deleted", duration=2000)
+            self.app_context.show_message("Project deleted", duration=2000)
         else:
             # Just close the dialog and show success
             self.dialog.accept()
-            self.state.show_information(
+            self.app_context.show_information(
                 f'Project "{project.name}" deleted successfully.',
                 title="Delete Successful",
             )
-            self.state.show_message("Project deleted", duration=2000)
+            self.app_context.show_message("Project deleted", duration=2000)
 
     def _add_button_box(self) -> None:
         """

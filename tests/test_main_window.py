@@ -3,45 +3,38 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
-from PySide6.QtCore import QPoint, Qt
+from PySide6.QtCore import QPoint
 from PySide6.QtGui import QCloseEvent
-from PySide6.QtWidgets import QLabel, QStatusBar, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QLabel, QStatusBar, QWidget
 
-from oeapp.ui.main_window import MainWindow, MainWindowActions, Messages
-from oeapp.state import (
-    ApplicationState,
-    COPIED_ANNOTATION,
-    CURRENT_PROJECT_ID,
-    SELECTED_SENTENCE_CARD,
-)
-from oeapp.models.project import Project
+from oeapp.state import AppContext
+from oeapp.ui.main_window import MainWindow
+
 
 @pytest.fixture
 def mock_services():
     """Fixture to mock MigrationService and BackupService."""
-    with patch("oeapp.ui.main_window.MigrationService") as mock_mig, \
-         patch("oeapp.ui.main_window.BackupService") as mock_back:
-        # Configure migration mock to return a default result
+    with (
+        patch("oeapp.ui.main_window.MigrationService") as mock_mig,
+        patch("oeapp.ui.main_window.BackupService") as mock_back,
+    ):
         mock_mig_instance = mock_mig.return_value
         mock_mig_instance.migrate.return_value = MagicMock(
             migration_version="abc",
-            app_version="1.0.0"
+            app_version="1.0.0",
         )
         yield mock_mig, mock_back
+
 
 @pytest.fixture
 def main_window(qapp, db_session, mock_services):
     """Fixture to create a MainWindow instance with mocked services."""
-    # Reset application state before creating window
-    state = ApplicationState()
-    state.reset()
-    state.session = db_session
-
-    window = MainWindow()
+    window = MainWindow(app_context=AppContext(session=db_session))
     yield window
     window.close()
     window.deleteLater()
     qapp.processEvents()
+
 
 class TestMainWindowInitialization:
     """Test cases for MainWindow initialization and basic layout."""
@@ -56,7 +49,6 @@ class TestMainWindowInitialization:
 
     def test_show_empty_state(self, main_window):
         """Test that the empty state is shown on startup."""
-        # Find the welcome label in the content layout
         welcome_label = None
         for i in range(main_window.content_layout.count()):
             widget = main_window.content_layout.itemAt(i).widget()
@@ -65,9 +57,8 @@ class TestMainWindowInitialization:
                 break
 
         assert welcome_label is not None
-        # In Qt, isVisible() is only true if the window is actually shown.
-        # For unit tests, we check that it's not explicitly hidden.
         assert not welcome_label.isHidden()
+
 
 class TestMainWindowActions:
     """Test cases for MainWindowActions logic."""
@@ -76,23 +67,18 @@ class TestMainWindowActions:
         """Test next_sentence and prev_sentence navigation logic."""
         actions = main_window.action_service
 
-        # Create mock cards
         mock_card1 = MagicMock()
         mock_card2 = MagicMock()
         mock_card3 = MagicMock()
 
-        # Manually populate sentence_cards
         actions.sentence_cards.extend([mock_card1, mock_card2, mock_card3])
 
-        # Initially nothing focused
         for card in [mock_card1, mock_card2, mock_card3]:
             card.has_focus = False
 
-        # next_sentence should focus first card if none focused
         actions.next_sentence()
         mock_card1.focus.assert_called_once()
 
-        # Now mock card 1 has focus
         mock_card1.has_focus = True
         actions.next_sentence()
         mock_card2.focus.assert_called_once()
@@ -102,23 +88,18 @@ class TestMainWindowActions:
         actions.next_sentence()
         mock_card3.focus.assert_called_once()
 
-        # prev_sentence when nothing focused should focus last card
         for card in [mock_card1, mock_card2, mock_card3]:
             card.has_focus = False
         actions.prev_sentence()
-        mock_card3.focus.assert_called_with() # second time called now (once by next, once by prev)
+        mock_card3.focus.assert_called_with()
 
-        # prev_sentence from card 3 should focus card 2
         mock_card3.has_focus = True
         actions.prev_sentence()
-        mock_card2.focus.assert_called_with() # second time called now total
+        mock_card2.focus.assert_called_with()
 
     def test_copy_annotation_state(self, main_window):
-        """Test that copy_annotation updates ApplicationState."""
+        """Test that copy_annotation updates AppContext copied annotation."""
         actions = main_window.action_service
-        state = main_window.application_state
-
-        # Mock a selected sentence card and token
         mock_token = MagicMock()
         mock_token.annotation = MagicMock(
             pos="N",
@@ -126,16 +107,15 @@ class TestMainWindowActions:
             number="s",
             case="n",
             modern_english_meaning="king",
-            root="cyning"
+            root="cyning",
         )
-        # Configure mock_token.annotation.to_json to return a dict
         mock_token.annotation.to_json.return_value = {
             "pos": "N",
             "gender": "m",
             "number": "s",
             "case": "n",
             "modern_english_meaning": "king",
-            "root": "cyning"
+            "root": "cyning",
         }
 
         mock_card = MagicMock()
@@ -143,59 +123,49 @@ class TestMainWindowActions:
         mock_card.oe_text_edit.current_token_index.return_value = 0
         mock_card.oe_text_edit.get_token.return_value = mock_token
 
-        state[SELECTED_SENTENCE_CARD] = mock_card
+        main_window.project_ui.set_selected_sentence_card(mock_card)
 
-        # Trigger copy
-        result = actions.copy_annotation()
-
-        assert result is True
-        assert COPIED_ANNOTATION in state
-        assert state[COPIED_ANNOTATION]["pos"] == "N"
-        assert state[COPIED_ANNOTATION]["modern_english_meaning"] == "king"
+        assert actions.copy_annotation() is True
+        assert main_window.app_context.copied_annotation is not None
+        assert main_window.app_context.copied_annotation["pos"] == "N"
+        assert (
+            main_window.app_context.copied_annotation["modern_english_meaning"]
+            == "king"
+        )
 
     @patch("oeapp.ui.main_window.AnnotateTokenCommand")
     def test_paste_annotation_state(self, mock_command, main_window):
-        """Test that paste_annotation uses the copied state."""
+        """Test that paste_annotation uses copied app-context state."""
         actions = main_window.action_service
-        state = main_window.application_state
-
-        # Setup copied annotation in state
         copied_data = {"pos": "V", "root": "gangan"}
-        state[COPIED_ANNOTATION] = copied_data
+        main_window.app_context.copied_annotation = copied_data
 
-        # Mock a selected token
         mock_token = MagicMock()
         mock_token.id = 123
         mock_token.annotation = None
 
         mock_card = MagicMock()
         mock_card.oe_text_edit = MagicMock()
-        mock_card.oe_text_edit.current_token_index.return_value = 0
+        mock_card.oe_text_edit.selector = MagicMock()
+        mock_card.oe_text_edit.selector.current_token_index.return_value = 0
         mock_card.oe_text_edit.get_token.return_value = mock_token
         mock_card.sentence = MagicMock()
 
-        state[SELECTED_SENTENCE_CARD] = mock_card
-        state.command_manager = MagicMock()
-        state.command_manager.execute.return_value = True
-        state.session = MagicMock()
+        main_window.project_ui.set_selected_sentence_card(mock_card)
+        main_window.app_context.command_manager = MagicMock()
+        main_window.app_context.command_manager.execute.return_value = True
+        main_window.app_context.session = MagicMock()
 
-        # Trigger paste
-        # We need to mock part_of_speech rendering to avoid KeyError in sidebar
-        with patch.object(main_window.token_details_sidebar, 'render_token'):
-            result = actions.paste_annotation()
+        with patch.object(main_window.token_details_sidebar, "render_token"):
+            assert actions.paste_annotation() is True
 
-        assert result is True
         mock_command.assert_called_once()
-        # Verify that the 'after' state in the command matches our copied data
-        kwargs = mock_command.call_args.kwargs
-        assert kwargs["after"] == copied_data
+        assert mock_command.call_args.kwargs["after"] == copied_data
 
     def test_status_bar_messages(self, main_window):
         """Test that Messages helper updates the status bar."""
         messages = main_window.messages
         messages.show_message("Test Message", duration=1000)
-
-        # In PySide6, we can check the message directly
         assert main_window.statusBar().currentMessage() == "Test Message"
 
     def test_ensure_visible_scrolls_to_show_full_card(self, main_window):
@@ -222,8 +192,7 @@ class TestMainWindowActions:
 
     def test_autosave_noops_without_current_project(self, main_window):
         """Autosave should safely no-op when no project is active."""
-        state = main_window.application_state
-        state.pop(CURRENT_PROJECT_ID, None)
+        main_window.app_context.current_project_id = None
         with (
             patch("oeapp.ui.main_window.Project.get") as mock_project_get,
             patch.object(main_window.messages, "show_message") as mock_show_message,
@@ -236,8 +205,7 @@ class TestMainWindowActions:
     def test_on_sentence_added_defers_focus_to_new_card(self, main_window):
         """Adding a sentence should focus the new card OE editor after reload."""
         project_ui = main_window.project_ui
-        state = main_window.application_state
-        state[CURRENT_PROJECT_ID] = 1
+        main_window.app_context.current_project_id = 1
 
         project = MagicMock()
         existing_card = MagicMock()
@@ -245,15 +213,17 @@ class TestMainWindowActions:
         new_card = MagicMock()
         new_card.sentence.id = 99
 
-        def fake_load(_project):
-            project_ui.sentence_cards = [existing_card, new_card]
-
         with (
-            patch("oeapp.ui.main_window.Project.get", return_value=project),
-            patch.object(project_ui, "load", side_effect=fake_load),
+            patch("oeapp.ui.project_workspace.Project.get", return_value=project),
+            patch.object(
+                project_ui,
+                "_reload_after_structure_change",
+                return_value=True,
+            ),
+            patch.object(project_ui, "find_sentence_card", return_value=new_card),
             patch.object(main_window, "reload_main_window"),
             patch.object(main_window, "ensure_visible") as mock_ensure_visible,
-            patch("oeapp.ui.main_window.QTimer.singleShot") as mock_single_shot,
+            patch("oeapp.ui.project_workspace.QTimer.singleShot") as mock_single_shot,
         ):
             project_ui._on_sentence_added(99)
 
@@ -265,6 +235,43 @@ class TestMainWindowActions:
             mock_ensure_visible.assert_called_once_with(new_card)
             new_card.enter_edit_mode.assert_called_once_with()
             new_card.flash_added.assert_called_once_with()
+
+    def test_reload_after_structure_change_preserves_command_manager(
+        self, main_window
+    ):
+        """Structural reload should keep the same command manager instance."""
+        project_ui = main_window.project_ui
+        manager = main_window.app_context.command_manager
+        main_window.app_context.current_project_id = 1
+
+        project = MagicMock()
+
+        with (
+            patch("oeapp.ui.project_workspace.Project.get", return_value=project),
+            patch.object(project_ui, "load"),
+            patch.object(main_window, "reload_main_window"),
+        ):
+            assert project_ui._reload_after_structure_change(
+                clear_search=False,
+                message="Sentences merged",
+            )
+
+        assert main_window.app_context.command_manager is manager
+        assert project_ui.command_manager is manager
+
+    def test_project_ui_selected_card_is_local_to_workspace(self, main_window):
+        """Selected sentence card should be workspace-local, not app context."""
+        project_ui = main_window.project_ui
+        mock_card = MagicMock()
+
+        project_ui.set_selected_sentence_card(mock_card)
+
+        assert project_ui.get_selected_sentence_card() is mock_card
+        assert main_window.action_service._selected_sentence_card() is mock_card
+
+        project_ui.clear_selected_sentence_card()
+
+        assert project_ui.get_selected_sentence_card() is None
 
 
 class TestMainWindowHelp:
@@ -294,18 +301,19 @@ class TestMainWindowHelp:
         existing_dialog.raise_.assert_called_once()
         existing_dialog.activateWindow.assert_called_once()
 
+
 class TestMainWindowStartupDialogs:
     """Test cases for startup dialog logic."""
 
     @patch("oeapp.ui.main_window.Project.first")
     @patch("oeapp.ui.main_window.OpenProjectDialog")
     @patch("oeapp.ui.main_window.NewProjectDialog")
-    def test_show_startup_dialog_with_projects(self, mock_new_dlg, mock_open_dlg, mock_project_first, main_window):
+    def test_show_startup_dialog_with_projects(
+        self, mock_new_dlg, mock_open_dlg, mock_project_first, main_window
+    ):
         """Test that OpenProjectDialog is shown if projects exist."""
-        # Mock projects exist
         mock_project_first.return_value = MagicMock()
 
-        # Trigger startup dialog logic
         main_window._show_startup_dialog()
 
         mock_open_dlg.assert_called_once_with(main_window)
@@ -315,12 +323,12 @@ class TestMainWindowStartupDialogs:
     @patch("oeapp.ui.main_window.Project.first")
     @patch("oeapp.ui.main_window.OpenProjectDialog")
     @patch("oeapp.ui.main_window.NewProjectDialog")
-    def test_show_startup_dialog_no_projects(self, mock_new_dlg, mock_open_dlg, mock_project_first, main_window):
+    def test_show_startup_dialog_no_projects(
+        self, mock_new_dlg, mock_open_dlg, mock_project_first, main_window
+    ):
         """Test that NewProjectDialog is shown if no projects exist."""
-        # Mock no projects exist
         mock_project_first.return_value = None
 
-        # Trigger startup dialog logic
         main_window._show_startup_dialog()
 
         mock_new_dlg.assert_called_once_with(main_window)
@@ -333,12 +341,8 @@ class TestMainWindowOptimizeHooks:
 
     def test_startup_runs_pragma_optimize(self, qapp, db_session, mock_services):
         """MainWindow should run PRAGMA optimize after migration handling."""
-        state = ApplicationState()
-        state.reset()
-        state.session = db_session
-
         with patch("oeapp.ui.main_window.run_pragma_optimize") as mock_optimize:
-            window = MainWindow()
+            window = MainWindow(app_context=AppContext(session=db_session))
             assert mock_optimize.call_count == 1
         window.close()
         window.deleteLater()
@@ -346,15 +350,11 @@ class TestMainWindowOptimizeHooks:
 
     def test_close_event_swallows_optimize_errors(self, qapp, db_session, mock_services):
         """Close should not fail even if optimize unexpectedly raises."""
-        state = ApplicationState()
-        state.reset()
-        state.session = db_session
-
         with patch(
             "oeapp.ui.main_window.run_pragma_optimize",
             side_effect=[True, RuntimeError("boom")],
         ):
-            window = MainWindow()
+            window = MainWindow(app_context=AppContext(session=db_session))
             event = QCloseEvent()
             window.closeEvent(event)
         window.deleteLater()

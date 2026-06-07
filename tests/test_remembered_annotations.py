@@ -10,7 +10,7 @@ import pytest
 from oeapp.models import Annotation, RememberedAnnotation
 from oeapp.services.import_export import ProjectExporter, ProjectImporter
 from oeapp.services.remembered_annotation_service import RememberedAnnotationService
-from oeapp.state import ApplicationState
+from oeapp.state import AppContext
 from oeapp.ui.dialogs.annotation_modal import AnnotationModal
 from oeapp.ui.menus import MainMenu
 
@@ -98,7 +98,7 @@ def test_apply_remembered_annotations_exact_match_precedence_and_undo(db_session
     assert tokens[2].id not in plan.affected_token_ids
     assert tokens[0].id not in plan.affected_token_ids
 
-    state = ApplicationState()
+    state = AppContext(session=db_session)
     assert state.command_manager.execute(plan.command)
 
     db_session.refresh(tokens[3])

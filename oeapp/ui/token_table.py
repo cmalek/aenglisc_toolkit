@@ -2,7 +2,7 @@
 
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QItemSelectionModel, QModelIndex, Qt, Signal
 from PySide6.QtGui import (
     QKeyEvent,
     QKeySequence,
@@ -10,35 +10,48 @@ from PySide6.QtGui import (
     QShowEvent,
 )  # Needed at runtime
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QHeaderView,
     QSizePolicy,
-    QTableWidget,
-    QTableWidgetItem,
+    QTableView,
     QVBoxLayout,
     QWidget,
 )
 
 from oeapp.models.token import Token
+from oeapp.ui.token_table_model import TokenTableModel
 
 if TYPE_CHECKING:
     from oeapp.models.annotation import Annotation
     from oeapp.ui.main_window import MainWindow
 
 
-class AnnotationTableWidget(QTableWidget):
+class AnnotationTableWidget(QTableView):
     """
-    Custom QTableWidget that intercepts "A" key to open annotation dialog.
+    Custom table view that intercepts "A" key to open annotation dialog.
 
-    This prevents QTableWidget's incremental search from handling "A" key
-    when a token is selected.
+    This prevents table-view incremental search from handling "A" key when a
+    token is selected.
+
+    Args:
+        parent: Parent widget
+
     """
 
+    #: Emitted when Shift+A is pressed while a token row is selected.
     annotation_key_pressed = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
-        """Initialize the custom table widget."""
+        """
+        Initialize the custom table widget.
+
+        Args:
+            parent: Parent widget
+
+        """
         super().__init__(parent)
-        self._token_table_ref: TokenTable | None = None  # Will be set by TokenTable
+        #: Parent :class:`TokenTable`, set via :meth:`set_token_table_ref`.
+        self._token_table_ref: TokenTable | None = None
 
     def set_token_table_ref(self, token_table: "TokenTable") -> None:
         """
@@ -119,6 +132,39 @@ class AnnotationTableWidget(QTableWidget):
         # For all other keys, use default behavior (including incremental search)
         super().keyPressEvent(event)
 
+    def currentRow(self) -> int:  # noqa: N802
+        """
+        Return currently selected row.
+
+        Returns:
+            Selected row index, or ``-1`` when no row is selected.
+
+        """
+        selected_rows = self.selectionModel().selectedRows()
+        if not selected_rows:
+            return -1
+        return selected_rows[0].row()
+
+    def rowCount(self) -> int:  # noqa: N802
+        """
+        Return model row count.
+
+        Returns:
+            Number of rows in the current model.
+
+        """
+        return self.model().rowCount()
+
+    def columnCount(self) -> int:  # noqa: N802
+        """
+        Return model column count.
+
+        Returns:
+            Number of columns in the current model.
+
+        """
+        return self.model().columnCount()
+
 
 class TokenTable(QWidget):
     """
@@ -136,6 +182,13 @@ class TokenTable(QWidget):
     annotation_requested = Signal(Token)
 
     def __init__(self, parent: QWidget | None = None) -> None:
+        """
+        Initialize the token annotation table widget.
+
+        Args:
+            parent: Parent widget
+
+        """
         super().__init__(parent)
         #: The tokens to display.
         self.tokens: list[Token] = []
@@ -143,6 +196,8 @@ class TokenTable(QWidget):
         self.annotations: dict[
             int, "Annotation"  # noqa: UP037
         ] = {}  # token_id -> Annotation
+        #: Qt table model backing the token annotation view.
+        self.model = TokenTableModel(parent=self)
         self._setup_ui()
 
     def _setup_ui(self) -> None:
@@ -160,38 +215,22 @@ class TokenTable(QWidget):
         """  # noqa: E501
         # Create the layout.
         layout = QVBoxLayout(self)
-        # Create the custom table widget that handles "A" key.
+        # Create the custom table view that handles "A" key.
         self.table = AnnotationTableWidget(self)
+        self.table.setModel(self.model)
         # Set reference to this TokenTable so the widget can check for selected token
         self.table.set_token_table_ref(self)
         # Connect the annotation key signal
         self.table.annotation_key_pressed.connect(self._on_annotation_key_pressed)
-        # Set the number of columns to 12.
-        self.table.setColumnCount(12)
-        # Set the horizontal header labels.
-        self.table.setHorizontalHeaderLabels(
-            [
-                "Word",
-                "POS",
-                "ModE",
-                "Root",
-                "Gender",
-                "Number",
-                "Case",
-                "Declension",
-                "PronounType",
-                "VerbClass",
-                "VerbForm",
-                "PrepObjCase",
-            ]
-        )
         self.table.horizontalHeader().setSectionResizeMode(
             QHeaderView.ResizeMode.Stretch
         )
         self.table.setAlternatingRowColors(True)
-        self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.table.itemDoubleClicked.connect(self._on_item_double_clicked)
-        self.table.itemSelectionChanged.connect(self._on_selection_changed)
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.table.doubleClicked.connect(self._on_index_double_clicked)
+        self.table.selectionModel().selectionChanged.connect(self._on_selection_changed)
         self.table.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
         )
@@ -210,6 +249,10 @@ class TokenTable(QWidget):
     def has_focus(self) -> bool:
         """
         Check if the token table has focus.
+
+        Returns:
+            ``True`` when the inner table widget has keyboard focus
+
         """
         return self.table.hasFocus()
 
@@ -217,6 +260,10 @@ class TokenTable(QWidget):
     def current_row(self) -> int:
         """
         Get the current row of the token table.
+
+        Returns:
+            Zero-based index of the selected row, or ``-1`` if none
+
         """
         return self.table.currentRow()
 
@@ -247,65 +294,10 @@ class TokenTable(QWidget):
         Args:
             tokens: List of tokens
 
-        Keyword Args:
-            annotations: Dictionary mapping ``token_id`` to
-                :class:`~oeapp.models.annotation.Annotation` objects
-
         """
-        # Set the tokens to display.
-        self.tokens = tokens
-        # Set the number of rows to the number of tokens.
-        self.table.setRowCount(len(tokens))
-        # Loop through the tokens and add them to the table.
-
-        for row, token in enumerate(tokens):
-            # Word
-            self.table.setItem(row, 0, QTableWidgetItem(token.surface))
-            # Get annotation for this token
-            annotation = token.annotation
-            if annotation:
-                # POS
-                self.table.setItem(row, 1, QTableWidgetItem(annotation.pos or "—"))
-                # ModE
-                self.table.setItem(
-                    row, 2, QTableWidgetItem(annotation.modern_english_meaning or "—")
-                )
-                # Root
-                self.table.setItem(row, 3, QTableWidgetItem(annotation.root or "—"))
-                # Gender
-                self.table.setItem(row, 4, QTableWidgetItem(annotation.gender or "—"))
-                # Number
-                self.table.setItem(row, 5, QTableWidgetItem(annotation.number or "—"))
-                # Case
-                self.table.setItem(row, 6, QTableWidgetItem(annotation.case or "—"))
-                # Declension
-                self.table.setItem(
-                    row, 7, QTableWidgetItem(annotation.declension or "—")
-                )
-                # PronounType
-                self.table.setItem(
-                    row, 8, QTableWidgetItem(annotation.pronoun_type or "—")
-                )
-                # VerbClass
-                self.table.setItem(
-                    row, 9, QTableWidgetItem(annotation.verb_class or "—")
-                )
-                # VerbForm
-                self.table.setItem(
-                    row, 10, QTableWidgetItem(annotation.verb_form or "—")
-                )
-                # VerbDirectObjectCase
-                self.table.setItem(
-                    row, 11, QTableWidgetItem(annotation.verb_direct_object_case or "—")
-                )
-                # PrepObjCase
-                self.table.setItem(
-                    row, 11, QTableWidgetItem(annotation.prep_case or "—")
-                )
-            else:
-                # Fill with "—" for unannotated tokens
-                for col in range(1, 12):
-                    self.table.setItem(row, col, QTableWidgetItem("—"))
+        self.model.set_tokens(tokens)
+        self.tokens = self.model.tokens
+        self.annotations = self.model.annotations
 
     def update_annotation(self, annotation: "Annotation") -> None:
         """
@@ -316,51 +308,8 @@ class TokenTable(QWidget):
 
         """
         assert annotation.token_id is not None, "Token ID is required"  # noqa: S101
-        # Update the annotation in the annotations dictionary.
-        self.annotations[annotation.token_id] = annotation
-        # Find token row
-        for row, token in enumerate(self.tokens):
-            if token.id == annotation.token_id:
-                # Update row
-                # POS
-                self.table.setItem(row, 1, QTableWidgetItem(annotation.pos or "—"))
-                # ModE
-                self.table.setItem(
-                    row, 2, QTableWidgetItem(annotation.modern_english_meaning or "—")
-                )
-                # Root
-                self.table.setItem(row, 3, QTableWidgetItem(annotation.root or "—"))
-                # Gender
-                self.table.setItem(row, 4, QTableWidgetItem(annotation.gender or "—"))
-                # Number
-                self.table.setItem(row, 5, QTableWidgetItem(annotation.number or "—"))
-                # Case
-                self.table.setItem(row, 6, QTableWidgetItem(annotation.case or "—"))
-                # Declension
-                self.table.setItem(
-                    row, 7, QTableWidgetItem(annotation.declension or "—")
-                )
-                # PronounType
-                self.table.setItem(
-                    row, 8, QTableWidgetItem(annotation.pronoun_type or "—")
-                )
-                # VerbClass
-                self.table.setItem(
-                    row, 9, QTableWidgetItem(annotation.verb_class or "—")
-                )
-                # VerbForm
-                self.table.setItem(
-                    row, 10, QTableWidgetItem(annotation.verb_form or "—")
-                )
-                # VerbDirectObjectCase
-                self.table.setItem(
-                    row, 11, QTableWidgetItem(annotation.verb_direct_object_case or "—")
-                )
-                # PrepObjCase
-                self.table.setItem(
-                    row, 12, QTableWidgetItem(annotation.prep_case or "—")
-                )
-                break
+        self.model.update_annotation(annotation)
+        self.annotations = self.model.annotations
 
     def get_selected_token(self) -> Token | None:
         """
@@ -390,11 +339,14 @@ class TokenTable(QWidget):
         """
         # If the token index is valid, select the row.
         if 0 <= token_index < len(self.tokens):
-            self.table.selectRow(token_index)
-            # Ensure the selected row is scrolled into view
-            item = self.table.item(token_index, 0)
-            if item:
-                self.table.scrollToItem(item)
+            index = self.model.index(token_index, 0)
+            selection_model = self.table.selectionModel()
+            selection_model.setCurrentIndex(
+                index,
+                QItemSelectionModel.SelectionFlag.ClearAndSelect
+                | QItemSelectionModel.SelectionFlag.Rows,
+            )
+            self.table.scrollTo(index)
 
     def select_token_by_id(self, token_id: int | None) -> None:
         """
@@ -419,24 +371,26 @@ class TokenTable(QWidget):
         Useful when the widget is shown again after being hidden.
         """
         if self.tokens:
-            self.set_tokens(self.tokens)
+            self.model.set_tokens(self.tokens)
+            self.tokens = self.model.tokens
+            self.annotations = self.model.annotations
 
     # -------------------------------------------------------------------------
     # Event handlers
     # -------------------------------------------------------------------------
 
-    def _on_item_double_clicked(self, item: QTableWidgetItem) -> None:
+    def _on_index_double_clicked(self, index: QModelIndex) -> None:
         """
-        Handle double-click on table item.
+        Handle double-click on table index.
 
-        - If the clicked item is not a token, do nothing.
-        - If the clicked item is a token, emit the token_selected signal.
+        - If the clicked row is not a token, do nothing.
+        - If the clicked row is a token, emit the token_selected signal.
 
         Args:
-            item: Clicked table item
+            index: Clicked table index
 
         """
-        row = item.row()
+        row = index.row()
         # If the row is valid, emit the token_selected signal.
         if 0 <= row < len(self.tokens):
             token = self.tokens[row]
@@ -495,7 +449,7 @@ class TokenTable(QWidget):
         super().showEvent(event)
         # Always refresh table when shown if we have stored tokens
         # This handles cases where Qt clears the table when hidden
-        # Check if table is empty or if we have tokens to refresh
-        if self.tokens and (self.table.rowCount() == 0 or not self.table.item(0, 0)):
-            # Table is empty or first item is missing - refresh it
+        # Check if model is empty or if we have tokens to refresh
+        if self.tokens and self.model.rowCount() == 0:
+            # Model is empty while stored tokens exist - refresh it
             self.refresh()

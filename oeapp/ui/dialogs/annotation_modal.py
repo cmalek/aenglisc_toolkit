@@ -4,7 +4,6 @@ from typing import TYPE_CHECKING, ClassVar, Final, cast
 
 from PySide6.QtCore import QObject, Qt, QTimer, Signal
 from PySide6.QtWidgets import (
-    QApplication,
     QCheckBox,
     QComboBox,
     QDialog,
@@ -23,6 +22,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from oeapp.models import Annotation, Idiom
 from oeapp.models.annotation_preset import AnnotationPreset
 from oeapp.services.annotation_preset_service import AnnotationPresetService
+from oeapp.ui.annotation_form_state import AnnotationFormState
 from oeapp.ui.dialogs.pos_form_system import (
     CLEAR_SENTINEL,
     AdjectiveFields,
@@ -45,16 +45,14 @@ if TYPE_CHECKING:
     from oeapp.models.remembered_annotation import RememberedAnnotation
     from oeapp.models.token import Token
     from oeapp.types import PresetPos
-
-
-# Backward-compatible alias expected by existing tests/importers.
-PartOfSpeechFormManager = AnnotationPosFormManager
+    from oeapp.ui.main_window import MainWindow
 
 __all__ = [
     "CLEAR_SENTINEL",
     "AdjectiveFields",
     "AdverbFields",
     "AnnotationModal",
+    "AnnotationPosFormManager",
     "ArticleFields",
     "ConjunctionFields",
     "InterjectionFields",
@@ -62,7 +60,6 @@ __all__ = [
     "NounFields",
     "NumberFields",
     "PartOfSpeechFieldsBase",
-    "PartOfSpeechFormManager",
     "PrepositionFields",
     "PronounFields",
     "VerbFields",
@@ -104,13 +101,14 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
     # Class-level state to remember last used values per POS type
     _last_values: ClassVar[dict[str, dict[str, int]]] = {}
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         token: "Token | None" = None,
         idiom: Idiom | None = None,
         remembered_annotation: "RememberedAnnotation | None" = None,
         annotation: Annotation | None = None,
         parent: QWidget | None = None,
+        main_window: "MainWindow | None" = None,
     ) -> None:
         """
         Initialize annotation modal.
@@ -124,6 +122,7 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         Keyword Args:
             annotation: Existing annotation (if any)
             parent: Parent widget
+            main_window: Main window used as preset-management dialog parent
 
         """
         # We need this here to avoid circular import
@@ -134,6 +133,11 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         self.token = token
         self.idiom = idiom
         self.remembered_annotation = remembered_annotation
+        self.main_window = main_window  #: Main window for preset-management parenting
+        if self.main_window is None and parent is not None and hasattr(
+            parent, "main_window"
+        ):
+            self.main_window = parent.main_window  #: Inherited from parent widget
         self.annotation: Annotation | RememberedAnnotation
 
         if self.remembered_annotation is not None:
@@ -148,7 +152,7 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
 
         self.preset_service = AnnotationPresetService()
         self.build()
-        self.part_of_speech_manager = PartOfSpeechFormManager(
+        self.part_of_speech_manager = AnnotationPosFormManager(
             cast("QVBoxLayout", self.fields_group.layout()), self.fields_group
         )
         AnnotationModalShortcuts(self).execute()
@@ -611,7 +615,11 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         Otherwise, set the POS combo to empty/None (index 0), clear
         the Part of Speech form, and clear the metadata.
         """
-        if not self.annotation.pos:
+        form_state = AnnotationFormState.from_annotation(
+            self.annotation,
+            remembered=self.remembered_annotation is not None,
+        )
+        if not form_state.pos:
             # No annotation exists, ensure POS combo is set to empty/None (index 0)
             # Block signals temporarily to prevent _on_pos_changed from firing
             self.pos_combo.blockSignals(True)  # noqa: FBT003
@@ -622,10 +630,9 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         # Set POS
         # Note: Index 0 is empty string, so POS options start at index 1
         pos_index = 0
-        if self.annotation.pos:
-            pos_text = self.PART_OF_SPEECH_MAP.get(self.annotation.pos)
-            if pos_text:
-                pos_index = self.pos_combo.findText(pos_text)
+        pos_text = self.PART_OF_SPEECH_MAP.get(form_state.pos)
+        if pos_text:
+            pos_index = self.pos_combo.findText(pos_text)
 
         # Block signals temporarily to prevent double-triggering
         self.pos_combo.blockSignals(True)  # noqa: FBT003
@@ -635,20 +642,10 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         # Trigger field creation
         self._on_pos_changed()
 
-        self.part_of_speech_manager.load_from_annotation(cast("Annotation", self.annotation))
-        # Load metadata
-        if self.remembered_annotation is None:
-            annotation = cast("Annotation", self.annotation)
-            if annotation.confidence is not None:
-                self.confidence_slider.setValue(annotation.confidence)
-        if self.annotation.modern_english_meaning:
-            self.modern_english_edit.setText(self.annotation.modern_english_meaning)
-        if self.remembered_annotation is None:
-            annotation = cast("Annotation", self.annotation)
-            if annotation.sense:
-                self.sense_edit.setText(annotation.sense)
-        if self.annotation.root:
-            self.root_edit.setText(self.annotation.root)
+        self.part_of_speech_manager.load_from_annotation(
+            cast("Annotation", self.annotation)
+        )
+        form_state.apply_metadata_to_modal(self)
 
     def save(self) -> None:
         """
@@ -662,47 +659,18 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         - Extract metadata
         - Save the annotation
         """
-        # Get POS
-        # Note: Index 0 is empty string, so we need to subtract 1 from the index
-        # to map to the correct POS code
-        combo_index = self.pos_combo.currentIndex()
-        if combo_index == 0:
-            # Empty selection
-            self.annotation.pos = None
-        else:
-            self.annotation.pos = self.PART_OF_SPEECH_REVERSE_MAP.get(
-                self.pos_combo.currentText()
-            )
+        form_state = AnnotationFormState.from_modal(self)
 
         # Save current values for future use
-        if self.annotation.pos:
-            self._last_values[self.annotation.pos] = (
+        if form_state.pos:
+            self._last_values[form_state.pos] = (
                 self.part_of_speech_manager.extract_indices()
             )
         # Update the annotation with the values from the Part of Speech form
-        self.part_of_speech_manager.update_annotation(cast("Annotation", self.annotation))
-
-        # Extract metadata
-        if self.remembered_annotation is None:
-            annotation = cast("Annotation", self.annotation)
-            annotation.confidence = self.confidence_slider.value()
-        modern_english_text = self.modern_english_edit.text().strip()
-        if modern_english_text:
-            self.annotation.modern_english_meaning = modern_english_text
-        else:
-            self.annotation.modern_english_meaning = None
-        if self.remembered_annotation is None:
-            annotation = cast("Annotation", self.annotation)
-            sense_text = self.sense_edit.text().strip()
-            if sense_text:
-                annotation.sense = sense_text
-            else:
-                annotation.sense = None
-        root_text = self.root_edit.text().strip()
-        if root_text:
-            self.annotation.root = root_text
-        else:
-            self.annotation.root = None
+        self.part_of_speech_manager.update_annotation(
+            cast("Annotation", self.annotation)
+        )
+        form_state.apply_to(self.annotation)
 
         self.annotation_applied.emit(self.annotation)
         self.accept()
@@ -903,48 +871,20 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         from oeapp.ui.dialogs.annotation_preset_management import (  # noqa: PLC0415
             AnnotationPresetManagementDialog,
         )
-        from oeapp.ui.main_window import MainWindow  # noqa: PLC0415
 
         pos = self.PART_OF_SPEECH_REVERSE_MAP.get(self.pos_combo.currentText())
         if not pos or pos not in ("N", "V", "A", "R", "D"):
             return
 
         field_values = self.part_of_speech_manager.extract_values()
-
-        main_window = None
-        app = QApplication.instance()
-        if app:
-            for _widget in QApplication.topLevelWidgets():
-                if isinstance(_widget, MainWindow):
-                    main_window = _widget
-                    break
-
-        if not main_window:
-            # If we can't find main_window, try to get it from parent chain
-            widget: QObject | None = self.parent()
-            while widget:
-                if hasattr(widget, "main_window"):
-                    main_window = widget.main_window
-                    break
-                widget = (
-                    cast("QObject", widget.parent())
-                    if hasattr(widget, "parent")
-                    else None
-                )
-
-        if not main_window:
-            QMessageBox.warning(
-                self,
-                "Error",
-                "Could not find main window. Please try again.",
-            )
-            return
+        preset_parent = self.main_window if self.main_window is not None else self
 
         try:
             dialog = AnnotationPresetManagementDialog(
                 save_mode=True,
                 initial_pos=cast("PresetPos", pos),
                 initial_field_values=field_values,
+                parent=preset_parent,
             )
             dialog.exec()
             # Refresh preset dropdown after dialog closes
@@ -985,9 +925,6 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         self.pos_combo.setCurrentIndex(0)
         # Clear the Part of Speech form
         self.part_of_speech_manager.reset()
-        # Clear the metadata fields
-        self.confidence_slider.setValue(100)
-        self.todo_check.setChecked(False)
-        self.modern_english_edit.clear()
-        self.sense_edit.clear()
-        self.root_edit.clear()
+        AnnotationFormState.cleared(
+            remembered=self.remembered_annotation is not None,
+        ).apply_metadata_to_modal(self)

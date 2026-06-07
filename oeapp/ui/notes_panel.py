@@ -14,14 +14,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from oeapp.state import ApplicationState
 from oeapp.ui.dialogs.note_dialog import NoteDialog
 from oeapp.utils import clear_layout
 
 if TYPE_CHECKING:
     from oeapp.models.note import Note
     from oeapp.models.sentence import Sentence
-    from oeapp.ui.main_window import MainWindow
     from oeapp.ui.sentence_card import SentenceCard
 
 
@@ -110,7 +108,9 @@ class NotesPanel(QWidget):
         assert sentence is not None, "Sentence must be provided"  # noqa: S101
         self.sentence = cast("Sentence", sentence)
         self.card = cast("SentenceCard", parent)
-        self.state = ApplicationState()
+        assert self.card.main_window is not None  # noqa: S101
+        self.main_window = self.card.main_window
+        self.app_context = self.main_window.app_context
         self.build()
 
     def build(self) -> None:
@@ -181,7 +181,7 @@ class NotesPanel(QWidget):
         """
         if sentence is not None:
             self.sentence = sentence
-        self.state.session.refresh(self.sentence, ["notes"])
+        self.app_context.session.refresh(self.sentence, ["notes"])
 
         layout = self.layout()
         if layout is None:
@@ -213,12 +213,10 @@ class NotesPanel(QWidget):
 
         # If there is an active search, re-apply it
         if (
-            hasattr(self.state.main_window, "search_input")
-            and cast("MainWindow", self.state.main_window).search_input.text()
+            hasattr(self.main_window, "search_input")
+            and self.main_window.search_input.text()
         ):
-            self.highlight_search(
-                cast("MainWindow", self.state.main_window).search_input.text()
-            )
+            self.highlight_search(self.main_window.search_input.text())
 
     def highlight_search(self, pattern: str) -> int:
         """
@@ -344,5 +342,5 @@ class NotesPanel(QWidget):
 
         :class:`~oeapp.ui.sentence_card.SentenceCard` will re-render the OE text.
         """
-        self.state.session.refresh(self.card.sentence)
+        self.app_context.session.refresh(self.card.sentence)
         self.update_notes()

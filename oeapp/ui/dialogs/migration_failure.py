@@ -13,8 +13,6 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from oeapp.state import ApplicationState
-
 if TYPE_CHECKING:
     from oeapp.ui.main_window import MainWindow
 
@@ -44,7 +42,7 @@ class MigrationFailureDialog:
         self.main_window = main_window
         self.error = error
         self.backup_app_version = backup_app_version
-        self.state = ApplicationState()
+        self.app_context = main_window.app_context
 
     def build(self) -> None:
         """
@@ -125,10 +123,10 @@ class MigrationFailureDialog:
             try:
                 Path(file_path).write_text(trace_str, encoding="utf-8")
             except (OSError, PermissionError) as e:
-                self.state.show_error(f"Failed to save stack trace: {e}")
+                self.app_context.show_error(f"Failed to save stack trace: {e}")
                 return
 
-            self.state.show_information(
+            self.app_context.show_information(
                 f"Stack trace saved to:\n{file_path}", title="Saved"
             )
 
@@ -141,7 +139,7 @@ class MigrationFailureDialog:
             )
         )
         clipboard.setText(trace_str)
-        self.state.show_message("Stack trace copied to clipboard")
+        self.app_context.show_message("Stack trace copied to clipboard")
 
     def execute(self) -> None:
         """

@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final, cast
 
 from sqlalchemy import Engine, create_engine, event
-from sqlalchemy.orm import DeclarativeBase, sessionmaker
+from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 if TYPE_CHECKING:
     import sqlite3
@@ -33,6 +33,16 @@ DEFAULT_SQLITE_TEMP_STORE: Final[str] = "MEMORY"
 DEFAULT_SQLITE_WAL_AUTOCHECKPOINT_PAGES: Final[int] = 2000
 
 _LOGGER = logging.getLogger(__name__)
+
+
+class _RuntimeState:
+    """Mutable runtime database state shared across modules."""
+
+    #: Runtime SQLAlchemy session shared by non-UI model and command helpers.
+    session: Session | None = None
+
+
+_RUNTIME_STATE = _RuntimeState()
 
 
 class Base(DeclarativeBase):
@@ -177,6 +187,58 @@ def create_engine_with_path(db_path: Path | None = None) -> Engine:
 # Create default engine and session factory
 _engine = create_engine_with_path()
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=_engine)
+
+
+def get_runtime_session(create: bool = True) -> Session:
+    """
+    Return the process runtime SQLAlchemy session.
+
+    Keyword Args:
+        create: Whether to lazily create a session when none is registered.
+
+    Raises:
+        RuntimeError: If no runtime session is registered and creation is disabled.
+
+    Returns:
+        Shared runtime session.
+
+    """
+    if _RUNTIME_STATE.session is None:
+        if not create:
+            msg = "Runtime database session is not configured."
+            raise RuntimeError(msg)
+        _RUNTIME_STATE.session = SessionLocal()
+    return _RUNTIME_STATE.session
+
+
+def set_runtime_session(session: Session) -> None:
+    """
+    Register the process runtime SQLAlchemy session.
+
+    Args:
+        session: Session to expose through :func:`get_runtime_session`.
+
+    Side Effects:
+        Replaces the module-level runtime session reference.
+
+    """
+    _RUNTIME_STATE.session = session
+
+
+def clear_runtime_session(close: bool = True) -> None:
+    """
+    Clear the process runtime SQLAlchemy session.
+
+    Keyword Args:
+        close: Whether to close the registered session before clearing it.
+
+    Side Effects:
+        May close and always unregister the module-level runtime session.
+
+    """
+    if _RUNTIME_STATE.session is not None and close:
+        _RUNTIME_STATE.session.close()
+    _RUNTIME_STATE.session = None
 
 
 def run_pragma_optimize(engine: Engine | None = None) -> bool:

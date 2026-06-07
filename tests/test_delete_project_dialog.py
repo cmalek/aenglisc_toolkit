@@ -28,7 +28,7 @@ class TestDeleteProjectDialog:
     def test_delete_project_dialog_loads_projects(self, mock_main_window, qapp):
         """Test DeleteProjectDialog loads projects into table."""
         # Create test projects
-        db_session = mock_main_window.application_state.session
+        db_session = mock_main_window.app_context.session
         project1 = create_test_project(db_session, name="Project 1", text="")
         project2 = create_test_project(db_session, name="Project 2", text="")
 
@@ -41,7 +41,7 @@ class TestDeleteProjectDialog:
     def test_delete_project_dialog_filters_projects(self, mock_main_window, qapp):
         """Test DeleteProjectDialog filters projects by search."""
         # Create test projects
-        db_session = mock_main_window.application_state.session
+        db_session = mock_main_window.app_context.session
         project1 = create_test_project(db_session, name="Alpha Project", text="")
         project2 = create_test_project(db_session, name="Beta Project", text="")
 
@@ -62,4 +62,3 @@ class TestDeleteProjectDialog:
         # Should still build without error
         assert dialog.dialog is not None
         assert dialog.project_table is not None
-

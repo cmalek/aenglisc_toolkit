@@ -24,12 +24,8 @@ from PySide6.QtWidgets import (
 )
 
 from oeapp.commands import (
-    AddSentenceCommand,
     AnnotateTokenCommand,
     CommandManager,
-    DeleteSentenceCommand,
-    EditSentenceCommand,
-    MergeSentenceCommand,
 )
 from oeapp.commands.hierarchy import (
     MergeChapterCommand,
@@ -42,16 +38,13 @@ from oeapp.mixins import TokenOccurrenceMixin
 from oeapp.models import Annotation, Idiom
 from oeapp.models.mixins import SessionMixin
 from oeapp.models.sentence import Sentence
-from oeapp.ui.dialogs import (
-    AnnotationModal,
-    NoteDialog,
-)
+from oeapp.ui.dialogs import NoteDialog
 from oeapp.ui.highlighting import SearchHighlighter, WholeSentenceHighlighter
 from oeapp.ui.mixins import AnnotationLookupsMixin
 from oeapp.ui.notes_panel import NotesPanel
 from oeapp.ui.oe_text_edit import OldEnglishTextEdit
+from oeapp.ui.sentence_card_controller import SentenceCardController
 from oeapp.ui.token_table import TokenTable
-from oeapp.utils import get_logo_pixmap
 
 if TYPE_CHECKING:
     from oeapp.models.token import Token
@@ -123,6 +116,8 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
         self._flash_restore_timer.timeout.connect(self._clear_added_flash)
         self.setObjectName("sentence-card")
         self.build()
+        #: Controller for command execution and annotation modal routing.
+        self.controller = SentenceCardController(self)
         self.edit_oe_button.clicked.connect(
             self.sentence_highlighter._on_edit_oe_clicked
         )
@@ -683,72 +678,10 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
         """
         Open annotation modal for selected token or idiom.
 
-        This is a bit complicated because we need to handle both single token
-        and idiom selections. And we need to handle both existing idioms and new
-        idioms.
-
-        Processing order:
-
-        1. If the selection is a token range:
-
-            a. If a token range is selected, and that range matches an existing idiom,
-               we need to open the idiom annotation modal with the existing
-               idiom annotation.
-            b. If a token range is selected, and that range does not match an
-               existing idiom, we need to open the idiom modal and create the new
-               idiom and annotation on apply.
-
-        2. If the selection is a single token:
-
-            a. If a single token is selected that is not part of an idiom, we
-               need to open the token annotation modal.  All individual tokens
-               always have an annotation, so we can just open the token
-               annotation modal and save the annotation on apply.
-            b. If a single token is selected that is part of an idiom, we need to
-               open the idiom annotation modal.  This can happen if the user is
-               using arrow keys to navigate through the text.
-
-        4. Open normal token modal: if no idiom or token is selected, we need to
-           is selected that is part of an idiom, we need to open the idiom modal.  This
-           can happen if the user is using arrow keys to navigate through the text.
-
+        Delegates routing to
+        :class:`~oeapp.ui.sentence_card_controller.SentenceCardController`.
         """
-        # 1. If the selection is a token range:
-        current_range = self.oe_text_edit.current_range()
-        if current_range:
-            start_order, end_order = current_range
-            idiom = self.oe_text_edit.find_idiom(start_order, end_order)
-            if idiom:
-                # Open the idiom annotation modal with the existing idiom annotation
-                self._open_idiom_modal(idiom)
-                return
-
-            # Open the idiom modal and create the new idiom and annotation on apply
-            self._open_new_idiom_modal(start_order, end_order)
-            return
-
-        # 2. If the selection is a single token:
-        token: Token | None = self.oe_text_edit.get_selected_token()
-        self.oe_text_edit.current_token_index()
-        if not token:
-            token = self.token_table.get_selected_token()
-
-        if not token:
-            # Select first token if none selected
-            if self.oe_text_edit.tokens:
-                token = self.oe_text_edit.tokens[0]
-                self.token_table.select_token(0)
-            else:
-                return
-
-        # Check if this token is part of an idiom
-        idiom = self.oe_text_edit.find_idiom(token.order_index)
-        if idiom:
-            self._open_idiom_modal(idiom)
-            return
-
-        # Open normal token modal
-        self._open_token_modal(token)
+        self.controller.open_annotation_modal()
 
     def _open_idiom_modal(self, idiom: Idiom) -> None:
         """
@@ -758,14 +691,7 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
             idiom: Idiom to open the annotation modal for
 
         """
-        annotation = idiom.annotation
-        if annotation is None:
-            annotation = Annotation(idiom_id=idiom.id)
-
-        # We'll need to update AnnotationModal to take a list of tokens or an Idiom
-        modal = AnnotationModal(idiom=idiom, annotation=annotation, parent=self)
-        modal.annotation_applied.connect(self._on_annotation_applied)
-        modal.exec()
+        self.controller.open_idiom_modal(idiom)
 
     def _open_new_idiom_modal(self, start_order: int, end_order: int) -> None:
         """
@@ -776,24 +702,7 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
             end_order: End token order index
 
         """
-        # Create a temporary idiom object (not saved yet)
-        start_token = self.oe_text_edit.get_token(start_order)
-        end_token = self.oe_text_edit.get_token(end_order)
-        if not start_token or not end_token:
-            return
-        idiom = Idiom(
-            sentence_id=self.sentence.id,
-            start_token_id=start_token.id,
-            end_token_id=end_token.id,
-        )
-        idiom.start_token = start_token
-        idiom.end_token = end_token
-
-        annotation = Annotation()
-
-        modal = AnnotationModal(idiom=idiom, annotation=annotation, parent=self)
-        modal.annotation_applied.connect(self._on_idiom_annotation_applied)
-        modal.exec()
+        self.controller.open_new_idiom_modal(start_order, end_order)
 
     def _open_token_modal(self, token: "Token") -> None:
         """
@@ -803,13 +712,7 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
             token: "Token" to open the annotation modal for
 
         """
-        annotation = token.annotation
-        if annotation is None and token.id:
-            annotation = Annotation.get_by_token(token.id)
-
-        modal = AnnotationModal(token=token, annotation=annotation, parent=self)
-        modal.annotation_applied.connect(self._on_annotation_applied)
-        modal.exec()
+        self.controller.open_token_modal(token)
 
     def _extract_annotation_state(self, annotation: Annotation) -> dict:
         """
@@ -1236,122 +1139,20 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
     def _on_edit_oe_clicked(self) -> None:
         """
         Handle Edit OE button click - enter edit mode.
-
-        This will enter edit mode and clear the temporary selection highlight
-        and re-apply the highlighting mode if active.
-
-        What this does:
-
-        1. Set edit mode
-        2. Clear any active idiom or single token selection
-        3. Save original text (plain text without superscripts) so we can restore it
-           if the user cancels the edit.
-        4. Set the text edit to the original text (remove superscripts)
-        5. Clear all highlighting
-        6. Clear token selection highlight
-        7. Reset highlighting dropdown to None (index 0)
-        8. Hide any open filter dialogs
-        9. Hide Edit OE button and Add Note button
-        10. Show Save OE and Cancel Edit buttons
-        11. Enable editing
-        12. Disconnect textChanged signal to prevent auto-tokenization while editing
-
         """
-        # Hide Edit OE button and Add Note button
-        self.edit_oe_button.setVisible(False)
-        self.add_note_button.setVisible(False)
-        # Show Save OE and Cancel Edit buttons
-        self.save_oe_button.setVisible(True)
-        self.cancel_edit_button.setVisible(True)
-        # Set edit mode
-        self.oe_text_edit.in_edit_mode = True
-        self.edit_mode_started.emit()
+        self.controller.on_edit_oe_clicked()
 
     def _on_save_oe_clicked(self) -> None:
         """
         Handle Save OE button click - save changes and exit edit mode.
-
-        This will save the changes to the Old English text and exit edit mode.
-        What this does:
-
-        1. Exit edit mode
-        2. Make read-only again
-        3. Hide Save OE and Cancel Edit buttons
-        4. Show Edit OE button
-        5. Show Add Note button
-        6. Reconnect textChanged signal
-        7. Get new text from the text edit and save it to the sentence
-        8. Re-render the text with Note superscripts and idiom italics
-        9. Clear original text saved in this instance
         """
-        # Get new text and save
-        if not self.command_manager or not self.sentence.id:
-            self.oe_text_edit.render_readonly_text()
-            return
-
-        new_text = self.oe_text_edit.live_text
-        old_text = self.sentence.text_oe
-
-        if new_text != old_text:
-            command = EditSentenceCommand(
-                sentence_id=self.sentence.id,
-                field="text_oe",
-                before=old_text,
-                after=new_text,
-            )
-            if self.command_manager.execute(command):
-                self.sentence.text_oe = new_text
-                # Show any messages from the command (e.g. deleted idioms)
-                if hasattr(command, "messages") and command.messages:
-                    for msg in command.messages:
-                        if self.main_window:
-                            self.main_window.messages.show_message(msg, duration=5000)
-
-                # Refresh tokens after retokenization
-                self.session.refresh(self.sentence)
-                self.set_tokens()
-                # Update notes display
-                self.notes_panel.update_notes()
-
-        # Make read-only again
-        self.oe_text_edit.in_edit_mode = False
-        # Hide Save OE and Cancel Edit buttons
-        self.save_oe_button.setVisible(False)
-        self.cancel_edit_button.setVisible(False)
-        # Show Edit OE button
-        self.edit_oe_button.setVisible(True)
-        # Show Add Note button
-        self.add_note_button.setVisible(True)
-        self.edit_mode_finished.emit()
+        self.controller.on_save_oe_clicked()
 
     def _on_cancel_edit_clicked(self) -> None:
         """
         Handle "Cancel Edit" button click - discard changes and exit edit mode.
-
-        What this does:
-
-        1. Exit edit mode
-        2. Restore original text (plain text without superscripts) to the text edit
-        3. Make the text edit read-only again so the user can't edit it
-        4. Hide Save OE and Cancel Edit buttons
-        5. Show Edit OE button and Add Note button
-        6. Reconnect textChanged signal so that the text edit will be auto-tokenized
-           once the user is done editing.
-        7. Re-render the text with Note superscripts and idiom italics
-        8. Clear original text
-
         """
-        # Restore original text
-        self.oe_text_edit.restore_original_text()
-        # Exit edit mode
-        self.oe_text_edit.in_edit_mode = False
-        # Hide Save OE and Cancel Edit buttons
-        self.save_oe_button.setVisible(False)
-        self.cancel_edit_button.setVisible(False)
-        # Show Edit OE button and Add Note button
-        self.edit_oe_button.setVisible(True)
-        self.add_note_button.setVisible(True)
-        self.edit_mode_finished.emit()
+        self.controller.on_cancel_edit_clicked()
 
     # -------------------------------------------------------------------------
     # Translation text edit related event handlers
@@ -1360,35 +1161,8 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
     def _on_translation_changed(self) -> None:
         """
         Handle translation text change.
-
-        This will save the changes to the Modern English text and exit edit mode.
-
-        What this does:
-
-        1. Get new text from the translation text edit
-        2. Get old text from the :class:`~oeapp.models.sentence.Sentence` model
-        3. If new text is different from old text, create an
-           :class:`~oeapp.commands.sentence.EditSentenceCommand`
-        4. Execute the command so that undo/redo operations are available for the
-           new text.  If the command is successful, the sentence model will be
-           updated with the new text.  If the command is not successful, the new
-           text will not be saved.
         """
-        if not self.command_manager or not self.sentence.id:
-            return
-
-        new_text = self.translation_edit.toPlainText()
-        old_text = self.sentence.text_modern or ""
-
-        if new_text != old_text:
-            command = EditSentenceCommand(
-                sentence_id=self.sentence.id,
-                field="text_modern",
-                before=old_text,
-                after=new_text,
-            )
-            if self.command_manager.execute(command):
-                self.sentence.text_modern = new_text
+        self.controller.on_translation_changed()
 
     # -------------------------------------------------------------------------
     # Sentence related event handlers
@@ -1397,176 +1171,23 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
     def _on_merge_clicked(self) -> None:
         """
         Handle merge button click.
-
-        - Queries for next sentence
-        - Shows confirmation dialog
-        - Executes merge command if confirmed
-        - Emits signal to refresh UI
         """
-        if not self.sentence.id:
-            return
-
-        next_sentence = Sentence.get_next_sentence(
-            self.sentence.project_id, self.sentence.display_order + 1
-        )
-        if next_sentence is None:
-            QMessageBox.warning(
-                self,
-                "No Next Sentence",
-                "There is no next sentence to merge with.",
-            )
-            return
-
-        # Show confirmation dialog
-        message = (
-            f"Merge sentence {self.sentence.display_order} "
-            f"with sentence {next_sentence.display_order}?\n\n"
-            f"This will combine the Old English text, Modern English translation, "
-            f"tokens, annotations, and notes from both sentences."
-        )
-        msg_box = QMessageBox(
-            QMessageBox.Icon.Question,
-            "Confirm Merge",
-            message,
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            self,
-        )
-        msg_box.setDefaultButton(QMessageBox.StandardButton.No)
-        # Set custom icon
-        logo_pixmap = get_logo_pixmap(75)
-        if logo_pixmap:
-            msg_box.setIconPixmap(logo_pixmap)
-        reply = msg_box.exec()
-
-        if reply != QMessageBox.StandardButton.Yes:
-            return
-
-        # Create and execute merge command
-        if not self.command_manager:
-            QMessageBox.warning(
-                self,
-                "Error",
-                "Command manager not available. Cannot perform merge.",
-            )
-            return
-
-        # Store before state
-        before_text_oe = self.sentence.text_oe
-        before_text_modern = self.sentence.text_modern
-
-        command = MergeSentenceCommand(
-            current_sentence_id=self.sentence.id,
-            next_sentence_id=next_sentence.id,
-            before_text_oe=before_text_oe,
-            before_text_modern=before_text_modern,
-        )
-
-        if self.command_manager.execute(command):
-            # Emit signal to refresh UI
-            if self.sentence.id:
-                self.sentence_merged.emit(self.sentence.id)
-        else:
-            QMessageBox.warning(
-                self,
-                "Merge Failed",
-                "Failed to merge sentences. Please try again.",
-            )
+        self.controller.on_merge_clicked()
 
     def _on_add_sentence_before_clicked(self) -> None:
         """
         Handle "Add Sentence: Before" button click.
-
-        Creates a new empty sentence before the current sentence.
         """
-        if not self.sentence.id or not self.command_manager:
-            return
-
-        command = AddSentenceCommand(
-            project_id=self.sentence.project_id,
-            reference_sentence_id=self.sentence.id,
-            position="before",
-        )
-
-        if self.command_manager.execute(command):
-            if command.new_sentence_id:
-                self.sentence_added.emit(command.new_sentence_id)
-        else:
-            QMessageBox.warning(
-                self,
-                "Add Sentence Failed",
-                "Failed to add sentence. Please try again.",
-            )
+        self.controller.on_add_sentence_before_clicked()
 
     def _on_add_sentence_after_clicked(self) -> None:
         """
         Handle "Add Sentence: After" button click.
-
-        Creates a new empty sentence after the current sentence.
         """
-        if not self.sentence.id or not self.command_manager:
-            return
-
-        command = AddSentenceCommand(
-            project_id=self.sentence.project_id,
-            reference_sentence_id=self.sentence.id,
-            position="after",
-        )
-
-        if self.command_manager.execute(command):
-            if command.new_sentence_id:
-                self.sentence_added.emit(command.new_sentence_id)
-        else:
-            QMessageBox.warning(
-                self,
-                "Add Sentence Failed",
-                "Failed to add sentence. Please try again.",
-            )
+        self.controller.on_add_sentence_after_clicked()
 
     def _on_delete_clicked(self) -> None:
         """
         Handle Delete button click.
-
-        Shows confirmation dialog and deletes the sentence if confirmed.
         """
-        if not self.sentence.id or not self.command_manager:
-            return
-
-        # Show confirmation dialog
-        message = (
-            f"Delete sentence {self.sentence.display_order}?\n\n"
-            f"This will permanently delete the sentence, including its "
-            f"Old English text, Modern English translation, tokens, "
-            f"annotations, and notes. This action can be undone."
-        )
-        msg_box = QMessageBox(
-            QMessageBox.Icon.Question,
-            "Confirm Delete",
-            message,
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            self,
-        )
-        msg_box.setDefaultButton(QMessageBox.StandardButton.No)
-        # Set custom icon
-        logo_pixmap = get_logo_pixmap(75)
-        if logo_pixmap:
-            msg_box.setIconPixmap(logo_pixmap)
-        reply = msg_box.exec()
-
-        if reply != QMessageBox.StandardButton.Yes:
-            return
-
-        # Create and execute delete command
-        command = DeleteSentenceCommand(
-            sentence_id=self.sentence.id,
-        )
-
-        if self.command_manager.execute(command):
-            # Emit signal to refresh UI
-            if self.sentence.id:
-                self.sentence_deleted.emit(self.sentence.id)
-        else:
-            QMessageBox.warning(
-                self,
-                "Delete Failed",
-                "Failed to delete sentence. Please try again.",
-            )
+        self.controller.on_delete_clicked()

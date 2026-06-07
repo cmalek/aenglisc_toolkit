@@ -11,7 +11,6 @@ from PySide6.QtWidgets import (
 )
 
 from oeapp.models.project import Project
-from oeapp.state import ApplicationState
 
 if TYPE_CHECKING:
     from oeapp.ui.main_window import MainWindow
@@ -42,7 +41,7 @@ class EditProjectDialog:
         """
         self.main_window = main_window
         self.project = project
-        self.state = ApplicationState()
+        self.app_context = main_window.app_context
 
     def build(self) -> None:
         """
@@ -112,7 +111,7 @@ class EditProjectDialog:
         """
         title = self.title_edit.text().strip()
         if not title:
-            self.state.show_error("Please enter a project title.")
+            self.app_context.show_error("Please enter a project title.")
             return
 
         source = self.source_edit.toPlainText().strip() or None
@@ -121,7 +120,9 @@ class EditProjectDialog:
 
         # Check if title changed and if new title already exists
         if title != self.project.name and Project.exists(title):
-            self.state.show_error(f'Project with title "{title}" already exists.')
+            self.app_context.show_error(
+                f'Project with title "{title}" already exists.'
+            )
             return
 
         self.project.name = title
@@ -131,10 +132,10 @@ class EditProjectDialog:
         try:
             self.project.save()
         except sqlalchemy.exc.SQLAlchemyError as e:
-            self.state.show_error(f"Failed to update project: {e!s}")
+            self.app_context.show_error(f"Failed to update project: {e!s}")
         else:
             self.main_window.setWindowTitle(f"Ænglisc Toolkit - {self.project.name}")
-            self.state.show_message("Project updated")
+            self.app_context.show_message("Project updated")
             self.dialog.accept()
 
     def execute(self) -> None:

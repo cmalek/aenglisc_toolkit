@@ -295,7 +295,6 @@ class AnnotationPresetManagementDialog(AnnotationLookupsMixin, SessionMixin, QDi
         Side Effects:
             - Creates a new preset pos form manager for the POS
             - Stores the preset pos form manager in :attr:`save_mode_manager`
-            - Binds the dialog attributes to the preset pos form manager
 
         Args:
             pos: POS to populate the form fields for
@@ -307,7 +306,37 @@ class AnnotationPresetManagementDialog(AnnotationLookupsMixin, SessionMixin, QDi
         self.save_mode_manager = PresetPosFormManager(
             pos, self.form_layout, self.form_widget
         )
-        self.save_mode_manager.bind_dialog_attributes(self)
+
+    def field_widget(
+        self,
+        attr: str,
+        pos: "PresetPos | None" = None,
+    ) -> QComboBox | None:
+        """
+        Return a managed preset-field combo widget.
+
+        Args:
+            attr: Field attribute name.
+
+        Keyword Args:
+            pos: Explicit POS tab to inspect in full mode.
+
+        Returns:
+            Managed combo box, or ``None`` when unavailable.
+
+        """
+        if self.save_mode:
+            if self.save_mode_manager is None:
+                return None
+            return self.save_mode_manager.field(attr)
+
+        target_pos = pos or self._current_tab_pos()
+        if target_pos is None:
+            return None
+        manager = self.tab_form_managers.get(target_pos)
+        if manager is None:
+            return None
+        return manager.field(attr)
 
     def _load_presets_for_pos(self, pos: "PresetPos") -> None:
         """

@@ -12,7 +12,6 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import QTextEdit, QWidget
 
 from oeapp.models import Idiom
-from oeapp.state import CURRENT_PROJECT_ID, ApplicationState
 from oeapp.ui.highlighting import (
     SearchHighlighter,
     SingleInstanceHighlighter,
@@ -1297,8 +1296,11 @@ class OldEnglishTextEdit(QTextEdit):
         remember_global.setEnabled(can_remember)
         remember_project.setEnabled(can_remember)
 
-        state = ApplicationState()
-        project_id = state.get(CURRENT_PROJECT_ID)
+        project_id = (
+            self._main_window.app_context.current_project_id
+            if self._main_window is not None
+            else None
+        )
         remember_project.setEnabled(can_remember and isinstance(project_id, int))
 
         if can_remember:

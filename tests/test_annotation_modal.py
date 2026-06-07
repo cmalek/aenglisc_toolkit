@@ -1,29 +1,31 @@
 """Unit tests for AnnotationModal and related POS field classes."""
 
-import pytest
 import weakref
 from unittest.mock import MagicMock
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QFormLayout, QWidget, QVBoxLayout, QApplication
 
+import pytest
 from oeapp.models import Annotation, Idiom
 from oeapp.models.annotation_preset import AnnotationPreset
+from oeapp.ui.annotation_form_state import AnnotationFormState
 from oeapp.ui.dialogs.annotation_modal import (
-    PartOfSpeechFieldsBase,
-    NounFields,
-    VerbFields,
-    PronounFields,
-    PrepositionFields,
+    CLEAR_SENTINEL,
     AdjectiveFields,
-    ArticleFields,
     AdverbFields,
+    AnnotationPosFormManager,
+    AnnotationModal,
+    ArticleFields,
     ConjunctionFields,
     InterjectionFields,
-    PartOfSpeechFormManager,
-    AnnotationModal,
     NoneFields,
-    CLEAR_SENTINEL
+    NounFields,
+    PartOfSpeechFieldsBase,
+    PrepositionFields,
+    PronounFields,
+    VerbFields,
 )
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QApplication, QFormLayout, QVBoxLayout, QWidget
+
 from tests.conftest import create_test_project, create_test_sentence
 
 
@@ -203,7 +205,7 @@ class TestPartOfSpeechFormManager:
     def manager(self):
         parent = QWidget()
         layout = QVBoxLayout(parent)
-        return PartOfSpeechFormManager(layout, parent)
+        return AnnotationPosFormManager(layout, parent)
 
     def test_select_pos(self, manager):
         manager.select("N")
@@ -322,6 +324,50 @@ class TestPOSFieldModelMapping:
         assert attr in fields_obj.lookup_map
         assert fields_obj.lookup_map[attr] == expected_map
 
+
+class TestAnnotationFormState:
+    """Test cases for AnnotationFormState."""
+
+    def test_from_annotation_remembered_omits_confidence_and_sense(self):
+        """Remembered targets should not carry confidence or sense in form state."""
+        from oeapp.models.remembered_annotation import RememberedAnnotation
+
+        remembered = RememberedAnnotation(
+            token_text="sæ",
+            pos="N",
+            modern_english_meaning="sea",
+            root="sæ",
+        )
+        state = AnnotationFormState.from_annotation(remembered, remembered=True)
+
+        assert state.pos == "N"
+        assert state.confidence == 100
+        assert state.modern_english_meaning == "sea"
+        assert state.sense is None
+        assert state.root == "sæ"
+        assert not state.include_confidence
+        assert not state.include_sense
+
+    def test_apply_to_remembered_skips_confidence_and_sense(self):
+        """Remembered save should not write confidence or sense attributes."""
+        from oeapp.models.remembered_annotation import RememberedAnnotation
+
+        remembered = RememberedAnnotation(token_text="sæ")
+        state = AnnotationFormState(
+            pos="N",
+            confidence=42,
+            sense="discarded",
+            modern_english_meaning="sea",
+            root="sæ",
+            include_confidence=False,
+            include_sense=False,
+        )
+        state.apply_to(remembered)
+
+        assert remembered.pos == "N"
+        assert remembered.modern_english_meaning == "sea"
+        assert remembered.root == "sæ"
+        assert not hasattr(remembered, "sense")
 
 class TestAnnotationModal:
     """Test cases for AnnotationModal."""
@@ -502,6 +548,29 @@ class TestAnnotationModal:
         assert modal.root_edit.text() == ""
         assert modal.todo_check.isChecked() == False
 
+    def test_from_modal_round_trip_metadata(self, qtbot, token):
+        """Modal widgets should round-trip through form state."""
+        modal = AnnotationModal(token=token)
+        qtbot.addWidget(modal)
+
+        modal.confidence_slider.setValue(65)
+        modal.modern_english_edit.setText("meaning")
+        modal.sense_edit.setText("sense")
+        modal.root_edit.setText("root")
+        modal.todo_check.setChecked(True)
+
+        state = AnnotationFormState.from_modal(modal)
+        modal.modern_english_edit.clear()
+        modal.sense_edit.clear()
+        modal.root_edit.clear()
+        state.apply_metadata_to_modal(modal)
+
+        assert modal.confidence_slider.value() == 65
+        assert modal.modern_english_edit.text() == "meaning"
+        assert modal.sense_edit.text() == "sense"
+        assert modal.root_edit.text() == "root"
+        assert modal.todo_check.isChecked()
+
     def test_confidence_label_updates_on_slider_move(self, qtbot, token):
         """Test that the confidence label updates when slider value changes."""
         modal = AnnotationModal(token=token)
@@ -512,6 +581,47 @@ class TestAnnotationModal:
 
         modal.confidence_slider.setValue(0)
         assert modal.confidence_label.text() == "0%"
+
+    def test_main_window_injected_from_parent(self, qtbot, token):
+        """Annotation modal should inherit main_window from parent collaborators."""
+        parent = QWidget()
+        parent.main_window = MagicMock(name="main_window")  # type: ignore[attr-defined]
+
+        modal = AnnotationModal(token=token, parent=parent)
+        qtbot.addWidget(modal)
+
+        assert modal.main_window is parent.main_window
+
+    def test_save_as_preset_uses_injected_main_window_parent(
+        self, qtbot, token, monkeypatch
+    ):
+        """Save as Preset should parent the management dialog on injected main window."""
+        main_window = QWidget()
+        parent = QWidget()
+        parent.main_window = main_window  # type: ignore[attr-defined]
+
+        modal = AnnotationModal(token=token, parent=parent)
+        qtbot.addWidget(modal)
+        modal.pos_combo.setCurrentText("Noun (N)")
+
+        captured: dict[str, object] = {}
+
+        class FakePresetDialog:
+            def __init__(self, **kwargs):
+                captured.update(kwargs)
+
+            def exec(self):
+                return 0
+
+        monkeypatch.setattr(
+            "oeapp.ui.dialogs.annotation_preset_management.AnnotationPresetManagementDialog",
+            FakePresetDialog,
+        )
+
+        modal._on_save_as_preset()
+
+        assert captured["parent"] is main_window
+        assert captured["save_mode"] is True
 
 
 class TestAnnotationModalLifecycle:

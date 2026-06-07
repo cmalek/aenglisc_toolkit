@@ -1,6 +1,6 @@
 """Note dialog for adding/editing notes."""
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from PySide6.QtCore import Signal
 from PySide6.QtGui import QFont
@@ -16,7 +16,6 @@ from PySide6.QtWidgets import (
 
 from oeapp.commands import AddNoteCommand, DeleteNoteCommand, UpdateNoteCommand
 from oeapp.models.note import Note
-from oeapp.state import ApplicationState
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -61,8 +60,14 @@ class NoteDialog(QDialog):
         self.note = note
         self.is_editing = note is not None
         self.session = session
-        self.state = ApplicationState()
-        self.command_manager = self.state.command_manager
+        self.app_context = (
+            cast("object", parent).main_window.app_context  # type: ignore[attr-defined]
+            if parent is not None and hasattr(parent, "main_window")
+            else None
+        )
+        self.command_manager = (
+            self.app_context.command_manager if self.app_context is not None else None
+        )
         self.build()
 
     def build(self) -> None:
@@ -170,7 +175,10 @@ class NoteDialog(QDialog):
             self.reject()
             return
 
-        session: Session = self.state.session
+        session: Session | None = self.session
+        if session is None and self.app_context is not None:
+            session = self.app_context.session
+        assert session is not None, "Session is required for note editing"  # noqa: S101
         command: UpdateNoteCommand | AddNoteCommand | None = None
         try:
             if self.is_editing and self.note:
@@ -257,7 +265,7 @@ class NoteDialog(QDialog):
                     self.accept()
                     return
         except Exception:
-            if not self.session:  # Only rollback if we created the session
+            if self.session is None:
                 session.rollback()
             raise
 
@@ -284,5 +292,8 @@ class NoteDialog(QDialog):
                 self.accept()
                 return
         except Exception:
-            self.state.session.rollback()
+            if self.session is not None:
+                self.session.rollback()
+            elif self.app_context is not None:
+                self.app_context.session.rollback()
             raise

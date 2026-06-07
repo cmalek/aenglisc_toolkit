@@ -38,6 +38,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from oeapp.models.text_flow import (
+    plain_text_separator,
+    sentence_separator_kind,
+    visible_titles,
+)
 from oeapp.services.export_pdf import FullTranslationPDFExporter
 from oeapp.ui.highlighting import SearchHighlighter
 from oeapp.ui.mixins import ThemeMixin
@@ -48,7 +53,6 @@ from oeapp.ui.widgets import HorizontalSeparatorWidget
 if TYPE_CHECKING:
     from oeapp.models import Idiom, Note
     from oeapp.models.project import Project
-    from oeapp.models.sentence import Sentence
     from oeapp.models.token import Token
     from oeapp.ui.main_window import MainWindow
 
@@ -59,97 +63,6 @@ TOKEN_HIGHLIGHT_PROPERTY: Final[int] = QTextFormat.UserProperty + 11  # type: ig
 SENTENCE_HIGHLIGHT_PROPERTY: Final[int] = QTextFormat.UserProperty + 12  # type: ignore[attr-defined]
 NOTE_ID_PROPERTY: Final[int] = QTextFormat.UserProperty + 13  # type: ignore[attr-defined]
 NOTE_HIGHLIGHT_PROPERTY: Final[int] = QTextFormat.UserProperty + 14  # type: ignore[attr-defined]
-
-
-def _is_paragraph_start(sentence: "Sentence") -> bool:
-    """
-    Return ``True`` when sentence is first in its paragraph.
-
-    Args:
-        sentence: Sentence to inspect.
-
-    Returns:
-        ``True`` if sentence starts its paragraph.
-
-    """
-    if not sentence.paragraph:
-        return False
-    ordered = sorted(sentence.paragraph.sentences, key=lambda s: s.display_order)
-    return bool(ordered and ordered[0].id == sentence.id)
-
-
-def _visible_titles(
-    previous: "Sentence | None", current: "Sentence"
-) -> list[str]:
-    """
-    Resolve visible chapter/section titles for sentence boundary.
-
-    Args:
-        previous: Previous rendered sentence.
-        current: Current sentence.
-
-    Returns:
-        List of titles to render (official titles only).
-
-    """
-    titles: list[str] = []
-    current_section = current.paragraph.section if current.paragraph else None
-    current_chapter = current_section.chapter if current_section else None
-    previous_section = (
-        previous.paragraph.section if previous and previous.paragraph else None
-    )
-    previous_chapter = previous_section.chapter if previous_section else None
-
-    chapter_changed = (
-        current_chapter is not None
-        and (previous_chapter is None or current_chapter.id != previous_chapter.id)
-    )
-    if (
-        current_chapter is not None
-        and chapter_changed
-        and current_chapter.title
-        and not current_chapter.title_auto
-    ):
-        titles.append(current_chapter.title)
-
-    section_changed = (
-        current_section is not None
-        and (previous_section is None or current_section.id != previous_section.id)
-    )
-    if (
-        current_section is not None
-        and section_changed
-        and current_section.title
-        and not current_section.title_auto
-    ):
-        titles.append(current_section.title)
-    return titles
-
-
-def _separator(
-    previous: "Sentence | None",
-    current: "Sentence",
-    has_titles: bool,
-) -> str:
-    """
-    Compute sentence separator for prose/verse flow.
-
-    Args:
-        previous: Previous rendered sentence.
-        current: Current sentence.
-        has_titles: Whether title lines were inserted before ``current``.
-
-    Returns:
-        Separator text to insert before ``current``.
-
-    """
-    if previous is None or has_titles:
-        return ""
-    if current.is_verse:
-        return "\n" if previous.is_verse else "\n\n"
-    if previous.is_verse:
-        return "\n\n"
-    return "\n\n" if _is_paragraph_start(current) else " "
 
 
 def _indent_multiline_plain(text: str, spaces: int = 4) -> str:
@@ -228,14 +141,16 @@ class FullProjectOldEnglishTextEdit(ThemeMixin, OldEnglishTextEdit):
         previous_sentence = None
         for sentence in self.project.sentences:
             sentence_id = cast("int", sentence.id)
-            titles = _visible_titles(previous_sentence, sentence)
+            titles = visible_titles(previous_sentence, sentence)
             if titles:
                 if cursor.position() > 0:
                     cursor.insertText("\n\n")
                 cursor.insertText("\n".join(titles))
                 cursor.insertText("\n")
 
-            gap = _separator(previous_sentence, sentence, bool(titles))
+            gap = plain_text_separator(
+                sentence_separator_kind(previous_sentence, sentence, bool(titles))
+            )
             if gap:
                 cursor.insertText(gap)
 
@@ -624,14 +539,16 @@ class FullProjectModernEnglishTextEdit(ThemeMixin, QTextEdit):
         previous_sentence = None
         for sentence in self.project.sentences:
             sentence_id = cast("int", sentence.id)
-            titles = _visible_titles(previous_sentence, sentence)
+            titles = visible_titles(previous_sentence, sentence)
             if titles:
                 if cursor.position() > 0:
                     cursor.insertText("\n\n")
                 cursor.insertText("\n".join(titles))
                 cursor.insertText("\n")
 
-            gap = _separator(previous_sentence, sentence, bool(titles))
+            gap = plain_text_separator(
+                sentence_separator_kind(previous_sentence, sentence, bool(titles))
+            )
             if gap:
                 cursor.insertText(gap)
 

@@ -1,17 +1,17 @@
 """Unit tests for SentenceCard."""
 
-import pytest
-from PySide6.QtCore import QPoint, Qt
-from PySide6.QtGui import QKeyEvent
-from PySide6.QtWidgets import QComboBox, QWidget
 from unittest.mock import MagicMock
 
 from oeapp.commands import CommandManager
 from oeapp.models import Annotation
 from oeapp.models.idiom import Idiom
 from oeapp.models.token import Token
-from oeapp.ui.sentence_card import SentenceCard
 from oeapp.ui.oe_text_edit import OldEnglishTextEdit
+from oeapp.ui.sentence_card import SentenceCard
+from PySide6.QtCore import QPoint, Qt
+from PySide6.QtGui import QKeyEvent
+from PySide6.QtWidgets import QComboBox
+
 from tests.conftest import create_test_project, create_test_sentence
 
 
@@ -534,9 +534,10 @@ class TestOldEnglishTextEditInternal:
 
     def test_clickable_text_edit_ignores_arrows(self, qapp, mock_main_window):
         """Test that OldEnglishTextEdit ignores arrow keys so they bubble up when read-only."""
+        from unittest.mock import PropertyMock
+
         from PySide6.QtCore import Qt
         from PySide6.QtGui import QKeyEvent
-        from unittest.mock import PropertyMock
 
         widget = OldEnglishTextEdit(parent=None)
         # We need a mock sentence and card for it to work properly

@@ -5,6 +5,13 @@ import pytest
 from oeapp.models.annotation_preset import AnnotationPreset
 
 
+def _field(dialog, attr: str):
+    """Return one managed preset combo for save-mode tests."""
+    combo = dialog.field_widget(attr)
+    assert combo is not None
+    return combo
+
+
 class TestAnnotationPresetManagementDialog:
     """Test cases for AnnotationPresetManagementDialog."""
 
@@ -123,12 +130,11 @@ class TestAnnotationPresetManagementDialog:
         dialog = AnnotationPresetManagementDialog(
             save_mode=True, initial_pos="N"
         )
+        gender_combo = _field(dialog, "gender")
 
-        # Check that gender_combo has empty as first item and "Clear" as second
-        assert hasattr(dialog, "gender_combo")
-        assert dialog.gender_combo.count() > 1
-        assert dialog.gender_combo.itemText(0) == ""  # Empty first
-        assert dialog.gender_combo.itemText(1) == "Clear"  # Clear second
+        assert gender_combo.count() > 1
+        assert gender_combo.itemText(0) == ""
+        assert gender_combo.itemText(1) == "Clear"
 
     def test_extract_field_values_with_clear_selected(self, qapp, db_session):
         """Test that selecting empty extracts as None and 'Clear' extracts as CLEAR_SENTINEL."""
@@ -138,15 +144,15 @@ class TestAnnotationPresetManagementDialog:
         dialog = AnnotationPresetManagementDialog(
             save_mode=True, initial_pos="N"
         )
+        gender_combo = _field(dialog, "gender")
+        number_combo = _field(dialog, "number")
+        case_combo = _field(dialog, "case")
 
-        # Set combo to empty (index 0)
-        dialog.gender_combo.setCurrentIndex(0)
-        # Set combo to "Clear" (index 1)
-        dialog.number_combo.setCurrentIndex(1)
+        gender_combo.setCurrentIndex(0)
+        number_combo.setCurrentIndex(1)
 
-        # Set case to a real value (index 2, accounting for empty at 0 and Clear at 1)
-        if dialog.case_combo.count() > 2:
-            dialog.case_combo.setCurrentIndex(2)
+        if case_combo.count() > 2:
+            case_combo.setCurrentIndex(2)
 
         field_values = dialog._extract_field_values()
 
@@ -155,8 +161,7 @@ class TestAnnotationPresetManagementDialog:
         # "Clear" (index 1) should extract as CLEAR_SENTINEL (explicitly clear field)
         assert field_values.get("number") == CLEAR_SENTINEL
         # Index 2+ should extract as actual value (with offset of 1)
-        if dialog.case_combo.count() > 2:
-            # Case at index 2 should map to REVERSE_MAP[1] (2-1=1)
+        if case_combo.count() > 2:
             assert field_values.get("case") is not None
 
     def test_set_combo_value_sets_empty_for_none(self, qapp, db_session):
@@ -170,14 +175,13 @@ class TestAnnotationPresetManagementDialog:
         dialog = AnnotationPresetManagementDialog(
             save_mode=True, initial_pos="N"
         )
+        gender_combo = _field(dialog, "gender")
 
-        # Set combo to a non-zero value first
-        if dialog.gender_combo.count() > 2:
-            dialog.gender_combo.setCurrentIndex(2)
-            # Now set to None - should go to index 0 (empty), not index 1 ("Clear")
-            dialog._set_combo_value(dialog.gender_combo, None, dialog.GENDER_REVERSE_MAP)
-            assert dialog.gender_combo.currentIndex() == 0
-            assert dialog.gender_combo.currentText() == ""  # Empty string, not "Clear"
+        if gender_combo.count() > 2:
+            gender_combo.setCurrentIndex(2)
+            dialog._set_combo_value(gender_combo, None, dialog.GENDER_REVERSE_MAP)
+            assert gender_combo.currentIndex() == 0
+            assert gender_combo.currentText() == ""
 
     def test_save_preset_with_clear_values(self, qapp, db_session):
         """Test saving a preset with 'Clear' selected for some fields."""
@@ -186,13 +190,13 @@ class TestAnnotationPresetManagementDialog:
         dialog = AnnotationPresetManagementDialog(
             save_mode=True, initial_pos="N"
         )
+        gender_combo = _field(dialog, "gender")
+        number_combo = _field(dialog, "number")
 
         dialog.name_edit.setText("Test Clear Preset")
-        # Set gender to empty (index 0)
-        dialog.gender_combo.setCurrentIndex(0)
-        # Set number to a real value (index 2, accounting for empty at 0 and Clear at 1)
-        if dialog.number_combo.count() > 2:
-            dialog.number_combo.setCurrentIndex(2)
+        gender_combo.setCurrentIndex(0)
+        if number_combo.count() > 2:
+            number_combo.setCurrentIndex(2)
 
         # Save the preset
         dialog._save_preset()
@@ -203,10 +207,8 @@ class TestAnnotationPresetManagementDialog:
         presets = AnnotationPreset.get_all_by_pos("N")
         preset = next((p for p in presets if p.name == "Test Clear Preset"), None)
         assert preset is not None
-        # Gender should be None (from "Clear")
         assert preset.gender is None
-        # Number should have a value (if we set it)
-        if dialog.number_combo.count() > 2:
+        if number_combo.count() > 2:
             assert preset.number is not None
 
     def test_set_combo_value_sets_actual_values_correctly(self, qapp, db_session):
@@ -216,24 +218,21 @@ class TestAnnotationPresetManagementDialog:
         dialog = AnnotationPresetManagementDialog(
             save_mode=True, initial_pos="N"
         )
+        gender_combo = _field(dialog, "gender")
+        number_combo = _field(dialog, "number")
+        case_combo = _field(dialog, "case")
 
-        # Test setting gender to "m" (masculine)
-        # REVERSE_MAP[1] = "m", so it should be at combo index 1 + 1 = 2
-        dialog._set_combo_value(dialog.gender_combo, "m", dialog.GENDER_REVERSE_MAP)
-        assert dialog.gender_combo.currentIndex() == 2
-        assert "Masculine" in dialog.gender_combo.currentText()
+        dialog._set_combo_value(gender_combo, "m", dialog.GENDER_REVERSE_MAP)
+        assert gender_combo.currentIndex() == 2
+        assert "Masculine" in gender_combo.currentText()
 
-        # Test setting number to "s" (singular)
-        # REVERSE_MAP[1] = "s", so it should be at combo index 1 + 1 = 2
-        dialog._set_combo_value(dialog.number_combo, "s", dialog.NUMBER_REVERSE_MAP)
-        assert dialog.number_combo.currentIndex() == 2
-        assert "Singular" in dialog.number_combo.currentText()
+        dialog._set_combo_value(number_combo, "s", dialog.NUMBER_REVERSE_MAP)
+        assert number_combo.currentIndex() == 2
+        assert "Singular" in number_combo.currentText()
 
-        # Test setting case to "d" (dative)
-        # REVERSE_MAP[4] = "d" (after n, a, g, d), so it should be at combo index 4 + 1 = 5
-        dialog._set_combo_value(dialog.case_combo, "d", dialog.CASE_REVERSE_MAP)
-        assert dialog.case_combo.currentIndex() == 5
-        assert "Dative" in dialog.case_combo.currentText()
+        dialog._set_combo_value(case_combo, "d", dialog.CASE_REVERSE_MAP)
+        assert case_combo.currentIndex() == 5
+        assert "Dative" in case_combo.currentText()
 
     def test_save_mode_verb_metadata_defaults_are_persisted(self, qapp, db_session):
         """Verb preset save mode should persist new verb metadata defaults."""

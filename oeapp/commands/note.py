@@ -121,9 +121,9 @@ class AddNoteCommand(SessionMixin, Command):
 
         """
         # Avoid circular import
-        from oeapp.state import ApplicationState  # noqa: PLC0415
+        from oeapp.db import get_runtime_session  # noqa: PLC0415
 
-        session = ApplicationState().session
+        session = get_runtime_session()
         sentence = Sentence.get(sentence_id)
         if sentence is None:
             return 1

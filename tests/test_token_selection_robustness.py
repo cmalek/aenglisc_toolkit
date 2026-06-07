@@ -67,20 +67,19 @@ class TestTokenSelectionRobustness:
         """
         from oeapp.ui.main_window import MainWindow
         from oeapp.models.project import Project
-        from oeapp.state import ApplicationState
+
+        window = MainWindow()
+        window.app_context.session = db_session
 
         text1 = "Sentence one."
         text2 = "Sentence two."
-        project = create_test_project(db_session, name="Test Project", text=text1 + " " + text2)
+        project = create_test_project(
+            db_session,
+            name="Test Project",
+            text=text1 + " " + text2,
+        )
         db_session.commit()
         db_session.refresh(project)
-
-        # Ensure ApplicationState has the right session
-        state = ApplicationState()
-        state.session = db_session
-
-        window = MainWindow()
-        window.application_state.session = db_session
 
         project = Project.get(project.id)
         window.load_project(project)

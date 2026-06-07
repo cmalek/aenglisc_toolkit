@@ -17,7 +17,7 @@ from oeapp.ui.main_window import MainWindow
 def window(qtbot, db_session):
     """Create a MainWindow instance for testing."""
     win = MainWindow()
-    win.application_state.session = db_session
+    win.app_context.session = db_session
     qtbot.addWidget(win)
     win.show()
     qtbot.waitExposed(win)
@@ -27,7 +27,7 @@ def window(qtbot, db_session):
 @pytest.fixture
 def search_project(db_session, window):
     """Create a multi-section project used by search tests."""
-    session = window.application_state.session
+    session = window.app_context.session
 
     project = Project(name="Search Test Project")
     session.add(project)
@@ -106,6 +106,24 @@ def search_project(db_session, window):
     return db_project
 
 
+def test_project_search_matches_respects_scope_and_order(search_project):
+    """Project.search_matches should mirror UI search counts and ordering."""
+    oe_matches = search_project.search_matches("CY-N", "OE Text")
+    assert oe_matches.total_match_count >= 1
+    assert oe_matches.results
+    assert oe_matches.results[0].match_kind in {"oe_surface", "oe_root"}
+
+    mode_matches = search_project.search_matches("cyning", "ModE text")
+    assert mode_matches.total_match_count == 0
+    assert mode_matches.results == []
+
+    notes_matches = search_project.search_matches("cyn", "Notes")
+    assert notes_matches.total_match_count >= 2
+
+    all_matches = search_project.search_matches("helm", "All")
+    assert all_matches.total_match_count >= 2
+
+
 def test_search_ui_elements_exist(window):
     """Search toolbar widgets should be present."""
     assert isinstance(window.search_input, QLineEdit)
@@ -118,7 +136,7 @@ def test_search_oe_uses_normalized_token_and_root_matching(qtbot, window, search
     """OE search should normalize the term and match token/root normalized fields."""
     window.search_scope_combo.setCurrentText("OE Text")
     window.search_input.setText("CY-N")
-    qtbot.wait(200)
+    qtbot.waitUntil(lambda: window.search_counter_label.text() != "0 / 0")
 
     assert "1 /" in window.search_counter_label.text()
     first_card = window.sentence_cards[0]
@@ -129,7 +147,7 @@ def test_mode_scope_only_searches_modern_english(qtbot, window, search_project):
     """ModE scope should not include normalized OE matches."""
     window.search_scope_combo.setCurrentText("ModE text")
     window.search_input.setText("cyning")
-    qtbot.wait(200)
+    qtbot.waitUntil(lambda: window.search_counter_label.text() == "0 / 0")
 
     assert window.search_counter_label.text() == "0 / 0"
 
@@ -138,7 +156,7 @@ def test_notes_scope_combines_notes_and_normalized_oe(qtbot, window, search_proj
     """Notes scope should include note text and normalized OE matches."""
     window.search_scope_combo.setCurrentText("Notes")
     window.search_input.setText("cyn")
-    qtbot.wait(200)
+    qtbot.waitUntil(lambda: window.search_counter_label.text() != "0 / 0")
 
     current, total = [int(part.strip()) for part in window.search_counter_label.text().split("/")]
     assert current == 1
@@ -149,7 +167,7 @@ def test_all_scope_combines_oe_mode_and_notes(qtbot, window, search_project):
     """All scope should combine all matching channels."""
     window.search_scope_combo.setCurrentText("All")
     window.search_input.setText("helm")
-    qtbot.wait(200)
+    qtbot.waitUntil(lambda: window.search_counter_label.text() != "0 / 0")
 
     current, total = [int(part.strip()) for part in window.search_counter_label.text().split("/")]
     assert current == 1
@@ -162,10 +180,12 @@ def test_search_navigation_loads_other_chapter_and_focuses_mode_field(
     """Navigating to remote ModE match should load chapter/section and focus ModE field."""
     window.search_scope_combo.setCurrentText("ModE text")
     window.search_input.setText("Helm showed")
-    qtbot.wait(200)
+    qtbot.waitUntil(lambda: window.search_counter_label.text() != "0 / 0")
 
     window.action_service.focus_first_match()
-    qtbot.wait(200)
+    qtbot.waitUntil(
+        lambda: window.chapter_combo.currentData() == search_project.chapters[1].id
+    )
 
     assert window.chapter_combo.currentData() == search_project.chapters[1].id
     assert window.section_combo.currentData() == search_project.chapters[1].sections[0].id
@@ -178,16 +198,20 @@ def test_clear_restores_origin_mode_focus(qtbot, window, search_project):
     """Clear should exit search mode and return focus to origin ModE textbox."""
     origin_card = window.sentence_cards[0]
     origin_card.translation_edit.setFocus()
-    qtbot.wait(50)
+    qtbot.waitUntil(lambda: window.focusWidget() == origin_card.translation_edit)
 
     window.search_scope_combo.setCurrentText("ModE text")
     window.search_input.setText("Helm showed")
-    qtbot.wait(200)
+    qtbot.waitUntil(lambda: window.search_counter_label.text() != "0 / 0")
     window.action_service.focus_first_match()
-    qtbot.wait(200)
+    qtbot.waitUntil(
+        lambda: window.chapter_combo.currentData() == search_project.chapters[1].id
+    )
 
     qtbot.mouseClick(window.search_clear_button, Qt.MouseButton.LeftButton)
-    qtbot.wait(200)
+    qtbot.waitUntil(
+        lambda: window.chapter_combo.currentData() == search_project.chapters[0].id
+    )
 
     assert window.chapter_combo.currentData() == search_project.chapters[0].id
     assert window.section_combo.currentData() == search_project.chapters[0].sections[0].id
@@ -200,17 +224,21 @@ def test_escape_clears_search_and_restores_origin_mode_focus(qtbot, window, sear
     """Escape in active search should restore focus to origin ModE textbox."""
     origin_card = window.sentence_cards[0]
     origin_card.translation_edit.setFocus()
-    qtbot.wait(50)
+    qtbot.waitUntil(lambda: window.focusWidget() == origin_card.translation_edit)
 
     window.search_scope_combo.setCurrentText("ModE text")
     window.search_input.setText("Helm showed")
-    qtbot.wait(200)
+    qtbot.waitUntil(lambda: window.search_counter_label.text() != "0 / 0")
     window.action_service.focus_first_match()
-    qtbot.wait(200)
+    qtbot.waitUntil(
+        lambda: window.chapter_combo.currentData() == search_project.chapters[1].id
+    )
 
     window.search_input.setFocus()
     qtbot.keyClick(window.search_input, Qt.Key.Key_Escape)
-    qtbot.wait(200)
+    qtbot.waitUntil(
+        lambda: window.chapter_combo.currentData() == search_project.chapters[0].id
+    )
 
     assert window.chapter_combo.currentData() == search_project.chapters[0].id
     assert window.section_combo.currentData() == search_project.chapters[0].sections[0].id

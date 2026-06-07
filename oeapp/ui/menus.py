@@ -6,7 +6,6 @@ from PySide6.QtWidgets import QApplication, QMenu
 
 from oeapp.help.topics import HELP_TOPICS
 from oeapp.models.project import Project
-from oeapp.state import CURRENT_PROJECT_ID
 from oeapp.ui.dialogs import (
     AnnotationPresetManagementDialog,
     AppendTextDialog,
@@ -117,7 +116,7 @@ class WindowMenu:
         """
         Event handler for full translation menu item: Show the full translation window.
         """
-        project_id = self.main_window.application_state.get(CURRENT_PROJECT_ID)
+        project_id = self.main_window.app_context.current_project_id
         if not project_id:
             self.main_window.messages.show_warning("No project open")
             return
