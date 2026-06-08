@@ -118,3 +118,62 @@ class ApplyRememberedAnnotationsCommand(SessionMixin, Command):
         """Get command description."""
         token_count = len(self.token_ids)
         return f"Apply remembered annotations to {token_count} token(s)"
+
+
+@dataclass
+class ApplyAnnotationPropagationCommand(SessionMixin, Command):
+    """Command for batch-propagating annotation payloads to tokens."""
+
+    #: Token IDs updated by one propagation action.
+    token_ids: list[int] = field(default_factory=list)
+    #: Per-token annotation state before propagation.
+    before: dict[int, dict[str, Any]] = field(default_factory=dict)
+    #: Per-token annotation state after propagation.
+    after: dict[int, dict[str, Any]] = field(default_factory=dict)
+
+    def execute(self) -> bool:
+        """
+        Apply propagation payloads to all target tokens in one transaction.
+
+        Returns:
+            ``True`` when batch apply succeeds, else ``False``.
+
+        """
+        session = self._get_session()
+        try:
+            for token_id in self.token_ids:
+                Annotation.from_json(token_id, self.after[token_id], commit=False)
+            session.commit()
+        except Exception:  # noqa: BLE001
+            session.rollback()
+            return False
+        return True
+
+    def undo(self) -> bool:
+        """
+        Restore pre-propagation annotation payloads in one transaction.
+
+        Returns:
+            ``True`` when batch undo succeeds, else ``False``.
+
+        """
+        session = self._get_session()
+        try:
+            for token_id in self.token_ids:
+                Annotation.from_json(token_id, self.before[token_id], commit=False)
+            session.commit()
+        except Exception:  # noqa: BLE001
+            session.rollback()
+            return False
+        return True
+
+    def get_description(self) -> str:
+        """
+        Get command description.
+
+        Returns:
+            Human-readable undo-stack label.
+
+        """
+        token_count = len(self.token_ids)
+        return f"Propagate annotation to {token_count} token(s)"

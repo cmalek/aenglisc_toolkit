@@ -1,6 +1,7 @@
 """Services package initialization."""
 
 from oeapp.services.annotation_preset_service import AnnotationPresetService
+from oeapp.services.annotation_propagation import AnnotationPropagationService
 from oeapp.services.autosave import AutosaveService
 from oeapp.services.backup import BackupService
 from oeapp.services.export_docx import DOCXExporter
@@ -15,6 +16,7 @@ from oeapp.services.wyrdcraeft_ingest import WyrdcraeftIngestService
 
 __all__ = [
     "AnnotationPresetService",
+    "AnnotationPropagationService",
     "AutosaveService",
     "BackupService",
     "DOCXExporter",

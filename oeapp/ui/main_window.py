@@ -30,6 +30,7 @@ from oeapp.help.help_engine import HelpEngineError
 from oeapp.models.project import Project
 from oeapp.models.search_result import SearchResult
 from oeapp.services import (
+    AnnotationPropagationService,
     AutosaveService,
     BackupService,
     DOCXExporter,
@@ -1077,6 +1078,52 @@ class MainWindowActions:
 
         self.main_window.refresh_project()
         self.messages.show_message(plan.message, duration=3000)
+
+    def propagate_token_annotation(self, token: "Token") -> None:
+        """
+        Propagate one token annotation to safe empty same-surface matches.
+
+        Args:
+            token: Source token for propagation.
+
+        """
+        project_id = self.app_context.current_project_id
+        if project_id is None:
+            self.messages.show_warning("No project open")
+            return
+
+        plan = AnnotationPropagationService().plan_surface_propagation(
+            project_id, token
+        )
+        if plan.updated_count > 0 and not self.command_manager.execute(plan.command):
+            self.messages.show_error("Failed to propagate annotation")
+            return
+        if plan.updated_count > 0:
+            self.main_window.refresh_project()
+        self.messages.show_information(plan.dialog_message)
+
+    def force_propagate_token_meaning(self, token: "Token") -> None:
+        """
+        Propagate one token meaning to same-root matches across project.
+
+        Args:
+            token: Source token for propagation.
+
+        """
+        project_id = self.app_context.current_project_id
+        if project_id is None:
+            self.messages.show_warning("No project open")
+            return
+
+        plan = AnnotationPropagationService().plan_meaning_propagation(
+            project_id, token
+        )
+        if plan.updated_count > 0 and not self.command_manager.execute(plan.command):
+            self.messages.show_error("Failed to propagate meaning")
+            return
+        if plan.updated_count > 0:
+            self.main_window.refresh_project()
+        self.messages.show_information(plan.dialog_message)
 
     def show_project_remembered_annotations_dialog(self) -> None:
         """

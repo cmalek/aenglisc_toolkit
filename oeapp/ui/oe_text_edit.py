@@ -1286,6 +1286,15 @@ class OldEnglishTextEdit(QTextEdit):
             and token.annotation is not None
             and not token.annotation.is_safe_to_auto_fill()
         )
+        can_propagate_annotation = can_remember
+        can_force_propagate_meaning = (
+            token is not None
+            and not range_blocks_remember
+            and token.annotation is not None
+            and not token.annotation.is_safe_to_auto_fill()
+            and bool(token.annotation.root_normalized)
+            and bool(token.annotation.modern_english_meaning)
+        )
 
         if token is not None:
             self.set_selected_token_index(token.order_index, emit=False)
@@ -1293,8 +1302,12 @@ class OldEnglishTextEdit(QTextEdit):
         menu.addSeparator()
         remember_global = menu.addAction("Remember globally")
         remember_project = menu.addAction("Remember for project")
+        propagate_annotation = menu.addAction("Propagate annotation")
+        force_propagate_meaning = menu.addAction("Force propagate meaning")
         remember_global.setEnabled(can_remember)
         remember_project.setEnabled(can_remember)
+        propagate_annotation.setEnabled(can_propagate_annotation)
+        force_propagate_meaning.setEnabled(can_force_propagate_meaning)
 
         project_id = (
             self._main_window.app_context.current_project_id
@@ -1315,6 +1328,18 @@ class OldEnglishTextEdit(QTextEdit):
                         cast("Token", token), project_id
                     )
                 )
+        if can_propagate_annotation:
+            propagate_annotation.triggered.connect(
+                lambda: self._main_window.action_service.propagate_token_annotation(
+                    cast("Token", token)
+                )
+            )
+        if can_force_propagate_meaning:
+            force_propagate_meaning.triggered.connect(
+                lambda: self._main_window.action_service.force_propagate_token_meaning(
+                    cast("Token", token)
+                )
+            )
 
         menu.exec(event.globalPos())
 
