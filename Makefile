@@ -37,17 +37,43 @@ dmg:: ## Create macOS DMG with only the app bundle plus Applications link.
 	create-dmg --volname "Ænglisc Toolkit" --app-drop-link 600 185 "dist/Ænglisc Toolkit.dmg" "dist/dmg-root"
 
 HELP_TOPICS_DIR := oeapp/help/topics
-HELP_QCH := oeapp/help/assets/aenglisc_toolkit_help.qch
-HELP_SOURCES := $(wildcard $(HELP_TOPICS_DIR)/*.md) scripts/build_help.py oeapp/help/topics.py
+HELP_ASSETS_DIR := oeapp/help/assets
+HELP_QCH := $(HELP_ASSETS_DIR)/aenglisc_toolkit_help.qch
+HELP_QHC := $(HELP_ASSETS_DIR)/aenglisc_toolkit_help.qhc
+HELP_TOPIC_SOURCES := $(wildcard $(HELP_TOPICS_DIR)/*.md)
+HELP_SOURCES := $(HELP_TOPIC_SOURCES) scripts/build_help.py oeapp/help/topics.py
+# A deleted topic shrinks the wildcard without touching any surviving file, so
+# mtime comparison alone would miss it. Encode the topic list as a hash in a
+# marker filename: delete or add a topic and the marker no longer exists, which
+# makes it newer than the artifacts and forces one rebuild. When the list is
+# unchanged the marker already exists and is old, so nothing rebuilds.
+HELP_TOPICS_HASH := $(shell ls $(HELP_TOPICS_DIR)/*.md 2>/dev/null | shasum | cut -c1-12)
+HELP_MARKER := $(HELP_ASSETS_DIR)/.topics-$(HELP_TOPICS_HASH)
 
-$(HELP_QCH): $(HELP_SOURCES)
+$(HELP_MARKER):
+	@mkdir -p $(HELP_ASSETS_DIR)
+	@rm -f $(HELP_ASSETS_DIR)/.topics-*
+	@touch $@
+
+# GNU Make 3.81 (what macOS ships) has no grouped-target `&:` syntax, so the
+# recipe is defined once and attached to both artifacts.
+# ponytail: if both artifacts are stale at once the build runs twice; harmless,
+# and cheaper than a stamp file that would reintroduce the missing-.qhc bug.
+define build_help
 	@if [ -x .venv/bin/python ]; then \
 		.venv/bin/python scripts/build_help.py; \
 	else \
 		python scripts/build_help.py; \
 	fi
+endef
 
-help-assets:: $(HELP_QCH) ## Build QtHelp assets from markdown help topics (skipped if already up to date).
+$(HELP_QCH): $(HELP_SOURCES) $(HELP_MARKER)
+	$(build_help)
+
+$(HELP_QHC): $(HELP_SOURCES) $(HELP_MARKER)
+	$(build_help)
+
+help-assets:: $(HELP_QCH) $(HELP_QHC) ## Build QtHelp assets from markdown help topics (skipped if already up to date).
 
 tectonic-assets-download:: ## Download Tectonic binaries and default bundle to a local cache.
 	mkdir -p "$(TECTONIC_DOWNLOAD_DIR)"

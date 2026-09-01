@@ -141,3 +141,6 @@ assets/tectonic/*
 
 default.db
 *.pdf
+
+# Help-asset rebuild marker (see Makefile HELP_MARKER)
+oeapp/help/assets/.topics-*
