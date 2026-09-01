@@ -45,7 +45,7 @@ class TestSettingsDialogThemeSwitching:
 
         mock_apply.assert_called_once_with("light")
 
-    def test_theme_change_shows_no_restart_dialog(
+    def test_settings_module_no_longer_uses_message_boxes(
         self, db_session, mock_main_window, qapp
     ):
         """The obsolete 'quit and restart' message box is not shown."""
@@ -58,13 +58,4 @@ class TestSettingsDialogThemeSwitching:
 
         with patch("oeapp.ui.dialogs.settings.apply_theme"):
             dialog._on_theme_changed()
-
-    def test_get_theme_returns_qt_themes_name(
-        self, db_session, mock_main_window, qapp
-    ):
-        """get_theme resolves the stored value to a qt_themes theme name."""
-        dialog = SettingsDialog(mock_main_window)
-        dialog.settings.setValue("theme/name", "light")
-
-        assert dialog.get_theme() == "modern_light"
 

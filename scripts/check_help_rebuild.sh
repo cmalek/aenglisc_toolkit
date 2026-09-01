@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 # Verify the help-asset Make rule rebuilds when it should and skips when it shouldn't.
+#
+# WARNING: this script touches every file under oeapp/help/topics/*.md and
+# rebuilds the tracked .qch/.qhc binaries as a side effect of exercising the
+# Make rule. It will dirty your working tree (mtimes and rebuilt binaries);
+# review `git status`/`git diff` after running it.
 set -euo pipefail
 
 QCH="oeapp/help/assets/aenglisc_toolkit_help.qch"
@@ -44,12 +49,12 @@ make help-assets >/dev/null
 TOPIC_TO_DROP="$(ls oeapp/help/topics/*.md | head -1)"
 TOPIC_BACKUP="$(mktemp)"
 cleanup_topic() {
-    if [ ! -f "$TOPIC_TO_DROP" ] && [ -s "$TOPIC_BACKUP" ]; then
+    if [ ! -f "$TOPIC_TO_DROP" ] && [ -f "$TOPIC_BACKUP" ]; then
         cp "$TOPIC_BACKUP" "$TOPIC_TO_DROP"
     fi
     rm -f "$TOPIC_BACKUP"
 }
-trap cleanup_topic EXIT
+trap cleanup_topic EXIT INT TERM
 
 cp "$TOPIC_TO_DROP" "$TOPIC_BACKUP"
 rm -f "$TOPIC_TO_DROP"
@@ -61,7 +66,7 @@ fi
 cp "$TOPIC_BACKUP" "$TOPIC_TO_DROP"
 make help-assets >/dev/null
 
-if ! git diff --quiet -- "$TOPIC_TO_DROP" 2>/dev/null; then
+if ! cmp -s "$TOPIC_BACKUP" "$TOPIC_TO_DROP"; then
     echo "FAIL: $TOPIC_TO_DROP was not restored identically"
     exit 1
 fi

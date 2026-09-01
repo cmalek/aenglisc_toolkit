@@ -78,6 +78,9 @@ $(HELP_QHC): $(HELP_SOURCES) $(HELP_MARKER)
 
 help-assets:: $(HELP_QCH) $(HELP_QHC) ## Build QtHelp assets from markdown help topics (skipped if already up to date).
 
+check-help-rebuild:: ## Verify the help-assets Make rule rebuilds/skips correctly (dirties the tree: touches topics, rebuilds tracked .qch/.qhc).
+	scripts/check_help_rebuild.sh
+
 tectonic-assets-download:: ## Download Tectonic binaries and default bundle to a local cache.
 	mkdir -p "$(TECTONIC_DOWNLOAD_DIR)"
 	curl -fL "$(TECTONIC_RELEASE_BASE)/tectonic-$(TECTONIC_VERSION)-aarch64-apple-darwin.tar.gz" -o "$(TECTONIC_MACOS_ARM64_ARCHIVE)"

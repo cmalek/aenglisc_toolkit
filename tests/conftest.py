@@ -77,6 +77,37 @@ def qapp():
     return app
 
 
+@pytest.fixture(autouse=True, scope="session")
+def isolate_qsettings():
+    """
+    Redirect ``QSettings`` to a temporary directory for the whole test session.
+
+    The test process never calls ``create_application()``, so it never sets
+    an organization/application name. That currently makes ``QSettings()``
+    land in a generic, unrelated preferences file rather than the
+    maintainer's real ``com.chris-malek.AEnglisc Toolkit`` preferences -- but
+    that safety is accidental, not structural. Any test (or code under test)
+    that calls ``QCoreApplication.setOrganizationName``/``setApplicationName``
+    would immediately start reading/writing the maintainer's live settings.
+
+    Forcing ``IniFormat`` and pointing it at a temp directory makes the
+    isolation explicit and independent of what name the application happens
+    to be running under. ``NativeFormat`` is deliberately not used here: on
+    macOS it is backed by CFPreferences, which ignores ``QSettings.setPath``
+    entirely, so it could not be redirected this way.
+
+    Returns:
+        None
+
+    """
+    from PySide6.QtCore import QSettings
+
+    tmp_dir = tempfile.mkdtemp(prefix="oeapp-test-qsettings-")
+    QSettings.setDefaultFormat(QSettings.Format.IniFormat)
+    QSettings.setPath(QSettings.Format.IniFormat, QSettings.Scope.UserScope, tmp_dir)
+    QSettings.setPath(QSettings.Format.IniFormat, QSettings.Scope.SystemScope, tmp_dir)
+
+
 @pytest.fixture(autouse=True)
 def disable_autosave_by_default(request, monkeypatch):
     """

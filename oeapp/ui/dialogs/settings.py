@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from oeapp.ui.theming import apply_theme, resolve_theme_name
+from oeapp.ui.theming import apply_theme
 
 if TYPE_CHECKING:
     from oeapp.ui.main_window import MainWindow
@@ -187,13 +187,3 @@ class SettingsDialog:
         """
         self.build()
         self.dialog.exec()
-
-    def get_theme(self) -> str:
-        """
-        Get the ``qt_themes`` theme name for the stored theme setting.
-
-        Returns:
-            The ``qt_themes`` theme name.
-
-        """
-        return resolve_theme_name(self.get_str_value("theme/name", "dark"))
