@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from PySide6.QtCore import QPoint
 from PySide6.QtGui import QCloseEvent
-from PySide6.QtWidgets import QLabel, QStatusBar, QWidget
+from PySide6.QtWidgets import QLabel, QSplitter, QStatusBar, QWidget
 
 from oeapp.state import AppContext
 from oeapp.ui.main_window import MainWindow, Messages
@@ -407,3 +407,39 @@ class TestNavigationButtonAffordances:
             button = getattr(main_window, attribute)
             assert button.toolTip() == label
             assert button.accessibleName() == label
+
+
+class TestSidebarResizing:
+    """Test cases for the resizable token details sidebar."""
+
+    def test_sidebar_lives_in_a_splitter(self, main_window):
+        """The sidebar and content column share a user-draggable splitter."""
+        assert isinstance(main_window.main_splitter, QSplitter)
+        assert main_window.main_splitter.count() == 2
+
+    def test_sidebar_is_not_fixed_width(self, main_window):
+        """The sidebar can be resized: its min and max widths are not pinned equal."""
+        sidebar = main_window.token_details_sidebar
+
+        assert sidebar.minimumWidth() != sidebar.maximumWidth()
+
+    def test_sidebar_starts_at_default_width(self, main_window, qapp):
+        """The sidebar still opens at its established default width.
+
+        ``QSplitter.sizes()`` only reflects a requested ``setSizes()`` call
+        once the widget has actually been laid out on screen; on a
+        never-shown widget Qt reports the sidebar's minimum width (200)
+        instead of the requested 350, which would make a literal
+        ``sizes()[1] == SIDEBAR_WIDTH`` assertion pass or fail based on
+        window visibility rather than on the code under test. Showing the
+        window and pumping the event loop forces a real layout pass, so
+        this genuinely verifies the sidebar opens at its default width
+        rather than at its bare minimum.
+        """
+        main_window.show()
+        qapp.processEvents()
+
+        sizes = main_window.main_splitter.sizes()
+
+        assert len(sizes) == 2
+        assert sizes[1] == MainWindow.SIDEBAR_WIDTH

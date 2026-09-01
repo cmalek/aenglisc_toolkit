@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QScrollArea,
+    QSplitter,
     QVBoxLayout,
     QWidget,
 )
@@ -152,19 +153,13 @@ class MainWindow(QMainWindow):
         self.main_layout.setSpacing(0)
         self.setCentralWidget(central_widget)
 
-        # Create a container for the two-column layout
-        column_container = QWidget()
-        central_layout = QHBoxLayout(column_container)
-        central_layout.setContentsMargins(0, 0, 0, 0)
-        central_layout.setSpacing(0)
-        self.main_layout.addWidget(column_container, stretch=1)
-
-        # Build a QVBoxLayout for the main content area so we can add the
-        # toolbar and the main content area to it
-        self.main_content_layout = QVBoxLayout()
+        # Content column: toolbar, navigation toolbar, and the sentence-card
+        # scroll area, stacked vertically. This becomes one pane of the
+        # main splitter below.
+        content_column = QWidget()
+        self.main_content_layout = QVBoxLayout(content_column)
         self.main_content_layout.setContentsMargins(0, 0, 0, 0)
         self.main_content_layout.setSpacing(0)
-        central_layout.addLayout(self.main_content_layout)
 
         # Build top toolbar
         self.toolbar = self.build_toolbar()
@@ -180,7 +175,25 @@ class MainWindow(QMainWindow):
         self.content_layout = self.build_main_content(
             self.main_column, self.main_content_layout
         )
-        self.token_details_sidebar = self.build_sidebar_area(central_layout)
+
+        self.token_details_sidebar = self.build_sidebar_area()
+
+        # Put the content column and the sidebar in a splitter so the user
+        # can trade screen space between the sentence column and the
+        # annotation sidebar.
+        self.main_splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.main_splitter.addWidget(content_column)
+        self.main_splitter.addWidget(self.token_details_sidebar)
+        self.main_splitter.setStretchFactor(0, 1)
+        self.main_splitter.setStretchFactor(1, 0)
+        self.main_splitter.setSizes(
+            [
+                self.MAIN_WINDOW_GEOMETRY[2] - self.SIDEBAR_WIDTH,
+                self.SIDEBAR_WIDTH,
+            ]
+        )
+        self.main_layout.addWidget(self.main_splitter, stretch=1)
+
         self.show_empty(self.content_layout)
 
     def build_toolbar(self) -> QWidget:
@@ -457,23 +470,21 @@ class MainWindow(QMainWindow):
         layout.addWidget(container, stretch=1)
         return content_layout
 
-    def build_sidebar_area(self, layout: QHBoxLayout) -> TokenDetailsSidebar:
+    def build_sidebar_area(self) -> TokenDetailsSidebar:
         """
-        Build the sidebar area widget.  This is where the token details sidebar is
-        located.
+        Build the token details sidebar.
 
-        Args:
-            layout: The layout to add the sidebar to
+        The sidebar is sized by the enclosing splitter rather than pinned to
+        a fixed width, so the user can trade space with the sentence column.
 
         Returns:
-            QWidget: The sidebar area widget
+            TokenDetailsSidebar: The token details sidebar widget.
 
         """
         sidebar = TokenDetailsSidebar()
         sidebar.setObjectName("sidebar")
-        sidebar.setFixedWidth(self.SIDEBAR_WIDTH)
+        sidebar.setMinimumWidth(200)
         sidebar.setStyleSheet(self.SIDEBAR_STYLE)
-        layout.addWidget(sidebar)
         return sidebar
 
     def closeEvent(self, event) -> None:  # noqa: N802
