@@ -1,6 +1,5 @@
 import sys
 
-import qt_themes
 from PySide6.QtCore import QCoreApplication, QSettings, QTimer
 from PySide6.QtGui import QFontDatabase, QGuiApplication, QIcon
 from PySide6.QtWidgets import QApplication, QSystemTrayIcon
@@ -9,6 +8,7 @@ from oeapp import __version__
 from oeapp.utils import get_resource_path
 
 from .main_window import MainWindow
+from .theming import apply_theme
 
 FONTS = [
     "assets/Maranatha.ttf",
@@ -27,12 +27,7 @@ def create_application() -> QApplication:
 
     app = QApplication(sys.argv)
     settings = QSettings()
-    theme = settings.value("theme/name", "dark", type=str)
-    if theme == "dark":
-        theme = "nord"
-    elif theme == "light":
-        theme = "modern_light"
-    qt_themes.set_theme(theme)
+    apply_theme(settings.value("theme/name", "dark", type=str))
     # Create the icon
     icon_path = get_resource_path("assets/logo.icns")
     icon = QIcon(str(icon_path))
