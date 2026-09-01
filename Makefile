@@ -43,10 +43,13 @@ HELP_QHC := $(HELP_ASSETS_DIR)/aenglisc_toolkit_help.qhc
 HELP_TOPIC_SOURCES := $(wildcard $(HELP_TOPICS_DIR)/*.md)
 HELP_SOURCES := $(HELP_TOPIC_SOURCES) scripts/build_help.py oeapp/help/topics.py
 # A deleted topic shrinks the wildcard without touching any surviving file, so
-# mtime comparison alone would miss it. Encode the topic list as a hash in a
-# marker filename: delete or add a topic and the marker no longer exists, which
-# makes it newer than the artifacts and forces one rebuild. When the list is
-# unchanged the marker already exists and is old, so nothing rebuilds.
+# mtime comparison alone would miss it. Encode the topic *filename listing*
+# (not content) as a hash in a marker filename: delete or add a topic and the
+# marker no longer exists, which makes it newer than the artifacts and forces
+# one rebuild. When the list is unchanged the marker already exists and is
+# old, so nothing rebuilds. Content edits to an existing topic are caught
+# separately by ordinary mtime tracking via HELP_TOPIC_SOURCES, not by this
+# hash.
 HELP_TOPICS_HASH := $(shell ls $(HELP_TOPICS_DIR)/*.md 2>/dev/null | shasum | cut -c1-12)
 HELP_MARKER := $(HELP_ASSETS_DIR)/.topics-$(HELP_TOPICS_HASH)
 

@@ -36,4 +36,39 @@ if make -q help-assets; then
 fi
 
 make help-assets >/dev/null
+
+# 4. Deleted topic: must rebuild (exercises HELP_MARKER/HELP_TOPICS_HASH,
+# not just ordinary mtime propagation). Restores the topic on any exit,
+# including a failed assertion, so a broken run never leaves a real help
+# topic deleted.
+TOPIC_TO_DROP="$(ls oeapp/help/topics/*.md | head -1)"
+TOPIC_BACKUP="$(mktemp)"
+cleanup_topic() {
+    if [ ! -f "$TOPIC_TO_DROP" ] && [ -s "$TOPIC_BACKUP" ]; then
+        cp "$TOPIC_BACKUP" "$TOPIC_TO_DROP"
+    fi
+    rm -f "$TOPIC_BACKUP"
+}
+trap cleanup_topic EXIT
+
+cp "$TOPIC_TO_DROP" "$TOPIC_BACKUP"
+rm -f "$TOPIC_TO_DROP"
+if make -q help-assets; then
+    echo "FAIL: no rebuild triggered after deleting topic $TOPIC_TO_DROP"
+    exit 1
+fi
+
+cp "$TOPIC_BACKUP" "$TOPIC_TO_DROP"
+make help-assets >/dev/null
+
+if ! git diff --quiet -- "$TOPIC_TO_DROP" 2>/dev/null; then
+    echo "FAIL: $TOPIC_TO_DROP was not restored identically"
+    exit 1
+fi
+
+if ! make -q help-assets; then
+    echo "FAIL: rebuild triggered after restoring topic and rebuilding (skip state not restored)"
+    exit 1
+fi
+
 echo "PASS: help rebuild rule behaves correctly"
