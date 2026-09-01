@@ -79,6 +79,20 @@ Repository = "https://github.com/cmalek/aenglisc_toolkit"
 [tool.uv]
 python-preference = "only-system"
 default-groups = ["docs", "test"]
+# NOTE: wyrdcraeft declares `unstructured[all-docs]`, whose extra pulls in
+# torch, torchvision, timm, openai-whisper, transformers, onnx, onnxruntime,
+# opencv, scipy and llvmlite (~1.3GB) for PDF/image OCR and audio ingestion.
+# This app only imports .txt/.xml/.tei/.md (see oeapp/ui/dialogs/mixins.py),
+# so all of it is dead weight in the installer.
+#
+# Overriding it away here (`override-dependencies = ["unstructured>=0.15"]`)
+# does shrink .venv from 2.9GB to 1.6GB, but breaks imports: wyrdcraeft's
+# ingest/loaders.py:15 imports `partition_pdf` unconditionally, and
+# unstructured's pdf_image/pdfminer_processing.py:11 imports
+# `unstructured_inference` at module level, which requires torch. Installing
+# only the light pdf deps is not sufficient. The fix must be upstream in
+# wyrdcraeft (cmalek/oe_json_extractor): make the PDF loader import lazy or
+# drop it. See docs/adr/0001-usability-overhaul.md D3a.
 
 [build-system]
 requires = [

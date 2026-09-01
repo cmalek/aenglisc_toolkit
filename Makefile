@@ -36,12 +36,18 @@ dmg:: ## Create macOS DMG with only the app bundle plus Applications link.
 	cp -R "dist/Ænglisc Toolkit.app" "dist/dmg-root/"
 	create-dmg --volname "Ænglisc Toolkit" --app-drop-link 600 185 "dist/Ænglisc Toolkit.dmg" "dist/dmg-root"
 
-help-assets:: ## Build QtHelp assets from markdown help topics.
+HELP_TOPICS_DIR := oeapp/help/topics
+HELP_QCH := oeapp/help/assets/aenglisc_toolkit_help.qch
+HELP_SOURCES := $(wildcard $(HELP_TOPICS_DIR)/*.md) scripts/build_help.py oeapp/help/topics.py
+
+$(HELP_QCH): $(HELP_SOURCES)
 	@if [ -x .venv/bin/python ]; then \
 		.venv/bin/python scripts/build_help.py; \
 	else \
 		python scripts/build_help.py; \
 	fi
+
+help-assets:: $(HELP_QCH) ## Build QtHelp assets from markdown help topics (skipped if already up to date).
 
 tectonic-assets-download:: ## Download Tectonic binaries and default bundle to a local cache.
 	mkdir -p "$(TECTONIC_DOWNLOAD_DIR)"
