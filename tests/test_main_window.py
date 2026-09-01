@@ -389,3 +389,21 @@ class TestEmptyStateStyling:
         source = Path(main_window_module.__file__).read_text(encoding="utf-8")
 
         assert "pallete(" not in source
+
+
+class TestNavigationButtonAffordances:
+    """Test cases for chapter/section navigation button discoverability."""
+
+    def test_navigation_buttons_have_tooltips_and_accessible_names(self, main_window):
+        """Every glyph-only nav button exposes a tooltip and an accessible name."""
+        expected = {
+            "chapter_prev_button": "Previous chapter",
+            "chapter_next_button": "Next chapter",
+            "section_prev_button": "Previous section",
+            "section_next_button": "Next section",
+        }
+
+        for attribute, label in expected.items():
+            button = getattr(main_window, attribute)
+            assert button.toolTip() == label
+            assert button.accessibleName() == label

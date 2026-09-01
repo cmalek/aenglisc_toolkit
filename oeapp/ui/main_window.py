@@ -277,6 +277,8 @@ class MainWindow(QMainWindow):
         layout.addWidget(QLabel("Chapter:"))
         self.chapter_prev_button = QPushButton("<")
         self.chapter_prev_button.setFixedWidth(30)
+        self.chapter_prev_button.setToolTip("Previous chapter")
+        self.chapter_prev_button.setAccessibleName("Previous chapter")
         self.chapter_prev_button.clicked.connect(self._on_prev_chapter_clicked)
         layout.addWidget(self.chapter_prev_button)
 
@@ -287,6 +289,8 @@ class MainWindow(QMainWindow):
 
         self.chapter_next_button = QPushButton(">")
         self.chapter_next_button.setFixedWidth(30)
+        self.chapter_next_button.setToolTip("Next chapter")
+        self.chapter_next_button.setAccessibleName("Next chapter")
         self.chapter_next_button.clicked.connect(self._on_next_chapter_clicked)
         layout.addWidget(self.chapter_next_button)
 
@@ -296,6 +300,8 @@ class MainWindow(QMainWindow):
         layout.addWidget(QLabel("Section:"))
         self.section_prev_button = QPushButton("<")
         self.section_prev_button.setFixedWidth(30)
+        self.section_prev_button.setToolTip("Previous section")
+        self.section_prev_button.setAccessibleName("Previous section")
         self.section_prev_button.clicked.connect(self._on_prev_section_clicked)
         layout.addWidget(self.section_prev_button)
 
@@ -306,6 +312,8 @@ class MainWindow(QMainWindow):
 
         self.section_next_button = QPushButton(">")
         self.section_next_button.setFixedWidth(30)
+        self.section_next_button.setToolTip("Next section")
+        self.section_next_button.setAccessibleName("Next section")
         self.section_next_button.clicked.connect(self._on_next_section_clicked)
         layout.addWidget(self.section_next_button)
 
