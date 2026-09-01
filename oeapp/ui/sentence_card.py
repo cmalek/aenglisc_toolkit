@@ -670,6 +670,24 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
             "}"
         )
 
+    def refresh_theme(self) -> None:
+        """
+        Recompute theme-derived styling after the application palette changes.
+
+        Two things about this card bake a concrete palette-derived color at
+        build time rather than following the palette automatically: the verse
+        background style (a literal hex color) and any active token
+        highlighting command (POS/case/number/idiom colors computed from the
+        palette). Neither updates on its own when the theme changes, so this
+        must be called explicitly by whatever drives a live theme switch.
+
+        Returns:
+            None
+
+        """
+        self._apply_verse_background_style()
+        self.sentence_highlighter.highlight()
+
     # ========================================================================
     # Annotation related methods
     # ========================================================================

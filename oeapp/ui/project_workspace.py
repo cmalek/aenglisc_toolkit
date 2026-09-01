@@ -53,6 +53,10 @@ class ProjectUI:
         self.command_manager = self.action_service.command_manager
         #: Sentence cards currently loaded for the active section.
         self.sentence_cards: list[SentenceCard] = []
+        #: Paragraph separator widgets currently loaded for the active
+        #: section, kept so their palette-derived colors can be recomputed
+        #: when the theme changes.
+        self.paragraph_separators: list[QWidget] = []
         #: Sentence card currently selected for token/idiom details in this workspace.
         self.selected_sentence_card: SentenceCard | None = None
         #: Layout hosting sentence cards in the main scroll area.
@@ -274,11 +278,20 @@ class ProjectUI:
                 widget = item.widget()
                 if widget:
                     widget.deleteLater()
+        self.paragraph_separators = []
 
-    def _add_paragraph_separator(self) -> None:
-        """Add a paragraph separator to the layout."""
-        separator = QWidget()
-        separator.setFixedHeight(20)
+    def _paragraph_separator_stylesheet(self, separator: QWidget) -> str:
+        """
+        Compute the palette-derived stylesheet for a paragraph separator.
+
+        Args:
+            separator: The separator widget whose current palette should be
+                used to derive the background/border colors.
+
+        Returns:
+            The stylesheet string to apply to the separator.
+
+        """
         palette = separator.palette()
         mid = palette.color(QPalette.ColorRole.Mid)
         h, s, v, a = mid.getHsv()  # type: ignore[misc]
@@ -289,12 +302,19 @@ class ProjectUI:
         v = min(v, 0)  # type: ignore[has-type]
         v = int((v + 255 + 20) % 255)
         border = QColor.fromHsv(h, s, v, a)  # type: ignore[has-type]
-        separator.setStyleSheet(
+        return (
             f"background-color: {background.name()}; "
             f"border-top: 2px solid {border.name()};"
             f"border-bottom: 2px solid {border.name()};"
         )
+
+    def _add_paragraph_separator(self) -> None:
+        """Add a paragraph separator to the layout."""
+        separator = QWidget()
+        separator.setFixedHeight(20)
+        separator.setStyleSheet(self._paragraph_separator_stylesheet(separator))
         self.content_layout.addWidget(separator)
+        self.paragraph_separators.append(separator)
 
     def _connect_card_signals(self, card: SentenceCard) -> None:
         """
@@ -405,6 +425,9 @@ class ProjectUI:
 
         - If there is no database or the current project ID is not set, do nothing.
         - Reload annotations for all sentence cards.
+        - Recompute palette-derived styling (verse card backgrounds,
+          paragraph separators, and active highlighting commands) so a live
+          theme switch never leaves a stale panel.
         """
         if not self._can_reload_current_project():
             return
@@ -413,11 +436,33 @@ class ProjectUI:
             if card.sentence.id:
                 card.set_tokens()
 
+        self.refresh_theme_colors()
+
         # Re-apply search highlighting after refresh
         self.main_window.action_service.perform_search(
             self.main_window.search_input.text(),
             self.main_window.search_scope_combo.currentText(),
         )
+
+    def refresh_theme_colors(self) -> None:
+        """
+        Recompute colors baked from the palette at construction time.
+
+        Paragraph separators and verse-card backgrounds compute a concrete
+        hex color from the palette once and write it into a stylesheet, so
+        neither updates automatically when the application theme changes.
+        Active per-card highlighting commands (POS/case/number/idiom) have
+        the same problem. This recomputes all three against the current
+        palette.
+
+        Returns:
+            None
+
+        """
+        for separator in self.paragraph_separators:
+            separator.setStyleSheet(self._paragraph_separator_stylesheet(separator))
+        for card in self.sentence_cards:
+            card.refresh_theme()
 
     def save(self) -> None:
         """

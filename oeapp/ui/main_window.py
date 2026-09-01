@@ -659,9 +659,13 @@ class MainWindow(QMainWindow):
         """
         Re-apply styling that does not follow the application palette.
 
-        Most widgets restyle automatically when the palette changes, but the
-        help center renders its own CSS into a ``QTextBrowser`` at construction
-        time and must be told to re-render.
+        Most widgets restyle automatically when the palette changes, but a
+        few things bake a concrete palette-derived color into a stylesheet
+        or text format at construction/render time and never update on
+        their own: the help center's own CSS in a ``QTextBrowser``, verse
+        card backgrounds, paragraph separators, and active per-card
+        highlighting commands. Refreshing the open project re-renders the
+        latter three via :meth:`refresh_project`.
 
         Returns:
             None
@@ -669,6 +673,7 @@ class MainWindow(QMainWindow):
         """
         if self._help_dialog is not None:
             self._help_dialog.refresh_theme()
+        self.refresh_project()
 
     def show_settings_dialog(self) -> None:
         """

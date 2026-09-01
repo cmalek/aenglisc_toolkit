@@ -455,3 +455,41 @@ class TestSidebarResizing:
 
         assert len(sizes) == 2
         assert sizes[1] == MainWindow.SIDEBAR_WIDTH
+
+
+class TestThemeRefreshReachesStaleSites:
+    """Regression tests for D5's "no visibly stale panel" acceptance criterion.
+
+    ``ThemeMixin.reddish`` is not the only value baked from the palette at
+    construction time: verse card backgrounds, paragraph separators, and
+    active per-card highlighting commands all compute a concrete color from
+    the palette once and never update on their own. A live theme switch must
+    re-render all of them, not just the help dialog.
+    """
+
+    def test_refresh_theme_dependent_widgets_rerenders_open_project(
+        self, main_window, qapp
+    ):
+        """The theme refresh hook must re-render loaded sentence cards and
+        paragraph separators, not just call the help dialog's refresh.
+
+        Against the pre-fix code, ``refresh_theme_dependent_widgets`` never
+        touches the project at all, so ``set_tokens``/``refresh_theme`` are
+        never called and the separator's stylesheet is never recomputed.
+        """
+        main_window.app_context.current_project_id = 1
+
+        mock_card = MagicMock()
+        mock_card.sentence.id = 1
+        main_window.project_ui.sentence_cards = [mock_card]
+
+        separator = QWidget()
+        style_spy = MagicMock(wraps=separator.setStyleSheet)
+        separator.setStyleSheet = style_spy
+        main_window.project_ui.paragraph_separators = [separator]
+
+        main_window.refresh_theme_dependent_widgets()
+
+        mock_card.set_tokens.assert_called_once()
+        mock_card.refresh_theme.assert_called_once()
+        style_spy.assert_called_once()
