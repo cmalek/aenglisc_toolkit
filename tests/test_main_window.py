@@ -1,5 +1,6 @@
 """Unit tests for MainWindow."""
 
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -8,7 +9,7 @@ from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import QLabel, QStatusBar, QWidget
 
 from oeapp.state import AppContext
-from oeapp.ui.main_window import MainWindow
+from oeapp.ui.main_window import MainWindow, Messages
 
 
 @pytest.fixture
@@ -359,3 +360,32 @@ class TestMainWindowOptimizeHooks:
             window.closeEvent(event)
         window.deleteLater()
         qapp.processEvents()
+
+
+class TestMessagesSeverity:
+    """Test cases for error/warning message severity."""
+
+    def test_show_error_uses_critical_severity(self, db_session, mock_main_window, qapp):
+        """show_error renders with the critical icon, not the warning icon."""
+        messages = Messages(mock_main_window)
+
+        with (
+            patch("oeapp.ui.main_window.QMessageBox.critical") as mock_critical,
+            patch("oeapp.ui.main_window.QMessageBox.warning") as mock_warning,
+        ):
+            messages.show_error("disk on fire")
+
+        mock_critical.assert_called_once()
+        mock_warning.assert_not_called()
+
+
+class TestEmptyStateStyling:
+    """Test cases for the welcome/empty-state label styling."""
+
+    def test_welcome_label_stylesheet_uses_valid_palette_function(self):
+        """The empty-state stylesheet uses palette(), not the misspelled pallete()."""
+        import oeapp.ui.main_window as main_window_module
+
+        source = Path(main_window_module.__file__).read_text(encoding="utf-8")
+
+        assert "pallete(" not in source

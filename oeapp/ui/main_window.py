@@ -408,7 +408,7 @@ class MainWindow(QMainWindow):
         )
         welcome_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         welcome_label.setStyleSheet(
-            "font-size: 14pt; color: pallete(text-muted); padding: 50px;"
+            "font-size: 14pt; color: palette(text); padding: 50px;"
         )
         layout.addWidget(welcome_label)
 
@@ -1448,7 +1448,7 @@ class Messages:
             title: Title of the message (default: "Error")
 
         """
-        QMessageBox.warning(self.main_window, title, message)
+        QMessageBox.critical(self.main_window, title, message)
 
     def show_information(self, message: str, title: str = "Information") -> None:
         """
