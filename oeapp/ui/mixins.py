@@ -1,7 +1,6 @@
 """Annotation lookup maps mixin."""
 
 from copy import deepcopy
-from functools import cached_property
 from typing import Final, cast
 
 from PySide6.QtGui import QColor, QPalette
@@ -24,10 +23,13 @@ class ThemeMixin:
         a = max(a - 40, 0)  # type: ignore[has-type]
         return QColor.fromHsv(h, s, v, a)  # type: ignore[has-type]
 
-    @cached_property
+    @property
     def reddish(self) -> QColor:
         """
         Redden a color by 40%.
+
+        Computed live (not cached) from the current palette, since caching
+        would leave it stale after a live theme change.
         """
         if self.is_dark_theme:
             return QColor.fromString("#73391d")

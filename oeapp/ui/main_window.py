@@ -629,6 +629,21 @@ class MainWindow(QMainWindow):
 
         self._help_dialog.show()
 
+    def refresh_theme_dependent_widgets(self) -> None:
+        """
+        Re-apply styling that does not follow the application palette.
+
+        Most widgets restyle automatically when the palette changes, but the
+        help center renders its own CSS into a ``QTextBrowser`` at construction
+        time and must be told to re-render.
+
+        Returns:
+            None
+
+        """
+        if self._help_dialog is not None:
+            self._help_dialog.refresh_theme()
+
     def show_settings_dialog(self) -> None:
         """
         Show settings dialog.

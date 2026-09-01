@@ -254,6 +254,7 @@ class MockMainWindow(QWidget):
         self.reload_project = MagicMock()
         self.refresh_project = MagicMock()
         self.setWindowTitle = MagicMock()
+        self.refresh_theme_dependent_widgets = MagicMock()
 
 
 class _MockProjectUI:

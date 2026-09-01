@@ -203,6 +203,21 @@ class HelpCenterDialog(QDialog):
         self.index_filter.textChanged.connect(self.index_widget.filterIndices)
         self.search_query_widget.search.connect(self.help_engine.start_search)
 
+    def refresh_theme(self) -> None:
+        """
+        Re-apply theme-derived CSS to the help browser.
+
+        Called when the application theme changes while this dialog is open,
+        since the browser's CSS override is computed from the palette once at
+        construction time and does not follow subsequent palette changes.
+
+        Returns:
+            None
+
+        """
+        self.browser.set_theme_override_css(self._theme_override_css())
+        self.browser.reload()
+
     def show_topic(self, topic: str | None) -> None:
         """
         Navigate to a topic by title.

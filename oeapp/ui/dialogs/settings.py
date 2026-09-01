@@ -6,12 +6,11 @@ from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QLabel,
-    QMessageBox,
     QSpinBox,
     QVBoxLayout,
 )
 
-from oeapp.utils import get_logo_pixmap
+from oeapp.ui.theming import apply_theme, resolve_theme_name
 
 if TYPE_CHECKING:
     from oeapp.ui.main_window import MainWindow
@@ -26,11 +25,6 @@ class SettingsDialog:
     DIALOG_WIDTH: Final[int] = 400
     #: Dialog height
     DIALOG_HEIGHT: Final[int] = 200
-    #: Themes
-    THEMES: Final[dict[str, str]] = {
-        "dark": "nord",
-        "light": "modern_light",
-    }
 
     def __init__(self, main_window: "MainWindow") -> None:
         """
@@ -83,7 +77,7 @@ class SettingsDialog:
         self.interval_spin = self.add_spin_box(
             "Backup interval (minutes):", 1, 1440, interval
         )
-        theme = self.get_str_value("theme/name", "nord")
+        theme = self.get_str_value("theme/name", "dark")
         self.theme_combo = self.add_combo_box("Theme:", ["dark", "light"], theme)
         self.layout.addWidget(self.theme_combo)
 
@@ -175,27 +169,17 @@ class SettingsDialog:
 
     def _on_theme_changed(self) -> None:
         """
-        Handle theme change by opening a confirmation dialog that tells the user
-        that the theme will be changed  once they quit and restart the
-        application.
+        Apply the newly selected theme to the running application.
+
+        ``qt_themes.set_theme`` sets the application palette, which Qt
+        propagates to already-constructed widgets, so no restart is needed.
+
+        Returns:
+            None
+
         """
-        # Confirmation dialog
-        # Confirm deletion
-        new_theme = self.theme_combo.currentText()
-        msg_box = QMessageBox(
-            QMessageBox.Icon.Question,
-            "Theme Change",
-            f'You have changed the theme to "{new_theme}". This will '
-            "take effect once you quit and restart the application.",
-            QMessageBox.StandardButton.Ok,
-            self.dialog,
-        )
-        msg_box.setDefaultButton(QMessageBox.StandardButton.Ok)
-        # Set custom icon
-        logo_pixmap = get_logo_pixmap(75)
-        if logo_pixmap:
-            msg_box.setIconPixmap(logo_pixmap)
-        msg_box.exec()
+        apply_theme(self.theme_combo.currentText())
+        self.main_window.refresh_theme_dependent_widgets()
 
     def execute(self) -> None:
         """
@@ -206,7 +190,10 @@ class SettingsDialog:
 
     def get_theme(self) -> str:
         """
-        Get the ``qt_themes`` theme name.
+        Get the ``qt_themes`` theme name for the stored theme setting.
+
+        Returns:
+            The ``qt_themes`` theme name.
+
         """
-        theme = self.get_str_value("theme/name", "dark")
-        return self.THEMES[theme]
+        return resolve_theme_name(self.get_str_value("theme/name", "dark"))
