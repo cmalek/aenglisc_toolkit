@@ -182,6 +182,13 @@ class MainWindow(QMainWindow):
         # can trade screen space between the sentence column and the
         # annotation sidebar.
         self.main_splitter = QSplitter(Qt.Orientation.Horizontal)
+        # QSplitter.childrenCollapsible() defaults to True, which lets a drag
+        # push a pane straight past its minimum width to zero -- there is no
+        # View-menu toggle to bring it back, so a collapsed pane (especially
+        # the content column, which hosts the search and navigation
+        # toolbars) would hide the entire working surface with no visible
+        # way to recover it.
+        self.main_splitter.setChildrenCollapsible(False)
         self.main_splitter.addWidget(content_column)
         self.main_splitter.addWidget(self.token_details_sidebar)
         self.main_splitter.setStretchFactor(0, 1)
@@ -416,7 +423,7 @@ class MainWindow(QMainWindow):
         app = QApplication.instance()
         if isinstance(app, QApplication) and not app.windowIcon().isNull():
             self.setWindowIcon(app.windowIcon())
-        self.setGeometry(100, 100, 1600, 800)
+        self.setGeometry(*self.MAIN_WINDOW_GEOMETRY)
 
     def show_empty(self, layout: QVBoxLayout) -> None:
         """

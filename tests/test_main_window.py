@@ -423,6 +423,18 @@ class TestSidebarResizing:
 
         assert sidebar.minimumWidth() != sidebar.maximumWidth()
 
+    def test_splitter_panes_are_not_collapsible(self, main_window):
+        """Neither splitter pane can be dragged to zero width.
+
+        ``QSplitter.childrenCollapsible()`` defaults to ``True``, which lets a
+        drag push a pane straight past its minimum width to zero even though
+        a ``setMinimumWidth()`` is set. There is no View-menu toggle to bring
+        a collapsed pane back, and the content column hosts the search and
+        navigation toolbars, so collapsing it would hide the entire working
+        surface with no way to recover it.
+        """
+        assert main_window.main_splitter.childrenCollapsible() is False
+
     def test_sidebar_starts_at_default_width(self, main_window, qapp):
         """The sidebar still opens at its established default width.
 

@@ -656,11 +656,14 @@ class BaseTokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
                 mod_e_value_label.sizePolicy().horizontalPolicy(),
                 mod_e_value_label.sizePolicy().verticalPolicy(),
             )
-            mod_e_value_label.setMaximumWidth(
-                int(mod_e_value_label.parentWidget().width())  # type: ignore[union-attr]
-                if mod_e_value_label.parentWidget()
-                else 16777215
-            )
+            # No setMaximumWidth() clamp here: it used to snapshot the
+            # sidebar's width at render time (`parentWidget().width()`),
+            # which was correct under the old fixed-width sidebar but goes
+            # stale the moment the splitter (see main_window.py) makes the
+            # sidebar resizable -- widening it left the label clamped
+            # narrow, and narrowing it could leave the label's maximum
+            # wider than its container. Word wrap plus the layout is enough
+            # to keep this label sized to its container.
             mod_e_value_label.setMinimumWidth(0)
             mod_e_value_label.setMaximumHeight(16777215)
 
@@ -708,11 +711,11 @@ class BaseTokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
                 sense_value_label.sizePolicy().horizontalPolicy(),
                 sense_value_label.sizePolicy().verticalPolicy(),
             )
-            sense_value_label.setMaximumWidth(
-                int(sense_value_label.parentWidget().width())  # type: ignore[union-attr]
-                if sense_value_label.parentWidget()
-                else 16777215
-            )
+            # See the matching comment in mod_e_meaning() above: no
+            # setMaximumWidth() clamp here, since it snapshotted the
+            # sidebar's width at render time and goes stale now that the
+            # sidebar is resizable via a splitter. Word wrap plus the
+            # layout keeps this label sized to its container.
             sense_value_label.setMinimumWidth(0)
             sense_value_label.setMaximumHeight(16777215)
 
