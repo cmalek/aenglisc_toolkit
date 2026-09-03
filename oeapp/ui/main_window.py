@@ -1188,7 +1188,6 @@ class MainWindowActions:
         Do an autosave operation.
 
         - If the current project ID is not set, do nothing.
-        - Sanitize notes before committing to prevent SQLAlchemy mapping errors
         - Save the current project.
         - Show a message in the status bar that the project has been saved.
 
@@ -1199,15 +1198,6 @@ class MainWindowActions:
         project = Project.get(project_id)
         if project is None:
             return
-
-        # Sanitize notes before committing to prevent SQLAlchemy mapping errors
-        # Ensure nullable foreign keys are None instead of 0 or False
-        for sentence in project.sentences:
-            for note in sentence.notes:
-                if note.start_token == 0 or note.start_token is False:
-                    note.start_token = None
-                if note.end_token == 0 or note.end_token is False:
-                    note.end_token = None
 
         project.save()
         try:

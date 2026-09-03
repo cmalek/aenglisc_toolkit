@@ -82,34 +82,31 @@ class TestNote:
         result = Note.get(99999)
         assert result is None
 
-    def test_sanitize_foreign_keys_converts_zero_to_none(self, db_session):
-        """Test _sanitize_foreign_keys() converts 0 to None."""
+    def test_token_fk_validates_zero_and_false_to_none(self, db_session):
+        """Test @validates coerces 0 and False token FKs to None."""
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
 
         note = Note(
             sentence_id=sentence.id,
-            start_token=0,  # Will be sanitized
-            end_token=0,  # Will be sanitized
+            start_token=0,
+            end_token=False,
             note_text_md="Test",
         )
-        # Manually call the sanitizer to test it
-        note._sanitize_foreign_keys()
         assert note.start_token is None
         assert note.end_token is None
 
-        # Also test with valid IDs
+        note.start_token = 0
+        note.end_token = False
+        assert note.start_token is None
+        assert note.end_token is None
+
         tokens = Token.list(sentence.id)
-        if tokens:
-            note2 = Note(
-                sentence_id=sentence.id,
-                start_token=tokens[0].id,
-                end_token=tokens[0].id,
-                note_text_md="Test 2",
-            )
-            note2._sanitize_foreign_keys()
-            assert note2.start_token == tokens[0].id
-            assert note2.end_token == tokens[0].id
+        assert tokens
+        note.start_token = tokens[0].id
+        note.end_token = tokens[0].id
+        assert note.start_token == tokens[0].id
+        assert note.end_token == tokens[0].id
 
     def test_to_json_serializes_note(self, db_session):
         """Test to_json() serializes note data."""

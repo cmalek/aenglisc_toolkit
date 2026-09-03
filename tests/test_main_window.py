@@ -8,8 +8,10 @@ from PySide6.QtCore import QPoint
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import QLabel, QSplitter, QStatusBar, QWidget
 
+from oeapp.models.note import Note
 from oeapp.state import AppContext
 from oeapp.ui.main_window import MainWindow, Messages
+from tests.conftest import create_test_project, create_test_sentence
 
 
 @pytest.fixture
@@ -97,6 +99,29 @@ class TestMainWindowActions:
         mock_card3.has_focus = True
         actions.prev_sentence()
         mock_card2.focus.assert_called_with()
+
+    def test_autosave_saves_without_note_fk_walk(self, main_window, db_session):
+        """Autosave persists the project; Note validates owns 0/False coerce."""
+        project = create_test_project(db_session)
+        sentence = create_test_sentence(db_session, project.id, "Se cyning")
+        note = Note(
+            sentence_id=sentence.id,
+            start_token=0,
+            end_token=False,
+            note_text_md="Sentence note",
+            note_type="sentence",
+        )
+        note.save()
+        assert note.start_token is None
+        assert note.end_token is None
+
+        main_window.app_context.current_project_id = project.id
+        main_window.action_service.autosave()
+
+        db_session.refresh(note)
+        assert note.start_token is None
+        assert note.end_token is None
+        assert main_window.statusBar().currentMessage() == "Saved"
 
     def test_copy_annotation_state(self, main_window):
         """Test that copy_annotation updates AppContext copied annotation."""

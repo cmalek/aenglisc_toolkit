@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Integer, String
-from sqlalchemy.orm import Mapped, mapped_column, reconstructor, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
 from oeapp.db import Base
 from oeapp.models.mixins import SaveDeleteMixin
@@ -69,19 +69,23 @@ class Note(SaveDeleteMixin, Base):
         "Token", foreign_keys=[end_token]
     )
 
-    @reconstructor
-    def _sanitize_foreign_keys(self) -> None:
+    @validates("start_token", "end_token")
+    def _validate_token_fk(self, _key: str, value: int | bool | None) -> int | None:
         """
-        Sanitize foreign key values when object is reconstructed from database.
+        Coerce placeholder token foreign keys to None.
 
-        Ensures that nullable foreign keys are None instead of 0 or False,
-        which can cause SQLAlchemy mapping errors.
+        Args:
+            _key: Mapped attribute name.
+            value: Incoming token id.
+
+        Returns:
+            ``None`` when ``value`` is ``0`` or ``False``; otherwise ``value``.
+
         """
-        # Convert 0 or False to None for nullable foreign keys
-        if self.start_token == 0 or self.start_token is False:
-            self.start_token = None
-        if self.end_token == 0 or self.end_token is False:
-            self.end_token = None
+        # ponytail: 0 and False; False == 0 so one check
+        if value == 0:
+            return None
+        return value
 
     @classmethod
     def get(cls, pk: int) -> "Note | None":
