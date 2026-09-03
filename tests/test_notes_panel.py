@@ -18,16 +18,16 @@ class TestNotesPanel:
         with pytest.raises(AssertionError):
             NotesPanel(parent=None)
 
-    def test_notes_panel_initializes_with_sentence(self, db_session, qapp):
+    def test_notes_panel_initializes_with_sentence(self, db_session, qapp, mock_main_window):
         """Test NotesPanel initializes with a sentence."""
         project = create_test_project(db_session, name="Test", text="Se cyning")
 
         sentence = project.sentences[0]
-        panel = NotesPanel(sentence=sentence, parent=None)
+        card = SentenceCard(sentence=sentence, main_window=mock_main_window, parent=None)
 
-        assert panel.sentence == sentence
+        assert card.notes_panel.sentence == sentence
 
-    def test_notes_panel_displays_notes(self, db_session, qapp):
+    def test_notes_panel_displays_notes(self, db_session, qapp, mock_main_window):
         """Test NotesPanel displays notes for a sentence."""
         from oeapp.models.note import Note
 
@@ -52,22 +52,22 @@ class TestNotesPanel:
         note1.save()
         note2.save()
 
-        panel = NotesPanel(sentence=sentence, parent=None)
-        panel.update_notes()
+        card = SentenceCard(sentence=sentence, main_window=mock_main_window, parent=None)
+        card.notes_panel.update_notes()
 
         # Should have note labels
-        assert len(panel.note_labels) == 2
+        assert len(card.notes_panel.note_labels) == 2
 
-    def test_notes_panel_handles_empty_notes(self, db_session, qapp):
+    def test_notes_panel_handles_empty_notes(self, db_session, qapp, mock_main_window):
         """Test NotesPanel handles sentence with no notes."""
         project = create_test_project(db_session, name="Test", text="Se cyning")
 
         sentence = project.sentences[0]
-        panel = NotesPanel(sentence=sentence, parent=None)
-        panel.update_notes()
+        card = SentenceCard(sentence=sentence, main_window=mock_main_window, parent=None)
+        card.notes_panel.update_notes()
 
         # Should have no note labels
-        assert len(panel.note_labels) == 0
+        assert len(card.notes_panel.note_labels) == 0
 
     def test_notes_panel_emits_note_clicked_signal(self, db_session, qapp, qtbot, mock_main_window):
         """Test NotesPanel emits signal when note is clicked."""
@@ -143,7 +143,7 @@ class TestNotesPanel:
             qtbot.mouseDClick(label, Qt.MouseButton.LeftButton)
             assert double_clicked_note == note
 
-    def test_notes_panel_updates_when_sentence_changes(self, db_session, qapp):
+    def test_notes_panel_updates_when_sentence_changes(self, db_session, qapp, mock_main_window):
         """Test NotesPanel updates when sentence changes."""
         from oeapp.models.note import Note
 
@@ -162,15 +162,15 @@ class TestNotesPanel:
         )
         note.save()
 
-        panel = NotesPanel(sentence=sentence1, parent=None)
-        panel.update_notes()
+        card = SentenceCard(sentence=sentence1, main_window=mock_main_window, parent=None)
+        card.notes_panel.update_notes()
 
-        assert len(panel.note_labels) == 1
+        assert len(card.notes_panel.note_labels) == 1
 
         # Update to second sentence (no notes)
-        panel.update_notes(sentence2)
+        card.notes_panel.update_notes(sentence2)
 
-        assert len(panel.note_labels) == 0
+        assert len(card.notes_panel.note_labels) == 0
 
 
 class TestClickableNoteLabel:

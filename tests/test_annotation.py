@@ -534,6 +534,73 @@ class TestAnnotation:
         assert annotation.token.surface in ["Se", "cyning"]  # Could be either token
 
 
+class TestAnnotationEmptinessPredicates:
+    """Test cases for Annotation.is_effectively_empty and is_safe_to_auto_fill."""
+
+    #: Non-default value to set for each field, to exercise every ``and`` branch.
+    NON_DEFAULT_VALUES = [
+        ("pos", "N"),
+        ("gender", "m"),
+        ("number", "s"),
+        ("case", "n"),
+        ("declension", "s"),
+        ("article_type", "d"),
+        ("pronoun_type", "p"),
+        ("pronoun_number", "s"),
+        ("verb_class", "w1"),
+        ("verb_tense", "p"),
+        ("verb_person", "3"),
+        ("verb_mood", "i"),
+        ("verb_aspect", "p"),
+        ("verb_form", "f"),
+        ("verb_direct_object_case", "a"),
+        ("verb_requires_infinitive", True),
+        ("verb_impersonal", True),
+        ("verb_transitivity", "intransitive"),
+        ("prep_case", "a"),
+        ("adjective_inflection", "s"),
+        ("adjective_degree", "p"),
+        ("conjunction_type", "c"),
+        ("adverb_degree", "p"),
+        ("confidence", 75),
+        ("last_inferred_json", '{"pos": "N"}'),
+        ("modern_english_meaning", "king"),
+        ("sense", "ruler"),
+        ("root", "cyning"),
+        ("root_normalized", "cyning"),
+    ]
+
+    @pytest.fixture
+    def annotation(self, db_session):
+        """Get the default, untouched annotation created for a fresh token."""
+        project = create_test_project(db_session)
+        sentence = create_test_sentence(db_session, project.id, "Se cyning")
+        token = Token.list(sentence.id)[0]
+        annotation = Annotation.get(token.id)
+        assert annotation is not None
+        return annotation
+
+    def test_default_annotation_is_effectively_empty(self, annotation):
+        """A freshly created, untouched annotation is effectively empty."""
+        assert annotation.is_effectively_empty() is True
+
+    def test_default_annotation_is_safe_to_auto_fill(self, annotation):
+        """A freshly created, untouched annotation is safe to auto-fill."""
+        assert annotation.is_safe_to_auto_fill() is True
+
+    @pytest.mark.parametrize(("field", "value"), NON_DEFAULT_VALUES)
+    def test_is_effectively_empty_false_when_field_set(self, annotation, field, value):
+        """Setting any single field to a non-default value breaks emptiness."""
+        setattr(annotation, field, value)
+        assert annotation.is_effectively_empty() is False
+
+    @pytest.mark.parametrize(("field", "value"), NON_DEFAULT_VALUES)
+    def test_is_safe_to_auto_fill_false_when_field_set(self, annotation, field, value):
+        """Setting any single field to a non-default value blocks auto-fill."""
+        setattr(annotation, field, value)
+        assert annotation.is_safe_to_auto_fill() is False
+
+
 class TestAnnotationFromAnnotation:
     """Test cases for Annotation.from_annotation method."""
 
