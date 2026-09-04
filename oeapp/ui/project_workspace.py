@@ -329,6 +329,7 @@ class ProjectUI:
         card.sentence_merged.connect(self._on_sentence_merged)
         card.sentence_added.connect(self._on_sentence_added)
         card.sentence_deleted.connect(self._on_sentence_deleted)
+        card.structure_changed.connect(self._on_structure_changed)
         card.token_selected_for_details.connect(self._on_token_selected_for_details)
         card.idiom_selected_for_details.connect(self._on_idiom_selected_for_details)
         card.annotation_applied.connect(self._on_annotation_applied)
@@ -535,6 +536,32 @@ class ProjectUI:
             QTimer.singleShot(0, _focus_new_card)
 
         self.show_message("Sentence added", duration=2000)
+
+    def _on_structure_changed(self, sentence_id: int) -> None:
+        """
+        Handle hierarchy structure changed signal.
+
+        Reloads the project from the database to refresh all sentence cards
+        after a paragraph/section/chapter split or merge, then scrolls back
+        to the same sentence card — but does not enter edit mode or flash it,
+        since nothing was "added".
+
+        Args:
+            sentence_id: ID of the sentence whose hierarchy context changed
+
+        """
+        if not self._reload_after_structure_change(clear_search=True):
+            return
+
+        card = self.find_sentence_card(sentence_id)
+
+        if card:
+            _card = cast("SentenceCard", card)
+
+            def _scroll_to_card(card: SentenceCard = _card) -> None:
+                self.main_window.ensure_visible(card)
+
+            QTimer.singleShot(0, _scroll_to_card)
 
     def _on_sentence_deleted(self, sentence_id: int) -> None:  # noqa: ARG002
         """

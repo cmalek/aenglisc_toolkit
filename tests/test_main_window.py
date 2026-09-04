@@ -262,6 +262,40 @@ class TestMainWindowActions:
             new_card.enter_edit_mode.assert_called_once_with()
             new_card.flash_added.assert_called_once_with()
 
+    def test_on_structure_changed_scrolls_without_edit_mode_or_flash(
+        self, main_window
+    ):
+        """A hierarchy change should scroll to the card but not edit/flash it."""
+        project_ui = main_window.project_ui
+        main_window.app_context.current_project_id = 1
+
+        project = MagicMock()
+        target_card = MagicMock()
+        target_card.sentence.id = 42
+
+        with (
+            patch("oeapp.ui.project_workspace.Project.get", return_value=project),
+            patch.object(
+                project_ui,
+                "_reload_after_structure_change",
+                return_value=True,
+            ),
+            patch.object(project_ui, "find_sentence_card", return_value=target_card),
+            patch.object(main_window, "reload_main_window"),
+            patch.object(main_window, "ensure_visible") as mock_ensure_visible,
+            patch("oeapp.ui.project_workspace.QTimer.singleShot") as mock_single_shot,
+        ):
+            project_ui._on_structure_changed(42)
+
+            mock_single_shot.assert_called_once()
+            scheduled_delay, scheduled_callback = mock_single_shot.call_args.args
+            assert scheduled_delay == 0
+
+            scheduled_callback()
+            mock_ensure_visible.assert_called_once_with(target_card)
+            target_card.enter_edit_mode.assert_not_called()
+            target_card.flash_added.assert_not_called()
+
     def test_reload_after_structure_change_preserves_command_manager(
         self, main_window
     ):
