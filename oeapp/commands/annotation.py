@@ -3,15 +3,19 @@
 from dataclasses import dataclass, field
 from typing import Any
 
+from sqlalchemy.orm import make_transient
+
 from oeapp.models.annotation import Annotation
+from oeapp.models.idiom import Idiom
 from oeapp.models.mixins import SessionMixin
+from oeapp.models.sentence import Sentence
 
 from .abstract import Command
 
 
 @dataclass
 class AnnotateTokenCommand(SessionMixin, Command):
-    """Command for annotating a token or idiom."""
+    """Command for annotating a token or idiom, optionally creating the idiom first."""
 
     #: The token ID.
     token_id: int | None = None
@@ -21,6 +25,14 @@ class AnnotateTokenCommand(SessionMixin, Command):
     after: dict[str, Any] = field(default_factory=dict)
     #: The idiom ID.
     idiom_id: int | None = None
+    #: A not-yet-persisted Idiom to create before annotating it. When set,
+    #: undo deletes this idiom (its annotation cascade-deletes with it)
+    #: instead of just blanking the annotation's fields. See ADR 0002.
+    new_idiom: Idiom | None = None
+    #: Sentence the annotated token/idiom belongs to, used to refresh the
+    #: sentence's ``tokens``/``idioms`` relationship collections after a new
+    #: idiom is linked in. Required whenever ``new_idiom`` is set.
+    sentence_id: int | None = None
 
     @property
     def annotation(self) -> Annotation | None:
@@ -43,34 +55,85 @@ class AnnotateTokenCommand(SessionMixin, Command):
 
     def execute(self) -> bool:
         """
-        Execute annotation update.
+        Execute annotation update, creating the idiom first if needed.
 
-        Update the annotation with the new data.
+        If :attr:`new_idiom` is set, persist it first and use its id as
+        :attr:`idiom_id`. The id is reset to ``None`` before every insert so
+        a redo after a prior undo (which deleted the row) gets a fresh
+        primary key rather than reusing the deleted one.
 
-        If the annotation does not exist, create a new one with the given token
-        or idiom ID, and update the annotation with the new data.
+        If the annotation does not exist, create a new one with the given
+        token or idiom ID, and update the annotation with the new data.
 
         Returns:
             True if the annotation was updated, False otherwise
 
         """
         session = self._get_session()
+
+        if self.new_idiom is not None:
+            # If the idiom has been marked as deleted in this session, make it transient
+            # so it can be re-added on redo with a fresh primary key.
+            try:
+                make_transient(self.new_idiom)
+            except Exception:
+                pass
+            self.new_idiom.id = None
+            session.add(self.new_idiom)
+            session.flush()
+            self.idiom_id = self.new_idiom.id
+
         annotation = self.annotation
         if annotation is None:
             annotation = Annotation(token_id=self.token_id, idiom_id=self.idiom_id)
             session.add(annotation)
             session.flush()
         annotation.from_json(annotation.token_id, self.after, annotation.idiom_id)
+
+        if self.idiom_id is not None and self.sentence_id is not None:
+            sentence = Sentence.get(self.sentence_id)
+            if sentence is not None:
+                session.refresh(sentence, ["tokens", "idioms"])
+
         return True
 
     def undo(self) -> bool:
         """
         Undo annotation update.
 
+        When :attr:`new_idiom` is set, deletes the created idiom (its
+        annotation cascade-deletes with it) rather than blanking fields,
+        per ADR 0002.
+
         Returns:
-            True if there was an annotation to restore, False otherwise
+            True if there was an annotation/idiom to restore, False otherwise
 
         """
+        if self.new_idiom is not None:
+            if self.idiom_id is not None:
+                session = self._get_session()
+                idiom = Idiom.get(self.idiom_id)
+                if idiom is not None:
+                    # Delete the associated annotation explicitly to ensure
+                    # it's properly removed from the session before redo.
+                    annotation = Annotation.get_by_idiom(self.idiom_id)
+                    if annotation is not None:
+                        session.delete(annotation)
+                    session.delete(idiom)
+                    session.flush()
+                    # Make the deleted annotation transient and expunge it
+                    # to prevent SQLAlchemy from trying to reuse it on redo.
+                    if annotation is not None:
+                        try:
+                            make_transient(annotation)
+                        except Exception:
+                            pass
+                        try:
+                            session.expunge(annotation)
+                        except Exception:
+                            pass
+            return True
+
         annotation = self.annotation
         if annotation is None:
             return False

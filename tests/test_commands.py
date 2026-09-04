@@ -11,6 +11,7 @@ from oeapp.commands import (
     MergeParagraphCommand,
 )
 from oeapp.models.annotation import Annotation
+from oeapp.models.idiom import Idiom
 from oeapp.models.note import Note
 from oeapp.models.sentence import Sentence
 from oeapp.models.token import Token
@@ -377,6 +378,127 @@ class TestCommandManager:
         command_manager.redo()
         assert command_manager.can_undo()
         assert not command_manager.can_redo()
+
+    def test_execute_creates_new_idiom_and_annotation(self, command_setup):
+        """A new_idiom is persisted, linked, and refreshes the sentence collections."""
+        from oeapp.models.idiom import Idiom
+        from oeapp.models.sentence import Sentence
+        from oeapp.models.token import Token
+
+        setup = command_setup
+        command_manager = setup["command_manager"]
+        session = setup["session"]
+        sentence_id = setup["sentence_id"]
+
+        tokens = Token.list(sentence_id)
+        assert len(tokens) >= 2
+        start_token, end_token = tokens[0], tokens[1]
+
+        new_idiom = Idiom(
+            sentence_id=sentence_id,
+            start_token_id=start_token.id,
+            end_token_id=end_token.id,
+        )
+
+        before = {"pos": None, "confidence": None}
+        after = {"pos": "N", "confidence": 90}
+
+        command = AnnotateTokenCommand(
+            before=before,
+            after=after,
+            new_idiom=new_idiom,
+            sentence_id=sentence_id,
+        )
+
+        assert command_manager.execute(command)
+
+        # The idiom was persisted and given a real id.
+        assert new_idiom.id is not None
+        assert command.idiom_id == new_idiom.id
+
+        # The annotation was created and linked to the new idiom.
+        annotation = Annotation.get_by_idiom(new_idiom.id)
+        assert annotation is not None
+        assert annotation.pos == "N"
+        assert annotation.confidence == 90
+
+        # The sentence's idiom/token collections were refreshed in-session.
+        sentence = Sentence.get(sentence_id)
+        assert any(i.id == new_idiom.id for i in sentence.idioms)
+
+    def test_undo_new_idiom_deletes_idiom_and_annotation(self, command_setup):
+        """Undoing a new-idiom annotation deletes the idiom (annotation cascades)."""
+        from oeapp.models.idiom import Idiom
+        from oeapp.models.token import Token
+
+        setup = command_setup
+        command_manager = setup["command_manager"]
+        sentence_id = setup["sentence_id"]
+
+        tokens = Token.list(sentence_id)
+        start_token, end_token = tokens[0], tokens[1]
+
+        new_idiom = Idiom(
+            sentence_id=sentence_id,
+            start_token_id=start_token.id,
+            end_token_id=end_token.id,
+        )
+
+        command = AnnotateTokenCommand(
+            before={"pos": None},
+            after={"pos": "N"},
+            new_idiom=new_idiom,
+            sentence_id=sentence_id,
+        )
+
+        assert command_manager.execute(command)
+        created_idiom_id = command.idiom_id
+
+        assert command_manager.undo()
+
+        assert Idiom.get(created_idiom_id) is None
+        assert Annotation.get_by_idiom(created_idiom_id) is None
+
+    def test_redo_new_idiom_recreates_idiom_and_annotation(self, command_setup):
+        """Redo after undo must recreate the idiom, not reuse the deleted row's id."""
+        from oeapp.models.idiom import Idiom
+        from oeapp.models.token import Token
+
+        setup = command_setup
+        command_manager = setup["command_manager"]
+        sentence_id = setup["sentence_id"]
+
+        tokens = Token.list(sentence_id)
+        start_token, end_token = tokens[0], tokens[1]
+
+        new_idiom = Idiom(
+            sentence_id=sentence_id,
+            start_token_id=start_token.id,
+            end_token_id=end_token.id,
+        )
+
+        command = AnnotateTokenCommand(
+            before={"pos": None},
+            after={"pos": "N"},
+            new_idiom=new_idiom,
+            sentence_id=sentence_id,
+        )
+
+        assert command_manager.execute(command)
+        first_idiom_id = command.idiom_id
+
+        assert command_manager.undo()
+        assert Idiom.get(first_idiom_id) is None
+
+        assert command_manager.redo()
+
+        # Redo must have created a *new* idiom row (old id is gone for good).
+        assert command.idiom_id is not None
+        recreated = Idiom.get(command.idiom_id)
+        assert recreated is not None
+        annotation = Annotation.get_by_idiom(command.idiom_id)
+        assert annotation is not None
+        assert annotation.pos == "N"
 
 
 class TestAddNoteCommand:
