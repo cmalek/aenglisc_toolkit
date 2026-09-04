@@ -1,5 +1,6 @@
 import pytest
 from PySide6.QtCore import QPoint, Qt
+from oeapp.commands import CommandManager
 from oeapp.ui.sentence_card import SentenceCard
 from oeapp.models.token import Token
 from oeapp.models.note import Note
@@ -35,7 +36,12 @@ class TestTokenSelectionRobustness:
         for t in sentence.tokens:
             db_session.refresh(t)
 
-        card = SentenceCard(sentence, main_window=mock_main_window, parent=None)
+        card = SentenceCard(
+            sentence,
+            command_manager=CommandManager(db_session),
+            main_window=mock_main_window,
+            parent=None,
+        )
         card.show()
         qtbot.addWidget(card)
 

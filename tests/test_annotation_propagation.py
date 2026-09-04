@@ -19,9 +19,13 @@ def _actions(mock_main_window) -> MainWindowActions:
     return MainWindowActions(mock_main_window, mock_main_window.app_context)
 
 
-def _select_card(mock_main_window, sentence, token_index: int) -> SentenceCard:
+def _select_card(db_session, mock_main_window, sentence, token_index: int) -> SentenceCard:
     """Create and select real sentence card for token interaction tests."""
-    card = SentenceCard(sentence, main_window=mock_main_window)
+    card = SentenceCard(
+        sentence,
+        command_manager=CommandManager(db_session),
+        main_window=mock_main_window,
+    )
     card.oe_text_edit.set_selected_token_index(token_index)
     mock_main_window.project_ui.set_selected_sentence_card(card)
     return card
@@ -255,7 +259,11 @@ class TestAnnotationPropagationMenu:
         token.annotation.save()
 
         mock_main_window.app_context.current_project_id = project.id
-        card = SentenceCard(project.sentences[0], main_window=mock_main_window)
+        card = SentenceCard(
+            project.sentences[0],
+            command_manager=CommandManager(db_session),
+            main_window=mock_main_window,
+        )
         text_edit = card.oe_text_edit
         text_edit.render_readonly_text()
 
@@ -315,7 +323,11 @@ class TestAnnotationPropagationMenu:
         token.annotation.save()
 
         mock_main_window.app_context.current_project_id = project.id
-        card = SentenceCard(project.sentences[0], main_window=mock_main_window)
+        card = SentenceCard(
+            project.sentences[0],
+            command_manager=CommandManager(db_session),
+            main_window=mock_main_window,
+        )
         text_edit = card.oe_text_edit
         text_edit.render_readonly_text()
 

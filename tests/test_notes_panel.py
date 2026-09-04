@@ -3,6 +3,7 @@
 import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QDialog
+from oeapp.commands import CommandManager
 from oeapp.ui.notes_panel import NotesPanel, ClickableNoteLabel
 from oeapp.ui.sentence_card import SentenceCard
 from tests.conftest import create_test_project
@@ -23,7 +24,12 @@ class TestNotesPanel:
         project = create_test_project(db_session, name="Test", text="Se cyning")
 
         sentence = project.sentences[0]
-        card = SentenceCard(sentence=sentence, main_window=mock_main_window, parent=None)
+        card = SentenceCard(
+            sentence=sentence,
+            command_manager=CommandManager(db_session),
+            main_window=mock_main_window,
+            parent=None,
+        )
 
         assert card.notes_panel.sentence == sentence
 
@@ -52,7 +58,12 @@ class TestNotesPanel:
         note1.save()
         note2.save()
 
-        card = SentenceCard(sentence=sentence, main_window=mock_main_window, parent=None)
+        card = SentenceCard(
+            sentence=sentence,
+            command_manager=CommandManager(db_session),
+            main_window=mock_main_window,
+            parent=None,
+        )
         card.notes_panel.update_notes()
 
         # Should have note labels
@@ -63,7 +74,12 @@ class TestNotesPanel:
         project = create_test_project(db_session, name="Test", text="Se cyning")
 
         sentence = project.sentences[0]
-        card = SentenceCard(sentence=sentence, main_window=mock_main_window, parent=None)
+        card = SentenceCard(
+            sentence=sentence,
+            command_manager=CommandManager(db_session),
+            main_window=mock_main_window,
+            parent=None,
+        )
         card.notes_panel.update_notes()
 
         # Should have no note labels
@@ -86,7 +102,12 @@ class TestNotesPanel:
         )
         note.save()
 
-        card = SentenceCard(sentence=sentence, main_window=mock_main_window, parent=None)
+        card = SentenceCard(
+            sentence=sentence,
+            command_manager=CommandManager(db_session),
+            main_window=mock_main_window,
+            parent=None,
+        )
         qtbot.addWidget(card)
 
         card.notes_panel.update_notes()
@@ -125,7 +146,12 @@ class TestNotesPanel:
         )
         note.save()
 
-        card = SentenceCard(sentence=sentence, main_window=mock_main_window, parent=None)
+        card = SentenceCard(
+            sentence=sentence,
+            command_manager=CommandManager(db_session),
+            main_window=mock_main_window,
+            parent=None,
+        )
         qtbot.addWidget(card)
 
         card.notes_panel.update_notes()
@@ -162,7 +188,12 @@ class TestNotesPanel:
         )
         note.save()
 
-        card = SentenceCard(sentence=sentence1, main_window=mock_main_window, parent=None)
+        card = SentenceCard(
+            sentence=sentence1,
+            command_manager=CommandManager(db_session),
+            main_window=mock_main_window,
+            parent=None,
+        )
         card.notes_panel.update_notes()
 
         assert len(card.notes_panel.note_labels) == 1

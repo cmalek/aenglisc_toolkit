@@ -1,5 +1,6 @@
 import pytest
 from PySide6.QtCore import Qt
+from oeapp.commands import CommandManager
 from oeapp.models import Annotation
 from oeapp.ui.sentence_card import SentenceCard
 from oeapp.ui.dialogs.annotation_modal import AnnotationModal
@@ -10,7 +11,12 @@ def sentence_card(db_session, qapp, mock_main_window):
     """Create a SentenceCard for testing."""
     project = create_test_project(db_session, name="Integration Test Project", text="Se cyning ricsode.")
     sentence = project.sentences[0]
-    card = SentenceCard(sentence, main_window=mock_main_window, parent=None)
+    card = SentenceCard(
+        sentence,
+        command_manager=CommandManager(db_session),
+        main_window=mock_main_window,
+        parent=None,
+    )
     card.show()
     return card
 

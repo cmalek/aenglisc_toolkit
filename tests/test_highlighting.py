@@ -3,6 +3,7 @@ from PySide6.QtGui import QColor, QTextCursor
 from PySide6.QtWidgets import QComboBox, QTextEdit
 from unittest.mock import patch
 
+from oeapp.commands import CommandManager
 from oeapp.models.annotation import Annotation
 from oeapp.ui.highlighting import (
     POSHighlighterCommand,
@@ -26,7 +27,12 @@ class TestHighlighting:
     def card(self, db_session, qapp, qtbot, mock_main_window):
         project = create_test_project(db_session, name="Test Highlighting", text="Se cyning fēoll.")
         sentence = project.sentences[0]
-        card = SentenceCard(sentence, main_window=mock_main_window, parent=None)
+        card = SentenceCard(
+            sentence,
+            command_manager=CommandManager(db_session),
+            main_window=mock_main_window,
+            parent=None,
+        )
         qtbot.addWidget(card)
         return card
 
@@ -283,7 +289,12 @@ class TestSingleInstanceHighlighter:
     def card(self, db_session, qapp, qtbot, mock_main_window):
         project = create_test_project(db_session, name="Test Single Highlighting", text="Se cyning fēoll.")
         sentence = project.sentences[0]
-        card = SentenceCard(sentence, main_window=mock_main_window, parent=None)
+        card = SentenceCard(
+            sentence,
+            command_manager=CommandManager(db_session),
+            main_window=mock_main_window,
+            parent=None,
+        )
         qtbot.addWidget(card)
         return card
 

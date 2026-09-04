@@ -4,6 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from oeapp.commands import CommandManager
 from oeapp.models.project import Project
 from oeapp.ui.main_window import MainWindowActions
 from oeapp.ui.sentence_card import SentenceCard
@@ -15,9 +16,13 @@ def _actions(mock_main_window) -> MainWindowActions:
     return MainWindowActions(mock_main_window, mock_main_window.app_context)
 
 
-def _select_card(mock_main_window, sentence, token_index: int) -> SentenceCard:
+def _select_card(db_session, mock_main_window, sentence, token_index: int) -> SentenceCard:
     """Create and select a real sentence card for token interaction tests."""
-    card = SentenceCard(sentence, main_window=mock_main_window)
+    card = SentenceCard(
+        sentence,
+        command_manager=CommandManager(db_session),
+        main_window=mock_main_window,
+    )
     card.oe_text_edit.set_selected_token_index(token_index)
     mock_main_window.project_ui.set_selected_sentence_card(card)
     return card
@@ -59,7 +64,7 @@ class TestCopyAnnotation:
         annotation.save()
         db_session.refresh(token)
 
-        _select_card(mock_main_window, sentence, 0)
+        _select_card(db_session, mock_main_window, sentence, 0)
 
         assert _actions(mock_main_window).copy_annotation() is True
         mock_main_window.messages.show_message.assert_called_with("Annotation copied")
@@ -102,7 +107,7 @@ class TestCopyAnnotation:
         annotation.save()
         db_session.refresh(token)
 
-        _select_card(mock_main_window, sentence, 0)
+        _select_card(db_session, mock_main_window, sentence, 0)
 
         assert _actions(mock_main_window).copy_annotation() is True
         copied = mock_main_window.app_context.copied_annotation
@@ -135,7 +140,7 @@ class TestPasteAnnotation:
         project = create_test_project(db_session, name="Test", text="Se cyning")
         sentence = project.sentences[0]
 
-        _select_card(mock_main_window, sentence, 0)
+        _select_card(db_session, mock_main_window, sentence, 0)
 
         assert _actions(mock_main_window).paste_annotation() is True
         mock_main_window.messages.show_message.assert_called_with("No annotation to paste")
@@ -159,7 +164,7 @@ class TestPasteAnnotation:
         }
         command_manager = mock_main_window.app_context.command_manager
 
-        _select_card(mock_main_window, sentence, 1)
+        _select_card(db_session, mock_main_window, sentence, 1)
 
         assert _actions(mock_main_window).paste_annotation() is True
         db_session.refresh(token)
@@ -184,7 +189,7 @@ class TestPasteAnnotation:
         }
         command_manager = mock_main_window.app_context.command_manager
 
-        _select_card(mock_main_window, sentence, 1)
+        _select_card(db_session, mock_main_window, sentence, 1)
 
         _actions(mock_main_window).paste_annotation()
         command_manager.undo()
@@ -217,7 +222,7 @@ class TestCopyPasteIntegration:
         annotation.save()
         db_session.refresh(source_token)
 
-        card = _select_card(mock_main_window, sentence, 0)
+        card = _select_card(db_session, mock_main_window, sentence, 0)
         actions = _actions(mock_main_window)
 
         assert actions.copy_annotation() is True
@@ -255,10 +260,10 @@ class TestCopyPasteIntegration:
         db_session.refresh(source_token)
 
         actions = _actions(mock_main_window)
-        _select_card(mock_main_window, sentence1, 0)
+        _select_card(db_session, mock_main_window, sentence1, 0)
         assert actions.copy_annotation() is True
 
-        _select_card(mock_main_window, sentence2, 0)
+        _select_card(db_session, mock_main_window, sentence2, 0)
         assert actions.paste_annotation() is True
 
         db_session.refresh(target_token)

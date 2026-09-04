@@ -1,4 +1,5 @@
 import pytest
+from oeapp.commands import CommandManager
 from oeapp.ui.sentence_card import SentenceCard
 from oeapp.models.token import Token
 from tests.conftest import create_test_project
@@ -7,7 +8,12 @@ def test_user_problematic_sentence_clicks(db_session, qapp, mock_main_window):
     text = "Men ða lēofstan, manað ūs and myngaþ þeos hāliġe bōc þæt wē sīen  ġe-myndiġe ymb ūre sawle þearfe, ond ēac swā ūres þæs nēhstan dæġes ond þǣre tō-scadednesse ūre sāwle þonne hīo of ðam liċ-homan lǣdde bīo."
     project = create_test_project(db_session, name="Test", text=text)
     sentence = project.sentences[0]
-    card = SentenceCard(sentence, main_window=mock_main_window, parent=None)
+    card = SentenceCard(
+        sentence,
+        command_manager=CommandManager(db_session),
+        main_window=mock_main_window,
+        parent=None,
+    )
     card.show()
     card.oe_text_edit.render_readonly_text()
 

@@ -2,6 +2,7 @@
 
 import pytest
 from PySide6.QtWidgets import QPushButton
+from oeapp.commands import CommandManager
 from oeapp.models.idiom import Idiom
 from oeapp.models.annotation import Annotation
 from oeapp.ui.sentence_card import SentenceCard
@@ -162,7 +163,11 @@ def test_idiom_selection_ui(qtbot, db_session, sentence, mock_main_window):
     _ = list(sentence.tokens)
     _ = list(sentence.idioms)
 
-    card = SentenceCard(sentence, main_window=mock_main_window)
+    card = SentenceCard(
+        sentence,
+        command_manager=CommandManager(db_session),
+        main_window=mock_main_window,
+    )
     qtbot.addWidget(card)
 
     # Simulate Cmd+Click on first token
@@ -189,7 +194,11 @@ def test_idiom_modal_navigation(qtbot, db_session, sentence, mock_main_window):
     db_session.commit()
     db_session.refresh(sentence)
 
-    card = SentenceCard(sentence, main_window=mock_main_window)
+    card = SentenceCard(
+        sentence,
+        command_manager=CommandManager(db_session),
+        main_window=mock_main_window,
+    )
     qtbot.addWidget(card)
 
     modal = AnnotationModal(idiom=sentence.idioms[0], parent=card)

@@ -13,7 +13,11 @@ class TestTokenSelector:
     def text_edit(self, db_session, qapp, mock_main_window):
         project = create_test_project(db_session, name="Test", text="Se cyning")
         sentence = project.sentences[0]
-        card = SentenceCard(sentence, main_window=mock_main_window)
+        card = SentenceCard(
+            sentence,
+            command_manager=CommandManager(db_session),
+            main_window=mock_main_window,
+        )
         return card.oe_text_edit
 
     @pytest.fixture
@@ -86,7 +90,11 @@ class TestOldEnglishTextEdit:
     def card(self, db_session, qapp, mock_main_window):
         project = create_test_project(db_session, name="Test", text="Se cyning")
         sentence = project.sentences[0]
-        card = SentenceCard(sentence, main_window=mock_main_window)
+        card = SentenceCard(
+            sentence,
+            command_manager=CommandManager(db_session),
+            main_window=mock_main_window,
+        )
         return card
 
     @pytest.fixture
