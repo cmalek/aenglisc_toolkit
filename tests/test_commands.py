@@ -459,6 +459,15 @@ class TestCommandManager:
         assert Idiom.get(created_idiom_id) is None
         assert Annotation.get_by_idiom(created_idiom_id) is None
 
+        # The delete must be committed, not just flushed: a later rollback
+        # elsewhere in the app must not resurrect the "deleted" idiom row.
+        from oeapp.db import get_runtime_session  # noqa: PLC0415
+
+        get_runtime_session().rollback()
+
+        assert Idiom.get(created_idiom_id) is None
+        assert Annotation.get_by_idiom(created_idiom_id) is None
+
     def test_redo_new_idiom_recreates_idiom_and_annotation(self, command_setup):
         """Redo after undo must recreate the idiom, not reuse the deleted row's id."""
         from oeapp.models.idiom import Idiom

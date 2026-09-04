@@ -74,14 +74,20 @@ class AnnotateTokenCommand(SessionMixin, Command):
 
         if self.new_idiom is not None:
             # Redo after a prior undo() reuses this same Idiom instance,
-            # which undo() already deleted (session.delete + flush). That
-            # leaves it in SQLAlchemy's "deleted" identity-map state, and
-            # its cascade-deleted Annotation (cascade="all, delete-orphan"
-            # on Idiom.annotation) is still cached in this instance's
-            # __dict__["annotation"]. Session.add() on a deleted-state
-            # instance raises InvalidRequestError, so it must be reset to
-            # transient first. The cached Annotation reference must be
-            # popped directly from __dict__ (bypassing the ORM's
+            # which undo() already deleted (session.delete + commit). That
+            # leaves it out of SQLAlchemy's identity map (deleted-and-
+            # flushed instances are "deleted"; deleted-and-committed
+            # instances are "detached" — inspect(...).deleted is only True
+            # in the former case), and its cascade-deleted Annotation
+            # (cascade="all, delete-orphan" on Idiom.annotation) is still
+            # cached in this instance's __dict__["annotation"]. Session.add()
+            # on a non-transient instance whose row no longer exists raises
+            # InvalidRequestError, so it must be reset to transient first.
+            # Checking "not transient" (rather than "deleted") catches both
+            # the flushed-only and the committed-delete cases; a brand-new
+            # Idiom that has never been added to a session is transient, so
+            # this only fires on reuse. The cached Annotation reference must
+            # be popped directly from __dict__ (bypassing the ORM's
             # instrumented attribute events) rather than cleared via a
             # normal assignment (``self.new_idiom.annotation = None``):
             # a normal assignment still leaves the deleted Annotation
@@ -91,10 +97,13 @@ class AnnotateTokenCommand(SessionMixin, Command):
             # brand-new Annotation is created further down in this method,
             # so the stale cached reference isn't needed. Only do any of
             # this when the state actually requires it.
-            if inspect(self.new_idiom).deleted:
+            if not inspect(self.new_idiom).transient:
                 self.new_idiom.__dict__.pop("annotation", None)
                 make_transient(self.new_idiom)
-            self.new_idiom.id = None
+            # Idiom.id is Mapped[int] (non-optional), but SQLAlchemy allows
+            # resetting a transient instance's PK to None before re-insert
+            # so a redo gets a fresh id instead of reusing the deleted one.
+            self.new_idiom.id = None  # type: ignore[assignment]
             session.add(self.new_idiom)
             session.flush()
             self.idiom_id = self.new_idiom.id
@@ -131,7 +140,7 @@ class AnnotateTokenCommand(SessionMixin, Command):
                 idiom = Idiom.get(self.idiom_id)
                 if idiom is not None:
                     session.delete(idiom)
-                    session.flush()
+                    session.commit()
             return True
 
         annotation = self.annotation
