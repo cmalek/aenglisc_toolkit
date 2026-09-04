@@ -24,11 +24,22 @@ class SplitParagraphCommand(SessionMixin, Command):
 
     @property
     def needs_full_reload(self) -> bool:
+        """
+        Needs full reload.
+
+        Returns:
+            The computed value.
+
+        """
         return True
 
     def execute(self) -> bool:
         """
         Execute split paragraph operation.
+
+        Returns:
+            The computed value.
+
         """
         session = self._get_session()
         sentence = Sentence.get(self.sentence_id)
@@ -90,6 +101,10 @@ class SplitParagraphCommand(SessionMixin, Command):
     def undo(self) -> bool:
         """
         Undo split paragraph operation.
+
+        Returns:
+            The computed value.
+
         """
         session = self._get_session()
         if not self.new_paragraph_id or not self.original_paragraph_id:
@@ -127,6 +142,13 @@ class SplitParagraphCommand(SessionMixin, Command):
         return True
 
     def get_description(self) -> str:
+        """
+        Get description.
+
+        Returns:
+            The computed value.
+
+        """
         return f"Split paragraph at sentence {self.sentence_id}"
 
 
@@ -147,11 +169,22 @@ class MergeParagraphCommand(SessionMixin, Command):
 
     @property
     def needs_full_reload(self) -> bool:
+        """
+        Needs full reload.
+
+        Returns:
+            The computed value.
+
+        """
         return True
 
     def execute(self) -> bool:
         """
         Execute merge paragraph operation.
+
+        Returns:
+            The computed value.
+
         """
         session = self._get_session()
         sentence = Sentence.get(self.sentence_id)
@@ -212,6 +245,10 @@ class MergeParagraphCommand(SessionMixin, Command):
     def undo(self) -> bool:
         """
         Undo merge paragraph operation.
+
+        Returns:
+            The computed value.
+
         """
         session = self._get_session()
         if (
@@ -255,4 +292,11 @@ class MergeParagraphCommand(SessionMixin, Command):
         return True
 
     def get_description(self) -> str:
+        """
+        Get description.
+
+        Returns:
+            The computed value.
+
+        """
         return f"Merge paragraph at sentence {self.sentence_id} with previous"

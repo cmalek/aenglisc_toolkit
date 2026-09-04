@@ -91,6 +91,11 @@ def filter_projects_table(project_table: QTableWidget, search_text: str) -> None
 class DateTimeTableWidgetItem(QTableWidgetItem):
     """
     Custom QTableWidgetItem that sorts by datetime value instead of display text.
+
+    Args:
+        display_text: Display text.
+        dt: Dt.
+
     """
 
     def __init__(self, display_text: str, dt: "datetime") -> None:
@@ -103,6 +108,7 @@ class DateTimeTableWidgetItem(QTableWidgetItem):
 
         """
         super().__init__(display_text)
+        #: Datetime.
         self._datetime = dt
 
     def __lt__(self, other: QTableWidgetItem) -> bool:

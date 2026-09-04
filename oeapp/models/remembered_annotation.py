@@ -34,7 +34,9 @@ if TYPE_CHECKING:
 class RememberedAnnotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
     """Stored token-only annotation template keyed by exact token surface."""
 
+    #: Tablename  .
     __tablename__ = "remembered_annotations"
+    #: Table args  .
     __table_args__ = (
         CheckConstraint(
             "pos IN ('N','V','A','R','D','B','C','E','I', 'L')",
@@ -220,14 +222,33 @@ class RememberedAnnotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
 
     @classmethod
     def get(cls, remembered_annotation_id: int) -> RememberedAnnotation | None:
-        """Get a remembered annotation by ID."""
+        """
+        Get a remembered annotation by ID.
+
+        Args:
+            remembered_annotation_id: Remembered annotation id.
+
+        Returns:
+            The computed value.
+
+        """
         return cls._get_session().get(cls, remembered_annotation_id)
 
     @classmethod
     def get_for_scope(
         cls, token_text: str, project_id: int | None
     ) -> RememberedAnnotation | None:
-        """Get a remembered annotation for one exact token/scope pair."""
+        """
+        Get a remembered annotation for one exact token/scope pair.
+
+        Args:
+            token_text: Token text.
+            project_id: Project id.
+
+        Returns:
+            The computed value.
+
+        """
         session = cls._get_session()
         stmt = select(cls).where(cls.token_text == token_text)
         stmt = (
@@ -241,7 +262,16 @@ class RememberedAnnotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
     def list_for_scope(
         cls, project_id: int | None
     ) -> builtins.list[RememberedAnnotation]:
-        """List remembered annotations for one explicit scope."""
+        """
+        List remembered annotations for one explicit scope.
+
+        Args:
+            project_id: Project id.
+
+        Returns:
+            The computed value.
+
+        """
         session = cls._get_session()
         stmt = select(cls)
         stmt = (
@@ -255,7 +285,16 @@ class RememberedAnnotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
     def effective_for_project(
         cls, project_id: int
     ) -> dict[str, RememberedAnnotation]:
-        """Resolve project-visible remembered entries with project scope winning."""
+        """
+        Resolve project-visible remembered entries with project scope winning.
+
+        Args:
+            project_id: Project id.
+
+        Returns:
+            The computed value.
+
+        """
         session = cls._get_session()
         stmt = (
             select(cls)
@@ -271,7 +310,17 @@ class RememberedAnnotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
     def upsert_from_token_annotation(
         cls, token: Token, project_id: int | None
     ) -> RememberedAnnotation:
-        """Upsert a remembered entry from a live token annotation."""
+        """
+        Upsert a remembered entry from a live token annotation.
+
+        Args:
+            token: Token.
+            project_id: Project id.
+
+        Returns:
+            The computed value.
+
+        """
         if token.annotation is None:
             msg = "Cannot remember a token without an annotation"
             raise ValueError(msg)
@@ -288,7 +337,18 @@ class RememberedAnnotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
         project_id: int | None,
         field_data: dict[str, Any],
     ) -> RememberedAnnotation:
-        """Upsert a remembered entry from sanitized field data."""
+        """
+        Upsert a remembered entry from sanitized field data.
+
+        Args:
+            token_text: Token text.
+            project_id: Project id.
+            field_data: Field data.
+
+        Returns:
+            The computed value.
+
+        """
         remembered = cls.get_for_scope(token_text, project_id)
         if remembered is None:
             remembered = cls(token_text=token_text, project_id=project_id)
@@ -301,7 +361,18 @@ class RememberedAnnotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
     def from_json(
         cls, project_id: int, remembered_data: dict[str, Any], commit: bool = True
     ) -> RememberedAnnotation:
-        """Create or update a project-scoped remembered annotation from JSON."""
+        """
+        Create or update a project-scoped remembered annotation from JSON.
+
+        Args:
+            project_id: Project id.
+            remembered_data: Remembered data.
+            commit: Commit.
+
+        Returns:
+            The computed value.
+
+        """
         remembered = cls.get_for_scope(remembered_data["token_text"], project_id)
         if remembered is None:
             remembered = cls(
@@ -317,7 +388,17 @@ class RememberedAnnotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
     def matching_tokens(
         cls, project_id: int, token_texts: builtins.list[str]
     ) -> builtins.list[Token]:
-        """Return project tokens whose exact surface matches remembered keys."""
+        """
+        Return project tokens whose exact surface matches remembered keys.
+
+        Args:
+            project_id: Project id.
+            token_texts: Token texts.
+
+        Returns:
+            The computed value.
+
+        """
         if not token_texts:
             return []
         from oeapp.models.sentence import Sentence  # noqa: PLC0415
@@ -333,11 +414,23 @@ class RememberedAnnotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
         return builtins.list(session.scalars(stmt).all())
 
     def annotation_payload(self) -> dict[str, Any]:
-        """Convert this remembered entry into replayable annotation data."""
+        """
+        Convert this remembered entry into replayable annotation data.
+
+        Returns:
+            The computed value.
+
+        """
         return self._sanitize_annotation_data(self.to_json())
 
     def to_json(self) -> dict[str, Any]:
-        """Serialize remembered annotation to JSON-compatible data."""
+        """
+        Serialize remembered annotation to JSON-compatible data.
+
+        Returns:
+            The computed value.
+
+        """
         data = self._sanitize_annotation_data(
             {
                 "pos": self.pos,
@@ -376,7 +469,16 @@ class RememberedAnnotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
     def _sanitize_annotation_data(
         cls, annotation_data: dict[str, Any]
     ) -> dict[str, Any]:
-        """Keep only replay-safe remembered fields from annotation-like data."""
+        """
+        Keep only replay-safe remembered fields from annotation-like data.
+
+        Args:
+            annotation_data: Annotation data.
+
+        Returns:
+            The computed value.
+
+        """
         return {
             "pos": annotation_data.get("pos"),
             "gender": annotation_data.get("gender"),
@@ -414,6 +516,16 @@ class RememberedAnnotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
 
     @validates("root")
     def _sync_root_normalized(self, _key: str, value: str | None) -> str | None:
-        """Keep ``root_normalized`` in sync with ``root`` updates."""
+        """
+        Keep ``root_normalized`` in sync with ``root`` updates.
+
+        Args:
+            _key: Key.
+            value: Value.
+
+        Returns:
+            The computed value.
+
+        """
         self.root_normalized = normalize_old_english(value)
         return value

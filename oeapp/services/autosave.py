@@ -23,6 +23,14 @@ class AutosaveService(QObject):
     def __init__(
         self, save_callback: "Callable[[], None]", debounce_ms: int = 500
     ) -> None:
+        """
+        Initialize the instance.
+
+        Args:
+            save_callback: Save callback.
+            debounce_ms: Debounce ms.
+
+        """
         super().__init__()
         #: The function to call when saving.
         self.save_callback = save_callback

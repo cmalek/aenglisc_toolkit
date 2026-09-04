@@ -34,6 +34,7 @@ class DOCXExporter(SessionMixin, AnnotationTextualMixin, TokenOccurrenceMixin):
         Initialize exporter.
 
         """
+        #: Session.
         self.session = self._get_session()
 
     def _add_horizontal_rule(self, doc: "DocumentObject") -> None:
@@ -62,6 +63,10 @@ class DOCXExporter(SessionMixin, AnnotationTextualMixin, TokenOccurrenceMixin):
         Args:
             cell: The cell to modify
             **kwargs: Border settings (top, bottom, left, right, start, end)
+
+
+        Keyword Args:
+            kwargs: Kwargs.
 
         """
         tc = cell._tc

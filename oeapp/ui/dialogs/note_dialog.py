@@ -39,6 +39,7 @@ class NoteDialog(QDialog):
 
     """
 
+    #: Note saved.
     note_saved = Signal(int)  # Emits note_id when saved
 
     def __init__(  # noqa: PLR0913
@@ -52,19 +53,36 @@ class NoteDialog(QDialog):
     ) -> None:
         """
         Initialize note dialog.
+
+        Args:
+            sentence: Sentence.
+            start_token_id: Start token id.
+            end_token_id: End token id.
+            note: Note.
+            session: Session.
+            parent: Parent.
+
         """
         super().__init__(parent)
+        #: Sentence.
         self.sentence = sentence
+        #: Start token id.
         self.start_token_id = start_token_id
+        #: End token id.
         self.end_token_id = end_token_id
+        #: Note.
         self.note = note
+        #: Is editing.
         self.is_editing = note is not None
+        #: Session.
         self.session = session
+        #: App context.
         self.app_context = (
             cast("object", parent).main_window.app_context  # type: ignore[attr-defined]
             if parent is not None and hasattr(parent, "main_window")
             else None
         )
+        #: Command manager.
         self.command_manager = (
             self.app_context.command_manager if self.app_context is not None else None
         )

@@ -14,7 +14,7 @@ from oeapp.models.sentence import Sentence  # noqa: F401
 from oeapp.models.token import Token  # noqa: F401
 
 # this is the Alembic Config object, which provides
-# access to the values within the .ini file in use.
+#: access to the values within the .ini file in use.
 config = context.config
 
 # Interpret the config file for Python logging.
@@ -27,10 +27,10 @@ if config.config_file_name is not None:
     if not getLogger().handlers:
         fileConfig(config.config_file_name, disable_existing_loggers=False)
 
-# Set target_metadata for autogenerate support
+#: Set target_metadata for autogenerate support
 target_metadata = Base.metadata
 
-# Override sqlalchemy.url with our database path
+#: Override sqlalchemy.url with our database path
 db_path = get_project_db_path()
 config.set_main_option("sqlalchemy.url", f"sqlite:///{db_path}")
 

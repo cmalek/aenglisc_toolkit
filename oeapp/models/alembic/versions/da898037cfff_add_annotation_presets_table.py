@@ -11,10 +11,13 @@ from collections.abc import Sequence
 import sqlalchemy as sa
 from alembic import op
 
-# revision identifiers, used by Alembic.
+#: revision identifiers, used by Alembic.
 revision: str = "da898037cfff"
+#: Down revision.
 down_revision: str | Sequence[str] | None = "merge_hyphenated_words"
+#: Branch labels.
 branch_labels: str | Sequence[str] | None = None
+#: Depends on.
 depends_on: str | Sequence[str] | None = None
 
 

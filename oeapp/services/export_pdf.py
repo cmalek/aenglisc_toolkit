@@ -183,6 +183,9 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
     _VERSE_INDENT_EM: Final[float] = 2.0
 
     def __init__(self) -> None:
+        """
+        Initialize the instance.
+        """
         #: The logger instance.
         self.logger = get_logger(__name__)
         #: The last error message.
@@ -699,6 +702,10 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
 
         Returns:
             The escaped text.
+
+
+        Keyword Args:
+            preserve_leading: Preserve leading.
 
         """
         escaped = self._latex_escape(value)
@@ -1374,7 +1381,16 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
         return tuple(key)
 
     def _normalize_oe_for_sort(self, text: str) -> str:
-        """Normalize text for OE glossary collation."""
+        """
+        Normalize text for OE glossary collation.
+
+        Args:
+            text: Text.
+
+        Returns:
+            The computed value.
+
+        """
         translations = str.maketrans(
             {
                 "ā": "a",

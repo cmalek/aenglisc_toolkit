@@ -38,9 +38,17 @@ class EditProjectDialog:
     def __init__(self, main_window: "MainWindow", project: Project) -> None:
         """
         Initialize edit project dialog.
+
+        Args:
+            main_window: Main window.
+            project: Project.
+
         """
+        #: Main window.
         self.main_window = main_window
+        #: Project.
         self.project = project
+        #: App context.
         self.app_context = main_window.app_context
 
     def build(self) -> None:

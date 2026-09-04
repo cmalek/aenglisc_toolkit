@@ -53,7 +53,9 @@ class Sentence(SaveDeleteMixin, Base):
     A sentence is related to a list of notes by the note ID.
     """
 
+    #: Tablename  .
     __tablename__ = "sentences"
+    #: Table args  .
     __table_args__ = (
         UniqueConstraint(
             "project_id", "display_order", name="uq_sentences_project_order"
@@ -93,9 +95,11 @@ class Sentence(SaveDeleteMixin, Base):
         nullable=False,
     )
 
-    # Relationships
+    #: Relationships
     project: Mapped[Project] = relationship("Project", back_populates="sentences")
+    #: Paragraph.
     paragraph: Mapped[Paragraph] = relationship("Paragraph", back_populates="sentences")
+    #: Tokens.
     tokens: Mapped[builtins.list[Token]] = relationship(
         "Token",
         back_populates="sentence",
@@ -103,9 +107,11 @@ class Sentence(SaveDeleteMixin, Base):
         order_by="Token.order_index",
         lazy="select",  # Load tokens when accessed
     )
+    #: Notes.
     notes: Mapped[builtins.list[Note]] = relationship(
         "Note", back_populates="sentence", cascade="all, delete-orphan"
     )
+    #: Idioms.
     idioms: Mapped[builtins.list[Idiom]] = relationship(
         "Idiom", back_populates="sentence", cascade="all, delete-orphan"
     )
@@ -171,6 +177,13 @@ class Sentence(SaveDeleteMixin, Base):
     def get(cls, sentence_id: int) -> Sentence | None:
         """
         Get a sentence by ID.
+
+        Args:
+            sentence_id: Sentence id.
+
+        Returns:
+            The computed value.
+
         """
         session = cls._get_session()
         return session.get(cls, sentence_id)
@@ -179,6 +192,13 @@ class Sentence(SaveDeleteMixin, Base):
     def list(cls, project_id: int) -> builtins.list[Sentence]:
         """
         Check if a sentence exists by project ID and display order.
+
+        Args:
+            project_id: Project id.
+
+        Returns:
+            The computed value.
+
         """
         session = cls._get_session()
         return builtins.list(
@@ -444,6 +464,10 @@ class Sentence(SaveDeleteMixin, Base):
     def recalculate_project_structure(cls, project_id: int) -> None:
         """
         Recalculate paragraph order for all paragraphs in a project.
+
+        Args:
+            project_id: Project id.
+
         """
         # Import here to avoid circular import
         from oeapp.models.project import Project  # noqa: PLC0415
@@ -651,6 +675,10 @@ class Sentence(SaveDeleteMixin, Base):
     def save(self, commit: bool = True) -> None:
         """
         Save the sentence.
+
+        Args:
+            commit: Commit.
+
         """
         # Import here to avoid circular import
         from oeapp.services.logs import get_logger  # noqa: PLC0415
@@ -671,6 +699,10 @@ class Sentence(SaveDeleteMixin, Base):
     def delete(self, commit: bool = True) -> None:
         """
         Delete the sentence.
+
+        Args:
+            commit: Commit.
+
         """
         # Import here to avoid circular import
         from oeapp.services.logs import get_logger  # noqa: PLC0415
@@ -734,6 +766,10 @@ class Sentence(SaveDeleteMixin, Base):
     def is_verse(self) -> bool:
         """
         Return ``True`` when this sentence represents a verse stanza span.
+
+        Returns:
+            The computed value.
+
         """
         return (
             self.verse_line_start is not None
@@ -746,6 +782,10 @@ class Sentence(SaveDeleteMixin, Base):
     def sentence_number_in_paragraph(self) -> int:
         """
         Return the sentence number within its paragraph (1-based).
+
+        Returns:
+            The computed value.
+
         """
         if not self.paragraph:
             return 1
@@ -761,6 +801,10 @@ class Sentence(SaveDeleteMixin, Base):
         Return the human-readable sentence reference label.
 
         Returns ``Verse: a-b`` for verse sentences and ``S:n`` for prose.
+
+        Returns:
+            The computed value.
+
         """
         if self.is_verse:
             return f"Verse: {self.verse_line_start}-{self.verse_line_end}"

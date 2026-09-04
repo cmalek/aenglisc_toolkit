@@ -21,7 +21,9 @@ if TYPE_CHECKING:
 class Token(SaveDeleteMixin, Base):
     """Represents a tokenized word in a sentence."""
 
+    #: Tablename  .
     __tablename__ = "tokens"
+    #: Table args  .
     __table_args__ = (
         UniqueConstraint("sentence_id", "order_index", name="uq_tokens_sentence_order"),
     )
@@ -61,8 +63,9 @@ class Token(SaveDeleteMixin, Base):
         nullable=False,
     )
 
-    # Relationships
+    #: Relationships
     sentence: Mapped["Sentence"] = relationship("Sentence", back_populates="tokens")
+    #: Annotation.
     annotation: Mapped[Annotation | None] = relationship(
         "Annotation",
         back_populates="token",
@@ -372,7 +375,23 @@ class Token(SaveDeleteMixin, Base):
         matched_positions,
         matched_token_ids,
     ) -> None:
-        """Process a single difflib opcode."""
+        """
+        Process a single difflib opcode.
+
+        Args:
+            tag: Tag.
+            i1: I1.
+            i2: I2.
+            j1: J1.
+            j2: J2.
+            existing_tokens: Existing tokens.
+            token_strings: Token strings.
+            sentence_id: Sentence id.
+            session: Session.
+            matched_positions: Matched positions.
+            matched_token_ids: Matched token ids.
+
+        """
         if tag == "equal":
             for k in range(i2 - i1):
                 token = existing_tokens[i1 + k]
@@ -520,7 +539,20 @@ class Token(SaveDeleteMixin, Base):
     def _create_new_token(
         cls, index, surface, sentence_id, session, matched_positions
     ) -> "Token":
-        """Create a new token and its empty annotation."""
+        """
+        Create a new token and its empty annotation.
+
+        Args:
+            index: Index.
+            surface: Surface.
+            sentence_id: Sentence id.
+            session: Session.
+            matched_positions: Matched positions.
+
+        Returns:
+            The computed value.
+
+        """
         token = cls(sentence_id=sentence_id, order_index=index, surface=surface)
         session.add(token)
         session.flush()
@@ -532,7 +564,15 @@ class Token(SaveDeleteMixin, Base):
 
     @classmethod
     def _delete_unmatched_tokens(cls, tokens, matched_ids, session) -> None:
-        """Delete tokens that were not matched."""
+        """
+        Delete tokens that were not matched.
+
+        Args:
+            tokens: Tokens.
+            matched_ids: Matched ids.
+            session: Session.
+
+        """
         for token in tokens:
             if token.id not in matched_ids:
                 session.delete(token)
@@ -546,7 +586,16 @@ class Token(SaveDeleteMixin, Base):
         new_token_positions: dict[int, "Token"],
         matched_token_ids: set[int],
     ) -> None:
-        """Update notes when tokens change."""
+        """
+        Update notes when tokens change.
+
+        Args:
+            sentence_id: Sentence id.
+            old_tokens: Old tokens.
+            new_token_positions: New token positions.
+            matched_token_ids: Matched token ids.
+
+        """
         from oeapp.models.sentence import Sentence  # noqa: PLC0415
 
         sentence = Sentence.get(sentence_id)
@@ -609,7 +658,18 @@ class Token(SaveDeleteMixin, Base):
     def _find_replacement_tokens_for_note(
         cls, note, old_tokens, new_token_positions
     ) -> tuple["Token | None", "Token | None"]:
-        """Find replacement tokens for a note whose tokens were deleted."""
+        """
+        Find replacement tokens for a note whose tokens were deleted.
+
+        Args:
+            note: Note.
+            old_tokens: Old tokens.
+            new_token_positions: New token positions.
+
+        Returns:
+            The computed value.
+
+        """
         old_start_token = next(
             (t for t in old_tokens if t.id == note.start_token), None
         )

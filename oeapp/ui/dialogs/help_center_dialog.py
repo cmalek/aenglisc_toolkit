@@ -26,15 +26,38 @@ if TYPE_CHECKING:
 
 
 class HelpTextBrowser(QTextBrowser):
-    """QTextBrowser that resolves `qthelp://` resources through QHelpEngine."""
+    """
+    QTextBrowser that resolves `qthelp://` resources through QHelpEngine.
+
+    Args:
+        help_engine: Help engine.
+        parent: Parent.
+
+    """
 
     def __init__(self, help_engine: QHelpEngine, parent: QWidget | None = None) -> None:
+        """
+        Initialize the instance.
+
+        Args:
+            help_engine: Help engine.
+            parent: Parent.
+
+        """
         super().__init__(parent)
+        #: Help engine.
         self._help_engine = help_engine
+        #: Theme override css.
         self._theme_override_css = ""
 
     def set_theme_override_css(self, css: str) -> None:
-        """Set CSS appended to every rendered QtHelp HTML page."""
+        """
+        Set CSS appended to every rendered QtHelp HTML page.
+
+        Args:
+            css: Css.
+
+        """
         self._theme_override_css = css
 
     def loadResource(self, resource_type: int, name: QUrl) -> Any:  # type: ignore[override]  # noqa: N802
@@ -60,7 +83,16 @@ class HelpTextBrowser(QTextBrowser):
         return super().loadResource(resource_type, name)
 
     def _inject_theme_override_css(self, payload: Any) -> QByteArray:
-        """Append runtime CSS override so help pages match active app theme."""
+        """
+        Append runtime CSS override so help pages match active app theme.
+
+        Args:
+            payload: Payload.
+
+        Returns:
+            The computed value.
+
+        """
         raw = bytes(payload) if payload is not None else b""
         if not raw:
             return payload if isinstance(payload, QByteArray) else QByteArray()
@@ -91,8 +123,17 @@ class HelpCenterDialog(QDialog):
     """
 
     def __init__(self, topic: str | None = None, parent: QWidget | None = None) -> None:
+        """
+        Initialize the instance.
+
+        Args:
+            topic: Topic.
+            parent: Parent.
+
+        """
         super().__init__(parent)
         self.setModal(False)
+        #: Help engine.
         self.help_engine = HelpEngine()
         self._build_ui()
         self._wire_signals()
@@ -266,7 +307,16 @@ class HelpCenterDialog(QDialog):
     def _resolve_link_payload(  # noqa: PLR0911, PLR0912
         self, payload: object
     ) -> QUrl | None:
-        """Extract a help URL from QtHelp signal payload variants."""
+        """
+        Extract a help URL from QtHelp signal payload variants.
+
+        Args:
+            payload: Payload.
+
+        Returns:
+            The computed value.
+
+        """
         if isinstance(payload, QUrl):
             return payload if payload.isValid() and not payload.isEmpty() else None
         if isinstance(payload, QHelpLink):
@@ -311,7 +361,13 @@ class HelpCenterDialog(QDialog):
         return None
 
     def _theme_override_css(self) -> str:
-        """Build runtime CSS overrides from the active Qt palette."""
+        """
+        Build runtime CSS overrides from the active Qt palette.
+
+        Returns:
+            The computed value.
+
+        """
         palette = self.palette()
         base = palette.color(QPalette.ColorRole.Base).name()
         text = palette.color(QPalette.ColorRole.Text).name()

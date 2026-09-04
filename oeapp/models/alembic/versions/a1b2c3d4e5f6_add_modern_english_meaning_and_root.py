@@ -15,10 +15,13 @@ from alembic import op
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-# revision identifiers, used by Alembic.
+#: revision identifiers, used by Alembic.
 revision: str = "a1b2c3d4e5f6"
+#: Down revision.
 down_revision: "str | Sequence[str] | None" = "57399ca978ee"
+#: Branch labels.
 branch_labels: "str | Sequence[str] | None" = None
+#: Depends on.
 depends_on: "str | Sequence[str] | None" = None
 
 

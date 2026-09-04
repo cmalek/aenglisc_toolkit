@@ -82,7 +82,7 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
     # Signals
     # -------------------------------------------------------------------------
 
-    # Signal emitted when annotation is applied
+    #: Signal emitted when annotation is applied
     annotation_applied = Signal(object)
 
     # -------------------------------------------------------------------------
@@ -98,7 +98,7 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
     # Class-level state
     # -------------------------------------------------------------------------
 
-    # Class-level state to remember last used values per POS type
+    #: Class-level state to remember last used values per POS type
     _last_values: ClassVar[dict[str, dict[str, int]]] = {}
 
     def __init__(  # noqa: PLR0913
@@ -130,17 +130,22 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
 
         super().__init__(parent)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        #: Token.
         self.token = token
+        #: Idiom.
         self.idiom = idiom
+        #: Remembered annotation.
         self.remembered_annotation = remembered_annotation
         self.main_window = main_window  #: Main window for preset-management parenting
         if self.main_window is None and parent is not None and hasattr(
             parent, "main_window"
         ):
             self.main_window = parent.main_window  #: Inherited from parent widget
+        #: Annotation.
         self.annotation: Annotation | RememberedAnnotation
 
         if self.remembered_annotation is not None:
+            #: Annotation.
             self.annotation = self.remembered_annotation
         elif self.token:
             self._init_token_annotation(annotation)
@@ -150,8 +155,10 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
             msg = "Neither token nor idiom was provided"
             raise ValueError(msg)
 
+        #: Preset service.
         self.preset_service = AnnotationPresetService()
         self.build()
+        #: Part of speech manager.
         self.part_of_speech_manager = AnnotationPosFormManager(
             cast("QVBoxLayout", self.fields_group.layout()), self.fields_group
         )
@@ -209,6 +216,10 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
     def title_text(self) -> str:
         """
         Get the title text for the dialog.
+
+        Returns:
+            The computed value.
+
         """
         if self.remembered_annotation is not None:
             return self.remembered_annotation.token_text
@@ -899,6 +910,10 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
     def showEvent(self, event) -> None:  # noqa: N802
         """
         Override showEvent to refresh preset dropdown when dialog is shown.
+
+        Args:
+            event: Event.
+
         """
         super().showEvent(event)
         # Use QTimer.singleShot to ensure the dialog is fully shown and session

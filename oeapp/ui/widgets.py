@@ -17,6 +17,14 @@ class HorizontalSeparatorWidget(QFrame):
     """
 
     def __init__(self, parent: QWidget | None = None, height: int = 3):
+        """
+        Initialize the instance.
+
+        Args:
+            parent: Parent.
+            height: Height.
+
+        """
         super().__init__(parent)
         self.setFrameShape(QFrame.Shape.HLine)
         self.setFrameShadow(QFrame.Shadow.Sunken)

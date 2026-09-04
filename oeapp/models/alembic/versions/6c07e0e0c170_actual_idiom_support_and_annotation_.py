@@ -11,10 +11,13 @@ from alembic import op
 import sqlalchemy as sa
 
 
-# revision identifiers, used by Alembic.
+#: revision identifiers, used by Alembic.
 revision: str = '6c07e0e0c170'
+#: Down revision.
 down_revision: Union[str, Sequence[str], None] = '26513c252139'
+#: Branch labels.
 branch_labels: Union[str, Sequence[str], None] = None
+#: Depends on.
 depends_on: Union[str, Sequence[str], None] = None
 
 

@@ -23,7 +23,13 @@ if TYPE_CHECKING:
 
 
 def _is_offscreen_qt_platform() -> bool:
-    """Return True when tests are using Qt's offscreen platform plugin."""
+    """
+    Return True when tests are using Qt's offscreen platform plugin.
+
+    Returns:
+        The computed value.
+
+    """
     app = QApplication.instance()
     if app is None:
         return False
@@ -34,7 +40,13 @@ def _is_offscreen_qt_platform() -> bool:
 
 
 class MainMenu:
-    """Main application menu."""
+    """
+    Main application menu.
+
+    Args:
+        main_window: Main window.
+
+    """
 
     def __init__(self, main_window: "MainWindow") -> None:
         """
@@ -82,12 +94,29 @@ class MainMenu:
 class WindowMenu:
     """
     A "Window" menu to be added to the main menu bar.
+
+    Args:
+        main_menu: Main menu.
+        main_window: Main window.
+
     """
 
     def __init__(self, main_menu: MainMenu, main_window: "MainWindow") -> None:
+        """
+        Initialize the instance.
+
+        Args:
+            main_menu: Main menu.
+            main_window: Main window.
+
+        """
+        #: Main window.
         self.main_window = main_window
+        #: Main menu.
         self.main_menu = main_menu
+        #: Full window.
         self._full_window: FullTranslationWindow
+        #: Log viewer.
         self._log_viewer: LogViewerDialog
         self.populate()
 
@@ -164,6 +193,11 @@ class FileMenu:
     def __init__(self, main_menu: MainMenu, main_window: "MainWindow") -> None:
         """
         Initialize file menu.
+
+        Args:
+            main_menu: Main menu.
+            main_window: Main window.
+
         """
         #: Main window instance
         self.main_window = main_window
@@ -229,9 +263,22 @@ class ToolsMenu:
     - Backup Now
     - Restore...
     - Backups...
+
+    Args:
+        main_menu: Main menu.
+        main_window: Main window.
+
     """
 
     def __init__(self, main_menu: MainMenu, main_window: "MainWindow") -> None:
+        """
+        Initialize the instance.
+
+        Args:
+            main_menu: Main menu.
+            main_window: Main window.
+
+        """
         #: Main window instance
         self.main_window = main_window
         #: Main menu instance
@@ -329,9 +376,22 @@ class PreferencesMenu:
     actions:
 
     - Preferences...
+
+    Args:
+        main_menu: Main menu.
+        main_window: Main window.
+
     """
 
     def __init__(self, main_menu: MainMenu, main_window: "MainWindow") -> None:
+        """
+        Initialize the instance.
+
+        Args:
+            main_menu: Main menu.
+            main_window: Main window.
+
+        """
         #: Main window instance
         self.main_window = main_window
         #: Main menu instance
@@ -370,9 +430,22 @@ class ProjectMenu:
     - Append OE text...
     - Export...
     - Import...
+
+    Args:
+        main_menu: Main menu.
+        main_window: Main window.
+
     """
 
     def __init__(self, main_menu: MainMenu, main_window: "MainWindow") -> None:
+        """
+        Initialize the instance.
+
+        Args:
+            main_menu: Main menu.
+            main_window: Main window.
+
+        """
         #: Main window instance
         self.main_window = main_window
         #: Main menu instance
@@ -423,9 +496,22 @@ class HelpMenu:
     A "Help" menu to be added to the main menu bar with the following actions:
 
     - Help
+
+    Args:
+        main_menu: Main menu.
+        main_window: Main window.
+
     """
 
     def __init__(self, main_menu: MainMenu, main_window: "MainWindow") -> None:
+        """
+        Initialize the instance.
+
+        Args:
+            main_menu: Main menu.
+            main_window: Main window.
+
+        """
         #: Main window instance
         self.main_window = main_window
         #: Main menu instance

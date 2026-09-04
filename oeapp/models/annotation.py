@@ -30,7 +30,9 @@ if TYPE_CHECKING:
 class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
     """Represents grammatical/morphological annotations for a token or idiom."""
 
+    #: Tablename  .
     __tablename__ = "annotations"
+    #: Table args  .
     __table_args__ = (
         CheckConstraint(
             "pos IN ('N','V','A','R','D','B','C','E','I', 'L')",
@@ -203,13 +205,24 @@ class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
         nullable=False,
     )
 
-    # Relationships
+    #: Relationships
     token: Mapped["Token"] = relationship("Token", back_populates="annotation")
+    #: Idiom.
     idiom: Mapped["Idiom"] = relationship("Idiom", back_populates="annotation")
 
     @classmethod
     def exists(cls, token_id: int | None = None, idiom_id: int | None = None) -> bool:
-        """Check if an annotation exists for a token or idiom."""
+        """
+        Check if an annotation exists for a token or idiom.
+
+        Args:
+            token_id: Token id.
+            idiom_id: Idiom id.
+
+        Returns:
+            The computed value.
+
+        """
         session = cls._get_session()
         stmt = select(cls)
         if token_id is not None:
@@ -222,24 +235,57 @@ class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
 
     @classmethod
     def get(cls, annotation_id: int) -> "Annotation | None":
-        """Get an annotation by ID."""
+        """
+        Get an annotation by ID.
+
+        Args:
+            annotation_id: Annotation id.
+
+        Returns:
+            The computed value.
+
+        """
         session = cls._get_session()
         return session.get(cls, annotation_id)
 
     @classmethod
     def get_by_token(cls, token_id: int) -> "Annotation | None":
-        """Get an annotation by token ID."""
+        """
+        Get an annotation by token ID.
+
+        Args:
+            token_id: Token id.
+
+        Returns:
+            The computed value.
+
+        """
         session = cls._get_session()
         return session.scalar(select(cls).where(cls.token_id == token_id))
 
     @classmethod
     def get_by_idiom(cls, idiom_id: int) -> "Annotation | None":
-        """Get an annotation by idiom ID."""
+        """
+        Get an annotation by idiom ID.
+
+        Args:
+            idiom_id: Idiom id.
+
+        Returns:
+            The computed value.
+
+        """
         session = cls._get_session()
         return session.scalar(select(cls).where(cls.idiom_id == idiom_id))
 
     def to_json(self) -> dict:
-        """Serialize annotation to JSON-compatible dictionary."""
+        """
+        Serialize annotation to JSON-compatible dictionary.
+
+        Returns:
+            The computed value.
+
+        """
         data = self._extract_base_fields_from_json(
             {
                 "pos": self.pos,
@@ -536,7 +582,13 @@ class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
         return self
 
     def save(self, commit: bool = True) -> None:
-        """Save the annotation."""
+        """
+        Save the annotation.
+
+        Args:
+            commit: Commit.
+
+        """
         # Import here to avoid circular import
         from oeapp.services.logs import get_logger  # noqa: PLC0415
 
@@ -570,7 +622,13 @@ class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
                 )
 
     def delete(self, commit: bool = True) -> None:
-        """Delete the annotation."""
+        """
+        Delete the annotation.
+
+        Args:
+            commit: Commit.
+
+        """
         # Import here to avoid circular import
         from oeapp.services.logs import get_logger  # noqa: PLC0415
 
@@ -604,7 +662,16 @@ class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
 
     @classmethod
     def _extract_base_fields_from_json(cls, ann_data: dict) -> dict:
-        """Extract base annotation fields from JSON data."""
+        """
+        Extract base annotation fields from JSON data.
+
+        Args:
+            ann_data: Ann data.
+
+        Returns:
+            The computed value.
+
+        """
         return {
             "pos": ann_data.get("pos"),
             "gender": ann_data.get("gender"),

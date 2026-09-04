@@ -24,6 +24,10 @@ if TYPE_CHECKING:
 class RestoreDialog:
     """
     Restore dialog for selecting a backup to restore.
+
+    Args:
+        main_window: Main window.
+
     """
 
     #: Dialog width
@@ -34,7 +38,12 @@ class RestoreDialog:
     def __init__(self, main_window: "MainWindow") -> None:
         """
         Initialize restore dialog.
+
+        Args:
+            main_window: Main window.
+
         """
+        #: Main window.
         self.main_window = main_window
 
     def build(self) -> None:

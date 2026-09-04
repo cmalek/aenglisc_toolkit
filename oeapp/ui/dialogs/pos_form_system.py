@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 
     from oeapp.models.annotation_preset import AnnotationPreset
 
-# Sentinel value to represent an explicit "Clear" field selection in presets.
+#: Sentinel value to represent an explicit "Clear" field selection in presets.
 CLEAR_SENTINEL = "__CLEAR__"
 
 
@@ -30,26 +30,53 @@ CLEAR_SENTINEL = "__CLEAR__"
 class PosFieldSpec:
     """Describe one rendered POS field."""
 
+    #: Attr.
     attr: str
+    #: Label.
     label: str
+    #: Lookup map.
     lookup_map: Mapping[Any, str] | None = None
+    #: Editable.
     editable: bool = False
+    #: Object name.
     object_name: str | None = None
+    #: Preset clear mode.
     preset_clear_mode: bool = True
 
 
 class PartOfSpeechFieldsBase(AnnotationLookupsMixin):
-    """Base class for annotation-modal POS field groups."""
+    """
+    Base class for annotation-modal POS field groups.
+
+    Args:
+        layout: Layout.
+        parent_widget: Parent widget.
+
+    """
 
     #: The Part of Speech Name
     PART_OF_SPEECH: str
 
     def __init__(self, layout: QFormLayout, parent_widget: QWidget) -> None:
+        """
+        Initialize the instance.
+
+        Args:
+            layout: Layout.
+            parent_widget: Parent widget.
+
+        """
+        #: Layout.
         self.layout = layout
+        #: Parent widget.
         self.parent_widget = parent_widget
+        #: Fields.
         self.fields: dict[str, QComboBox] = {}
+        #: Lookup map.
         self.lookup_map: dict[str, Mapping[Any, str]] = {}
+        #: Code to index map.
         self.code_to_index_map: dict[str, dict[Any, int]] = {}
+        #: Index to code map.
         self.index_to_code_map: dict[str, dict[int, Any]] = {}
 
     def add_combo(
@@ -58,7 +85,15 @@ class PartOfSpeechFieldsBase(AnnotationLookupsMixin):
         label: str,
         lookup_map: Mapping[Any, str],
     ) -> None:
-        """Add a combo box field with lookup/index maps."""
+        """
+        Add a combo box field with lookup/index maps.
+
+        Args:
+            attr: Attr.
+            label: Label.
+            lookup_map: Lookup map.
+
+        """
         combo = QComboBox(self.parent_widget)
         combo.addItems(list(lookup_map.values()))
         self.lookup_map[attr] = lookup_map
@@ -81,7 +116,15 @@ class PartOfSpeechFieldsBase(AnnotationLookupsMixin):
             field.setCurrentIndex(0)
 
     def add_field(self, attr: str, label: str, field: QComboBox) -> None:
-        """Register and render a combo field."""
+        """
+        Register and render a combo field.
+
+        Args:
+            attr: Attr.
+            label: Label.
+            field: Field.
+
+        """
         self.fields[attr] = field
         self.layout.addRow(label, field)
 
@@ -91,7 +134,13 @@ class PartOfSpeechFieldsBase(AnnotationLookupsMixin):
         raise NotImplementedError(msg)
 
     def load_from_indices(self, indices: dict[str, int]) -> None:
-        """Set combo indices from cached values."""
+        """
+        Set combo indices from cached values.
+
+        Args:
+            indices: Indices.
+
+        """
         for attr, index in indices.items():
             if attr in self.fields:
                 self.fields[attr].blockSignals(True)  # noqa: FBT003
@@ -99,7 +148,13 @@ class PartOfSpeechFieldsBase(AnnotationLookupsMixin):
                 self.fields[attr].blockSignals(False)  # noqa: FBT003
 
     def load_from_preset(self, preset: AnnotationPreset) -> None:
-        """Load values from an AnnotationPreset object."""
+        """
+        Load values from an AnnotationPreset object.
+
+        Args:
+            preset: Preset.
+
+        """
         for attr, value in preset.to_json().items():
             if attr in self.lookup_map:
                 if value == CLEAR_SENTINEL:
@@ -114,7 +169,13 @@ class PartOfSpeechFieldsBase(AnnotationLookupsMixin):
                     self.fields[attr].blockSignals(False)  # noqa: FBT003
 
     def load_from_annotation(self, annotation: Annotation) -> None:
-        """Load values from an Annotation object."""
+        """
+        Load values from an Annotation object.
+
+        Args:
+            annotation: Annotation.
+
+        """
         for attr, value in annotation.to_json().items():
             if attr in self.lookup_map:
                 index = self.code_to_index_map[attr].get(value)
@@ -124,18 +185,36 @@ class PartOfSpeechFieldsBase(AnnotationLookupsMixin):
                     self.fields[attr].blockSignals(False)  # noqa: FBT003
 
     def extract_indices(self) -> dict[str, int]:
-        """Extract current combo indices."""
+        """
+        Extract current combo indices.
+
+        Returns:
+            The computed value.
+
+        """
         return {attr: self.fields[attr].currentIndex() for attr in self.fields}
 
     def extract_values(self) -> dict[str, Any]:
-        """Extract current combo code values."""
+        """
+        Extract current combo code values.
+
+        Returns:
+            The computed value.
+
+        """
         return {
             attr: self.index_to_code_map[attr].get(self.fields[attr].currentIndex())
             for attr in self.fields
         }
 
     def update_annotation(self, annotation: Annotation) -> None:
-        """Apply current extracted values onto an annotation model."""
+        """
+        Apply current extracted values onto an annotation model.
+
+        Args:
+            annotation: Annotation.
+
+        """
         valid_fields = {column.name for column in Annotation.__table__.columns}
         values = self.extract_values()
         for attr, value in values.items():
@@ -148,9 +227,13 @@ class PartOfSpeechFieldsBase(AnnotationLookupsMixin):
 class NounFields(PartOfSpeechFieldsBase):
     """Fields for noun annotations."""
 
+    #: Part of speech.
     PART_OF_SPEECH: str = "Noun"
 
     def build(self) -> None:
+        """
+        Build.
+        """
         self.add_combo("gender", "Gender", self.GENDER_MAP)
         self.add_combo("number", "Number", self.NUMBER_MAP)
         self.add_combo("case", "Case", self.CASE_MAP)
@@ -160,11 +243,17 @@ class NounFields(PartOfSpeechFieldsBase):
 class VerbFields(PartOfSpeechFieldsBase):
     """Fields for verb annotations."""
 
+    #: Part of speech.
     PART_OF_SPEECH: str = "Verb"
+    #: Verb requires inf map.
     VERB_REQUIRES_INF_MAP: ClassVar[dict[bool, str]] = {False: "No", True: "Yes"}
+    #: Verb impersonal map.
     VERB_IMPERSONAL_MAP: ClassVar[dict[bool, str]] = {False: "No", True: "Yes"}
 
     def build(self) -> None:
+        """
+        Build.
+        """
         self.add_combo("verb_class", "Class", self.VERB_CLASS_MAP)
         self.add_combo("verb_tense", "Tense", self.VERB_TENSE_MAP)
         self.add_combo("verb_mood", "Mood", self.VERB_MOOD_MAP)
@@ -187,7 +276,13 @@ class VerbFields(PartOfSpeechFieldsBase):
         self.fields["verb_class"].currentIndexChanged.connect(self._on_class_changed)
 
     def _on_class_changed(self, _index: int) -> None:
-        """Auto-set requires infinitive for preterite-present verbs."""
+        """
+        Auto-set requires infinitive for preterite-present verbs.
+
+        Args:
+            _index: Index.
+
+        """
         verb_class = self.extract_values().get("verb_class")
         if verb_class != "pp":
             return
@@ -199,9 +294,13 @@ class VerbFields(PartOfSpeechFieldsBase):
 class PronounFields(PartOfSpeechFieldsBase):
     """Fields for pronoun annotations."""
 
+    #: Part of speech.
     PART_OF_SPEECH: str = "Pronoun"
 
     def build(self) -> None:
+        """
+        Build.
+        """
         self.add_combo("pronoun_type", "Type", self.PRONOUN_TYPE_MAP)
         self.add_combo("gender", "Gender", self.GENDER_MAP)
         self.add_combo("pronoun_number", "Number", self.PRONOUN_NUMBER_MAP)
@@ -211,18 +310,26 @@ class PronounFields(PartOfSpeechFieldsBase):
 class PrepositionFields(PartOfSpeechFieldsBase):
     """Fields for preposition annotations."""
 
+    #: Part of speech.
     PART_OF_SPEECH: str = "Preposition"
 
     def build(self) -> None:
+        """
+        Build.
+        """
         self.add_combo("prep_case", "Governed Case", self.PREPOSITION_CASE_MAP)
 
 
 class AdjectiveFields(PartOfSpeechFieldsBase):
     """Fields for adjective annotations."""
 
+    #: Part of speech.
     PART_OF_SPEECH: str = "Adjective"
 
     def build(self) -> None:
+        """
+        Build.
+        """
         self.add_combo("adjective_degree", "Degree", self.ADJECTIVE_DEGREE_MAP)
         self.add_combo(
             "adjective_inflection",
@@ -237,9 +344,13 @@ class AdjectiveFields(PartOfSpeechFieldsBase):
 class ArticleFields(PartOfSpeechFieldsBase):
     """Fields for article annotations."""
 
+    #: Part of speech.
     PART_OF_SPEECH: str = "Article"
 
     def build(self) -> None:
+        """
+        Build.
+        """
         self.add_combo("article_type", "Type", self.ARTICLE_TYPE_MAP)
         self.add_combo("gender", "Gender", self.GENDER_MAP)
         self.add_combo("number", "Number", self.NUMBER_MAP)
@@ -249,51 +360,79 @@ class ArticleFields(PartOfSpeechFieldsBase):
 class AdverbFields(PartOfSpeechFieldsBase):
     """Fields for adverb annotations."""
 
+    #: Part of speech.
     PART_OF_SPEECH: str = "Adverb"
 
     def build(self) -> None:
+        """
+        Build.
+        """
         self.add_combo("adverb_degree", "Degree", self.ADVERB_DEGREE_MAP)
 
 
 class ConjunctionFields(PartOfSpeechFieldsBase):
     """Fields for conjunction annotations."""
 
+    #: Part of speech.
     PART_OF_SPEECH: str = "Conjunction"
 
     def build(self) -> None:
+        """
+        Build.
+        """
         self.add_combo("conjunction_type", "Type", self.CONJUNCTION_TYPE_MAP)
 
 
 class InterjectionFields(PartOfSpeechFieldsBase):
     """Fields for interjection annotations."""
 
+    #: Part of speech.
     PART_OF_SPEECH: str = "Interjection"
 
     def build(self) -> None:
+        """
+        Build.
+        """
         return
 
 
 class NumberFields(PartOfSpeechFieldsBase):
     """Fields for number annotations."""
 
+    #: Part of speech.
     PART_OF_SPEECH: str = "Number"
 
     def build(self) -> None:
+        """
+        Build.
+        """
         return
 
 
 class NoneFields(PartOfSpeechFieldsBase):
     """Fields for empty POS state."""
 
+    #: Part of speech.
     PART_OF_SPEECH: str = "N/A"
 
     def build(self) -> None:
+        """
+        Build.
+        """
         return
 
 
 class AnnotationPosFormManager:
-    """Manager for annotation-modal POS forms."""
+    """
+    Manager for annotation-modal POS forms.
 
+    Args:
+        container_layout: Container layout.
+        parent_widget: Parent widget.
+
+    """
+
+    #: Parts of speech.
     PARTS_OF_SPEECH: ClassVar[dict[str | None, type[PartOfSpeechFieldsBase]]] = {
         "N": NounFields,
         "V": VerbFields,
@@ -309,13 +448,30 @@ class AnnotationPosFormManager:
     }
 
     def __init__(self, container_layout: QVBoxLayout, parent_widget: QWidget) -> None:
+        """
+        Initialize the instance.
+
+        Args:
+            container_layout: Container layout.
+            parent_widget: Parent widget.
+
+        """
+        #: Container layout.
         self.container_layout = container_layout
+        #: Parent widget.
         self.parent_widget = parent_widget
+        #: Current.
         self.current: PartOfSpeechFieldsBase | None = None
         self.select(None)
 
     def select(self, pos: str | None) -> None:
-        """Select and render POS-specific fields."""
+        """
+        Select and render POS-specific fields.
+
+        Args:
+            pos: Pos.
+
+        """
         if pos not in self.PARTS_OF_SPEECH:
             msg = f"Invalid Part of Speech: {pos}"
             raise ValueError(msg)
@@ -336,6 +492,13 @@ class AnnotationPosFormManager:
         self.current.build()
 
     def _clear_layout(self, layout: QLayout) -> None:
+        """
+        Clear layout.
+
+        Args:
+            layout: Layout.
+
+        """
         while layout.count():
             item = cast("QLayoutItem", layout.takeAt(0))
             if item.widget():
@@ -346,35 +509,80 @@ class AnnotationPosFormManager:
                 self._clear_layout(item.layout())
 
     def reset(self) -> None:
+        """
+        Reset.
+        """
         if self.current:
             self.current.reset()
 
     def load_from_indices(self, indices: dict[str, int]) -> None:
+        """
+        Load from indices.
+
+        Args:
+            indices: Indices.
+
+        """
         if self.current:
             self.current.load_from_indices(indices)
 
     def load_from_preset(self, preset: AnnotationPreset) -> None:
+        """
+        Load from preset.
+
+        Args:
+            preset: Preset.
+
+        """
         if self.current:
             self.current.load_from_preset(preset)
 
     def load_from_annotation(self, annotation: Annotation) -> None:
+        """
+        Load from annotation.
+
+        Args:
+            annotation: Annotation.
+
+        """
         assert self.current is not None, (  # noqa: S101
             "load_from_annotation called without a selected Part of Speech"
         )
         self.current.load_from_annotation(annotation)
 
     def extract_indices(self) -> dict[str, int]:
+        """
+        Extract indices.
+
+        Returns:
+            The computed value.
+
+        """
         if self.current:
             return self.current.extract_indices()
         return {}
 
     def extract_values(self) -> dict[str, str | bool | None]:
+        """
+        Extract values.
+
+        Returns:
+            The computed value.
+
+        """
         assert self.current is not None, (  # noqa: S101
             "extract_values called without a selected Part of Speech"
         )
         return self.current.extract_values()
 
     def update_annotation(self, annotation: Annotation) -> None:
+        """
+        Update annotation.
+
+        Args:
+            annotation: Annotation.
+
+        """
         assert self.current is not None, (  # noqa: S101
             "update_annotation called without a selected Part of Speech"
         )
@@ -382,15 +590,26 @@ class AnnotationPosFormManager:
 
 
 class PresetPartOfSpeechFieldsBase(AnnotationLookupsMixin):
-    """Base class for preset-dialog POS field groups."""
+    """
+    Base class for preset-dialog POS field groups.
 
+    Args:
+        layout: Layout.
+        parent_widget: Parent widget.
+
+    """
+
+    #: Part of speech.
     PART_OF_SPEECH: str = ""
+    #: Field specs.
     FIELD_SPECS: ClassVar[tuple[PosFieldSpec, ...]] = ()
+    #: Preset verb boolean map.
     PRESET_VERB_BOOLEAN_MAP: ClassVar[dict[bool | None, str]] = {
         None: "",
         False: "No",
         True: "Yes",
     }
+    #: Preset verb transitivity map.
     PRESET_VERB_TRANSITIVITY_MAP: ClassVar[dict[str | None, str]] = {
         None: "",
         "transitive": "Transitive",
@@ -398,11 +617,25 @@ class PresetPartOfSpeechFieldsBase(AnnotationLookupsMixin):
     }
 
     def __init__(self, layout: QFormLayout, parent_widget: QWidget) -> None:
+        """
+        Initialize the instance.
+
+        Args:
+            layout: Layout.
+            parent_widget: Parent widget.
+
+        """
+        #: Layout.
         self.layout = layout
+        #: Parent widget.
         self.parent_widget = parent_widget
+        #: Fields.
         self.fields: dict[str, QComboBox] = {}
+        #: Specs by attr.
         self._specs_by_attr: dict[str, PosFieldSpec] = {}
+        #: Code to index map.
         self.code_to_index_map: dict[str, dict[Any, int]] = {}
+        #: Index to code map.
         self.index_to_code_map: dict[str, dict[int, Any]] = {}
 
     def build(self) -> None:
@@ -412,6 +645,13 @@ class PresetPartOfSpeechFieldsBase(AnnotationLookupsMixin):
             self._add_field(spec)
 
     def _add_field(self, spec: PosFieldSpec) -> None:
+        """
+        Add field.
+
+        Args:
+            spec: Spec.
+
+        """
         combo = QComboBox(self.parent_widget)
         if spec.object_name:
             combo.setObjectName(spec.object_name)
@@ -455,7 +695,13 @@ class PresetPartOfSpeechFieldsBase(AnnotationLookupsMixin):
             combo.setCurrentIndex(0)
 
     def load_from_values(self, field_values: Mapping[str, str | bool | None]) -> None:
-        """Load preset field values into rendered widgets."""
+        """
+        Load preset field values into rendered widgets.
+
+        Args:
+            field_values: Field values.
+
+        """
         for attr, value in field_values.items():
             spec = self._specs_by_attr.get(attr)
             combo = self.fields.get(attr)
@@ -477,7 +723,13 @@ class PresetPartOfSpeechFieldsBase(AnnotationLookupsMixin):
             combo.setCurrentIndex(self.code_to_index_map[attr].get(value, 0))
 
     def extract_values(self) -> dict[str, str | bool | None]:
-        """Extract preset values with empty/clear semantics."""
+        """
+        Extract preset values with empty/clear semantics.
+
+        Returns:
+            The computed value.
+
+        """
         extracted: dict[str, str | bool | None] = {}
         for attr, spec in self._specs_by_attr.items():
             combo = self.fields[attr]
@@ -501,7 +753,9 @@ class PresetPartOfSpeechFieldsBase(AnnotationLookupsMixin):
 class PresetNounFields(PresetPartOfSpeechFieldsBase):
     """Preset fields for noun POS."""
 
+    #: Part of speech.
     PART_OF_SPEECH = "N"
+    #: Field specs.
     FIELD_SPECS: ClassVar[tuple[PosFieldSpec, ...]] = (
         PosFieldSpec(
             "gender",
@@ -535,7 +789,9 @@ class PresetNounFields(PresetPartOfSpeechFieldsBase):
 class PresetVerbFields(PresetPartOfSpeechFieldsBase):
     """Preset fields for verb POS."""
 
+    #: Part of speech.
     PART_OF_SPEECH = "V"
+    #: Field specs.
     FIELD_SPECS: ClassVar[tuple[PosFieldSpec, ...]] = (
         PosFieldSpec(
             "verb_class",
@@ -611,7 +867,9 @@ class PresetVerbFields(PresetPartOfSpeechFieldsBase):
 class PresetAdjectiveFields(PresetPartOfSpeechFieldsBase):
     """Preset fields for adjective POS."""
 
+    #: Part of speech.
     PART_OF_SPEECH = "A"
+    #: Field specs.
     FIELD_SPECS: ClassVar[tuple[PosFieldSpec, ...]] = (
         PosFieldSpec(
             "adjective_degree",
@@ -649,7 +907,9 @@ class PresetAdjectiveFields(PresetPartOfSpeechFieldsBase):
 class PresetPronounFields(PresetPartOfSpeechFieldsBase):
     """Preset fields for pronoun POS."""
 
+    #: Part of speech.
     PART_OF_SPEECH = "R"
+    #: Field specs.
     FIELD_SPECS: ClassVar[tuple[PosFieldSpec, ...]] = (
         PosFieldSpec(
             "pronoun_type",
@@ -681,7 +941,9 @@ class PresetPronounFields(PresetPartOfSpeechFieldsBase):
 class PresetArticleFields(PresetPartOfSpeechFieldsBase):
     """Preset fields for article POS."""
 
+    #: Part of speech.
     PART_OF_SPEECH = "D"
+    #: Field specs.
     FIELD_SPECS: ClassVar[tuple[PosFieldSpec, ...]] = (
         PosFieldSpec(
             "article_type",
@@ -711,8 +973,17 @@ class PresetArticleFields(PresetPartOfSpeechFieldsBase):
 
 
 class PresetPosFormManager:
-    """Manager for preset-dialog POS forms."""
+    """
+    Manager for preset-dialog POS forms.
 
+    Args:
+        pos: Pos.
+        form_layout: Form layout.
+        parent_widget: Parent widget.
+
+    """
+
+    #: Pos field classes.
     POS_FIELD_CLASSES: ClassVar[dict[str, type[PresetPartOfSpeechFieldsBase]]] = {
         "N": PresetNounFields,
         "V": PresetVerbFields,
@@ -727,12 +998,25 @@ class PresetPosFormManager:
         form_layout: QFormLayout,
         parent_widget: QWidget,
     ) -> None:
+        """
+        Initialize the instance.
+
+        Args:
+            pos: Pos.
+            form_layout: Form layout.
+            parent_widget: Parent widget.
+
+        """
         if pos not in self.POS_FIELD_CLASSES:
             msg = f"Unsupported preset Part of Speech: {pos}"
             raise ValueError(msg)
+        #: Pos.
         self.pos = pos
+        #: Form layout.
         self.form_layout = form_layout
+        #: Parent widget.
         self.parent_widget = parent_widget
+        #: Current.
         self.current = self.POS_FIELD_CLASSES[pos](form_layout, parent_widget)
         self.current.build()
 
@@ -754,9 +1038,21 @@ class PresetPosFormManager:
         return self.current.fields.get(attr)
 
     def load_from_values(self, field_values: Mapping[str, str | bool | None]) -> None:
-        """Load values into managed fields."""
+        """
+        Load values into managed fields.
+
+        Args:
+            field_values: Field values.
+
+        """
         self.current.load_from_values(field_values)
 
     def extract_values(self) -> dict[str, str | bool | None]:
-        """Extract values from managed fields."""
+        """
+        Extract values from managed fields.
+
+        Returns:
+            The computed value.
+
+        """
         return self.current.extract_values()

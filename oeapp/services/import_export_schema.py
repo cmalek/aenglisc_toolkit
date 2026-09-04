@@ -8,8 +8,9 @@ from pydantic import BaseModel, ConfigDict
 
 
 class AnnotationJson(BaseModel):
-    """Annotation payload."""
+    """Annotation Json for this module."""
 
+    #: Model config.
     model_config = ConfigDict(extra="forbid")
 
     #: The part of speech
@@ -77,8 +78,9 @@ class AnnotationJson(BaseModel):
 
 
 class TokenJson(BaseModel):
-    """Token payload."""
+    """Token Json for this module."""
 
+    #: Model config.
     model_config = ConfigDict(extra="forbid")
 
     #: The order index of the token.
@@ -98,8 +100,9 @@ class TokenJson(BaseModel):
 
 
 class NoteJson(BaseModel):
-    """Note payload."""
+    """Note Json for this module."""
 
+    #: Model config.
     model_config = ConfigDict(extra="forbid")
 
     #: The text of the note.
@@ -117,8 +120,9 @@ class NoteJson(BaseModel):
 
 
 class IdiomJson(BaseModel):
-    """Idiom payload."""
+    """Idiom Json for this module."""
 
+    #: Model config.
     model_config = ConfigDict(extra="forbid")
 
     #: The start token order index.
@@ -136,6 +140,7 @@ class IdiomJson(BaseModel):
 class ParagraphRefJson(BaseModel):
     """Paragraph reference payload."""
 
+    #: Model config.
     model_config = ConfigDict(extra="forbid")
 
     #: The chapter number.
@@ -147,8 +152,9 @@ class ParagraphRefJson(BaseModel):
 
 
 class SentenceJson(BaseModel):
-    """Sentence payload."""
+    """Sentence Json for this module."""
 
+    #: Model config.
     model_config = ConfigDict(extra="forbid")
 
     #: The display order of the sentence.
@@ -179,8 +185,9 @@ class SentenceJson(BaseModel):
 
 
 class ParagraphJson(BaseModel):
-    """Paragraph payload."""
+    """Paragraph Json for this module."""
 
+    #: Model config.
     model_config = ConfigDict(extra="forbid")
 
     #: The order of the paragraph.
@@ -188,8 +195,9 @@ class ParagraphJson(BaseModel):
 
 
 class SectionJson(BaseModel):
-    """Section payload."""
+    """Section Json for this module."""
 
+    #: Model config.
     model_config = ConfigDict(extra="forbid")
 
     #: The number of the section.
@@ -203,8 +211,9 @@ class SectionJson(BaseModel):
 
 
 class ChapterJson(BaseModel):
-    """Chapter payload."""
+    """Chapter Json for this module."""
 
+    #: Model config.
     model_config = ConfigDict(extra="forbid")
 
     #: The number of the chapter.
@@ -218,8 +227,9 @@ class ChapterJson(BaseModel):
 
 
 class ProjectJson(BaseModel):
-    """Project payload."""
+    """Project Json for this module."""
 
+    #: Model config.
     model_config = ConfigDict(extra="forbid")
 
     #: The name of the project.
@@ -243,6 +253,7 @@ class ProjectJson(BaseModel):
 class RememberedAnnotationJson(BaseModel):
     """Remembered annotation payload."""
 
+    #: Model config.
     model_config = ConfigDict(extra="forbid")
 
     #: The exact token surface used for remembered matching.
@@ -306,6 +317,7 @@ class RememberedAnnotationJson(BaseModel):
 class ProjectExportPayload(BaseModel):
     """Top-level export payload."""
 
+    #: Model config.
     model_config = ConfigDict(extra="forbid")
 
     #: The export version.

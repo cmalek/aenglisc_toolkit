@@ -11,22 +11,42 @@ from alembic import op
 import sqlalchemy as sa
 
 
-# revision identifiers, used by Alembic.
+#: revision identifiers, used by Alembic.
 revision: str = '71b9d6456d8b'
+#: Down revision.
 down_revision: Union[str, Sequence[str], None] = '4fa091868838'
+#: Branch labels.
 branch_labels: Union[str, Sequence[str], None] = None
+#: Depends on.
 depends_on: Union[str, Sequence[str], None] = None
 
 
 def _table_exists(table_name: str) -> bool:
-    """Return whether the target table exists in the current database."""
+    """
+    Return whether the target table exists in the current database.
+
+    Args:
+        table_name: Table name.
+
+    Returns:
+        The computed value.
+    """
     bind = op.get_bind()
     inspector = sa.inspect(bind)
     return table_name in inspector.get_table_names()
 
 
 def _index_exists(table_name: str, index_name: str) -> bool:
-    """Return whether an index already exists on the target table."""
+    """
+    Return whether an index already exists on the target table.
+
+    Args:
+        table_name: Table name.
+        index_name: Index name.
+
+    Returns:
+        The computed value.
+    """
     if not _table_exists(table_name):
         return False
     bind = op.get_bind()
@@ -38,7 +58,14 @@ def _index_exists(table_name: str, index_name: str) -> bool:
 def _create_index_if_missing(
     table_name: str, index_name: str, columns: list[str]
 ) -> None:
-    """Create index only when table exists and index is absent."""
+    """
+    Create index only when table exists and index is absent.
+
+    Args:
+        table_name: Table name.
+        index_name: Index name.
+        columns: Columns.
+    """
     if not _table_exists(table_name):
         return
     if _index_exists(table_name, index_name):
@@ -48,7 +75,13 @@ def _create_index_if_missing(
 
 
 def _drop_index_if_exists(table_name: str, index_name: str) -> None:
-    """Drop index only when table exists and index is present."""
+    """
+    Drop index only when table exists and index is present.
+
+    Args:
+        table_name: Table name.
+        index_name: Index name.
+    """
     if not _table_exists(table_name):
         return
     if not _index_exists(table_name, index_name):

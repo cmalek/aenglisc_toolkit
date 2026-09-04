@@ -71,7 +71,9 @@ class WyrdcraeftIngestService(SessionMixin):
         """
         Initialize the ingest service.
         """
+        #: Session.
         self.session = self._get_session()
+        #: Ingestor.
         self._ingestor = DocumentIngestor()
 
     def create_project(  # noqa: PLR0913
@@ -200,6 +202,12 @@ class WyrdcraeftIngestService(SessionMixin):
         Returns:
             Metadata for ``DocumentIngestor``.
 
+
+        Keyword Args:
+            title: Title.
+            source: Source.
+            editor: Editor.
+
         """
         return TextMetadata(
             title=title,
@@ -231,6 +239,12 @@ class WyrdcraeftIngestService(SessionMixin):
 
         Returns:
             Typed canonical :class:`wyrdcraeft.models.OldEnglishText`.
+
+
+        Keyword Args:
+            text: Text.
+            source_path: Source path.
+            metadata: Metadata.
 
         """
         if source_path is not None:
@@ -274,6 +288,13 @@ class WyrdcraeftIngestService(SessionMixin):
 
         Returns:
             ``None``.
+
+
+        Keyword Args:
+            project: Project.
+            canonical: Canonical.
+            chapter_start: Chapter start.
+            sentence_start: Sentence start.
 
         """
         runs = self._flatten_runs(canonical.content)
@@ -354,6 +375,13 @@ class WyrdcraeftIngestService(SessionMixin):
         Returns:
             ``None``.
 
+
+        Keyword Args:
+            section: Section.
+            runs: Runs.
+            force_boundary: Force boundary.
+            inherited_title: Inherited title.
+
         """
         section_has_boundary = bool(section.title or section.number is not None)
         next_boundary = force_boundary or section_has_boundary
@@ -416,6 +444,12 @@ class WyrdcraeftIngestService(SessionMixin):
 
         Returns:
             ``None``.
+
+
+        Keyword Args:
+            runs: Runs.
+            run: Run.
+            force_boundary: Force boundary.
 
         """
         if (
@@ -524,6 +558,13 @@ class WyrdcraeftIngestService(SessionMixin):
         Returns:
             Next display order after insertion.
 
+
+        Keyword Args:
+            run: Run.
+            chapter: Chapter.
+            display_order_start: Display order start.
+            project_id: Project id.
+
         """
         section = Section.create(
             chapter_id=chapter.id,
@@ -572,6 +613,13 @@ class WyrdcraeftIngestService(SessionMixin):
 
         Returns:
             Next display order after insertion.
+
+
+        Keyword Args:
+            run: Run.
+            chapter: Chapter.
+            display_order_start: Display order start.
+            project_id: Project id.
 
         """
         stanzas = self._build_stanzas(run.lines)
@@ -652,6 +700,10 @@ class WyrdcraeftIngestService(SessionMixin):
 
         Returns:
             Resolved 1-based line number.
+
+
+        Keyword Args:
+            fallback_index: Fallback index.
 
         """
         if line.number is not None:

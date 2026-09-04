@@ -28,19 +28,26 @@ from PySide6.QtWidgets import (
 
 from oeapp.services.logs import get_log_file_path
 
+#: Log Level.
 LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 
 
 class LogTableModel(QAbstractTableModel):
-    """Table model for displaying log entries."""
+    """
+    Table model for displaying log entries.
 
-    # A list of the column names.
+    Args:
+        parent: Parent.
+
+    """
+
+    #: A list of the column names.
     COLUMNS: Final[list[str]] = ["Timestamp", "Level", "Message"]
-    # A dictionary of the column names to their indexes.
+    #: A dictionary of the column names to their indexes.
     COLUMN_INDEXES: Final[dict[str, int]] = {
         val: index for index, val in enumerate(COLUMNS)
     }
-    # A dictionary of the log levels to their integer values.
+    #: A dictionary of the log levels to their integer values.
     LEVEL_MAP: Final[dict[str, int]] = {
         "DEBUG": 10,
         "INFO": 20,
@@ -50,12 +57,25 @@ class LogTableModel(QAbstractTableModel):
     }
 
     def __init__(self, parent: Any = None) -> None:
+        """
+        Initialize the instance.
+
+        Args:
+            parent: Parent.
+
+        """
         super().__init__(parent)
+        #: Logs.
         self._logs: list[dict[str, Any]] = []
+        #: Display local time.
         self._display_local_time = False
+        #: Filter text.
         self._filter_text = ""
+        #: Filter level.
         self._filter_level = "INFO"
+        #: All logs.
         self._all_logs: list[dict[str, Any]] = []
+        #: Max lines.
         self._max_lines = 1000
 
     def rowCount(  # noqa: N802
@@ -66,6 +86,10 @@ class LogTableModel(QAbstractTableModel):
 
         Args:
             parent: The parent index.
+
+
+        Returns:
+            The computed value.
 
         """
         if parent is not None and parent.isValid():
@@ -80,6 +104,10 @@ class LogTableModel(QAbstractTableModel):
 
         Args:
             parent: The parent index.
+
+
+        Returns:
+            The computed value.
 
         """
         if parent is not None and parent.isValid():
@@ -101,6 +129,10 @@ class LogTableModel(QAbstractTableModel):
             orientation: The orientation of the header.
             role: The role of the header.
 
+
+        Returns:
+            The computed value.
+
         """
         if (
             orientation == Qt.Orientation.Horizontal
@@ -110,7 +142,16 @@ class LogTableModel(QAbstractTableModel):
         return None
 
     def format_message(self, log: dict[str, Any]) -> str:
-        """Format the log message with extra key-value pairs."""
+        """
+        Format the log message with extra key-value pairs.
+
+        Args:
+            log: Log.
+
+        Returns:
+            The computed value.
+
+        """
         event = str(log.get("event", ""))
         extra_parts = []
         for key, value in log.items():
@@ -126,6 +167,17 @@ class LogTableModel(QAbstractTableModel):
         index: QModelIndex | QPersistentModelIndex,
         role: int = Qt.ItemDataRole.DisplayRole,
     ) -> Any:
+        """
+        Data.
+
+        Args:
+            index: Index.
+            role: Role.
+
+        Returns:
+            The computed value.
+
+        """
         if not index.isValid() or not (0 <= index.row() < len(self._logs)):
             return None
 
@@ -295,16 +347,26 @@ class LogViewerDialog(QDialog):
     """
 
     def __init__(self, parent: Any = None) -> None:
+        """
+        Initialize the instance.
+
+        Args:
+            parent: Parent.
+
+        """
         super().__init__(parent)
         self.setWindowTitle("Application Logs")
         self.resize(800, 600)
         self.setModal(False)
 
+        #: Log file.
         self._log_file: Path = get_log_file_path()
+        #: Last position.
         self._last_position: int = 0
 
         self.build()
 
+        #: Timer.
         self._timer = QTimer(self)
         self._timer.timeout.connect(self.update_logs)
         self._timer.start(2000)  # Check every 2 seconds
@@ -501,6 +563,9 @@ class LogViewerDialog(QDialog):
         self.model.set_display_local_time(checked)
 
     def on_export_clicked(self) -> None:
+        """
+        On export clicked.
+        """
         selection = self.table_view.selectionModel().selectedRows()
 
         file_path, _ = QFileDialog.getSaveFileName(

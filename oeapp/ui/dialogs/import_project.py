@@ -38,9 +38,13 @@ class ImportProjectDialog:
             was_renamed: Whether the project name was changed
 
         """
+        #: Main window.
         self.main_window = main_window
+        #: Project.
         self.project = project
+        #: Was renamed.
         self.was_renamed = was_renamed
+        #: Should open.
         self.should_open = False
 
     def build(self) -> None:

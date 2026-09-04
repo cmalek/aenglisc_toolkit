@@ -39,7 +39,16 @@ class ClickableNoteLabel(QLabel):
     double_clicked = Signal(object)
 
     def __init__(self, note: "Note", parent: QWidget | None = None):
+        """
+        Initialize the instance.
+
+        Args:
+            note: Note.
+            parent: Parent.
+
+        """
         super().__init__(parent)
+        #: Note.
         self.note = note
         self.setCursor(Qt.CursorShape.PointingHandCursor)
 
@@ -104,12 +113,24 @@ class NotesPanel(QWidget):
         sentence: "Sentence | None" = None,
         parent: QWidget | None = None,
     ):
+        """
+        Initialize the instance.
+
+        Args:
+            sentence: Sentence.
+            parent: Parent.
+
+        """
         super().__init__(parent)
         assert sentence is not None, "Sentence must be provided"  # noqa: S101
+        #: Sentence.
         self.sentence = cast("Sentence", sentence)
+        #: Card.
         self.card = cast("SentenceCard", parent)
         assert self.card.main_window is not None  # noqa: S101
+        #: Main window.
         self.main_window = self.card.main_window
+        #: App context.
         self.app_context = self.main_window.app_context
         self.build()
 
@@ -123,7 +144,13 @@ class NotesPanel(QWidget):
         self.note_labels: list[ClickableNoteLabel] = []
 
     def empty_state(self) -> QLabel:
-        """Show empty state for the notes panel."""
+        """
+        Show empty state for the notes panel.
+
+        Returns:
+            The computed value.
+
+        """
         empty_label = QLabel("(No notes yet)")
         empty_label.setStyleSheet(self.NOTE_STYLE)
         empty_label.setFont(QFont("Helvetica", 10))
@@ -311,6 +338,10 @@ class NotesPanel(QWidget):
 
         - Reset the current active selection in the OE text edit
         - Highlight the note
+
+        Args:
+            note: Note.
+
         """
         self.card.reset_selected_token()
         self.card.oe_text_edit.highlight_note(note)
@@ -320,6 +351,10 @@ class NotesPanel(QWidget):
         Handle note double-clicked.
 
         - Open the note edit dialog
+
+        Args:
+            note: Note.
+
         """
         if not note.start_token or not note.end_token:
             return
@@ -341,6 +376,10 @@ class NotesPanel(QWidget):
         Handle note saved signal - refresh the notes display.
 
         :class:`~oeapp.ui.sentence_card.SentenceCard` will re-render the OE text.
+
+        Args:
+            note_id: Note id.
+
         """
         self.app_context.session.refresh(self.card.sentence)
         self.update_notes()

@@ -17,15 +17,19 @@ from alembic import op
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-# revision identifiers, used by Alembic.
+#: revision identifiers, used by Alembic.
 revision: str = "merge_hyphenated_words"
+#: Down revision.
 down_revision: "str | Sequence[str] | None" = "0d9ebcdd2591"
+#: Branch labels.
 branch_labels: "str | Sequence[str] | None" = None
+#: Depends on.
 depends_on: "str | Sequence[str] | None" = None
 
+#: Logger.
 logger = logging.getLogger(__name__)
 
-# Old English characters for matching hyphenated words
+#: Old English characters for matching hyphenated words
 OE_CHARS = "þÞðÐæǣÆǢȝġĠċĊāĀȳȲēĒīĪūŪōŌū"
 
 

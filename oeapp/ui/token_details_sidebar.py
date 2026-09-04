@@ -26,6 +26,10 @@ if TYPE_CHECKING:
 
 
 class FieldRenderer(AnnotationLookupsMixin):
+    """
+    Field Renderer for this module.
+    """
+
     #: Style for label text (e.g. Part of Speech:)
     LABEL_STYLE: Final[str] = (
         "color: palette(text); font-family: Helvetica; font-weight: bold;"
@@ -74,6 +78,14 @@ class FieldRenderer(AnnotationLookupsMixin):
 
 
 class AbstractPartOfSpeechRenderer(AnnotationLookupsMixin):
+    """
+    Abstract Part Of Speech Renderer for this module.
+
+    Args:
+        annotation: Annotation.
+
+    """
+
     #: Font for part of speech label text (e.g. Part of Speech:)
     POS_LABEL_STYLE: Final[str] = (
         "color: palette(text-muted); font-family: Helvetica; font-size: 18px;"
@@ -88,7 +100,9 @@ class AbstractPartOfSpeechRenderer(AnnotationLookupsMixin):
 
         """
         super().__init__()
+        #: Annotation.
         self.annotation: Annotation | None = annotation
+        #: Field renderer.
         self.field_renderer = FieldRenderer
 
     def render(self, parent_layout: QVBoxLayout) -> None:
@@ -124,6 +138,10 @@ class AbstractPartOfSpeechRenderer(AnnotationLookupsMixin):
 
 
 class NounRenderer(AbstractPartOfSpeechRenderer):
+    """
+    Noun Renderer for this module.
+    """
+
     def render(self, parent_layout: QVBoxLayout) -> None:
         """
         Render the noun.  This renders these fields:
@@ -154,6 +172,10 @@ class NounRenderer(AbstractPartOfSpeechRenderer):
 
 
 class VerbRenderer(AbstractPartOfSpeechRenderer):
+    """
+    Verb Renderer for this module.
+    """
+
     def render(self, parent_layout: QVBoxLayout) -> None:
         """
         Render the verb.  This renders these fields:
@@ -215,6 +237,10 @@ class VerbRenderer(AbstractPartOfSpeechRenderer):
 
 
 class AdjectiveRenderer(AbstractPartOfSpeechRenderer):
+    """
+    Adjective Renderer for this module.
+    """
+
     def render(self, parent_layout: QVBoxLayout) -> None:
         """
         Render the adjective.  This renders these fields:
@@ -252,6 +278,10 @@ class AdjectiveRenderer(AbstractPartOfSpeechRenderer):
 
 
 class PronounRenderer(AbstractPartOfSpeechRenderer):
+    """
+    Pronoun Renderer for this module.
+    """
+
     def render(self, parent_layout: QVBoxLayout) -> None:
         """
         Render the pronoun.  This renders these fields:
@@ -280,6 +310,10 @@ class PronounRenderer(AbstractPartOfSpeechRenderer):
 
 
 class ArticleRenderer(AbstractPartOfSpeechRenderer):
+    """
+    Article Renderer for this module.
+    """
+
     def render(self, parent_layout: QVBoxLayout) -> None:
         """
         Render the article.  This renders these fields:
@@ -308,6 +342,10 @@ class ArticleRenderer(AbstractPartOfSpeechRenderer):
 
 
 class PrepositionRenderer(AbstractPartOfSpeechRenderer):
+    """
+    Preposition Renderer for this module.
+    """
+
     def render(self, parent_layout: QVBoxLayout) -> None:
         """
         Render the preposition.  This renders these fields:
@@ -329,6 +367,10 @@ class PrepositionRenderer(AbstractPartOfSpeechRenderer):
 
 
 class AdverbRenderer(AbstractPartOfSpeechRenderer):
+    """
+    Adverb Renderer for this module.
+    """
+
     def render(self, parent_layout: QVBoxLayout) -> None:
         """
         Render the adverb.  This renders these fields:
@@ -348,6 +390,10 @@ class AdverbRenderer(AbstractPartOfSpeechRenderer):
 
 
 class ConjunctionRenderer(AbstractPartOfSpeechRenderer):
+    """
+    Conjunction Renderer for this module.
+    """
+
     def render(self, parent_layout: QVBoxLayout) -> None:
         """
         Render the conjunction.  This renders these fields:
@@ -369,20 +415,36 @@ class ConjunctionRenderer(AbstractPartOfSpeechRenderer):
 
 
 class InterjectionRenderer(AbstractPartOfSpeechRenderer):
+    """
+    Interjection Renderer for this module.
+    """
+
     pass
 
 
 class NumberRenderer(AbstractPartOfSpeechRenderer):
+    """
+    Number Renderer for this module.
+    """
+
     pass
 
 
 class NoneRenderer(AbstractPartOfSpeechRenderer):
+    """
+    None Renderer for this module.
+    """
+
     pass
 
 
 class BaseTokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
     """
     Base sidebar widget displaying detailed token information.
+
+    Args:
+        parent: Parent.
+
     """
 
     #: Size of the book icon in pixels.
@@ -432,14 +494,25 @@ class BaseTokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
     TOKEN_STYLE: Final[str] = (
         "color: palette(text); font-family: Helvetica; font-weight: normal;"  # noqa: S105
     )
+    #: Token font.
     TOKEN_FONT: Final[QFont] = QFont("Anvers", 18, QFont.Weight.Bold)
 
     def __init__(self, parent: QWidget | None = None) -> None:
-        """Initialize the base token details sidebar."""
+        """
+        Initialize the base token details sidebar.
+
+        Args:
+            parent: Parent.
+
+        """
         super().__init__(parent)
+        #: Current token.
         self._current_token: Token | None = None
+        #: Current idiom.
         self._current_idiom: Idiom | None = None
+        #: Current sentence.
         self._current_sentence: Sentence | None = None
+        #: Field renderer.
         self.field_renderer = FieldRenderer
         self.build()
 
@@ -483,6 +556,10 @@ class BaseTokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
     def clear_sidebar(self, layout: QVBoxLayout | QHBoxLayout | None = None) -> None:
         """
         Clear all content from the sidebar.
+
+        Args:
+            layout: Layout.
+
         """
         if not layout:
             layout = self.content_layout
@@ -859,12 +936,20 @@ class TokenDetailsSidebar(BaseTokenDetailsSidebar):
     def _on_token_selected(self, token: "Token") -> None:
         """
         Handle token selection.
+
+        Args:
+            token: Token.
+
         """
         self.render_token(token, token.sentence)
 
     def _on_idiom_selected(self, idiom: "Idiom") -> None:
         """
         Handle idiom selection.
+
+        Args:
+            idiom: Idiom.
+
         """
         self.render_idiom(idiom, idiom.sentence)
 
@@ -879,7 +964,15 @@ class FullTranslationSidebar(BaseTokenDetailsSidebar):
     """
 
     def __init__(self, parent: QWidget | None = None) -> None:
+        """
+        Initialize the instance.
+
+        Args:
+            parent: Parent.
+
+        """
         super().__init__(parent)
+        #: Is sidebar open.
         self._is_sidebar_open: bool = False
 
     def set_sidebar_open(self, is_open: bool) -> None:

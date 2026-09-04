@@ -56,12 +56,15 @@ if TYPE_CHECKING:
     from oeapp.models.token import Token
     from oeapp.ui.main_window import MainWindow
 
-# Custom property to store sentence ID in text fragments
+#: Custom property to store sentence ID in text fragments
 SENTENCE_ID_PROPERTY: Final[int] = QTextFormat.UserProperty + 10  # type: ignore[attr-defined]
-# Property IDs for ExtraSelections
+#: Property IDs for ExtraSelections
 TOKEN_HIGHLIGHT_PROPERTY: Final[int] = QTextFormat.UserProperty + 11  # type: ignore[attr-defined]
+#: Sentence highlight property.
 SENTENCE_HIGHLIGHT_PROPERTY: Final[int] = QTextFormat.UserProperty + 12  # type: ignore[attr-defined]
+#: Note id property.
 NOTE_ID_PROPERTY: Final[int] = QTextFormat.UserProperty + 13  # type: ignore[attr-defined]
+#: Note highlight property.
 NOTE_HIGHLIGHT_PROPERTY: Final[int] = QTextFormat.UserProperty + 14  # type: ignore[attr-defined]
 
 
@@ -92,25 +95,35 @@ class FullProjectOldEnglishTextEdit(ThemeMixin, OldEnglishTextEdit):
 
     """
 
-    # Signal emitted when a token is hovered
+    #: Signal emitted when a token is hovered
     token_hovered = Signal(object)  # Token or None
-    # Signal emitted when a sentence is selected (via token selection)
+    #: Signal emitted when a sentence is selected (via token selection)
     sentence_selected = Signal(int)
 
     def __init__(
         self, project: "Project", parent: "FullTranslationWindow | None" = None
     ):
+        """
+        Initialize the instance.
+
+        Args:
+            project: Project.
+            parent: Parent.
+
+        """
         super().__init__(parent)
+        #: Project.
         self.project: Project = project
+        #: Full window.
         self._full_window: FullTranslationWindow | None = parent
         self.setMouseTracking(True)
-        # Override selector to not depend on sentence_card
+        #: Override selector to not depend on sentence_card
         self.selector = FullProjectTextSelector(self)
         self.clicked.connect(self.selector.select_tokens)
 
-        # Mapping of (sentence_id, token_id) -> position in text
+        #: Mapping of (sentence_id, token_id) -> position in text
         self.token_positions: dict[tuple[int, int], tuple[int, int]] = {}
-        # Mapping of sentence_id -> list of (start, end) positions
+        #: Mapping of sentence_id -> list of (start, end) positions
         self.sentence_positions: dict[int, tuple[int, int]] = {}
 
         self.render_readonly_text()
@@ -267,6 +280,14 @@ class FullProjectOldEnglishTextEdit(ThemeMixin, OldEnglishTextEdit):
         Returns:
             Whether insertion ends at start-of-line.
 
+
+        Keyword Args:
+            cursor: Cursor.
+            segment: Segment.
+            fmt: Fmt.
+            is_verse: Is verse.
+            at_line_start: At line start.
+
         """
         if not segment:
             return at_line_start
@@ -324,7 +345,16 @@ class FullProjectOldEnglishTextEdit(ThemeMixin, OldEnglishTextEdit):
         return cast("int", val) if val is not None else None
 
     def find_sentence_at_position(self, position: int) -> int | None:
-        """Find sentence ID at character position."""
+        """
+        Find sentence ID at character position.
+
+        Args:
+            position: Position.
+
+        Returns:
+            The computed value.
+
+        """
         doc = self.document()
         cursor = QTextCursor(doc)
         cursor.setPosition(position)
@@ -352,6 +382,10 @@ class FullProjectOldEnglishTextEdit(ThemeMixin, OldEnglishTextEdit):
         - Get the token ID at the cursor position
         - If a token is found, emit the :attr:`token_hovered` signal with the token
         - Otherwise, emit the :attr:`token_hovered` signal with ``None``
+
+        Args:
+            event: Event.
+
         """
         cursor = self.cursorForPosition(event.position().toPoint())
         token_id = self.find_token_at_position(cursor.position())
@@ -514,6 +548,11 @@ class FullProjectOldEnglishTextEdit(ThemeMixin, OldEnglishTextEdit):
 class FullProjectModernEnglishTextEdit(ThemeMixin, QTextEdit):
     """
     Modern English text edit for the full project view with sentence mapping.
+
+    Args:
+        project: Project.
+        parent: Parent.
+
     """
 
     #: Signal emitted when a sentence is selected
@@ -522,10 +561,21 @@ class FullProjectModernEnglishTextEdit(ThemeMixin, QTextEdit):
     sentence_deselected = Signal()
 
     def __init__(self, project: "Project", parent: QWidget | None = None):
+        """
+        Initialize the instance.
+
+        Args:
+            project: Project.
+            parent: Parent.
+
+        """
         super().__init__(parent)
+        #: Project.
         self.project = project
         self.setReadOnly(True)
+        #: Sentence positions.
         self.sentence_positions: dict[int, tuple[int, int]] = {}
+        #: Selected sentence id.
         self._selected_sentence_id: int | None = None
 
         self.render_text()
@@ -691,12 +741,24 @@ class FullProjectTextSelector(OldEnglishTextSelector):
     """
 
     def __init__(self, text_edit: FullProjectOldEnglishTextEdit):
+        """
+        Initialize the instance.
+
+        Args:
+            text_edit: Text edit.
+
+        """
+        #: Text edit.
         self.text_edit: FullProjectOldEnglishTextEdit = text_edit
+        #: Deselect timer.
         self._deselect_timer: QTimer = QTimer(self.text_edit)
         self._deselect_timer.setSingleShot(True)
         self._deselect_timer.timeout.connect(self.deselect)
+        #: Pending deselect token index.
         self._pending_deselect_token_index: int | None = None
+        #: Selected token index.
         self.selected_token_index: int | None = None  # This will store token_id here
+        #: Selected token range.
         self.selected_token_range: tuple[int, int] | None = None
 
     def select_tokens(self, position: QPoint, modifiers: Qt.KeyboardModifier) -> None:  # noqa: ARG002
@@ -836,20 +898,38 @@ class FullProjectTextSelector(OldEnglishTextSelector):
 class FullTranslationWindow(QMainWindow):
     """
     Window for side-by-side OE and ModE translation view.
+
+    Args:
+        project: Project.
+        main_window: Main window.
+
     """
 
     #: Width of the sidebar in pixels
     SIDEBAR_WIDTH: Final[int] = 350
 
     def __init__(self, project: "Project", main_window: "MainWindow"):
+        """
+        Initialize the instance.
+
+        Args:
+            project: Project.
+            main_window: Main window.
+
+        """
         super().__init__(main_window)
+        #: Project.
         self.project = project
+        #: Main window.
         self.main_window = main_window
         self.setWindowTitle(f"Full Translation - {project.name}")
         self.resize(1200, 800)
 
+        #: Project notes.
         self.project_notes: list[tuple[int, Note]] = []
+        #: Project notes dialog.
         self.project_notes_dialog: QDialog | None = None
+        #: Project notes dialog text.
         self.project_notes_dialog_text: QTextEdit | None = None
         self._collect_project_notes()
         self.build()
@@ -1335,6 +1415,15 @@ class FullProjectNoteWidget(ThemeMixin, QWidget):
     clicked = Signal(int)  # emits note_num
 
     def __init__(self, note_num: int, note: "Note", parent: QWidget | None = None):
+        """
+        Initialize the instance.
+
+        Args:
+            note_num: Note num.
+            note: Note.
+            parent: Parent.
+
+        """
         super().__init__(parent)
         #: Number of the note
         self.note_num = note_num
@@ -1346,6 +1435,7 @@ class FullProjectNoteWidget(ThemeMixin, QWidget):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
+        #: Label.
         self.label = QLabel(f"<b>{note_num}.</b> {note.note_text_md}")
         self.label.setWordWrap(True)
         layout.addWidget(self.label)
@@ -1399,6 +1489,14 @@ class FullProjectNotesArea(QScrollArea):
     def __init__(
         self, project_notes: list[tuple[int, "Note"]], parent: QWidget | None = None
     ):
+        """
+        Initialize the instance.
+
+        Args:
+            project_notes: Project notes.
+            parent: Parent.
+
+        """
         super().__init__(parent)
         self.setWidgetResizable(True)
         #: Container widget for the notes area

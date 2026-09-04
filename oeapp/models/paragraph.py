@@ -23,7 +23,9 @@ class Paragraph(SaveDeleteMixin, Base):
     Represents a paragraph within a section.
     """
 
+    #: Tablename  .
     __tablename__ = "paragraphs"
+    #: Table args  .
     __table_args__ = (
         Index("idx_paragraphs_section_order", "section_id", "order"),
     )
@@ -37,8 +39,9 @@ class Paragraph(SaveDeleteMixin, Base):
     #: The paragraph order within the section (1-based).
     order: Mapped[int] = mapped_column(Integer, nullable=False)
 
-    # Relationships
+    #: Relationships
     section: Mapped[Section] = relationship("Section", back_populates="paragraphs")
+    #: Sentences.
     sentences: Mapped[builtins.list[Sentence]] = relationship(
         "Sentence",
         back_populates="paragraph",
@@ -168,6 +171,10 @@ class Paragraph(SaveDeleteMixin, Base):
     def last_sentence_number(self) -> int:
         """
         Get the last sentence number in the paragraph (1-based).
+
+        Returns:
+            The computed value.
+
         """
         # Import here to avoid circular import
         from oeapp.models.sentence import Sentence  # noqa: PLC0415

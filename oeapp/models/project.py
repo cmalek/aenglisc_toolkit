@@ -28,6 +28,7 @@ class Project(SaveDeleteMixin, Base):
     Represents a project.
     """
 
+    #: Tablename  .
     __tablename__ = "projects"
 
     #: The project ID.
@@ -52,19 +53,21 @@ class Project(SaveDeleteMixin, Base):
         nullable=False,
     )
 
-    # Relationships
+    #: Relationships
     chapters: Mapped[builtins.list["Chapter"]] = relationship(
         "Chapter",
         back_populates="project",
         cascade="all, delete-orphan",
         order_by="Chapter.number",
     )
+    #: Sentences.
     sentences: Mapped[builtins.list[Sentence]] = relationship(
         "Sentence",
         back_populates="project",
         cascade="all, delete-orphan",
         order_by="Sentence.display_order",
     )
+    #: Remembered annotations.
     remembered_annotations: Mapped[
         builtins.list["RememberedAnnotation"]
     ] = relationship(
@@ -78,6 +81,13 @@ class Project(SaveDeleteMixin, Base):
     def exists(cls, name: str) -> bool:
         """
         Get all projects.
+
+        Args:
+            name: Name.
+
+        Returns:
+            The computed value.
+
         """
         session = cls._get_session()
         return session.scalar(select(cls).where(cls.name == name)) is not None
@@ -422,6 +432,10 @@ class Project(SaveDeleteMixin, Base):
     def save(self, commit: bool = True) -> None:
         """
         Save the project.
+
+        Args:
+            commit: Commit.
+
         """
         # Import here to avoid circular import
         from oeapp.services.logs import get_logger  # noqa: PLC0415
@@ -440,6 +454,10 @@ class Project(SaveDeleteMixin, Base):
     def delete(self, commit: bool = True) -> None:
         """
         Delete the project.
+
+        Args:
+            commit: Commit.
+
         """
         # Import here to avoid circular import
         from oeapp.services.logs import get_logger  # noqa: PLC0415
@@ -889,6 +907,12 @@ class Project(SaveDeleteMixin, Base):
 def touch_project_on_change(session, flush_context, instances):  # noqa: ARG001, PLR0912
     """
     Update Project.updated_at whenever a related entity is changed.
+
+    Args:
+        session: Session.
+        flush_context: Flush context.
+        instances: Instances.
+
     """
     from oeapp.services.logs import get_logger  # noqa: PLC0415
 

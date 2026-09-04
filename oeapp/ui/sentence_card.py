@@ -50,6 +50,7 @@ if TYPE_CHECKING:
     from oeapp.models.token import Token
     from oeapp.ui.main_window import MainWindow
 
+#: Theme dark lightness threshold.
 THEME_DARK_LIGHTNESS_THRESHOLD = 128
 
 
@@ -67,17 +68,18 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
 
     """
 
-    # Signal emitted when a sentence is merged
+    #: Signal emitted when a sentence is merged
     sentence_merged = Signal(int)  # Emits current sentence ID
-    # Signal emitted when a sentence is added
+    #: Signal emitted when a sentence is added
     sentence_added = Signal(int)  # Emits new sentence ID
-    # Signal emitted when a sentence is deleted
+    #: Signal emitted when a sentence is deleted
     sentence_deleted = Signal(int)  # Emits deleted sentence ID
     # Signal emitted when a token is selected for details sidebar
-    # Note: Using object for SentenceCard to avoid circular import
+    #: Note: Using object for SentenceCard to avoid circular import
     token_selected_for_details = Signal(
         object, object, object
     )  # Token, Sentence, SentenceCard
+    #: Idiom selected for details.
     idiom_selected_for_details = Signal(
         object, object, object
     )  # Idiom, Sentence, SentenceCard
@@ -95,6 +97,16 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
         main_window: "MainWindow | None" = None,
         parent: QWidget | None = None,
     ):
+        """
+        Initialize the instance.
+
+        Args:
+            sentence: Sentence.
+            command_manager: Command manager.
+            main_window: Main window.
+            parent: Parent.
+
+        """
         super().__init__(parent)
         #: The sentence this card represents
         self.sentence = sentence
@@ -131,6 +143,10 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
     def has_focus(self) -> bool:
         """
         Check if this sentence card has focus.
+
+        Returns:
+            The computed value.
+
         """
         return any(
             [
@@ -396,6 +412,10 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
 
         Args:
             layout: Layout to add the paragraph header to
+
+
+        Returns:
+            The computed value.
 
         """
         self.sentence_number_label = QLabel(self._line_reference_text())
@@ -1096,7 +1116,13 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
             )
 
     def _execute_hierarchy_command(self, command) -> None:
-        """Execute a hierarchy command and update UI."""
+        """
+        Execute a hierarchy command and update UI.
+
+        Args:
+            command: Command.
+
+        """
         if not self.command_manager:
             return
 
@@ -1125,6 +1151,10 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
     def _on_idiom_selection(self, *args) -> None:  # noqa: ARG002
         """
         Event handler for idiom selection.
+
+        Args:
+            args: Args.
+
         """
         self.add_note_button.setEnabled(False)
 

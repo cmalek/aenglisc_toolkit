@@ -21,6 +21,10 @@ if TYPE_CHECKING:
 class BackupsViewDialog:
     """
     Dialog to view backup information.
+
+    Args:
+        main_window: Main window.
+
     """
 
     #: Dialog width
@@ -31,8 +35,14 @@ class BackupsViewDialog:
     def __init__(self, main_window: "MainWindow") -> None:
         """
         Initialize backups view dialog.
+
+        Args:
+            main_window: Main window.
+
         """
+        #: Main window.
         self.main_window = main_window
+        #: App context.
         self.app_context = main_window.app_context
 
     def build(self) -> None:

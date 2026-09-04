@@ -66,6 +66,10 @@ class AnnotateTokenCommand(SessionMixin, Command):
     def undo(self) -> bool:
         """
         Undo annotation update.
+
+        Returns:
+            True if there was an annotation to restore, False otherwise
+
         """
         annotation = self.annotation
         if annotation is None:
@@ -74,7 +78,13 @@ class AnnotateTokenCommand(SessionMixin, Command):
         return True
 
     def get_description(self) -> str:
-        """Get command description."""
+        """
+        Get command description.
+
+        Returns:
+            The computed value.
+
+        """
         target = f"token {self.token_id}" if self.token_id else f"idiom {self.idiom_id}"
         return f"Annotate {target}"
 
@@ -91,7 +101,16 @@ class ApplyRememberedAnnotationsCommand(SessionMixin, Command):
     after: dict[int, dict[str, Any]] = field(default_factory=dict)
 
     def execute(self) -> bool:
-        """Apply the remembered annotation payloads to all target tokens."""
+        """
+        Apply the remembered annotation payloads to all target tokens.
+
+        If there was an error applying the annotations, rollback the transaction
+        and return False.
+
+        Returns:
+            True if the annotations were applied wihtout errors, False otherwise
+
+        """
         session = self._get_session()
         try:
             for token_id in self.token_ids:
@@ -103,7 +122,16 @@ class ApplyRememberedAnnotationsCommand(SessionMixin, Command):
         return True
 
     def undo(self) -> bool:
-        """Restore the pre-apply annotation payloads for all target tokens."""
+        """
+        Restore the pre-apply annotation payloads for all target tokens.
+
+        If there was an error restoring the annotations, rollback the transaction
+        and return False.
+
+        Returns:
+            True if the annotations were restored without errors, False otherwise
+
+        """
         session = self._get_session()
         try:
             for token_id in self.token_ids:
@@ -115,7 +143,13 @@ class ApplyRememberedAnnotationsCommand(SessionMixin, Command):
         return True
 
     def get_description(self) -> str:
-        """Get command description."""
+        """
+        Get command description.
+
+        Returns:
+            Human-readable undo-stack label.
+
+        """
         token_count = len(self.token_ids)
         return f"Apply remembered annotations to {token_count} token(s)"
 

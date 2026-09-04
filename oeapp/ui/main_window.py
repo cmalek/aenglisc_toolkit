@@ -69,7 +69,13 @@ if TYPE_CHECKING:
 
 
 class MainWindow(QMainWindow):
-    """Main application window."""
+    """
+    Main application window.
+
+    Args:
+        app_context: App context.
+
+    """
 
     #: Main window geometry
     MAIN_WINDOW_GEOMETRY: Final[tuple[int, int, int, int]] = (100, 100, 1600, 800)
@@ -82,6 +88,13 @@ class MainWindow(QMainWindow):
     )
 
     def __init__(self, app_context: AppContext | None = None) -> None:
+        """
+        Initialize the instance.
+
+        Args:
+            app_context: App context.
+
+        """
         super().__init__()
         #: Messages
         self.messages = Messages(self)
@@ -113,6 +126,7 @@ class MainWindow(QMainWindow):
         self._edit_mode_count = 0
         #: Non-modal help center dialog.
         self._help_dialog: HelpCenterDialog | None = None
+        #: Content layout.
         self.content_layout: QVBoxLayout | None = None
         # Build the main window
         self.build()
@@ -259,11 +273,23 @@ class MainWindow(QMainWindow):
         return toolbar
 
     def _on_search_text_changed(self, text: str) -> None:
-        """Handle search text change."""
+        """
+        Handle search text change.
+
+        Args:
+            text: Text.
+
+        """
         self.action_service.perform_search(text, self.search_scope_combo.currentText())
 
     def _on_search_scope_changed(self, index: int) -> None:  # noqa: ARG002
-        """Handle search scope change."""
+        """
+        Handle search scope change.
+
+        Args:
+            index: Index.
+
+        """
         self.action_service.perform_search(
             self.search_input.text(), self.search_scope_combo.currentText()
         )
@@ -354,7 +380,13 @@ class MainWindow(QMainWindow):
             self.chapter_combo.setCurrentIndex(idx + 1)
 
     def _on_chapter_changed(self, index: int) -> None:
-        """Handle chapter selection change."""
+        """
+        Handle chapter selection change.
+
+        Args:
+            index: Index.
+
+        """
         if index < 0:
             return
         chapter_id = self.chapter_combo.itemData(index)
@@ -374,7 +406,13 @@ class MainWindow(QMainWindow):
             self.section_combo.setCurrentIndex(idx + 1)
 
     def _on_section_changed(self, index: int) -> None:
-        """Handle section selection change."""
+        """
+        Handle section selection change.
+
+        Args:
+            index: Index.
+
+        """
         if index < 0:
             return
         section_id = self.section_combo.itemData(index)
@@ -428,6 +466,10 @@ class MainWindow(QMainWindow):
     def show_empty(self, layout: QVBoxLayout) -> None:
         """
         Show the empty state.
+
+        Args:
+            layout: Layout.
+
         """
         # Status bar for autosave status
         self.messages.show_message("Ready")
@@ -495,7 +537,13 @@ class MainWindow(QMainWindow):
         return sidebar
 
     def closeEvent(self, event) -> None:  # noqa: N802
-        """Handle window close event."""
+        """
+        Handle window close event.
+
+        Args:
+            event: Event.
+
+        """
         # Stop backup timer
         if self.backup_timer:
             self.backup_timer.stop()
@@ -900,12 +948,24 @@ class MainWindowActions:
 
     @property
     def command_manager(self):
-        """Get the current command manager from main window."""
+        """
+        Get the current command manager from main window.
+
+        Returns:
+            The computed value.
+
+        """
         return self.app_context.command_manager
 
     @property
     def autosave_service(self):
-        """Get the current autosave service from main window."""
+        """
+        Get the current autosave service from main window.
+
+        Returns:
+            The computed value.
+
+        """
         return self.main_window.autosave_service
 
     def next_sentence(self) -> None:
@@ -1427,9 +1487,21 @@ class MainWindowActions:
 class Messages:
     """
     Helper class for showing messages in the main window.
+
+    Args:
+        main_window: Main window.
+
     """
 
     def __init__(self, main_window: MainWindow) -> None:
+        """
+        Initialize the instance.
+
+        Args:
+            main_window: Main window.
+
+        """
+        #: Main window.
         self.main_window = main_window
 
     def show_message(self, message: str, duration: int = 2000) -> None:

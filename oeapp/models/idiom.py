@@ -20,7 +20,9 @@ if TYPE_CHECKING:
 class Idiom(SaveDeleteMixin, Base):
     """Represents a multi-token group (idiom) in a sentence."""
 
+    #: Tablename  .
     __tablename__ = "idioms"
+    #: Table args  .
     __table_args__ = (
         Index(
             "idx_idioms_sentence_token_span",
@@ -30,6 +32,7 @@ class Idiom(SaveDeleteMixin, Base):
         ),
     )
 
+    #: Id.
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     #: The sentence ID.
     sentence_id: Mapped[int] = mapped_column(
@@ -55,10 +58,13 @@ class Idiom(SaveDeleteMixin, Base):
         nullable=False,
     )
 
-    # Relationships
+    #: Relationships
     sentence: Mapped["Sentence"] = relationship("Sentence", back_populates="idioms")
+    #: Start token.
     start_token: Mapped["Token"] = relationship("Token", foreign_keys=[start_token_id])
+    #: End token.
     end_token: Mapped["Token"] = relationship("Token", foreign_keys=[end_token_id])
+    #: Annotation.
     annotation: Mapped["Annotation | None"] = relationship(
         "Annotation",
         back_populates="idiom",
@@ -117,6 +123,10 @@ class Idiom(SaveDeleteMixin, Base):
     def save(self, commit: bool = True) -> None:
         """
         Save the idiom.
+
+        Args:
+            commit: Commit.
+
         """
         # Import here to avoid circular import
         from oeapp.services.logs import get_logger  # noqa: PLC0415
@@ -140,6 +150,10 @@ class Idiom(SaveDeleteMixin, Base):
     def delete(self, commit: bool = True) -> None:
         """
         Delete the idiom.
+
+        Args:
+            commit: Commit.
+
         """
         # Import here to avoid circular import
         from oeapp.services.logs import get_logger  # noqa: PLC0415

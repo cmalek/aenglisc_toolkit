@@ -39,9 +39,22 @@ class MigrationFailureDialog:
         error: Exception,
         backup_app_version: str | None,
     ) -> None:
+        """
+        Initialize the instance.
+
+        Args:
+            main_window: Main window.
+            error: Error.
+            backup_app_version: Backup app version.
+
+        """
+        #: Main window.
         self.main_window = main_window
+        #: Error.
         self.error = error
+        #: Backup app version.
         self.backup_app_version = backup_app_version
+        #: App context.
         self.app_context = main_window.app_context
 
     def build(self) -> None:

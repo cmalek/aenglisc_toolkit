@@ -53,7 +53,14 @@ class Command(ABC):
 
 
 class CommandManager:
-    """Manages undo/redo command stack."""
+    """
+    Manages undo/redo command stack.
+
+    Args:
+        session: Session.
+        max_commands: Max commands.
+
+    """
 
     def __init__(self, session: "Session", max_commands: int = 50) -> None:
         """

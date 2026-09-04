@@ -32,7 +32,17 @@ class RememberedAnnotationService:
     def remember_token_annotation(
         self, token, project_id: int | None
     ) -> RememberedAnnotation:
-        """Remember the selected token annotation into one scope."""
+        """
+        Remember the selected token annotation into one scope.
+
+        Args:
+            token: Token.
+            project_id: Project id.
+
+        Returns:
+            The computed value.
+
+        """
         return RememberedAnnotation.upsert_from_token_annotation(token, project_id)
 
     def save_entry(
@@ -41,7 +51,18 @@ class RememberedAnnotationService:
         project_id: int | None,
         field_data: dict,
     ) -> RememberedAnnotation:
-        """Save remembered-annotation form data into one scope."""
+        """
+        Save remembered-annotation form data into one scope.
+
+        Args:
+            token_text: Token text.
+            project_id: Project id.
+            field_data: Field data.
+
+        Returns:
+            The computed value.
+
+        """
         return RememberedAnnotation.upsert_fields(
             token_text=token_text,
             project_id=project_id,
@@ -49,7 +70,16 @@ class RememberedAnnotationService:
         )
 
     def plan_apply(self, project_id: int) -> RememberedAnnotationApplyPlan:
-        """Build an undoable remembered-annotation apply plan for one project."""
+        """
+        Build an undoable remembered-annotation apply plan for one project.
+
+        Args:
+            project_id: Project id.
+
+        Returns:
+            The computed value.
+
+        """
         remembered_by_token = RememberedAnnotation.effective_for_project(project_id)
         if not remembered_by_token:
             return RememberedAnnotationApplyPlan(

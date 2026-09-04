@@ -10,6 +10,7 @@ from oeapp.utils import get_resource_path
 from .main_window import MainWindow
 from .theming import apply_theme
 
+#: Fonts.
 FONTS = [
     "assets/Maranatha.ttf",
     "assets/Anvers-Bold.ttf",
@@ -21,6 +22,10 @@ FONTS = [
 def create_application() -> QApplication:
     """
     Create the application.
+
+    Returns:
+        The computed value.
+
     """
     QCoreApplication.setOrganizationName("Chris Malek")  # Can be any string
     QCoreApplication.setApplicationName("Ænglisc Toolkit")  # Name in the menu bar

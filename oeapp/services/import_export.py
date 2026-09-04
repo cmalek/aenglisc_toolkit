@@ -20,7 +20,13 @@ from .migration import MigrationMetadataService, MigrationService
 
 
 class ProjectExporter(SessionMixin):
-    """Exports projects to JSON format."""
+    """
+    Exports projects to JSON format.
+
+    Args:
+        migration_service: Migration service.
+
+    """
 
     def __init__(self, migration_service: MigrationService | None = None) -> None:
         """
@@ -31,7 +37,9 @@ class ProjectExporter(SessionMixin):
                 not provided)
 
         """
+        #: Session.
         self.session = self._get_session()
+        #: Migration service.
         self.migration_service = (
             migration_service if migration_service is not None else MigrationService()
         )
@@ -147,7 +155,14 @@ class ProjectExporter(SessionMixin):
 
 
 class ProjectImporter(SessionMixin):
-    """Processes project import data and creates database entities."""
+    """
+    Processes project import data and creates database entities.
+
+    Args:
+        migration_service: Migration service.
+        migration_metadata_service: Migration metadata service.
+
+    """
 
     def __init__(
         self,
@@ -164,11 +179,13 @@ class ProjectImporter(SessionMixin):
                 (created if not provided)
 
         """
+        #: Session.
         self.session = self._get_session()
-        # Allow dependency injection for testing, but create defaults for normal use
+        #: Allow dependency injection for testing, but create defaults for normal use
         self.migration_service = (
             migration_service if migration_service is not None else MigrationService()
         )
+        #: Migration metadata service.
         self.migration_metadata_service = (
             migration_metadata_service
             if migration_metadata_service is not None
@@ -485,7 +502,18 @@ class ProjectImporter(SessionMixin):
     def _paragraph_lookup_key(
         chapter_number: int, section_number: int, paragraph_order: int
     ) -> tuple[int, int, int]:
-        """Build canonical tuple key for paragraph lookup."""
+        """
+        Build canonical tuple key for paragraph lookup.
+
+        Args:
+            chapter_number: Chapter number.
+            section_number: Section number.
+            paragraph_order: Paragraph order.
+
+        Returns:
+            The computed value.
+
+        """
         return chapter_number, section_number, paragraph_order
 
     def _build_paragraph_lookup(

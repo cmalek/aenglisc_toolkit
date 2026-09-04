@@ -19,6 +19,10 @@ if TYPE_CHECKING:
 class SettingsDialog:
     """
     Settings dialog for backup configuration.
+
+    Args:
+        main_window: Main window.
+
     """
 
     #: Dialog width
@@ -29,8 +33,14 @@ class SettingsDialog:
     def __init__(self, main_window: "MainWindow") -> None:
         """
         Initialize settings dialog.
+
+        Args:
+            main_window: Main window.
+
         """
+        #: Main window.
         self.main_window = main_window
+        #: Settings.
         self.settings = QSettings()
 
     def get_int_value(self, key: str, default: int) -> int:

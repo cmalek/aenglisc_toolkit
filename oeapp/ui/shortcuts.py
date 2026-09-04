@@ -14,14 +14,31 @@ if TYPE_CHECKING:
 class ShortcutsMixin:
     """
     Mixin for keyboard shortcuts.
+
+    Args:
+        parent: Parent.
+
     """
 
     def __init__(self, parent: "QWidget"):
+        """
+        Initialize the instance.
+
+        Args:
+            parent: Parent.
+
+        """
+        #: Parent.
         self.parent = parent
 
     def add_shortcut(self, key: str, action: "Callable[[], None]") -> None:
         """
         Add a keyboard shortcut to the application.
+
+        Args:
+            key: Key.
+            action: Action.
+
         """
         shortcut = QShortcut(QKeySequence(key), self.parent)
         shortcut.activated.connect(action)
@@ -53,8 +70,15 @@ class GlobalShortcuts(ShortcutsMixin):
     """
 
     def __init__(self, parent: "MainWindow"):
-        """Initialize the shortcuts."""
+        """
+        Initialize the shortcuts.
+
+        Args:
+            parent: Parent.
+
+        """
         super().__init__(parent)
+        #: Main window.
         self.main_window = parent
 
     def execute(self) -> None:
@@ -76,10 +100,22 @@ class GlobalShortcuts(ShortcutsMixin):
 class AnnotationModalShortcuts(ShortcutsMixin):
     """
     Keyboard shortcuts for the annotation modal.
+
+    Args:
+        parent: Parent.
+
     """
 
     def __init__(self, parent: "AnnotationModal"):
+        """
+        Initialize the instance.
+
+        Args:
+            parent: Parent.
+
+        """
         super().__init__(parent)
+        #: Annotation modal.
         self.annotation_modal = parent
 
     def execute(self) -> None:

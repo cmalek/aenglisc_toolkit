@@ -17,7 +17,9 @@ from PySide6.QtHelp import (
 from oeapp.help.help_paths import ensure_runtime_help_assets
 from oeapp.help.topics import DEFAULT_HTML_PAGE, TOPIC_TO_HTML
 
+#: Help namespace.
 HELP_NAMESPACE: Final[str] = "org.placodermi.aenglisc_toolkit"
+#: Help virtual folder.
 HELP_VIRTUAL_FOLDER: Final[str] = "doc"
 
 
@@ -37,12 +39,18 @@ class HelpEngine:
 
     def __init__(self) -> None:
         """Initialize QtHelp and prime all searchable/indexable models."""
+        #: Paths.
         self.paths = ensure_runtime_help_assets()
+        #: Qt engine.
         self.qt_engine = QHelpEngine(str(self.paths.runtime_collection_file))
         self._setup()
+        #: Search engine.
         self.search_engine = self.qt_engine.searchEngine()
+        #: Search index ready.
         self._search_index_ready = False
+        #: Search index requested.
         self._search_index_requested = False
+        #: Pending search query.
         self._pending_search_query = None
         self._prepare_indexes()
 
@@ -107,32 +115,74 @@ class HelpEngine:
         self.search_engine.search(query)
 
     def topic_url(self, topic: str | None) -> QUrl:
-        """Return the `qthelp://` URL for a named topic (or default home page)."""
+        """
+        Return the `qthelp://` URL for a named topic (or default home page).
+
+        Args:
+            topic: Topic.
+
+        Returns:
+            The computed value.
+
+        """
         page = TOPIC_TO_HTML.get(topic or "", DEFAULT_HTML_PAGE)
         return self.page_url(page)
 
     def page_url(self, page: str) -> QUrl:
-        """Return the `qthelp://` URL for a relative page path."""
+        """
+        Return the `qthelp://` URL for a relative page path.
+
+        Args:
+            page: Page.
+
+        Returns:
+            The computed value.
+
+        """
         return QUrl(f"qthelp://{HELP_NAMESPACE}/{HELP_VIRTUAL_FOLDER}/{page}")
 
     @property
     def content_widget(self) -> QHelpContentWidget:
-        """Return the contents tree widget."""
+        """
+        Return the contents tree widget.
+
+        Returns:
+            The computed value.
+
+        """
         return self.qt_engine.contentWidget()
 
     @property
     def index_widget(self) -> QHelpIndexWidget:
-        """Return the keyword index widget."""
+        """
+        Return the keyword index widget.
+
+        Returns:
+            The computed value.
+
+        """
         return self.qt_engine.indexWidget()
 
     @property
     def search_query_widget(self) -> QHelpSearchQueryWidget:
-        """Return the search-query input widget."""
+        """
+        Return the search-query input widget.
+
+        Returns:
+            The computed value.
+
+        """
         return self.search_engine.queryWidget()
 
     @property
     def search_result_widget(self) -> QHelpSearchResultWidget:
-        """Return the search results widget."""
+        """
+        Return the search results widget.
+
+        Returns:
+            The computed value.
+
+        """
         return self.search_engine.resultWidget()
 
     @property

@@ -69,6 +69,16 @@ class AnnotationPresetManagementDialog(AnnotationLookupsMixin, SessionMixin, QDi
         initial_field_values: dict | None = None,
         parent: QWidget | None = None,
     ) -> None:
+        """
+        Initialize the instance.
+
+        Args:
+            save_mode: Save mode.
+            initial_pos: Initial pos.
+            initial_field_values: Initial field values.
+            parent: Parent.
+
+        """
         super().__init__(parent)
         #: THe SQLAlchemy session
         self.session = self._get_session()
@@ -167,6 +177,10 @@ class AnnotationPresetManagementDialog(AnnotationLookupsMixin, SessionMixin, QDi
             - Loads the presets for each supported POS
             - Connects the tab widget's currentChanged signal to the
               :meth:`_on_tab_changed` method
+
+
+        Args:
+            layout: Layout.
 
         """
         self.tab_widget = QTabWidget()
@@ -384,6 +398,10 @@ class AnnotationPresetManagementDialog(AnnotationLookupsMixin, SessionMixin, QDi
             - Returns the current tab's POS code
             - Switches to the POS tab for the current tab if not in save mode
 
+
+        Returns:
+            The computed value.
+
         """
         if self.save_mode:
             return self.initial_pos
@@ -525,6 +543,10 @@ class AnnotationPresetManagementDialog(AnnotationLookupsMixin, SessionMixin, QDi
             - Sets the current preset ID and POS
             - Loads the preset's values into the form
 
+
+        Args:
+            preset: Preset.
+
         """
         self._switch_to_pos_tab(cast("PresetPos", preset.pos))
         self.current_pos = cast("PresetPos", preset.pos)
@@ -655,7 +677,15 @@ class AnnotationPresetManagementDialog(AnnotationLookupsMixin, SessionMixin, QDi
         value: str | bool | None,
         reverse_map: dict[int, str | bool],
     ) -> None:
-        """Compatibility helper retained for direct unit tests."""
+        """
+        Compatibility helper retained for direct unit tests.
+
+        Args:
+            combo: Combo.
+            value: Value.
+            reverse_map: Reverse map.
+
+        """
         if value is None:
             combo.setCurrentIndex(0)
             return

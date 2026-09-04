@@ -23,6 +23,10 @@ if TYPE_CHECKING:
 class SentenceFilterDialog(AnnotationLookupsMixin, QDialog):
     """
     Dialog for selecting which items to highlight in an Old English sentence.
+
+    Args:
+        parent: Parent.
+
     """
 
     #: Title of the dialog
@@ -33,9 +37,9 @@ class SentenceFilterDialog(AnnotationLookupsMixin, QDialog):
     #: in the checkbox.
     CODE_TO_NAME_MAPPING: ClassVar[dict[str | None, str]] = {}
 
-    # Signal emitted when selected items change
+    #: Signal emitted when selected items change
     selection_changed = Signal(set)
-    # Signal emitted when dialog is closed
+    #: Signal emitted when dialog is closed
     dialog_closed = Signal()
 
     @classmethod
@@ -64,8 +68,11 @@ class SentenceFilterDialog(AnnotationLookupsMixin, QDialog):
 
         """
         super().__init__(parent)
+        #: Command.
         self.command: HighlighterCommandBase | None = None
+        #: Checkboxes.
         self.checkboxes: dict[str, QCheckBox] = {}
+        #: Filter selection.
         self.filter_selection: set[str] = set()
         self.reset_filter_selection()
         self.build()

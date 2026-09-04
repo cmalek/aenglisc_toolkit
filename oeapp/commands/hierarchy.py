@@ -27,6 +27,14 @@ class SplitSectionCommand(SessionMixin, Command):
 
     @property
     def needs_full_reload(self) -> bool:
+        """
+        Needs full reload.
+
+        Returns:
+            Always True, as the section is split and the user needs to reload
+            the page to see the changes.
+
+        """
         return True
 
     def execute(self) -> bool:
@@ -107,6 +115,10 @@ class SplitSectionCommand(SessionMixin, Command):
         - Move all paragraphs back to the original section.
         - Shift the section numbers of all subsequent sections in the chapter back.
         - Delete the new section.
+
+        Returns:
+            The computed value.
+
         """
         session = self._get_session()
         if not self.new_section_id or not self.original_section_id:
@@ -152,6 +164,13 @@ class SplitSectionCommand(SessionMixin, Command):
         return True
 
     def get_description(self) -> str:
+        """
+        Get description.
+
+        Returns:
+            The computed value.
+
+        """
         return f"Split section at paragraph {self.paragraph_id}"
 
 
@@ -172,6 +191,13 @@ class MergeSectionCommand(SessionMixin, Command):
 
     @property
     def needs_full_reload(self) -> bool:
+        """
+        Needs full reload.
+
+        Returns:
+            The computed value.
+
+        """
         return True
 
     def execute(self) -> bool:
@@ -241,6 +267,13 @@ class MergeSectionCommand(SessionMixin, Command):
         return True
 
     def undo(self) -> bool:
+        """
+        Undo.
+
+        Returns:
+            The computed value.
+
+        """
         session = self._get_session()
         if (
             not self.removed_section_id
@@ -291,6 +324,13 @@ class MergeSectionCommand(SessionMixin, Command):
         return True
 
     def get_description(self) -> str:
+        """
+        Get description.
+
+        Returns:
+            The computed value.
+
+        """
         return f"Merge section at paragraph {self.paragraph_id} with previous"
 
 
@@ -309,9 +349,23 @@ class SplitChapterCommand(SessionMixin, Command):
 
     @property
     def needs_full_reload(self) -> bool:
+        """
+        Needs full reload.
+
+        Returns:
+            The computed value.
+
+        """
         return True
 
     def execute(self) -> bool:
+        """
+        Execute.
+
+        Returns:
+            The computed value.
+
+        """
         session = self._get_session()
         section = Section.get(self.section_id)
         if not section or not section.chapter_id:
@@ -380,6 +434,10 @@ class SplitChapterCommand(SessionMixin, Command):
         - Move all sections back to the original chapter.
         - Shift the chapter numbers of all subsequent chapters in the project back.
         - Delete the new chapter.
+
+        Returns:
+            The computed value.
+
         """
         session = self._get_session()
         if not self.new_chapter_id or not self.original_chapter_id:
@@ -424,6 +482,13 @@ class SplitChapterCommand(SessionMixin, Command):
         return True
 
     def get_description(self) -> str:
+        """
+        Get description.
+
+        Returns:
+            The computed value.
+
+        """
         return f"Split chapter at section {self.section_id}"
 
 
@@ -444,9 +509,23 @@ class MergeChapterCommand(SessionMixin, Command):
 
     @property
     def needs_full_reload(self) -> bool:
+        """
+        Needs full reload.
+
+        Returns:
+            The computed value.
+
+        """
         return True
 
     def execute(self) -> bool:
+        """
+        Execute.
+
+        Returns:
+            The computed value.
+
+        """
         session = self._get_session()
         section = Section.get(self.section_id)
         if not section or not section.chapter_id:
@@ -502,6 +581,13 @@ class MergeChapterCommand(SessionMixin, Command):
         return True
 
     def undo(self) -> bool:
+        """
+        Undo.
+
+        Returns:
+            The computed value.
+
+        """
         session = self._get_session()
         if (
             not self.removed_chapter_id
@@ -549,4 +635,11 @@ class MergeChapterCommand(SessionMixin, Command):
         return True
 
     def get_description(self) -> str:
+        """
+        Get description.
+
+        Returns:
+            The computed value.
+
+        """
         return f"Merge chapter at section {self.section_id} with previous"

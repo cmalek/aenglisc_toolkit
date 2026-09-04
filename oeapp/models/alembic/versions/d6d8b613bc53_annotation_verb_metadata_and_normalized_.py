@@ -13,22 +13,42 @@ from alembic import op
 import sqlalchemy as sa
 
 
-# revision identifiers, used by Alembic.
+#: revision identifiers, used by Alembic.
 revision: str = 'd6d8b613bc53'
+#: Down revision.
 down_revision: Union[str, Sequence[str], None] = '71b9d6456d8b'
+#: Branch labels.
 branch_labels: Union[str, Sequence[str], None] = None
+#: Depends on.
 depends_on: Union[str, Sequence[str], None] = None
 
 
 def _table_exists(table_name: str) -> bool:
-    """Return whether the target table exists in the current database."""
+    """
+    Return whether the target table exists in the current database.
+
+    Args:
+        table_name: Table name.
+
+    Returns:
+        The computed value.
+    """
     bind = op.get_bind()
     inspector = sa.inspect(bind)
     return table_name in inspector.get_table_names()
 
 
 def _column_exists(table_name: str, column_name: str) -> bool:
-    """Return whether the target column exists on the given table."""
+    """
+    Return whether the target column exists on the given table.
+
+    Args:
+        table_name: Table name.
+        column_name: Column name.
+
+    Returns:
+        The computed value.
+    """
     if not _table_exists(table_name):
         return False
     bind = op.get_bind()
@@ -38,7 +58,16 @@ def _column_exists(table_name: str, column_name: str) -> bool:
 
 
 def _check_constraint_exists(table_name: str, constraint_name: str) -> bool:
-    """Return whether a check constraint exists on the given table."""
+    """
+    Return whether a check constraint exists on the given table.
+
+    Args:
+        table_name: Table name.
+        constraint_name: Constraint name.
+
+    Returns:
+        The computed value.
+    """
     if not _table_exists(table_name):
         return False
     bind = op.get_bind()
@@ -50,7 +79,15 @@ def _check_constraint_exists(table_name: str, constraint_name: str) -> bool:
 
 
 def _normalize_old_english(text: str | None) -> str | None:
-    """Normalize token/root text for stable lookup and grouping."""
+    """
+    Normalize token/root text for stable lookup and grouping.
+
+    Args:
+        text: Text.
+
+    Returns:
+        The computed value.
+    """
     if text is None:
         return None
     lowered = text.strip().lower().replace("ð", "þ")

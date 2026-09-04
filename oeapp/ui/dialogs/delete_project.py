@@ -42,9 +42,16 @@ class DeleteProjectDialog:
     def __init__(self, main_window: "MainWindow") -> None:
         """
         Initialize delete project dialog.
+
+        Args:
+            main_window: Main window.
+
         """
+        #: Main window.
         self.main_window = main_window
+        #: App context.
         self.app_context = main_window.app_context
+        #: Selected project id.
         self.selected_project_id: int | None = None
 
     def build(self) -> None:

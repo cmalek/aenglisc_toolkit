@@ -20,7 +20,9 @@ class Note(SaveDeleteMixin, Base):
     Represents a note attached to tokens, spans, or sentences.
     """
 
+    #: Tablename  .
     __tablename__ = "notes"
+    #: Table args  .
     __table_args__ = (
         CheckConstraint(
             "note_type IN ('token','span','sentence')", name="ck_notes_note_type"
@@ -60,11 +62,13 @@ class Note(SaveDeleteMixin, Base):
         nullable=False,
     )
 
-    # Relationships
+    #: Relationships
     sentence: Mapped["Sentence"] = relationship("Sentence", back_populates="notes")
+    #: Start token rel.
     start_token_rel: Mapped[Token | None] = relationship(
         "Token", foreign_keys=[start_token]
     )
+    #: End token rel.
     end_token_rel: Mapped[Token | None] = relationship(
         "Token", foreign_keys=[end_token]
     )
@@ -123,6 +127,10 @@ class Note(SaveDeleteMixin, Base):
             note_text_md: Note text in Markdown format
             note_type: Note type
             commit: Whether to commit the changes to the database
+
+
+        Returns:
+            The computed value.
 
         """
         session = cls._get_session()
@@ -249,6 +257,10 @@ class Note(SaveDeleteMixin, Base):
     def save(self, commit: bool = True) -> None:
         """
         Save the note.
+
+        Args:
+            commit: Commit.
+
         """
         # Import here to avoid circular import
         from oeapp.services.logs import get_logger  # noqa: PLC0415
@@ -272,6 +284,10 @@ class Note(SaveDeleteMixin, Base):
     def delete(self, commit: bool = True) -> None:
         """
         Delete the note.
+
+        Args:
+            commit: Commit.
+
         """
         # Import here to avoid circular import
         from oeapp.services.logs import get_logger  # noqa: PLC0415

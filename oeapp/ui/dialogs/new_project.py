@@ -44,9 +44,15 @@ class NewProjectDialog(TextInputMixin):
     def __init__(self, main_window: "MainWindow") -> None:
         """
         Initialize new project dialog.
+
+        Args:
+            main_window: Main window.
+
         """
         super().__init__()
+        #: Main window.
         self.main_window = main_window
+        #: App context.
         self.app_context = main_window.app_context
 
     def build(self) -> None:

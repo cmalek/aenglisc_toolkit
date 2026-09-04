@@ -154,6 +154,7 @@ class AnnotationTextualMixin:
         "pl": "pl",
     }
 
+    #: Verb form map.
     VERB_FORM_MAP: Final[dict[str, str]] = {
         "f": "",
         "i": "inf",

@@ -25,11 +25,19 @@ if TYPE_CHECKING:
 class SelectTokensMixin(AnnotationLookupsMixin):
     """
     Mixin for selecting tokens in the Old English text edit.
+
+    Args:
+        card: Card.
+
     """
 
     def __init__(self, card: "SentenceCard"):
         """
         Initialize the mixin.
+
+        Args:
+            card: Card.
+
         """
         #: The sentence card
         self.card = card
@@ -62,6 +70,11 @@ class SelectTokensMixin(AnnotationLookupsMixin):
 
         Returns:
             List of token positions in the sentence
+
+
+        Args:
+            start_order: Start order.
+            end_order: End order.
 
         """
         # Build list of token positions
@@ -170,6 +183,13 @@ class HighlighterCommandBase(SelectTokensMixin):
     FILTER_DIALOG_CLASS: ClassVar[type["SentenceFilterDialog"] | None] = None
 
     def __init__(self, highlighter: "WholeSentenceHighlighter"):
+        """
+        Initialize the instance.
+
+        Args:
+            highlighter: Highlighter.
+
+        """
         super().__init__(cast("SentenceCard", highlighter.card))
         #: The highlighter
         self.highlighter = highlighter
@@ -192,6 +212,10 @@ class HighlighterCommandBase(SelectTokensMixin):
     def filter_selection(self) -> set[str]:
         """
         Get the filter selection.
+
+        Returns:
+            The computed value.
+
         """
         return self.dialog.filter_selection if self.dialog else set()
 
@@ -199,6 +223,10 @@ class HighlighterCommandBase(SelectTokensMixin):
     def filter_selection(self, selection: set[str]) -> None:
         """
         Set the filter selection.
+
+        Args:
+            selection: Selection.
+
         """
         if self.dialog:
             self.dialog.filter_selection = selection
@@ -322,6 +350,7 @@ class NoneHighlighterCommand(HighlighterCommandBase):
     Highlighter for no highlighting.  This is the default highlighting mode.
     """
 
+    #: Descriptive name.
     DESCRIPTIVE_NAME: ClassVar[str] = "None"
 
     def highlight(self) -> None:
@@ -336,11 +365,15 @@ class POSHighlighterCommand(HighlighterCommandBase):
     Highlighter command for POS highlighting.
     """
 
+    #: Descriptive name.
     DESCRIPTIVE_NAME: ClassVar[str] = "Part of Speech"
+    #: Colors.
     COLORS: ClassVar[str | QColor] = "POS_COLORS"
+    #: Code to name mapping.
     CODE_TO_NAME_MAPPING: ClassVar[dict[str | None, str] | None] = (
         AnnotationLookupsMixin.PART_OF_SPEECH_MAP
     )
+    #: Filter dialog class.
     FILTER_DIALOG_CLASS = PartOfSpeechFilterDialog
 
     def get_value(self, annotation: "Annotation") -> str | None:
@@ -363,11 +396,15 @@ class CaseHighlighterCommand(HighlighterCommandBase):
     Highlighter for highlighting cases in the Old English text edit.
     """
 
+    #: Descriptive name.
     DESCRIPTIVE_NAME: ClassVar[str] = "Case"
+    #: Colors.
     COLORS: ClassVar[str | QColor] = "CASE_COLORS"
+    #: Code to name mapping.
     CODE_TO_NAME_MAPPING: ClassVar[dict[str | None, str] | None] = (
         AnnotationLookupsMixin.CASE_MAP
     )
+    #: Filter dialog class.
     FILTER_DIALOG_CLASS = CaseFilterDialog
 
     def get_value(self, annotation: "Annotation") -> str | None:
@@ -405,11 +442,15 @@ class NumberHighlighterCommand(HighlighterCommandBase):
     singular, dual, and plural.
     """
 
+    #: Descriptive name.
     DESCRIPTIVE_NAME: ClassVar[str] = "Number"
+    #: Colors.
     COLORS: ClassVar[str | QColor] = "NUMBER_COLORS"
+    #: Code to name mapping.
     CODE_TO_NAME_MAPPING: ClassVar[dict[str | None, str] | None] = (
         AnnotationLookupsMixin.NUMBER_MAP
     )
+    #: Filter dialog class.
     FILTER_DIALOG_CLASS = NumberFilterDialog
 
     def get_value(self, annotation: "Annotation") -> str | None:
@@ -448,8 +489,9 @@ class IdiomHighlighterCommand(HighlighterCommandBase):
     the tokens in the idiom span with a different color: light magenta.
     """
 
+    #: Descriptive name.
     DESCRIPTIVE_NAME: ClassVar[str] = "Idiom"
-    # Color for idiom highlighting
+    #: Color for idiom highlighting
     COLORS: ClassVar[str | QColor] = AnnotationLookupsMixin.IDIOM_HIGHLIGHT_COLOR
 
     def highlight(self) -> None:
@@ -499,6 +541,9 @@ class WholeSentenceHighlighter:
     }
 
     def __init__(self) -> None:
+        """
+        Initialize the instance.
+        """
         #: The sentence card
         self.card: SentenceCard | None = None
         #: The tokens in the sentence
@@ -524,6 +569,10 @@ class WholeSentenceHighlighter:
     def sentence_card(self) -> "SentenceCard | None":
         """
         Get the Old English text edit for the sentence card.
+
+        Returns:
+            The computed value.
+
         """
         return self.card
 
@@ -531,6 +580,10 @@ class WholeSentenceHighlighter:
     def sentence_card(self, value: "SentenceCard") -> None:
         """
         Set the sentence card for the sentence highlighter.
+
+        Args:
+            value: Value.
+
         """
         self.card = value
         self.refresh_token_views()
@@ -581,6 +634,10 @@ class WholeSentenceHighlighter:
     def get_oe_text(self) -> str:
         """
         Get the live Old English text from our sentence card.
+
+        Returns:
+            The computed value.
+
         """
         assert self.card, "Sentence card is required"  # noqa: S101
         return self.card.oe_text_edit.live_text
@@ -737,10 +794,17 @@ class SingleInstanceHighlighter(SelectTokensMixin):
         "default": QColor(200, 200, 0, 150),  # Yellow with semi-transparency
         "idiom": QColor(255, 200, 255, 150),  # Pale magenta
     }
-    # Property ID for selection highlight in ExtraSelection
+    #: Property ID for selection highlight in ExtraSelection
     HIGHLIGHT_PROPERTY: ClassVar[int] = 1001
 
     def __init__(self, card: "SentenceCard"):
+        """
+        Initialize the instance.
+
+        Args:
+            card: Card.
+
+        """
         super().__init__(card)
         #: The main window
         self.main_window: MainWindow = cast("MainWindow", card.main_window)
@@ -755,6 +819,10 @@ class SingleInstanceHighlighter(SelectTokensMixin):
     def is_highlighted(self) -> bool:
         """
         Check if the tokens in the sentence are highlighted.
+
+        Returns:
+            The computed value.
+
         """
         return (
             self._current_highlight_start is not None
@@ -766,6 +834,10 @@ class SingleInstanceHighlighter(SelectTokensMixin):
     ) -> None:
         """
         Set the existing extra selections, preserving search highlights.
+
+        Args:
+            selections: Selections.
+
         """
         # Get existing search highlights
         existing = self.oe_text_edit.extraSelections()

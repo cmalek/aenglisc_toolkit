@@ -26,7 +26,9 @@ if TYPE_CHECKING:
 class AnnotationPreset(SaveDeleteMixin, Base):
     """Represents a user-defined preset for annotation fields."""
 
+    #: Tablename  .
     __tablename__ = "annotation_presets"
+    #: Table args  .
     __table_args__ = (
         UniqueConstraint("name", "pos", name="uq_annotation_presets_name_pos"),
         CheckConstraint(

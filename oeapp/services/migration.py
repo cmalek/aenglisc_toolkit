@@ -42,9 +42,9 @@ from .mixins import ProjectFoldersMixin
 class MigrationResult:
     """Result of a migration."""
 
-    # The application version
+    #: The application version
     app_version: str | None
-    # The curren database migration version
+    #: The curren database migration version
     migration_version: str
 
 
@@ -52,9 +52,9 @@ class MigrationResult:
 class MigrationCreationResult:
     """Service for handling migration files."""
 
-    # The migration file path
+    #: The migration file path
     migration_file_path: Path
-    # The revision ID
+    #: The revision ID
     revision_id: str
 
 
@@ -71,7 +71,16 @@ class MigrationMetadataService(ProjectFoldersMixin):
 
     @staticmethod
     def _is_truthy(value: str | None) -> bool:
-        """Return True when an environment variable value is truthy."""
+        """
+        Return True when an environment variable value is truthy.
+
+        Args:
+            value: Value.
+
+        Returns:
+            The computed value.
+
+        """
         if value is None:
             return False
         return value.strip().lower() in {"1", "true", "yes", "on"}
@@ -197,9 +206,11 @@ class MigrationMetadataService(ProjectFoldersMixin):
 class FieldMappingService(ProjectFoldersMixin):
     """Service for handling field mappings."""
 
+    #: Alter column pattern.
     ALTER_COLUMN_PATTERN: Final[re.Pattern[str]] = re.compile(
         r'batch_op\.alter_column\(["\']([^"\']+)["\'][^)]*new_column_name\s*=\s*["\']([^"\']+)["\']'
     )
+    #: Alter table pattern.
     ALTER_TABLE_PATTERN: Final[re.Pattern[str]] = re.compile(
         r'batch_alter_table\(["\']([^"\']+)["\']'
     )
@@ -225,6 +236,10 @@ class FieldMappingService(ProjectFoldersMixin):
     def mapping(self, mappings: dict[str, Any]) -> None:
         """
         Write field mappings to JSON file.
+
+        Args:
+            mappings: Mappings.
+
         """
         self.FIELD_MAPPINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
         with self.FIELD_MAPPINGS_PATH.open("w", encoding="utf-8") as f:
@@ -305,11 +320,18 @@ class BackupFileMetadataService:
     """
 
     def __init__(self, backup_path: Path) -> None:
-        """Initialize backup file metadata service."""
+        """
+        Initialize backup file metadata service.
+
+        Args:
+            backup_path: Backup path.
+
+        """
         json_file = backup_path.with_suffix(".json")
         if not json_file.exists():
             msg = f"Backup file metadata JSON file not found: {json_file}"
             raise FileNotFoundError(msg)
+        #: Backup path.
         self.backup_path = json_file
 
     @property
@@ -358,7 +380,15 @@ class BackupFileMetadataService:
 
 
 class MigrationService(ProjectFoldersMixin):
-    """Service for handling database migrations."""
+    """
+    Service for handling database migrations.
+
+    Args:
+        backup_service: Backup service.
+        engine: Engine.
+        migration_metadata_service: Migration metadata service.
+
+    """
 
     #: Regex for extracting the revision ID from a migration file
     REVISION_ID_REGEX: Final[re.Pattern[str]] = re.compile(
@@ -383,11 +413,13 @@ class MigrationService(ProjectFoldersMixin):
         """
         #: The logger for the migration service.
         self.logger = get_logger(__name__)
-        # Allow dependency injection for testing, but create defaults for normal use
+        #: Allow dependency injection for testing, but create defaults for normal use
         self.backup_service = (
             backup_service if backup_service is not None else BackupService()
         )
+        #: Engine.
         self.engine = engine if engine is not None else create_engine_with_path()
+        #: Migration metadata service.
         self.migration_metadata_service = (
             migration_metadata_service
             if migration_metadata_service is not None
@@ -448,17 +480,26 @@ class MigrationService(ProjectFoldersMixin):
     def file_migration_version(self, migration_file: Path) -> str | None:
         """
         Get the migration version from a migration file.
+
+        Args:
+            migration_file: Migration file.
+
+        Returns:
+            The computed value.
+
         """
         return self.extract_revision_id(migration_file)
 
     def latest_migration_version(self) -> str | None:
         """
         Get the latest migration version from Alembic.
+
+        Returns:
+            The computed value.
+
         """
-        filename = self.newest_migration_file()
-        if filename is None:
-            return None
-        return self.extract_revision_id(filename)
+        # ponytail: Alembic head, not newest file mtime (edits shuffle mtimes)
+        return self.code_migration_version()
 
     def db_migration_version(self) -> str | None:
         """
@@ -788,6 +829,10 @@ class MigrationService(ProjectFoldersMixin):
         Raises:
             MigrationFailed: If the migration fails
             MigrationSkipped: If the migration is skipped
+
+
+        Returns:
+            The computed value.
 
         """
         # Check for pending migrations

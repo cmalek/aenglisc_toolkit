@@ -13,6 +13,13 @@ class ThemeMixin:
     def darken_color(self, color: QColor) -> QColor:
         """
         Darken a color by 40%.
+
+        Args:
+            color: Color.
+
+        Returns:
+            The computed value.
+
         """
         if color == self.theme_base_color:
             return color
@@ -30,6 +37,10 @@ class ThemeMixin:
 
         Computed live (not cached) from the current palette, since caching
         would leave it stale after a live theme change.
+
+        Returns:
+            The computed value.
+
         """
         if self.is_dark_theme:
             return QColor.fromString("#73391d")
@@ -41,6 +52,10 @@ class ThemeMixin:
     def theme_base_color(self) -> QColor:
         """
         Get the base color for the theme.
+
+        Returns:
+            The computed value.
+
         """
         palette = cast("QApplication", QApplication.instance()).palette()
         return palette.color(QPalette.ColorRole.Base)
@@ -51,6 +66,10 @@ class ThemeMixin:
         Check if the theme is dark.
 
         A lightness value of the base color less than 128 is considered dark.
+
+        Returns:
+            The computed value.
+
         """
         return self.theme_base_color.lightness() < 128  # noqa: PLR2004
 
@@ -219,6 +238,7 @@ class AnnotationLookupsMixin(ThemeMixin):
         "p": "Past (p)",
         "n": "Present (n)",
     }
+    #: Verb tense reverse map.
     VERB_TENSE_REVERSE_MAP: Final[dict[int, str]] = {
         i: k for i, k in enumerate(VERB_TENSE_MAP.keys()) if k is not None
     }
@@ -274,6 +294,7 @@ class AnnotationLookupsMixin(ThemeMixin):
         "p": "Participle (p)",
         "ii": "Inflected Infinitive (ii)",
     }
+    #: Verb form reverse map.
     VERB_FORM_REVERSE_MAP: Final[dict[int, str]] = {
         i: k for i, k in enumerate(VERB_FORM_MAP.keys()) if k is not None
     }
@@ -288,6 +309,7 @@ class AnnotationLookupsMixin(ThemeMixin):
         "g": "Genitive (g)",
         "i": "Instrumental (i)",
     }
+    #: Verb direct object case reverse map.
     VERB_DIRECT_OBJECT_CASE_REVERSE_MAP: Final[dict[int, str]] = {
         i: k for i, k in enumerate(VERB_DIRECT_OBJECT_CASE_MAP.keys()) if k is not None
     }

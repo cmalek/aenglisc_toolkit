@@ -38,6 +38,10 @@ class OldEnglishTextSelector:
     def __init__(self, text_edit: "OldEnglishTextEdit"):
         """
         Initialize the selector.
+
+        Args:
+            text_edit: Text edit.
+
         """
         assert text_edit.sentence_card is not None, "Sentence card is required"  # noqa: S101
         #: Text edit associated with the selector
@@ -92,6 +96,10 @@ class OldEnglishTextSelector:
     def current_range(self) -> tuple[int, int] | None:
         """
         Get the current selected token range.
+
+        Returns:
+            The computed value.
+
         """
         return self.selected_token_range
 
@@ -150,6 +158,10 @@ class OldEnglishTextSelector:
     def current_token_index(self) -> int | None:
         """
         Get the current selected token index.
+
+        Returns:
+            The computed value.
+
         """
         return self.selected_token_index
 
@@ -160,6 +172,10 @@ class OldEnglishTextSelector:
         - Stop the deselection timer
         - Set the selected token index
         - Clear the selected token range
+
+        Args:
+            index: Index.
+
         """
         self.stop_deselect_timer()
         self.selected_token_index = index
@@ -430,25 +446,29 @@ class OldEnglishTextEdit(QTextEdit):
     - Key presses for annotation copy/paste
     - Navigation by tokens
 
+
+    Args:
+        parent: Parent.
+
     """
 
     # =======================
     # Signals
     # =======================
 
-    # Signal emitted when a token is clicked
+    #: Signal emitted when a token is clicked
     clicked = Signal(QPoint, object)  # position, modifiers
-    # Signal emitted when a token is double-clicked
+    #: Signal emitted when a token is double-clicked
     double_clicked = Signal(QPoint)
-    # Signal emitted when a token is selected
+    #: Signal emitted when a token is selected
     token_selected = Signal(object)
-    # Range selection signal
+    #: Range selection signal
     range_selection = Signal(int, int)
-    # Idiom selection signal
+    #: Idiom selection signal
     idiom_selection = Signal(Idiom)
-    # New Idiom selection signal
+    #: New Idiom selection signal
     new_idiom_selection = Signal(int, int)
-    # Signal emitted when a token is deselected
+    #: Signal emitted when a token is deselected
     token_deselected = Signal()
 
     # =======================
@@ -459,6 +479,13 @@ class OldEnglishTextEdit(QTextEdit):
     TOKEN_INDEX_PROPERTY: Final[int] = 1000
 
     def __init__(self, parent: QWidget | None = None) -> None:
+        """
+        Initialize the instance.
+
+        Args:
+            parent: Parent.
+
+        """
         super().__init__(parent)
         # Start read-only by default
         self.setReadOnly(True)
@@ -499,6 +526,10 @@ class OldEnglishTextEdit(QTextEdit):
     def sentence_card(self) -> "SentenceCard | None":
         """
         Sentence Card associated with this text edit.
+
+        Returns:
+            The computed value.
+
         """
         return self._sentence_card
 
@@ -594,11 +625,22 @@ class OldEnglishTextEdit(QTextEdit):
     def in_edit_mode(self) -> bool:
         """
         Whether the text edit is in edit mode (read-only or editable).
+
+        Returns:
+            The computed value.
+
         """
         return self._edit_mode
 
     @in_edit_mode.setter
     def in_edit_mode(self, value: bool) -> None:
+        """
+        In edit mode.
+
+        Args:
+            value: Value.
+
+        """
         assert self.sentence is not None, "Sentence is required"  # noqa: S101
         self._edit_mode = value
         if value:
@@ -618,6 +660,10 @@ class OldEnglishTextEdit(QTextEdit):
     def sentence_text(self) -> str:
         """
         The OE text of the sentence associated with this text edit.
+
+        Returns:
+            The computed value.
+
         """
         if self.sentence:
             return cast("Sentence", self.sentence).text_oe
@@ -627,6 +673,10 @@ class OldEnglishTextEdit(QTextEdit):
     def live_text(self) -> str:
         """
         The actual text in the text edit.
+
+        Returns:
+            The computed value.
+
         """
         return self.toPlainText()
 
@@ -705,6 +755,10 @@ class OldEnglishTextEdit(QTextEdit):
     def current_range(self) -> tuple[int, int] | None:
         """
         Get the current selected token range.
+
+        Returns:
+            The computed value.
+
         """
         if self.selector:
             return self.selector.current_range()
@@ -713,6 +767,10 @@ class OldEnglishTextEdit(QTextEdit):
     def current_token_index(self) -> int | None:
         """
         Get the current selected token index.
+
+        Returns:
+            The computed value.
+
         """
         if self.selector:
             return self.selector.selected_token_index
@@ -997,6 +1055,13 @@ class OldEnglishTextEdit(QTextEdit):
     def get_token(self, order_index: int) -> "Token | None":
         """
         Get a token by its order index.
+
+        Args:
+            order_index: Order index.
+
+        Returns:
+            The computed value.
+
         """
         assert self.tokens_by_index is not None, "Tokens by index is required"  # noqa: S101
         return self.tokens_by_index.get(order_index)
@@ -1004,6 +1069,10 @@ class OldEnglishTextEdit(QTextEdit):
     def get_selected_token(self) -> "Token | None":
         """
         Get the selected token.
+
+        Returns:
+            The computed value.
+
         """
         if not self.sentence_card:
             return None

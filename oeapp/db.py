@@ -18,20 +18,31 @@ DEFAULT_DB_NAME: Final[str] = "default.db"
 
 #: SQLite environment variable names.
 ENV_SQLITE_SYNCHRONOUS: Final[str] = "OE_SQLITE_SYNCHRONOUS"
+#: Env sqlite cache size kib.
 ENV_SQLITE_CACHE_SIZE_KIB: Final[str] = "OE_SQLITE_CACHE_SIZE_KIB"
+#: Env sqlite mmap size mb.
 ENV_SQLITE_MMAP_SIZE_MB: Final[str] = "OE_SQLITE_MMAP_SIZE_MB"
+#: Env sqlite busy timeout ms.
 ENV_SQLITE_BUSY_TIMEOUT_MS: Final[str] = "OE_SQLITE_BUSY_TIMEOUT_MS"
+#: Env sqlite temp store.
 ENV_SQLITE_TEMP_STORE: Final[str] = "OE_SQLITE_TEMP_STORE"
+#: Env sqlite wal autocheckpoint pages.
 ENV_SQLITE_WAL_AUTOCHECKPOINT_PAGES: Final[str] = "OE_SQLITE_WAL_AUTOCHECKPOINT_PAGES"
 
 #: Default SQLite PRAGMA tuning values.
 DEFAULT_SQLITE_SYNCHRONOUS: Final[str] = "NORMAL"
+#: Default sqlite cache size kib.
 DEFAULT_SQLITE_CACHE_SIZE_KIB: Final[int] = 16384
+#: Default sqlite mmap size mb.
 DEFAULT_SQLITE_MMAP_SIZE_MB: Final[int] = 128
+#: Default sqlite busy timeout ms.
 DEFAULT_SQLITE_BUSY_TIMEOUT_MS: Final[int] = 10000
+#: Default sqlite temp store.
 DEFAULT_SQLITE_TEMP_STORE: Final[str] = "MEMORY"
+#: Default sqlite wal autocheckpoint pages.
 DEFAULT_SQLITE_WAL_AUTOCHECKPOINT_PAGES: Final[int] = 2000
 
+#: Logger.
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -42,6 +53,7 @@ class _RuntimeState:
     session: Session | None = None
 
 
+#: Runtime state.
 _RUNTIME_STATE = _RuntimeState()
 
 
@@ -50,7 +62,18 @@ class Base(DeclarativeBase):
 
 
 def _parse_env_int(name: str, default: int, minimum: int = 0) -> int:
-    """Parse an integer environment variable with safe fallback."""
+    """
+    Parse an integer environment variable with safe fallback.
+
+    Args:
+        name: Name.
+        default: Default.
+        minimum: Minimum.
+
+    Returns:
+        The computed value.
+
+    """
     raw = os.environ.get(name)
     if raw is None:
         return default
@@ -72,7 +95,18 @@ def _parse_env_int(name: str, default: int, minimum: int = 0) -> int:
 
 
 def _parse_env_choice(name: str, default: str, allowed_values: set[str]) -> str:
-    """Parse a constrained string environment variable with safe fallback."""
+    """
+    Parse a constrained string environment variable with safe fallback.
+
+    Args:
+        name: Name.
+        default: Default.
+        allowed_values: Allowed values.
+
+    Returns:
+        The computed value.
+
+    """
     raw = os.environ.get(name)
     if raw is None:
         return default
@@ -87,7 +121,13 @@ def _parse_env_choice(name: str, default: str, allowed_values: set[str]) -> str:
 
 
 def _sqlite_pragma_settings() -> dict[str, str | int]:
-    """Build SQLite PRAGMA settings from defaults and optional env overrides."""
+    """
+    Build SQLite PRAGMA settings from defaults and optional env overrides.
+
+    Returns:
+        The computed value.
+
+    """
     synchronous = _parse_env_choice(
         ENV_SQLITE_SYNCHRONOUS,
         DEFAULT_SQLITE_SYNCHRONOUS,
@@ -184,8 +224,9 @@ def create_engine_with_path(db_path: Path | None = None) -> Engine:
     return engine
 
 
-# Create default engine and session factory
+#: Create default engine and session factory
 _engine = create_engine_with_path()
+#: Session Local.
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=_engine)
 
 
