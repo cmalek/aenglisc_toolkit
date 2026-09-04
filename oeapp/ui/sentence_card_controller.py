@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
 from PySide6.QtWidgets import QMessageBox
@@ -12,6 +13,13 @@ from oeapp.commands import (
     EditSentenceCommand,
     MergeSentenceCommand,
 )
+from oeapp.commands.hierarchy import (
+    MergeChapterCommand,
+    MergeSectionCommand,
+    SplitChapterCommand,
+    SplitSectionCommand,
+)
+from oeapp.commands.paragraph import MergeParagraphCommand, SplitParagraphCommand
 from oeapp.models import Annotation, Idiom
 from oeapp.models.sentence import Sentence
 from oeapp.ui.dialogs import AnnotationModal
@@ -20,6 +28,18 @@ from oeapp.utils import get_logo_pixmap
 if TYPE_CHECKING:
     from oeapp.models.token import Token
     from oeapp.ui.sentence_card import SentenceCard
+
+
+@dataclass(frozen=True)
+class HierarchyPosition:
+    """Where a sentence sits in the paragraph/section/chapter hierarchy."""
+
+    #: Whether the sentence is the first in its paragraph.
+    is_paragraph_start: bool
+    #: Whether the sentence's paragraph is the first in its section.
+    is_section_start: bool
+    #: Whether the sentence's paragraph's section is the first in its chapter.
+    is_chapter_start: bool
 
 
 class SentenceCardController:
@@ -277,6 +297,152 @@ class SentenceCardController:
                 "Delete Failed",
                 "Failed to delete sentence. Please try again.",
             )
+
+    def get_hierarchy_position(self, sentence: Sentence) -> HierarchyPosition:
+        """
+        Classify where a sentence sits in the paragraph/section/chapter hierarchy.
+
+        Args:
+            sentence: Sentence to classify.
+
+        Returns:
+            The sentence's hierarchy position.
+
+        """
+        if not sentence.paragraph:
+            return HierarchyPosition(
+                is_paragraph_start=False,
+                is_section_start=False,
+                is_chapter_start=False,
+            )
+
+        sentences = sorted(
+            sentence.paragraph.sentences, key=lambda s: s.display_order
+        )
+        is_paragraph_start = bool(sentences) and sentences[0].id == sentence.id
+
+        is_section_start = False
+        if is_paragraph_start:
+            paragraphs = sorted(
+                sentence.paragraph.section.paragraphs, key=lambda p: p.order
+            )
+            is_section_start = (
+                bool(paragraphs) and paragraphs[0].id == sentence.paragraph.id
+            )
+
+        is_chapter_start = False
+        if is_section_start:
+            sections = sorted(
+                sentence.paragraph.section.chapter.sections, key=lambda s: s.number
+            )
+            is_chapter_start = (
+                bool(sections)
+                and sections[0].id == sentence.paragraph.section.id
+            )
+
+        return HierarchyPosition(
+            is_paragraph_start=is_paragraph_start,
+            is_section_start=is_section_start,
+            is_chapter_start=is_chapter_start,
+        )
+
+    def on_split_paragraph_clicked(self) -> bool:
+        """
+        Execute a split-paragraph command for the current sentence.
+
+        Returns:
+            True if the command executed successfully, else False.
+
+        """
+        card = self.card
+        if not card.command_manager or not card.sentence.id:
+            return False
+        return card.command_manager.execute(
+            SplitParagraphCommand(sentence_id=card.sentence.id)
+        )
+
+    def on_merge_paragraph_clicked(self) -> bool:
+        """
+        Execute a merge-paragraph command for the current sentence.
+
+        Returns:
+            True if the command executed successfully, else False.
+
+        """
+        card = self.card
+        if not card.command_manager or not card.sentence.id:
+            return False
+        return card.command_manager.execute(
+            MergeParagraphCommand(sentence_id=card.sentence.id)
+        )
+
+    def on_split_section_clicked(self) -> bool:
+        """
+        Execute a split-section command for the current sentence's paragraph.
+
+        Returns:
+            True if the command executed successfully, else False.
+
+        """
+        card = self.card
+        if not card.command_manager or not card.sentence.paragraph:
+            return False
+        return card.command_manager.execute(
+            SplitSectionCommand(paragraph_id=card.sentence.paragraph.id)
+        )
+
+    def on_merge_section_clicked(self) -> bool:
+        """
+        Execute a merge-section command for the current sentence's paragraph.
+
+        Returns:
+            True if the command executed successfully, else False.
+
+        """
+        card = self.card
+        if not card.command_manager or not card.sentence.paragraph:
+            return False
+        return card.command_manager.execute(
+            MergeSectionCommand(paragraph_id=card.sentence.paragraph.id)
+        )
+
+    def on_split_chapter_clicked(self) -> bool:
+        """
+        Execute a split-chapter command for the current sentence's section.
+
+        Returns:
+            True if the command executed successfully, else False.
+
+        """
+        card = self.card
+        if (
+            not card.command_manager
+            or not card.sentence.paragraph
+            or not card.sentence.paragraph.section
+        ):
+            return False
+        return card.command_manager.execute(
+            SplitChapterCommand(section_id=card.sentence.paragraph.section.id)
+        )
+
+    def on_merge_chapter_clicked(self) -> bool:
+        """
+        Execute a merge-chapter command for the current sentence's section.
+
+        Returns:
+            True if the command executed successfully, else False.
+
+        """
+        card = self.card
+        if (
+            not card.command_manager
+            or not card.sentence.paragraph
+            or not card.sentence.paragraph.section
+        ):
+            return False
+        return card.command_manager.execute(
+            MergeChapterCommand(section_id=card.sentence.paragraph.section.id)
+        )
 
     def open_annotation_modal(self) -> None:
         """
