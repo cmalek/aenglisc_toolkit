@@ -100,7 +100,7 @@ class SentenceCardController:
                         if card.main_window:
                             card.main_window.messages.show_message(msg, duration=5000)
 
-                card.session.refresh(card.sentence)
+                card.command_manager.session.refresh(card.sentence)
                 card.set_tokens()
                 card.notes_panel.update_notes()
 

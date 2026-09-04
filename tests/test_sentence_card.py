@@ -2,6 +2,8 @@
 
 from unittest.mock import MagicMock
 
+import pytest
+
 from oeapp.commands import CommandManager
 from oeapp.models import Annotation
 from oeapp.models.idiom import Idiom
@@ -23,10 +25,15 @@ class TestSentenceCard:
         project = create_test_project(db_session, name="Test", text="Se cyning")
 
         sentence = project.sentences[0]
-        card = SentenceCard(sentence, main_window=mock_main_window, parent=None)
+        card = SentenceCard(
+            sentence,
+            command_manager=CommandManager(db_session),
+            main_window=mock_main_window,
+            parent=None,
+        )
 
         assert card.sentence == sentence
-        assert card.session == db_session
+        assert card.command_manager is not None
         assert card.token_table is not None
 
     def test_sentence_card_has_color_maps(self, db_session, qapp, mock_main_window):
@@ -34,7 +41,12 @@ class TestSentenceCard:
         project = create_test_project(db_session, name="Test", text="Se cyning")
 
         sentence = project.sentences[0]
-        card = SentenceCard(sentence, main_window=mock_main_window, parent=None)
+        card = SentenceCard(
+            sentence,
+            command_manager=CommandManager(db_session),
+            main_window=mock_main_window,
+            parent=None,
+        )
 
         assert "N" in card.POS_COLORS
         assert "n" in card.CASE_COLORS
@@ -46,7 +58,12 @@ class TestSentenceCard:
 
         sentence = project.sentences[0]
         token = sentence.tokens[0]
-        card = SentenceCard(sentence, main_window=mock_main_window, parent=None)
+        card = SentenceCard(
+            sentence,
+            command_manager=CommandManager(db_session),
+            main_window=mock_main_window,
+            parent=None,
+        )
 
         # Connect signal
         received_token = None
@@ -72,7 +89,12 @@ class TestSentenceCard:
             display_order=1
         )
 
-        card = SentenceCard(sentence, main_window=mock_main_window, parent=None)
+        card = SentenceCard(
+            sentence,
+            command_manager=CommandManager(db_session),
+            main_window=mock_main_window,
+            parent=None,
+        )
 
         assert card.sentence.paragraph.order == 1
 
@@ -83,7 +105,12 @@ class TestSentenceCard:
 
         project = create_test_project(db_session, name="Test", text="Se cyning fēoll")
         sentence = project.sentences[0]
-        card = SentenceCard(sentence, main_window=mock_main_window, parent=None)
+        card = SentenceCard(
+            sentence,
+            command_manager=CommandManager(db_session),
+            main_window=mock_main_window,
+            parent=None,
+        )
         # Manually render to populate positions
         card.oe_text_edit.render_readonly_text()
         card.show()
@@ -137,7 +164,12 @@ class TestSentenceCard:
 
         project = create_test_project(db_session, name="Test", text="Se cyning")
         sentence = project.sentences[0]
-        card = SentenceCard(sentence, main_window=mock_main_window, parent=None)
+        card = SentenceCard(
+            sentence,
+            command_manager=CommandManager(db_session),
+            main_window=mock_main_window,
+            parent=None,
+        )
 
         # Mock _open_annotation_modal to see if it's called
         mock_open_modal = MagicMock()
@@ -170,7 +202,12 @@ class TestSentenceCard:
 
         project = create_test_project(db_session, name="Test", text="Se cyning")
         sentence = project.sentences[0]
-        card = SentenceCard(sentence, main_window=mock_main_window, parent=None)
+        card = SentenceCard(
+            sentence,
+            command_manager=CommandManager(db_session),
+            main_window=mock_main_window,
+            parent=None,
+        )
 
         # Enter edit mode
         card._on_edit_oe_clicked()
@@ -200,7 +237,12 @@ class TestSentenceCard:
 
         project = create_test_project(db_session, name="Test", text="Se cyning")
         sentence = project.sentences[0]
-        card = SentenceCard(sentence, main_window=mock_main_window, parent=None)
+        card = SentenceCard(
+            sentence,
+            command_manager=CommandManager(db_session),
+            main_window=mock_main_window,
+            parent=None,
+        )
 
         # Ensure no token selected
         card.oe_text_edit.reset_selection()
@@ -221,12 +263,17 @@ class TestSentenceCard:
             db_session, name="Test", text="Se cyning fēoll on eorþan"
         )
         sentence = project.sentences[0]
-        card = SentenceCard(sentence, main_window=mock_main_window, parent=None)
+        card = SentenceCard(
+            sentence,
+            command_manager=CommandManager(db_session),
+            main_window=mock_main_window,
+            parent=None,
+        )
         qtbot.addWidget(card)
         card.oe_text_edit.render_readonly_text()
         card.show()
 
-        card.session.refresh(sentence)
+        db_session.refresh(sentence)
         card.set_tokens()
         card.oe_text_edit.render_readonly_text()
 
@@ -242,7 +289,7 @@ class TestSentenceCard:
         sentence.idioms.append(idiom)
         idiom.save()
         db_session.commit()
-        card.session.refresh(sentence)
+        db_session.refresh(sentence)
         card.set_tokens()
         card.oe_text_edit.idioms = sentence.idioms
         card.oe_text_edit.render_readonly_text()
@@ -282,7 +329,12 @@ class TestSentenceCard:
         """Test that selecting a token in the table updates the card state."""
         project = create_test_project(db_session, name="Test", text="Se cyning")
         sentence = project.sentences[0]
-        card = SentenceCard(sentence, main_window=mock_main_window, parent=None)
+        card = SentenceCard(
+            sentence,
+            command_manager=CommandManager(db_session),
+            main_window=mock_main_window,
+            parent=None,
+        )
         # Manually render to populate positions
         card.oe_text_edit.render_readonly_text()
 
@@ -297,7 +349,12 @@ class TestSentenceCard:
         """Test that arrow keys move the cursor instead of tokens in edit mode."""
         project = create_test_project(db_session, name="TestEdit", text="Se cyning fēoll")
         sentence = project.sentences[0]
-        card = SentenceCard(sentence, main_window=mock_main_window, parent=None)
+        card = SentenceCard(
+            sentence,
+            command_manager=CommandManager(db_session),
+            main_window=mock_main_window,
+            parent=None,
+        )
         qtbot.addWidget(card)
         card.show()
 
@@ -430,7 +487,12 @@ class TestSentenceCard:
         """Test that SentenceCard has a SentenceHighlighter."""
         project = create_test_project(db_session, name="Test", text="Se cyning")
         sentence = project.sentences[0]
-        card = SentenceCard(sentence, main_window=mock_main_window, parent=None)
+        card = SentenceCard(
+            sentence,
+            command_manager=CommandManager(db_session),
+            main_window=mock_main_window,
+            parent=None,
+        )
         assert card.sentence_highlighter is not None
         assert card.sentence_highlighter.card == card
 
@@ -438,7 +500,12 @@ class TestSentenceCard:
         """Test that the highlighting combo box is present in the layout."""
         project = create_test_project(db_session, name="Test", text="Se cyning")
         sentence = project.sentences[0]
-        card = SentenceCard(sentence, main_window=mock_main_window, parent=None)
+        card = SentenceCard(
+            sentence,
+            command_manager=CommandManager(db_session),
+            main_window=mock_main_window,
+            parent=None,
+        )
 
         # Check if highlighting_combo is set
         assert card.highlighting_combo is not None
@@ -452,13 +519,14 @@ class TestSentenceCard:
         ]
         assert items == expected_items
 
-    def test_save_annotation_updates_existing(self, db_session, qapp, mock_main_window):
-        """Test that _save_annotation correctly updates an existing annotation."""
+    def test_annotation_applied_updates_existing_token_annotation(
+        self, db_session, qapp, mock_main_window
+    ):
+        """Applying a token annotation updates the existing row via the command."""
         project = create_test_project(db_session, name="Test", text="Se cyning")
         sentence = project.sentences[0]
         token = sentence.tokens[0]
 
-        # Ensure an existing annotation
         existing = Annotation.get_by_token(token.id)
         if not existing:
             existing = Annotation(token_id=token.id, pos="V")
@@ -467,22 +535,23 @@ class TestSentenceCard:
             existing.pos = "V"
             existing.save()
 
-        card = SentenceCard(sentence, main_window=mock_main_window, parent=None)
+        card = SentenceCard(
+            sentence,
+            command_manager=CommandManager(db_session),
+            main_window=mock_main_window,
+            parent=None,
+        )
 
-        # New annotation data
         new_ann = Annotation(token_id=token.id, pos="N")
+        card._on_annotation_applied(new_ann)
 
-        # Call private method _save_annotation
-        card._save_annotation(new_ann)
-
-        # Verify updated in DB
         updated = Annotation.get_by_token(token.id)
         assert updated.pos == "N"
 
-    def test_save_annotation_updates_existing_idiom(
+    def test_annotation_applied_updates_existing_idiom_annotation(
         self, db_session, qapp, mock_main_window
     ):
-        """Test that _save_annotation correctly updates an existing idiom annotation."""
+        """Applying an idiom annotation updates the existing row via the command."""
         project = create_test_project(db_session, name="Test", text="Se cyning")
         sentence = project.sentences[0]
         token1 = sentence.tokens[0]
@@ -493,21 +562,112 @@ class TestSentenceCard:
         )
         idiom.save()
 
-        # Ensure an existing annotation
         existing = Annotation(idiom_id=idiom.id, pos="V")
         existing.save()
 
-        card = SentenceCard(sentence, main_window=mock_main_window, parent=None)
+        card = SentenceCard(
+            sentence,
+            command_manager=CommandManager(db_session),
+            main_window=mock_main_window,
+            parent=None,
+        )
 
-        # New annotation data
         new_ann = Annotation(idiom_id=idiom.id, pos="N")
+        card._on_annotation_applied(new_ann)
 
-        # Call private method _save_annotation
-        card._save_annotation(new_ann)
-
-        # Verify updated in DB
         updated = Annotation.get_by_idiom(idiom.id)
         assert updated.pos == "N"
+
+    def test_idiom_annotation_applied_creates_idiom_via_command(
+        self, db_session, qapp, mock_main_window
+    ):
+        """A brand-new idiom is created through the command, not idiom.save()."""
+        project = create_test_project(db_session, name="Test", text="Se cyning")
+        sentence = project.sentences[0]
+        token1 = sentence.tokens[0]
+        token2 = sentence.tokens[1]
+
+        card = SentenceCard(
+            sentence,
+            command_manager=CommandManager(db_session),
+            main_window=mock_main_window,
+            parent=None,
+        )
+
+        new_idiom = Idiom(
+            sentence_id=sentence.id,
+            start_token_id=token1.id,
+            end_token_id=token2.id,
+        )
+        annotation = Annotation(pos="N")
+        annotation.idiom = new_idiom
+
+        card._on_idiom_annotation_applied(annotation)
+
+        assert new_idiom.id is not None
+        saved = Annotation.get_by_idiom(new_idiom.id)
+        assert saved is not None
+        assert saved.pos == "N"
+
+    def test_sentence_card_requires_command_manager(
+        self, db_session, qapp, mock_main_window
+    ):
+        """SentenceCard cannot be constructed without a command_manager."""
+        project = create_test_project(db_session, name="Test", text="Se cyning")
+        sentence = project.sentences[0]
+
+        with pytest.raises(TypeError):
+            SentenceCard(sentence, main_window=mock_main_window, parent=None)
+
+    def test_sentence_card_has_no_session_attribute(
+        self, db_session, qapp, mock_main_window
+    ):
+        """SentenceCard no longer carries a raw session (SessionMixin removed)."""
+        project = create_test_project(db_session, name="Test", text="Se cyning")
+        sentence = project.sentences[0]
+        card = SentenceCard(
+            sentence,
+            command_manager=CommandManager(db_session),
+            main_window=mock_main_window,
+            parent=None,
+        )
+        assert not hasattr(card, "session")
+
+    def test_hierarchy_action_emits_structure_changed_not_sentence_added(
+        self, db_session, qapp, mock_main_window
+    ):
+        """A hierarchy toggle emits structure_changed, never sentence_added."""
+        project = create_test_project(db_session, name="Test", text="Se cyning fēoll")
+        sentence = project.sentences[0]
+        # This project has one paragraph and one sentence, so display_order == 1
+        # and the paragraph button would be hidden; force it into a splittable
+        # position by adding a second sentence to the same paragraph.
+        from oeapp.commands import AddSentenceCommand
+
+        command_manager = CommandManager(db_session)
+        add_command = AddSentenceCommand(
+            project_id=project.id, reference_sentence_id=sentence.id, position="after"
+        )
+        command_manager.execute(add_command)
+        db_session.refresh(sentence)
+        second = sentence.paragraph.sentences[-1]
+
+        card = SentenceCard(
+            second,
+            command_manager=command_manager,
+            main_window=mock_main_window,
+            parent=None,
+        )
+
+        structure_changed_ids = []
+        sentence_added_ids = []
+        card.structure_changed.connect(structure_changed_ids.append)
+        card.sentence_added.connect(sentence_added_ids.append)
+
+        card._on_split_paragraph_clicked()
+
+        assert structure_changed_ids == [second.id]
+        assert sentence_added_ids == []
 
     def test_flash_added_applies_and_restores_background(
         self, db_session, qapp, qtbot, mock_main_window
@@ -515,7 +675,12 @@ class TestSentenceCard:
         """flash_added should temporarily style the card background and restore it."""
         project = create_test_project(db_session, name="Test", text="Se cyning")
         sentence = project.sentences[0]
-        card = SentenceCard(sentence, main_window=mock_main_window, parent=None)
+        card = SentenceCard(
+            sentence,
+            command_manager=CommandManager(db_session),
+            main_window=mock_main_window,
+            parent=None,
+        )
         qtbot.addWidget(card)
         card.show()
 

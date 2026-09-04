@@ -27,23 +27,15 @@ from oeapp.commands import (
     AnnotateTokenCommand,
     CommandManager,
 )
-from oeapp.commands.hierarchy import (
-    MergeChapterCommand,
-    MergeSectionCommand,
-    SplitChapterCommand,
-    SplitSectionCommand,
-)
-from oeapp.commands.paragraph import MergeParagraphCommand, SplitParagraphCommand
 from oeapp.mixins import TokenOccurrenceMixin
 from oeapp.models import Annotation, Idiom
-from oeapp.models.mixins import SessionMixin
 from oeapp.models.sentence import Sentence
 from oeapp.ui.dialogs import NoteDialog
 from oeapp.ui.highlighting import SearchHighlighter, WholeSentenceHighlighter
 from oeapp.ui.mixins import AnnotationLookupsMixin
 from oeapp.ui.notes_panel import NotesPanel
 from oeapp.ui.oe_text_edit import OldEnglishTextEdit
-from oeapp.ui.sentence_card_controller import SentenceCardController
+from oeapp.ui.sentence_card_controller import HierarchyPosition, SentenceCardController
 from oeapp.ui.token_table import TokenTable
 
 if TYPE_CHECKING:
@@ -54,7 +46,7 @@ if TYPE_CHECKING:
 THEME_DARK_LIGHTNESS_THRESHOLD = 128
 
 
-class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, QWidget):
+class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, QWidget):
     """
     Widget representing a sentence card with annotations.
 
@@ -72,6 +64,11 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
     sentence_merged = Signal(int)  # Emits current sentence ID
     #: Signal emitted when a sentence is added
     sentence_added = Signal(int)  # Emits new sentence ID
+    #: Signal emitted when the paragraph/section/chapter hierarchy changes
+    #: around this sentence (split/merge). Distinct from sentence_added:
+    #: no new sentence exists, so listeners must not enter edit mode or
+    #: flash the card.
+    structure_changed = Signal(int)  # Emits current sentence ID
     #: Signal emitted when a sentence is deleted
     sentence_deleted = Signal(int)  # Emits deleted sentence ID
     # Signal emitted when a token is selected for details sidebar
@@ -93,7 +90,7 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
     def __init__(
         self,
         sentence: Sentence,
-        command_manager: CommandManager | None = None,
+        command_manager: CommandManager,
         main_window: "MainWindow | None" = None,
         parent: QWidget | None = None,
     ):
@@ -102,7 +99,8 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
 
         Args:
             sentence: Sentence.
-            command_manager: Command manager.
+            command_manager: Command manager. Required — SentenceCard has no
+                ORM-direct fallback for persistence.
             main_window: Main window.
             parent: Parent.
 
@@ -110,8 +108,6 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
         super().__init__(parent)
         #: The sentence this card represents
         self.sentence = sentence
-        #: The session this card belongs to
-        self.session = self._get_session()
         #: The command manager for this card
         self.command_manager = command_manager
         #: The main window this card belongs to
@@ -127,9 +123,9 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
         self._flash_restore_timer.setSingleShot(True)
         self._flash_restore_timer.timeout.connect(self._clear_added_flash)
         self.setObjectName("sentence-card")
-        self.build()
         #: Controller for command execution and annotation modal routing.
         self.controller = SentenceCardController(self)
+        self.build()
         self.edit_oe_button.clicked.connect(
             self.sentence_highlighter._on_edit_oe_clicked
         )
@@ -801,7 +797,8 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
         """
         Execute the annotate command via command manager.  This will handle the
         actual save or update of the annotation and also handle the undo/redo
-        operations.
+        operations, creating the idiom first if this annotation is for a
+        brand-new (not-yet-persisted) idiom.
 
         Args:
             annotation: Annotation to execute the command for
@@ -809,15 +806,21 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
             after: After state of the annotation
 
         """
+        new_idiom = None
+        if annotation.idiom_id is None and annotation.idiom is not None:
+            new_idiom = annotation.idiom
+
         command = AnnotateTokenCommand(
             token_id=annotation.token_id,
             idiom_id=annotation.idiom_id,
             before=before,
             after=after,
+            new_idiom=new_idiom,
+            sentence_id=self.sentence.id,
         )
-        if cast("CommandManager", self.command_manager).execute(command):
-            # Command manager will handle the actual save or update
-            pass
+        if self.command_manager.execute(command):
+            if new_idiom is not None:
+                annotation.idiom_id = command.idiom_id
 
     def _finalize_annotation_update(self, annotation: Annotation) -> None:
         """
@@ -831,36 +834,11 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
             self.oe_text_edit.annotations[annotation.token_id] = annotation
             self.token_table.update_annotation(annotation)
         elif annotation.idiom_id:
-            # For idiom annotations, we need to refresh the sentence relationships
-            # to pick up the new idiom and its annotation, then update the tokens
-            # in the text edit so it knows which tokens are now part of an idiom.
-            self.session.refresh(self.sentence, ["tokens", "idioms"])
             self.oe_text_edit.set_tokens()
             self.oe_text_edit.render_readonly_text()
 
         self.annotation_applied.emit(annotation)
         self.sentence_highlighter.highlight()
-
-    def _save_annotation(self, annotation: Annotation) -> None:
-        """
-        Save annotation to database.
-
-        Args:
-            annotation: Annotation to save
-
-        """
-        # Check if annotation exists for this token or idiom
-        existing = None
-        if annotation.token_id:
-            existing = Annotation.get_by_token(annotation.token_id)
-        elif annotation.idiom_id:
-            existing = Annotation.get_by_idiom(annotation.idiom_id)
-
-        if existing:
-            existing.from_annotation(annotation)
-        else:
-            # Insert new annotation
-            annotation.save()
 
     def _get_annotation_state(self, annotation: Annotation) -> dict:
         """
@@ -892,16 +870,13 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
         """
         Handle annotation applied for a new idiom (needs creation).
 
+        The idiom is created by the same command that applies the
+        annotation — see :meth:`_execute_annotate_command` and ADR 0002.
+
         Args:
             annotation: Annotation applied for the new idiom
 
         """
-        # Create the idiom first
-        idiom = annotation.idiom  # This was passed to the modal
-        idiom.save()
-
-        # Link annotation to idiom
-        annotation.idiom_id = idiom.id
         self._on_annotation_applied(annotation)
 
     def _on_annotation_applied(self, annotation: Annotation) -> None:
@@ -915,11 +890,7 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
         before_state = self._get_annotation_state(annotation)
         after_state = self._extract_annotation_state(annotation)
 
-        if self.command_manager:
-            self._execute_annotate_command(annotation, before_state, after_state)
-        else:
-            self._save_annotation(annotation)
-
+        self._execute_annotate_command(annotation, before_state, after_state)
         self._finalize_annotation_update(annotation)
 
     # -------------------------------------------------------------------------
@@ -1010,51 +981,35 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
             self.toggle_paragraph_button.setVisible(False)
             return
 
-        # Clear existing menu
-        self.paragraph_menu.clear()
-
-        # Check hierarchy state
-        sentences = sorted(
-            self.sentence.paragraph.sentences, key=lambda s: s.display_order
-        )
-        is_paragraph_start: bool = sentences and sentences[0].id == self.sentence.id  # type: ignore[assignment]
-
-        is_section_start = False
-        if is_paragraph_start:
-            paragraphs = sorted(
-                self.sentence.paragraph.section.paragraphs, key=lambda p: p.order
-            )
-            is_section_start = (
-                paragraphs and paragraphs[0].id == self.sentence.paragraph.id  # type: ignore[assignment]
-            )
-
-        is_chapter_start = False
-        if is_section_start:
-            sections = sorted(
-                self.sentence.paragraph.section.chapter.sections, key=lambda s: s.number
-            )
-            is_chapter_start = (
-                sections and sections[0].id == self.sentence.paragraph.section.id  # type: ignore[assignment]
-            )
-
         # Hide button for first sentence of project
         if self.sentence.display_order == 1:
             self.toggle_paragraph_button.setVisible(False)
             return
 
+        self.paragraph_menu.clear()
+        position = self.controller.get_hierarchy_position(self.sentence)
         self.toggle_paragraph_button.setVisible(True)
+        self._build_paragraph_menu(position)
 
-        if not is_paragraph_start:
+    def _build_paragraph_menu(self, position: HierarchyPosition) -> None:
+        """
+        Populate the paragraph dropdown menu for a given hierarchy position.
+
+        Args:
+            position: Hierarchy position of the current sentence.
+
+        """
+        if not position.is_paragraph_start:
             # Case A: Middle of paragraph
             action = self.paragraph_menu.addAction("Paragraph Start")
             action.triggered.connect(self._on_split_paragraph_clicked)
-        elif not is_section_start:
+        elif not position.is_section_start:
             # Case B: Paragraph start, but not section start
             action_not_p = self.paragraph_menu.addAction("Not Paragraph Start")
             action_not_p.triggered.connect(self._on_merge_paragraph_clicked)
             action_section = self.paragraph_menu.addAction("Section Start")
             action_section.triggered.connect(self._on_split_section_clicked)
-        elif not is_chapter_start:
+        elif not position.is_chapter_start:
             # Case C: Section start, but not chapter start
             action_not_p = self.paragraph_menu.addAction("Not Paragraph Start")
             action_not_p.triggered.connect(self._on_merge_paragraph_clicked)
@@ -1077,66 +1032,41 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, SessionMixin, Q
 
     def _on_split_paragraph_clicked(self) -> None:
         """Handle Split Paragraph action."""
-        self._execute_hierarchy_command(
-            SplitParagraphCommand(sentence_id=self.sentence.id)
-        )
+        self._finish_hierarchy_action(self.controller.on_split_paragraph_clicked())
 
     def _on_merge_paragraph_clicked(self) -> None:
         """Handle Merge Paragraph action."""
-        self._execute_hierarchy_command(
-            MergeParagraphCommand(sentence_id=self.sentence.id)
-        )
+        self._finish_hierarchy_action(self.controller.on_merge_paragraph_clicked())
 
     def _on_split_section_clicked(self) -> None:
         """Handle Split Section action."""
-        if self.sentence.paragraph:
-            self._execute_hierarchy_command(
-                SplitSectionCommand(paragraph_id=self.sentence.paragraph.id)
-            )
+        self._finish_hierarchy_action(self.controller.on_split_section_clicked())
 
     def _on_merge_section_clicked(self) -> None:
         """Handle Merge Section action."""
-        if self.sentence.paragraph:
-            self._execute_hierarchy_command(
-                MergeSectionCommand(paragraph_id=self.sentence.paragraph.id)
-            )
+        self._finish_hierarchy_action(self.controller.on_merge_section_clicked())
 
     def _on_split_chapter_clicked(self) -> None:
         """Handle Split Chapter action."""
-        if self.sentence.paragraph and self.sentence.paragraph.section:
-            self._execute_hierarchy_command(
-                SplitChapterCommand(section_id=self.sentence.paragraph.section.id)
-            )
+        self._finish_hierarchy_action(self.controller.on_split_chapter_clicked())
 
     def _on_merge_chapter_clicked(self) -> None:
         """Handle Merge Chapter action."""
-        if self.sentence.paragraph and self.sentence.paragraph.section:
-            self._execute_hierarchy_command(
-                MergeChapterCommand(section_id=self.sentence.paragraph.section.id)
-            )
+        self._finish_hierarchy_action(self.controller.on_merge_chapter_clicked())
 
-    def _execute_hierarchy_command(self, command) -> None:
+    def _finish_hierarchy_action(self, executed: bool) -> None:
         """
-        Execute a hierarchy command and update UI.
+        Update UI after a hierarchy command dispatched via the controller.
 
         Args:
-            command: Command.
+            executed: Whether the controller reported successful execution.
 
         """
-        if not self.command_manager:
-            return
-
-        if self.command_manager.execute(command):
-            # Refresh sentence from database
-            self.session.refresh(self.sentence)
-            # Update UI
+        if executed:
             self._update_paragraph_button_state()
-
             self.sentence_number_label.setText(self._line_reference_text())
-
-            # Emit signal to refresh all cards
             if self.sentence.id:
-                self.sentence_added.emit(self.sentence.id)
+                self.structure_changed.emit(self.sentence.id)
         else:
             QMessageBox.warning(
                 self,

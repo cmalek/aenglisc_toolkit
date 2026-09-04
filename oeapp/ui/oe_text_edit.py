@@ -889,7 +889,7 @@ class OldEnglishTextEdit(QTextEdit):
         # Ensure relationships are loaded
         try:
             if sentence.id:
-                self.sentence_card.session.refresh(
+                self.sentence_card.command_manager.session.refresh(
                     self.sentence, ["notes", "idioms", "tokens"]
                 )
         except Exception:  # noqa: BLE001
