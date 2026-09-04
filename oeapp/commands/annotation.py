@@ -3,6 +3,7 @@
 from dataclasses import dataclass, field
 from typing import Any
 
+from sqlalchemy import inspect
 from sqlalchemy.orm import make_transient
 
 from oeapp.models.annotation import Annotation
@@ -72,12 +73,27 @@ class AnnotateTokenCommand(SessionMixin, Command):
         session = self._get_session()
 
         if self.new_idiom is not None:
-            # If the idiom has been marked as deleted in this session, make it transient
-            # so it can be re-added on redo with a fresh primary key.
-            try:
+            # Redo after a prior undo() reuses this same Idiom instance,
+            # which undo() already deleted (session.delete + flush). That
+            # leaves it in SQLAlchemy's "deleted" identity-map state, and
+            # its cascade-deleted Annotation (cascade="all, delete-orphan"
+            # on Idiom.annotation) is still cached in this instance's
+            # __dict__["annotation"]. Session.add() on a deleted-state
+            # instance raises InvalidRequestError, so it must be reset to
+            # transient first. The cached Annotation reference must be
+            # popped directly from __dict__ (bypassing the ORM's
+            # instrumented attribute events) rather than cleared via a
+            # normal assignment (``self.new_idiom.annotation = None``):
+            # a normal assignment still leaves the deleted Annotation
+            # reachable through SQLAlchemy's attribute history, so the
+            # "save-update" cascade below re-attaches it and raises
+            # ``InvalidRequestError: Instance ... has been deleted``. A
+            # brand-new Annotation is created further down in this method,
+            # so the stale cached reference isn't needed. Only do any of
+            # this when the state actually requires it.
+            if inspect(self.new_idiom).deleted:
+                self.new_idiom.__dict__.pop("annotation", None)
                 make_transient(self.new_idiom)
-            except Exception:
-                pass
             self.new_idiom.id = None
             session.add(self.new_idiom)
             session.flush()
@@ -114,24 +130,8 @@ class AnnotateTokenCommand(SessionMixin, Command):
                 session = self._get_session()
                 idiom = Idiom.get(self.idiom_id)
                 if idiom is not None:
-                    # Delete the associated annotation explicitly to ensure
-                    # it's properly removed from the session before redo.
-                    annotation = Annotation.get_by_idiom(self.idiom_id)
-                    if annotation is not None:
-                        session.delete(annotation)
                     session.delete(idiom)
                     session.flush()
-                    # Make the deleted annotation transient and expunge it
-                    # to prevent SQLAlchemy from trying to reuse it on redo.
-                    if annotation is not None:
-                        try:
-                            make_transient(annotation)
-                        except Exception:
-                            pass
-                        try:
-                            session.expunge(annotation)
-                        except Exception:
-                            pass
             return True
 
         annotation = self.annotation
