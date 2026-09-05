@@ -20,6 +20,7 @@ a = Analysis(
         ('oeapp/models/alembic', 'oeapp/models/alembic'),
         ('assets/logo.icns', 'assets'),
         ('assets/tectonic', 'assets/tectonic'),
+        ('assets/*.ttf', 'assets'),
     ],
     hiddenimports=[],
     hookspath=[],
