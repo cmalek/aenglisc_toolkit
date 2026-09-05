@@ -3,7 +3,7 @@
 from typing import TYPE_CHECKING, Any, Final, cast
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QPalette
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -668,7 +668,12 @@ class BaseTokenDetailsSidebar(AnnotationLookupsMixin, QWidget):
             value_widget.setStyleSheet(self.field_renderer.SET_VALUE_STYLE)
             root_layout.addWidget(value_widget)
             dict_button = QPushButton(self.content_widget)
-            dict_button.setIcon(render_svg(self.BOOK_ICON_SVG, self.BOOK_ICON_SIZE))
+            icon_color = dict_button.palette().color(QPalette.ColorRole.WindowText).name()
+            dict_button.setIcon(
+                render_svg(
+                    self.BOOK_ICON_SVG.replace("white", icon_color), self.BOOK_ICON_SIZE
+                )
+            )
             dict_button.setMaximumWidth(25)
             dict_button.setToolTip("Open in Bosworth-Toller dictionary")
             dict_button.setStyleSheet(
