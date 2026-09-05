@@ -868,6 +868,10 @@ class FullProjectTextSelector(OldEnglishTextSelector):
             selection.format.setBackground(  # type: ignore[attr-defined]
                 QColor("#ffeb3b")
             )  # Light yellow
+            if self.text_edit.is_dark_theme:
+                selection.format.setForeground(  # type: ignore[attr-defined]
+                    self.text_edit.theme_base_color
+                )
             selection.format.setProperty(TOKEN_HIGHLIGHT_PROPERTY, True)  # type: ignore[attr-defined]  # noqa: FBT003
             selections.append(selection)
 
