@@ -8,7 +8,7 @@ build:
   jobs:
     post_install:
       - pip install uv
-      - UV_PROJECT_ENVIRONMENT=$READTHEDOCS_VIRTUALENV_PATH uv sync --link-mode=copy --group=docs
+      - UV_PROJECT_ENVIRONMENT=$READTHEDOCS_VIRTUALENV_PATH uv sync --link-mode=copy --only-group=docs
 
 sphinx:
   configuration: doc/source/conf.py
