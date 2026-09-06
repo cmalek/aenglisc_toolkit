@@ -47011,12 +47011,12 @@
     },
     {
       "id": "oeapp_db_rationale_167",
-      "label": "Get the path to the project database. - If OE_ANNOTATOR_DB_PATH environment\u2026",
+      "label": "Get the path to the project database. - If AENGLISC_TOOLKIT_DB_PATH environment\u2026",
       "_origin": "ast",
       "community": 29,
       "community_name": "create_engine_with_path",
       "file_type": "rationale",
-      "norm_label": "get the path to the project database. - if oe_annotator_db_path environment...",
+      "norm_label": "get the path to the project database. - if AENGLISC_TOOLKIT_DB_PATH environment...",
       "source_file": "oeapp/db.py",
       "source_location": "L167"
     },
@@ -63471,12 +63471,12 @@
     },
     {
       "id": "oeapp_utils_rationale_21",
-      "label": "Get the base path for application data. - If OE_ANNOTATOR_DATA_PATH environment\u2026",
+      "label": "Get the base path for application data. - If AENGLISC_TOOLKIT_DATA_PATH environment\u2026",
       "_origin": "ast",
       "community": 99,
       "community_name": "help_paths.py",
       "file_type": "rationale",
-      "norm_label": "get the base path for application data. - if oe_annotator_data_path environment...",
+      "norm_label": "get the base path for application data. - if AENGLISC_TOOLKIT_DATA_PATH environment...",
       "source_file": "oeapp/utils.py",
       "source_location": "L21"
     },

@@ -57,6 +57,7 @@ docs = [
     # We use our own version of sphinx-terraform that fixes a bug in the
     # upstream version that has yet to be merged as of Jan 2024.
     "sphinx-terraform",                                 # https://gitlab.com/cmalek1/sphinx-terraform
+    "sphinxcontrib-images>=1.0.1",
     "sphinxcontrib-jsonglobaltoc==0.1.5",               # https://github.com/caltechads/sphinxcontrib-jsonglobaltoc
 ]
 test = [

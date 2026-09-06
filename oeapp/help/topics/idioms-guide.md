@@ -40,7 +40,7 @@ Practical approach:
 
 1. Identify what the whole expression is doing in the sentence (noun-like, adverb-like, conjunction-like, etc.).
 2. Choose the POS that best matches that phrase-level function.
-3. If the expression is ambiguous, use **Alternatives**, lower **Confidence**, and mark **TODO** for later review.
+3. If the expression is ambiguous, lower **Confidence** and mark **TODO** for later review.
 4. Keep word-level annotations for internal morphology; use idiom annotation for phrase-level behavior.
 
 ## Undo Support

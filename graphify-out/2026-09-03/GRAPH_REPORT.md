@@ -508,7 +508,7 @@ Nodes (24): Dialog module with lazy imports to avoid import-time side effects., 
 
 ### Community 29 - "get_project_db_path"
 Cohesion: 0.10
-Nodes (15): get_project_db_path(), Path, Get the path to the project database. - If OE_ANNOTATOR_DB_PATH environment…, Initialize backup service., Get the last known working migration version from QSettings. Returns: Migration…, Restore the selected backup., Handle database migrations with automatic backup and restore on failure., QSettings (+7 more)
+Nodes (15): get_project_db_path(), Path, Get the path to the project database. - If AENGLISC_TOOLKIT_DB_PATH environment…, Initialize backup service., Get the last known working migration version from QSettings. Returns: Migration…, Restore the selected backup., Handle database migrations with automatic backup and restore on failure., QSettings (+7 more)
 
 ### Community 30 - "OldEnglishTextEdit"
 Cohesion: 0.08

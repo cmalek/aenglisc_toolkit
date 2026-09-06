@@ -170,14 +170,14 @@ def get_project_db_path() -> Path:
     """
     Get the path to the project database.
 
-    - If OE_ANNOTATOR_DB_PATH environment variable is set, use that.
+    - If AENGLISC_TOOLKIT_DB_PATH environment variable is set, use that.
     - Otherwise, use the "projects" subdirectory in the app data path.
 
     Returns:
         Path to the database file
 
     """
-    env_path = os.environ.get("OE_ANNOTATOR_DB_PATH")
+    env_path = os.environ.get("AENGLISC_TOOLKIT_DB_PATH")
     if env_path:
         return Path(env_path)
 

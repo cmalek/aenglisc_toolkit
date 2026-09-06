@@ -21,7 +21,7 @@ def get_app_data_path() -> Path:
     """
     Get the base path for application data.
 
-    - If OE_ANNOTATOR_DATA_PATH environment variable is set, use that.
+    - If AENGLISC_TOOLKIT_DATA_PATH environment variable is set, use that.
     - On Windows, the path is the user's
         ``AppData/Local/Ænglisc Toolkit`` directory.
     - On macOS, the path is the user's
@@ -36,7 +36,7 @@ def get_app_data_path() -> Path:
         ValueError: If the platform is not supported
 
     """
-    env_path = os.environ.get("OE_ANNOTATOR_DATA_PATH")
+    env_path = os.environ.get("AENGLISC_TOOLKIT_DATA_PATH")
     if env_path:
         return Path(env_path)
 
@@ -229,8 +229,6 @@ def normalize_old_english(text: str | None) -> str | None:
         return None
     lowered = text.strip().lower().replace("ð", "þ")
     decomposed = unicodedata.normalize("NFD", lowered)
-    without_marks = "".join(
-        ch for ch in decomposed if unicodedata.category(ch) != "Mn"
-    )
+    without_marks = "".join(ch for ch in decomposed if unicodedata.category(ch) != "Mn")
     stripped_internal_hyphen = re.sub(r"(?<=\S)[-–—](?=\S)", "", without_marks)
     return unicodedata.normalize("NFC", stripped_internal_hyphen)

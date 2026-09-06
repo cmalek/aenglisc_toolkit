@@ -118,7 +118,6 @@ The word "hē" might appear as:
 ## Handling Missing Data
 
 - Missing annotations: Displayed as "—" or omitted
-- Alternatives: Displayed as `/` separated values (e.g., `w2 / s3`)
 
 ## Font Sizes
 

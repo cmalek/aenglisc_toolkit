@@ -1,65 +1,51 @@
 # Ænglisc Toolkit
 
-A desktop application to assist in translation from Old English/Anglo Saxon to Modern English.
+*A desktop workbench for translating Old English, built for the people doing the translating.*
 
-## Features
+ ![](doc/source/_static/screenshot-light.png)
 
-- Annotate Old English texts with grammatical, morphological, and syntactic tags
-- Keyboard-driven annotation workflow with prompt-based modal interface
-- Incremental refinement of annotations
-- Export to DOCX format with formatted annotations
-- Notes system for clarifying information
-- Autosave and undo/redo support
-- Filter and search annotations
+ Light theme
 
-## Installation
+ ![](doc/source/_static/screenshot-dark.png)
 
-### Development
+You may already be an experienced Old English scholar, or you may be just learning the language.  In either case, you don't need software that guesses at grammar for you — you need a place to keep the source text, your morphological analysis, and your translation in step with each other, without losing your place in a 3,000-line poem.
+
+Ænglisc Toolkit is that place. It doesn't auto-translate and it doesn't auto-annotate: every reading, every case ending, every glossed root is a decision you make. The app's job is to hold all of that together — searchable, exportable, undoable — while you do the linguistics.
+
+## Why this is useful to translators and students
+
+- **Token-by-token morphological annotation** — part of speech, case, number, gender, declension/verb class, and more, with keyboard shortcuts so you're not reaching for a mouse mid-sentence
+- **Multi-word idioms** — annotate a phrase as one unit when meaning lives in the phrase, not the head word
+- **Incremental annotation** — tag just the part of speech now, come back and fill in the rest later; nothing forces you to finish a token in one pass
+- **Remembered annotations** — teach the app your reading of a recurring word once, apply it everywhere, per-project or globally
+- **Notes anchored to word spans** — record the scholarly aside without breaking the reading flow
+- **Full Translation window** — a side-by-side Old English / Modern English reading view of the whole project, for proofing or presenting your work
+- **Publication-quality PDF export** — LaTeX-typeset, footnoted, with an auto-generated glossary of every annotated form
+- **DOCX export** — for workflows that live in Word
+- **JSON project export/import** — share a project file with a colleague, or move your work between machines
+- **Autosave, undo/redo, and automatic backups** — so a slip of the mouse never costs you a session's work
+
+## Installing
+
+The full install and usage guides live in the published documentation: **https://aenglisc-toolkit.readthedocs.io**
+
+- Getting the app (release build or from source): `doc/source/overview/installation.rst`
+- Available today: **macOS** (Apple Silicon and Intel)
+- Not available yet, planned: Windows and Linux builds
+
+For local development:
 
 ```bash
-# Install dependencies
 uv sync
-
-# Run the application
 python -m oeapp.main
 ```
 
-### Building Standalone Applications
+See `doc/source/runbook/packaging.rst` for building a standalone `.app`/`.dmg`.
 
-#### macOS
+## Contributing
 
-```bash
-# Install PyInstaller (if not already installed)
-pip install pyinstaller
-
-# Build the application
-./build_macos.sh
-
-# The app will be created in dist/Ænglisc Toolkit.app
-```
-
-#### Windows
-
-```cmd
-REM Install PyInstaller (if not already installed)
-pip install pyinstaller
-
-REM Build the application
-build_windows.bat
-
-REM The executable will be created in dist\Ænglisc Toolkit.exe
-```
-
-## Development
-
-This project uses:
-
-- Python 3.14+
-- PySide6 for the GUI
-- SQLite for data storage
-- python-docx for export functionality
-- PyInstaller for packaging
+See `doc/source/runbook/contributing.rst` and `doc/source/runbook/coding_standards.rst`.
 
 ## License
 
-[To be determined]
+[MIT](https://opensource.org/license/MIT)

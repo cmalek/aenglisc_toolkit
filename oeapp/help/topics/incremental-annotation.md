@@ -40,14 +40,6 @@ All annotation fields are optional. You can:
 - Fill in only what you're certain about
 - Add more details later
 
-## Alternatives
-
-Use the **Alternatives** field to record multiple possible interpretations:
-
-- Example: `w2 / s3` (Weak Class II or Strong Class III)
-- Displayed as `/` separated values in exports
-- Useful for ambiguous forms
-
 ## Confidence Levels
 
 Set a confidence percentage (0-100):
