@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+from PyInstaller.utils.hooks import collect_data_files
+
 block_cipher = None
 
 helpbook_source = Path('oeapp/help/macos/AengliscToolkit.help')
@@ -21,6 +23,7 @@ a = Analysis(
         ('assets/logo.icns', 'assets'),
         ('assets/tectonic', 'assets/tectonic'),
         ('assets/*.ttf', 'assets'),
+        *collect_data_files('qt_themes'),
     ],
     hiddenimports=[],
     hookspath=[],
@@ -38,17 +41,13 @@ pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.zipfiles,
-    a.datas,
     [],
+    exclude_binaries=True,
     name='Ænglisc Toolkit',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    upx_exclude=[],
-    runtime_tmpdir=None,
     console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
@@ -58,8 +57,19 @@ exe = EXE(
     icon='assets/logo.png',
 )
 
-app = BUNDLE(
+coll = COLLECT(
     exe,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    name='Ænglisc Toolkit',
+)
+
+app = BUNDLE(
+    coll,
     name='Ænglisc Toolkit.app',
     icon='assets/logo.png',
     bundle_identifier='org.placodermi.aenglisc-toolkit',
@@ -70,8 +80,8 @@ app = BUNDLE(
         'CFBundleDisplayName': 'Ænglisc Toolkit',
         'CFBundleGetInfoString': 'Ænglisc Toolkit',
         'CFBundleIdentifier': 'org.placodermi.aenglisc-toolkit',
-        'CFBundleVersion': '0.1.0',
-        'CFBundleShortVersionString': '0.1.0',
+        'CFBundleVersion': '1.0.0',
+        'CFBundleShortVersionString': '1.0.0',
         'CFBundleHelpBookFolder': 'AengliscToolkit.help',
         'CFBundleHelpBookName': 'Ænglisc Toolkit Help',
         'NSHumanReadableCopyright': 'Copyright © 2026',
