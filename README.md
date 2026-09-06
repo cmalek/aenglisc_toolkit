@@ -2,11 +2,10 @@
 
 *A desktop workbench for translating Old English, built for the people doing the translating.*
 
- ![](doc/source/_static/screenshot-light.png)
+ ![](doc/source/_static/screenshot-themes.png)
 
- Light theme
+*Main window showing both the light and dark theme.*
 
- ![](doc/source/_static/screenshot-dark.png)
 
 You may already be an experienced Old English scholar, or you may be just learning the language.  In either case, you don't need software that guesses at grammar for you — you need a place to keep the source text, your morphological analysis, and your translation in step with each other, without losing your place in a 3,000-line poem.
 
