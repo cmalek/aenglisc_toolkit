@@ -24,7 +24,15 @@ During planning, please use `graphify` and `code-index` often to flesh out plans
 
 ## ADRs
 
-Write all ADRs to the filesystem as restructuredtext and put them in `doc/source/adr/`.
+Write all ADRs as restructuredtext files in `doc/source/architecture/`, and
+add each new one to the `architecture/index.rst` toctree.
+
+Start every new ADR from the schema in `doc/adr_template.md` (Title, Status,
+Context, Decision, Consequences, optional Alternatives Considered and
+Related). That template file is not published by Sphinx — it is a
+copy-paste starting point only, so copy its structure into the new
+`doc/source/architecture/adr_NNNN_slug.rst` file rather than editing it
+in place.
 
 ## Python Environment (Required)
 

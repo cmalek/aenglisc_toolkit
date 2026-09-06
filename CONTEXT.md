@@ -125,11 +125,6 @@ _Avoid_: Score, probability, quality
 A flag on an annotation that it still needs review or completion.
 _Avoid_: Incomplete flag, review flag, FIXME
 
-**Alternatives**:
-A free-text record of competing morphological readings when the form is
-ambiguous (e.g. competing verb classes).
-_Avoid_: Variants (unscoped), options, candidates
-
 **Incremental Annotation**:
 The practice of filling annotation fields over time — starting with POS and
 refining features later — rather than requiring a complete analysis at once.
@@ -153,6 +148,21 @@ _Avoid_: System-wide, app-wide (unless talking about settings)
 Availability of a remembered annotation only inside one project; wins over a
 global entry for the same exact surface.
 _Avoid_: Local scope (ambiguous), private
+
+**Requires Infinitive**:
+A verb annotation flag marking that the verb governs an infinitive complement
+(e.g. modal and preterite-present verbs).
+_Avoid_: Modal flag, auxiliary flag
+
+**Impersonal**:
+A verb annotation flag marking that the verb is used with no overt
+grammatical subject performing the action.
+_Avoid_: Subjectless flag, no-subject flag
+
+**Transitivity**:
+A verb annotation field recording whether the verb is transitive or
+intransitive in this attested use.
+_Avoid_: Valency (unless discussing linguistic theory generally)
 
 ### Notes and translation
 
@@ -182,3 +192,23 @@ _Avoid_: Dictionary, lexicon, vocabulary list (unless marketing copy)
 The side-by-side reading of an entire project's Old English text and Modern
 English translation, with notes and annotation details available in context.
 _Avoid_: Parallel text view (mechanism), reader mode (generic)
+
+### Backup and transfer
+
+**Backup**:
+A timestamped, automatic or on-demand copy of the project database kept for
+recovery. Distinct from a Project Export: a Backup covers every project in
+the database, is not meant for sharing, and is restored rather than
+imported.
+_Avoid_: Snapshot, save point, project export (see Project Export)
+
+**Project Export**:
+A JSON (optionally gzip-compressed) serialization of one project's complete
+data — sentences, tokens, annotations, and notes — used for sharing a single
+project, archiving it, or moving it between installations.
+_Avoid_: Backup (see Backup), dump, save file
+
+**Project Import**:
+Loading a Project Export file into the application, creating a new project
+from it.
+_Avoid_: Restore (reserved for restoring from a Backup), load
