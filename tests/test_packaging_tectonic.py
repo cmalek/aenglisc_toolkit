@@ -13,14 +13,14 @@ def read_text(path: Path) -> str:
 
 def test_spec_includes_tectonic_assets() -> None:
     """PyInstaller spec should bundle Tectonic assets directory."""
-    spec_path = PROJECT_ROOT / "oe_annotator.spec"
+    spec_path = PROJECT_ROOT / "aenglisc_toolkit.spec"
     content = read_text(spec_path)
     assert "assets/tectonic" in content
 
 
 def test_spec_includes_alembic_runtime_assets() -> None:
     """PyInstaller spec should bundle Alembic config + migration scripts."""
-    spec_path = PROJECT_ROOT / "oe_annotator.spec"
+    spec_path = PROJECT_ROOT / "aenglisc_toolkit.spec"
     content = read_text(spec_path)
     assert "oeapp/etc" in content
     assert "oeapp/models/alembic" in content
@@ -31,7 +31,7 @@ def test_macos_build_verifies_tectonic_assets() -> None:
     script_path = PROJECT_ROOT / "build_macos.sh"
     content = read_text(script_path)
     assert "python scripts/verify_tectonic_assets.py" in content
-    assert "pyinstaller oe_annotator.spec" in content
+    assert "pyinstaller aenglisc_toolkit.spec" in content
 
 
 def test_windows_build_verifies_tectonic_assets() -> None:
@@ -39,7 +39,7 @@ def test_windows_build_verifies_tectonic_assets() -> None:
     script_path = PROJECT_ROOT / "build_windows.bat"
     content = read_text(script_path)
     assert "python scripts\\verify_tectonic_assets.py" in content
-    assert "pyinstaller oe_annotator.spec" in content
+    assert "pyinstaller aenglisc_toolkit.spec" in content
 
 
 def test_make_dmg_uses_single_applications_link_strategy() -> None:

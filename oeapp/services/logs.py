@@ -35,7 +35,7 @@ def get_log_file_path() -> "Path":
         The path to the current log file.
 
     """
-    return get_log_dir() / "oe_annotator.log.json"
+    return get_log_dir() / "aenglisc_toolkit.log.json"
 
 
 def configure_logging() -> None:

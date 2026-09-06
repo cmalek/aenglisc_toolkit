@@ -92,7 +92,7 @@ class TestMigrationUpgradeIndexes:
             conn.commit()
         engine.dispose()
 
-        monkeypatch.setenv("OE_ANNOTATOR_DB_PATH", str(db_path))
+        monkeypatch.setenv("AENGLISC_TOOLKIT_DB_PATH", str(db_path))
         command.upgrade(_alembic_config(), "head")
 
         index_names = _fetch_indexes(db_path)

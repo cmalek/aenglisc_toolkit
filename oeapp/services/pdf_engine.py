@@ -84,22 +84,22 @@ def resolve_tectonic_engine_paths() -> TectonicEnginePaths:
         The resolved paths for the Tectonic binary and offline bundle.
 
     """
-    env_binary = os.environ.get("OE_ANNOTATOR_TECTONIC_BINARY")
-    env_bundle = os.environ.get("OE_ANNOTATOR_TECTONIC_BUNDLE")
+    env_binary = os.environ.get("AENGLISC_TOOLKIT_TECTONIC_BINARY")
+    env_bundle = os.environ.get("AENGLISC_TOOLKIT_TECTONIC_BUNDLE")
     if env_binary:
         binary = Path(env_binary)
         if not binary.exists():
-            msg = f"OE_ANNOTATOR_TECTONIC_BINARY not found: {binary}"
+            msg = f"AENGLISC_TOOLKIT_TECTONIC_BINARY not found: {binary}"
             raise PDFEngineError(msg)
         bundle = None
         if env_bundle:
             bundle = Path(env_bundle)
             if not bundle.exists():
-                msg = f"OE_ANNOTATOR_TECTONIC_BUNDLE not found: {bundle}"
+                msg = f"AENGLISC_TOOLKIT_TECTONIC_BUNDLE not found: {bundle}"
                 raise PDFEngineError(msg)
             if not _bundle_has_required_index(bundle):
                 msg = (
-                    "OE_ANNOTATOR_TECTONIC_BUNDLE is invalid: missing SHA256SUM. "
+                    "AENGLISC_TOOLKIT_TECTONIC_BUNDLE is invalid: missing SHA256SUM. "
                     f"Bundle path: {bundle}"
                 )
                 raise PDFEngineError(msg)

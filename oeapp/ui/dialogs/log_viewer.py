@@ -571,7 +571,7 @@ class LogViewerDialog(QDialog):
         file_path, _ = QFileDialog.getSaveFileName(
             self,
             "Export Logs",
-            "oe_annotator_logs.txt",
+            "aenglisc_toolkit_logs.txt",
             "Text Files (*.txt);;All Files (*)",
         )
 

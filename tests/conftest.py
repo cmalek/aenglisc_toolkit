@@ -14,15 +14,15 @@ from unittest.mock import MagicMock
 
 # Set a temporary database path for tests before any other imports
 # This prevents oeapp.db from trying to create a directory in the user's home
-if "OE_ANNOTATOR_DB_PATH" not in os.environ:
+if "AENGLISC_TOOLKIT_DB_PATH" not in os.environ:
     _temp_db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
     _temp_db.close()
-    os.environ["OE_ANNOTATOR_DB_PATH"] = _temp_db.name
+    os.environ["AENGLISC_TOOLKIT_DB_PATH"] = _temp_db.name
 
 # Set a temporary app data path for tests
-if "OE_ANNOTATOR_DATA_PATH" not in os.environ:
+if "AENGLISC_TOOLKIT_DATA_PATH" not in os.environ:
     import tempfile
-    os.environ["OE_ANNOTATOR_DATA_PATH"] = tempfile.mkdtemp()
+    os.environ["AENGLISC_TOOLKIT_DATA_PATH"] = tempfile.mkdtemp()
 
 from oeapp.services.logs import configure_logging
 configure_logging()
@@ -330,18 +330,18 @@ def create_test_project(
     """
     if name is None:
         name = f"Test Project {id(session)}"
-    
+
     # If text is empty, Project.create won't create any chapters/sections/paragraphs
     # We need to ensure they exist even for empty projects
     project = Project.create(
         text=text, name=name, source=source, translator=translator, notes=notes
     )
-    
+
     if not text:
         from oeapp.models.chapter import Chapter
         from oeapp.models.section import Section
         from oeapp.models.paragraph import Paragraph
-        
+
         chapter = Chapter(project_id=project.id, number=1)
         session.add(chapter)
         session.flush()
@@ -351,7 +351,7 @@ def create_test_project(
         paragraph = Paragraph(section_id=section.id, order=1)
         session.add(paragraph)
         session.flush()
-        
+
     return project
 
 
@@ -396,7 +396,7 @@ def create_test_sentence(
         from oeapp.models.chapter import Chapter
         from oeapp.models.section import Section
         from oeapp.models.paragraph import Paragraph
-        
+
         project = session.get(Project, project_id)
         if not project.chapters:
             chapter = Chapter(project_id=project_id, number=1)

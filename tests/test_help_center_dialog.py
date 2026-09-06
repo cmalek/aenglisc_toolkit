@@ -38,7 +38,7 @@ class TestHelpCenterDialog:
 
     def test_help_center_dialog_initializes(self, qapp, tmp_path, monkeypatch):
         """Dialog should initialize in non-modal mode and load Start Here."""
-        monkeypatch.setenv("OE_ANNOTATOR_DATA_PATH", str(tmp_path))
+        monkeypatch.setenv("AENGLISC_TOOLKIT_DATA_PATH", str(tmp_path))
         dialog = HelpCenterDialog(parent=None)
 
         assert dialog.isModal() is False
@@ -49,7 +49,7 @@ class TestHelpCenterDialog:
         self, qapp, tmp_path, monkeypatch
     ):
         """Dialog should open a requested topic URL when provided."""
-        monkeypatch.setenv("OE_ANNOTATOR_DATA_PATH", str(tmp_path))
+        monkeypatch.setenv("AENGLISC_TOOLKIT_DATA_PATH", str(tmp_path))
         dialog = HelpCenterDialog(topic="Keybindings", parent=None)
 
         assert dialog.browser.source().scheme() == "qthelp"
@@ -59,7 +59,7 @@ class TestHelpCenterDialog:
         self, qapp, tmp_path, monkeypatch
     ):
         """Unknown topics should resolve to the help home page."""
-        monkeypatch.setenv("OE_ANNOTATOR_DATA_PATH", str(tmp_path))
+        monkeypatch.setenv("AENGLISC_TOOLKIT_DATA_PATH", str(tmp_path))
         dialog = HelpCenterDialog(topic="NotATopic", parent=None)
 
         assert dialog.browser.source().toString().endswith("/start-here.html")
@@ -68,7 +68,7 @@ class TestHelpCenterDialog:
         self, qapp, tmp_path, monkeypatch
     ):
         """Dialog should render a non-null pixmap for screenshot-based regression checks."""
-        monkeypatch.setenv("OE_ANNOTATOR_DATA_PATH", str(tmp_path))
+        monkeypatch.setenv("AENGLISC_TOOLKIT_DATA_PATH", str(tmp_path))
         dialog = HelpCenterDialog(topic="Keybindings", parent=None)
         dialog.show()
         qapp.processEvents()
@@ -80,7 +80,7 @@ class TestHelpCenterDialog:
         self, qapp, tmp_path, monkeypatch
     ):
         """Index/document activation should open QHelpLink URL, not label text."""
-        monkeypatch.setenv("OE_ANNOTATOR_DATA_PATH", str(tmp_path))
+        monkeypatch.setenv("AENGLISC_TOOLKIT_DATA_PATH", str(tmp_path))
         dialog = HelpCenterDialog(parent=None)
         captured: list[QUrl] = []
         monkeypatch.setattr(dialog, "_open_url", lambda url: captured.append(url))
@@ -98,7 +98,7 @@ class TestHelpCenterDialog:
         self, qapp, tmp_path, monkeypatch
     ):
         """Plain label strings should not be delegated to OS URL opening."""
-        monkeypatch.setenv("OE_ANNOTATOR_DATA_PATH", str(tmp_path))
+        monkeypatch.setenv("AENGLISC_TOOLKIT_DATA_PATH", str(tmp_path))
         dialog = HelpCenterDialog(parent=None)
         opened_urls: list[QUrl] = []
         monkeypatch.setattr("oeapp.ui.dialogs.help_center_dialog.QDesktopServices.openUrl", opened_urls.append)
@@ -112,7 +112,7 @@ class TestHelpCenterDialog:
         self, qapp, tmp_path, monkeypatch
     ):
         """QtHelp HTML resources should receive runtime theme CSS overrides."""
-        monkeypatch.setenv("OE_ANNOTATOR_DATA_PATH", str(tmp_path))
+        monkeypatch.setenv("AENGLISC_TOOLKIT_DATA_PATH", str(tmp_path))
         dialog = HelpCenterDialog(parent=None)
         start_here_url = dialog.help_engine.page_url("start-here.html")
 
@@ -128,7 +128,7 @@ class TestHelpCenterDialog:
         self, qapp, tmp_path, monkeypatch
     ):
         """Index model should populate shortly after dialog initialization."""
-        monkeypatch.setenv("OE_ANNOTATOR_DATA_PATH", str(tmp_path))
+        monkeypatch.setenv("AENGLISC_TOOLKIT_DATA_PATH", str(tmp_path))
         dialog = HelpCenterDialog(parent=None)
         model = dialog.index_widget.model()
 
@@ -139,7 +139,7 @@ class TestHelpCenterDialog:
         self, qapp, tmp_path, monkeypatch
     ):
         """Index filter should narrow to matching topic text."""
-        monkeypatch.setenv("OE_ANNOTATOR_DATA_PATH", str(tmp_path))
+        monkeypatch.setenv("AENGLISC_TOOLKIT_DATA_PATH", str(tmp_path))
         dialog = HelpCenterDialog(parent=None)
         model = dialog.index_widget.model()
         assert model is not None
@@ -159,7 +159,7 @@ class TestHelpCenterDialog:
         self, qapp, tmp_path, monkeypatch
     ):
         """Search pane should return full-text results for known terms."""
-        monkeypatch.setenv("OE_ANNOTATOR_DATA_PATH", str(tmp_path))
+        monkeypatch.setenv("AENGLISC_TOOLKIT_DATA_PATH", str(tmp_path))
         dialog = HelpCenterDialog(parent=None)
 
         dialog.search_query_widget.setSearchInput("search")

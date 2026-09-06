@@ -97,8 +97,8 @@ def test_resolve_rejects_invalid_env_bundle(monkeypatch, tmp_path):
     bundle_path = tmp_path / "bundle"
     bundle_path.mkdir(parents=True, exist_ok=True)
 
-    monkeypatch.setenv("OE_ANNOTATOR_TECTONIC_BINARY", str(binary_path))
-    monkeypatch.setenv("OE_ANNOTATOR_TECTONIC_BUNDLE", str(bundle_path))
+    monkeypatch.setenv("AENGLISC_TOOLKIT_TECTONIC_BINARY", str(binary_path))
+    monkeypatch.setenv("AENGLISC_TOOLKIT_TECTONIC_BUNDLE", str(bundle_path))
 
     with pytest.raises(PDFEngineError, match="missing SHA256SUM"):
         resolve_tectonic_engine_paths()

@@ -33,7 +33,7 @@ if errorlevel 1 exit /b 1
 
 REM Build the application
 echo Building application...
-pyinstaller oe_annotator.spec
+pyinstaller aenglisc_toolkit.spec
 
 REM Check if build succeeded
 if exist "dist\Ænglisc Toolkit.exe" (

@@ -32,7 +32,7 @@ python scripts/verify_tectonic_assets.py
 
 # Build the application
 echo "Building application..."
-pyinstaller oe_annotator.spec
+pyinstaller aenglisc_toolkit.spec
 
 # Create macOS app bundle
 if [ -d "dist/Ænglisc Toolkit.app" ]; then
