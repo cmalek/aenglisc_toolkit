@@ -1,6 +1,6 @@
 [project]
 name = "aenglisc_toolkit"
-version = "1.0.0"
+version = "1.0.1"
 description = "A desktop application to assist in translation from Old English/Anglo Saxon to Modern English"
 readme = "README.md"
 requires-python = ">=3.13"

@@ -41,7 +41,7 @@ copyright: str = f"{YEAR}, Chris Malek"  # noqa: A001
 author: str = "Chris Malek"
 
 # The full version, including alpha/beta/rc tags
-release: str = "1.0.0"
+release: str = "1.0.1"
 
 
 # -- General configuration ---------------------------------------------------
