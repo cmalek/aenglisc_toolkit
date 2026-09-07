@@ -428,6 +428,18 @@ class TestProjectImporter:
                 with pytest.raises(ValueError, match="Failed to load"):
                     importer.import_project_json("denied.json")
 
+    def test_import_rejects_reading_text_txt(self, db_session, tmp_path) -> None:
+        path = tmp_path / "Beowulf-oe.txt"
+        path.write_text("    Hwæt\n5\n", encoding="utf-8")
+        with pytest.raises(ValueError, match="Old English Text Export"):
+            ProjectImporter().import_project_json(str(path))
+
+    def test_import_rejects_non_json_via_all_files(self, db_session, tmp_path) -> None:
+        path = tmp_path / "notes-without-suffix"
+        path.write_text("plain reading copy", encoding="utf-8")
+        with pytest.raises(ValueError, match="Old English Text Export"):
+            ProjectImporter().import_project_json(str(path))
+
     def test_import_project_json_accepts_gzip_with_non_gz_extension(
         self, db_session, tmp_path
     ):

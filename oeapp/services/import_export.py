@@ -164,6 +164,13 @@ class ProjectImporter(SessionMixin):
 
     """
 
+    #: User-facing error when the selected file is not Project Export JSON.
+    READING_TEXT_IMPORT_ERROR = (
+        "This file is not a Project Export. Old English Text Export and "
+        "Translation Export are reading copies and cannot be imported. "
+        "Choose a .json or .json.gz Project file."
+    )
+
     def __init__(
         self,
         migration_service: MigrationService | None = None,
@@ -236,6 +243,9 @@ class ProjectImporter(SessionMixin):
             ValueError: If file cannot be read/decompressed/parsed as JSON
 
         """
+        if path.suffix.lower() in {".txt", ".text"}:
+            raise ValueError(self.READING_TEXT_IMPORT_ERROR)
+
         try:
             raw_bytes = path.read_bytes()
         except (OSError, PermissionError) as e:
@@ -256,7 +266,9 @@ class ProjectImporter(SessionMixin):
         try:
             decoded = raw_bytes.decode("utf-8")
             return json.loads(decoded)
-        except (UnicodeDecodeError, json.JSONDecodeError) as e:
+        except json.JSONDecodeError as e:
+            raise ValueError(self.READING_TEXT_IMPORT_ERROR) from e
+        except UnicodeDecodeError as e:
             msg = f"Failed to load project data from file:\n{e!s}"
             raise ValueError(msg) from e
 
