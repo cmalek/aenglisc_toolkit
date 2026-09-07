@@ -6,6 +6,7 @@ from oeapp.services.autosave import AutosaveService
 from oeapp.services.backup import BackupService
 from oeapp.services.export_docx import DOCXExporter
 from oeapp.services.export_pdf import FullTranslationPDFExporter
+from oeapp.services.export_reading_text import ReadingTextExporter
 from oeapp.services.import_export import ProjectExporter, ProjectImporter
 from oeapp.services.migration import (
     FieldMappingService,
@@ -26,5 +27,6 @@ __all__ = [
     "MigrationService",
     "ProjectExporter",
     "ProjectImporter",
+    "ReadingTextExporter",
     "WyrdcraeftIngestService",
 ]
