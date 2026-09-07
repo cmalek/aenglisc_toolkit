@@ -1,5 +1,6 @@
 """Unit tests for MainWindow."""
 
+import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -99,6 +100,30 @@ class TestMainWindowActions:
         mock_card3.has_focus = True
         actions.prev_sentence()
         mock_card2.focus.assert_called_with()
+
+    def test_export_callback_uses_current_project(
+        self, main_window, db_session, tmp_path, monkeypatch
+    ):
+        """Export triggered by the menu writes the active project JSON."""
+        project = create_test_project(db_session, name="Active Project")
+        create_test_sentence(db_session, project.id, "Se cyning.")
+        main_window.app_context.current_project_id = project.id
+        export_path = tmp_path / "active-project.json"
+        monkeypatch.setattr(
+            "oeapp.ui.main_window.QFileDialog.getSaveFileName",
+            lambda *_args: (str(export_path), "JSON Files (*.json)"),
+        )
+        monkeypatch.setattr(
+            "oeapp.services.import_export.MigrationService.db_migration_version",
+            lambda _self: "test",
+        )
+        monkeypatch.setattr(main_window.messages, "show_warning", MagicMock())
+        monkeypatch.setattr(main_window.messages, "show_information", MagicMock())
+        monkeypatch.setattr(main_window.messages, "show_error", MagicMock())
+
+        assert main_window.action_service.export_project_json(False) is True  # noqa: FBT003
+        export_data = json.loads(export_path.read_text(encoding="utf-8"))
+        assert export_data["project"]["name"] == "Active Project"
 
     def test_autosave_saves_without_note_fk_walk(self, main_window, db_session):
         """Autosave persists the project; Note validates owns 0/False coerce."""

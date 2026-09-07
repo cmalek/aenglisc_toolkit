@@ -1333,7 +1333,7 @@ class MainWindowActions:
         """
         target_project_id = (
             project_id
-            if isinstance(project_id, int)
+            if type(project_id) is int
             else self.app_context.current_project_id
         )
         if not self.app_context.session or target_project_id is None:
