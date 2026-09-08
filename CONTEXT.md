@@ -193,6 +193,19 @@ The side-by-side reading of an entire project's Old English text and Modern
 English translation, with notes and annotation details available in context.
 _Avoid_: Parallel text view (mechanism), reader mode (generic)
 
+**Old English Text Export**:
+A plain-text reading copy of a project's Old English Text for sharing outside
+the app: official titles, verse indent, a verse number every five lines,
+without notes, annotations, or auto-generated titles.
+_Avoid_: Combined, source dump, OE column dump
+
+**Translation Export**:
+A plain-text reading copy of a project's Modern English Translation for
+sharing outside the app, with the same title and verse-number conventions as
+Old English Text Export, without notes, annotation markup, or empty-sentence
+placeholders.
+_Avoid_: Combined, ModE dump, meaning export
+
 ### Backup and transfer
 
 **Backup**:
@@ -205,8 +218,9 @@ _Avoid_: Snapshot, save point, project export (see Project Export)
 **Project Export**:
 A JSON (optionally gzip-compressed) serialization of one project's complete
 data — sentences, tokens, annotations, and notes — used for sharing a single
-project, archiving it, or moving it between installations.
-_Avoid_: Backup (see Backup), dump, save file
+project between Toolkit installations, or archiving that project. Distinct
+from a reading-text export (Old English Text Export, Translation Export).
+_Avoid_: Backup (see Backup), dump, save file, Combined
 
 **Project Import**:
 Loading a Project Export file into the application, creating a new project
