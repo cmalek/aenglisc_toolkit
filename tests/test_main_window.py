@@ -108,6 +108,26 @@ class TestMainWindowInitialization:
         assert main_window.action_service.export_old_english_text() is False
         assert list(tmp_path.iterdir()) == []
 
+    def test_autosave_refreshes_translation_export_enablement(
+        self, main_window, db_session
+    ):
+        """A plain autosave (not an export call) should refresh menu enablement."""
+        from tests.conftest import create_test_project, create_test_sentence
+
+        project = create_test_project(db_session, name="Autosave Enablement")
+        sentence = create_test_sentence(db_session, project.id, "Hwæt.")
+        main_window.app_context.current_project_id = project.id
+        main_window.load_project(project)
+
+        project_menu = main_window.main_menu.project_menu
+        assert not project_menu.export_translation_action.isEnabled()
+
+        sentence.text_modern = "Lo."
+        db_session.flush()
+        main_window.action_service.autosave()
+
+        assert project_menu.export_translation_action.isEnabled()
+
 
 class TestMainWindowActions:
     """Test cases for MainWindowActions logic."""

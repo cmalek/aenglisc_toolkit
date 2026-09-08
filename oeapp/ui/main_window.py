@@ -1263,6 +1263,9 @@ class MainWindowActions:
 
         project.save()
         try:
+            self.main_window.main_menu.project_menu.update_reading_export_enabled(
+                project
+            )
             self.messages.show_message("Saved")
         except RuntimeError:
             # Main window can already be deleted when late timer callbacks run.
