@@ -745,6 +745,7 @@ class MainWindow(QMainWindow):
             project = Project.get(project_id)
             if project:
                 self.project_ui.load(project)
+                self.main_menu.project_menu.update_reading_export_enabled(project)
 
     def show_backups_dialog(self) -> None:
         """
@@ -777,8 +778,18 @@ class MainWindow(QMainWindow):
 
         This is needed after structural changes like merge/undo merge
         that change the number of sentences.
+
+        Side Effects:
+            Refreshes the Old English/Translation export enablement, since
+            reload bypasses :meth:`load_project` (e.g. Append OE text).
+
         """
         self.project_ui.reload()
+        project_id = self.app_context.current_project_id
+        if project_id is not None:
+            project = Project.get(project_id)
+            if project:
+                self.main_menu.project_menu.update_reading_export_enabled(project)
 
     def refresh_project(self) -> None:
         """
@@ -1263,9 +1274,7 @@ class MainWindowActions:
 
         project.save()
         try:
-            self.main_window.main_menu.project_menu.update_reading_export_enabled(
-                project
-            )
+            self._refresh_reading_export_enablement_for_current_project()
             self.messages.show_message("Saved")
         except RuntimeError:
             # Main window can already be deleted when late timer callbacks run.
@@ -1300,6 +1309,9 @@ class MainWindowActions:
             if dialog.execute():
                 # User chose to open the project
                 self.main_window.project_ui.load(imported_project)
+                self.main_window.main_menu.project_menu.update_reading_export_enabled(
+                    imported_project
+                )
                 self.main_window.setWindowTitle(
                     f"Ænglisc Toolkit - {imported_project.name}"
                 )
@@ -1315,6 +1327,27 @@ class MainWindowActions:
             self.messages.show_error(
                 f"An error occurred during import:\n{e!s}", title="Import Error"
             )
+
+    def _refresh_reading_export_enablement_for_current_project(self) -> None:
+        """
+        Refresh the Old English/Translation export enablement.
+
+        Always uses the currently open project (never an export target passed
+        to a different project's export action, e.g. from
+        :class:`~oeapp.ui.dialogs.delete_project.DeleteProjectDialog`).
+
+        Side Effects:
+            Updates the Old English/Translation ``QAction`` enabled state on
+            :attr:`ProjectMenu`. Does nothing when no project is open.
+
+        """
+        current_project_id = self.app_context.current_project_id
+        if current_project_id is None:
+            return
+        current_project = Project.get(current_project_id)
+        self.main_window.main_menu.project_menu.update_reading_export_enabled(
+            current_project
+        )
 
     def export_project_json(
         self,
@@ -1353,7 +1386,7 @@ class MainWindowActions:
             self.messages.show_warning("Project not found")
             return False
 
-        self.main_window.main_menu.project_menu.update_reading_export_enabled(project)
+        self._refresh_reading_export_enablement_for_current_project()
 
         default_filename = ProjectExporter.sanitize_filename(project.name) + ".json"
 
@@ -1409,7 +1442,12 @@ class MainWindowActions:
             self.messages.show_warning("Project not found")
             return False
 
-        self.main_window.main_menu.project_menu.update_reading_export_enabled(project)
+        self._refresh_reading_export_enablement_for_current_project()
+        project_menu = self.main_window.main_menu.project_menu
+
+        if not project_menu.export_old_english_action.isEnabled():
+            self.messages.show_warning("No Old English text to export")
+            return False
 
         default_filename = (
             ProjectExporter.sanitize_filename(project.name) + "-oe.txt"
@@ -1464,8 +1502,8 @@ class MainWindowActions:
             self.messages.show_warning("Project not found")
             return False
 
+        self._refresh_reading_export_enablement_for_current_project()
         project_menu = self.main_window.main_menu.project_menu
-        project_menu.update_reading_export_enabled(project)
 
         if not project_menu.export_translation_action.isEnabled():
             self.messages.show_warning("No translation text to export")

@@ -108,6 +108,89 @@ class TestMainWindowInitialization:
         assert main_window.action_service.export_old_english_text() is False
         assert list(tmp_path.iterdir()) == []
 
+    def test_export_old_english_no_sentences_warns_and_writes_nothing(
+        self, main_window, db_session, tmp_path, monkeypatch
+    ):
+        """An empty project must warn and write no file, not an empty one."""
+        from tests.conftest import create_test_project
+
+        project = create_test_project(db_session, name="Empty OE", text="")
+        main_window.app_context.current_project_id = project.id
+        monkeypatch.setattr(
+            "oeapp.ui.main_window.QFileDialog.getSaveFileName",
+            lambda *_args, **_kwargs: (str(tmp_path / "out.txt"), "Text Files (*.txt)"),
+        )
+        warn = MagicMock()
+        monkeypatch.setattr(main_window.messages, "show_warning", warn)
+
+        assert main_window.action_service.export_old_english_text() is False
+        assert list(tmp_path.iterdir()) == []
+        warn.assert_called_once()
+
+    def test_export_translation_persists_then_writes(
+        self, main_window, db_session, tmp_path, monkeypatch
+    ):
+        """Export should autosave dirty translation text before writing."""
+        from tests.conftest import create_test_project, create_test_sentence
+
+        project = create_test_project(db_session, name="Translate Save")
+        sentence = create_test_sentence(db_session, project.id, "Hwæt.")
+        main_window.app_context.current_project_id = project.id
+        main_window.load_project(project)
+        sentence.text_modern = "Listen."
+        db_session.flush()
+
+        out = tmp_path / "Translate_Save-translation.txt"
+        monkeypatch.setattr(
+            "oeapp.ui.main_window.QFileDialog.getSaveFileName",
+            lambda *_args, **_kwargs: (str(out), "Text Files (*.txt)"),
+        )
+        monkeypatch.setattr(main_window.messages, "show_warning", MagicMock())
+        monkeypatch.setattr(main_window.messages, "show_information", MagicMock())
+        monkeypatch.setattr(main_window.messages, "show_error", MagicMock())
+
+        assert main_window.action_service.export_translation_text() is True
+        assert out.exists()
+        assert "Listen." in out.read_text(encoding="utf-8")
+
+    def test_export_translation_cancel_writes_nothing(
+        self, main_window, db_session, tmp_path, monkeypatch
+    ):
+        """Cancelling the Translation export dialog should write no file."""
+        from tests.conftest import create_test_project, create_test_sentence
+
+        project = create_test_project(db_session, name="Cancel Translation")
+        sentence = create_test_sentence(db_session, project.id, "Hwæt.")
+        sentence.text_modern = "Listen."
+        db_session.commit()
+        main_window.app_context.current_project_id = project.id
+        monkeypatch.setattr(
+            "oeapp.ui.main_window.QFileDialog.getSaveFileName",
+            lambda *_args, **_kwargs: ("", ""),
+        )
+        assert main_window.action_service.export_translation_text() is False
+        assert list(tmp_path.iterdir()) == []
+
+    def test_export_translation_no_translation_warns_and_writes_nothing(
+        self, main_window, db_session, tmp_path, monkeypatch
+    ):
+        """No Modern English text anywhere must warn and write no file."""
+        from tests.conftest import create_test_project, create_test_sentence
+
+        project = create_test_project(db_session, name="No Translation")
+        create_test_sentence(db_session, project.id, "Hwæt.")
+        main_window.app_context.current_project_id = project.id
+        monkeypatch.setattr(
+            "oeapp.ui.main_window.QFileDialog.getSaveFileName",
+            lambda *_args, **_kwargs: (str(tmp_path / "out.txt"), "Text Files (*.txt)"),
+        )
+        warn = MagicMock()
+        monkeypatch.setattr(main_window.messages, "show_warning", warn)
+
+        assert main_window.action_service.export_translation_text() is False
+        assert list(tmp_path.iterdir()) == []
+        warn.assert_called_once()
+
     def test_autosave_refreshes_translation_export_enablement(
         self, main_window, db_session
     ):
@@ -127,6 +210,57 @@ class TestMainWindowInitialization:
         main_window.action_service.autosave()
 
         assert project_menu.export_translation_action.isEnabled()
+
+    def test_export_project_json_enablement_uses_current_project_not_target(
+        self, main_window, db_session, tmp_path, monkeypatch
+    ):
+        """Exporting another project (e.g. from Delete Project) must not
+        disable/enable menu actions based on that other project's state."""
+        current = create_test_project(db_session, name="Current")
+        create_test_sentence(db_session, current.id, "Se cyning.")
+        other = create_test_project(db_session, name="Other", text="")
+        main_window.app_context.current_project_id = current.id
+        main_window.load_project(current)
+
+        project_menu = main_window.main_menu.project_menu
+        assert project_menu.export_old_english_action.isEnabled()
+
+        export_path = tmp_path / "other.json"
+        monkeypatch.setattr(
+            "oeapp.ui.main_window.QFileDialog.getSaveFileName",
+            lambda *_args, **_kwargs: (str(export_path), "JSON Files (*.json)"),
+        )
+        monkeypatch.setattr(
+            "oeapp.services.import_export.MigrationService.db_migration_version",
+            lambda _self: "test",
+        )
+        monkeypatch.setattr(main_window.messages, "show_warning", MagicMock())
+        monkeypatch.setattr(main_window.messages, "show_information", MagicMock())
+        monkeypatch.setattr(main_window.messages, "show_error", MagicMock())
+
+        assert main_window.action_service.export_project_json(other.id) is True
+
+        # The current project still has sentences; enablement must reflect
+        # it, not the (empty) export target.
+        assert project_menu.export_old_english_action.isEnabled()
+
+    def test_reload_project_refreshes_reading_export_enablement(
+        self, main_window, db_session
+    ):
+        """`reload_project` (used by Append OE text) must refresh enablement."""
+        project = create_test_project(db_session, name="Reload Enablement", text="")
+        main_window.app_context.current_project_id = project.id
+        main_window.load_project(project)
+
+        project_menu = main_window.main_menu.project_menu
+        assert not project_menu.export_old_english_action.isEnabled()
+
+        create_test_sentence(db_session, project.id, "Hwæt.")
+        db_session.commit()
+
+        main_window.reload_project()
+
+        assert project_menu.export_old_english_action.isEnabled()
 
 
 class TestMainWindowActions:

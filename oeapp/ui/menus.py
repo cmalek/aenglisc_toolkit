@@ -494,8 +494,12 @@ class ProjectMenu:
         Add the "Export" submenu with the project file, Old English, and
         translation reading-text export actions.
         """
+        #: "Export" submenu holding the project file, Old English, and
+        #: translation reading-text export actions.
         self.export_submenu = self.project_menu.addMenu("&Export")
 
+        #: Exports the current project as Project Export JSON (optionally
+        #: gzip-compressed).
         self.export_project_file_action = QAction(
             "&Project file...", self.export_submenu
         )
@@ -504,6 +508,8 @@ class ProjectMenu:
         )
         self.export_submenu.addAction(self.export_project_file_action)
 
+        #: Exports the current project's Old English reading text as UTF-8
+        #: ``.txt``. Disabled when the project has no sentences.
         self.export_old_english_action = QAction(
             "&Old English...", self.export_submenu
         )
@@ -512,6 +518,8 @@ class ProjectMenu:
         )
         self.export_submenu.addAction(self.export_old_english_action)
 
+        #: Exports the current project's translation reading text as UTF-8
+        #: ``.txt``. Disabled when the project has no translated sentences.
         self.export_translation_action = QAction(
             "&Translation...", self.export_submenu
         )

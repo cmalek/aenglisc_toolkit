@@ -434,6 +434,14 @@ class TestProjectImporter:
         with pytest.raises(ValueError, match="Old English Text Export"):
             ProjectImporter().import_project_json(str(path))
 
+    def test_import_rejects_reading_text_dot_text_suffix(
+        self, db_session, tmp_path
+    ) -> None:
+        path = tmp_path / "Beowulf-translation.text"
+        path.write_text("    Listen\n5\n", encoding="utf-8")
+        with pytest.raises(ValueError, match="Old English Text Export"):
+            ProjectImporter().import_project_json(str(path))
+
     def test_import_rejects_non_json_via_all_files(self, db_session, tmp_path) -> None:
         path = tmp_path / "notes-without-suffix"
         path.write_text("plain reading copy", encoding="utf-8")
