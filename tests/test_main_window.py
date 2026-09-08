@@ -63,6 +63,51 @@ class TestMainWindowInitialization:
         assert welcome_label is not None
         assert not welcome_label.isHidden()
 
+    def test_export_old_english_persists_then_writes(
+        self, main_window, db_session, tmp_path, monkeypatch
+    ):
+        """Export should autosave dirty sentences before writing OE text."""
+        from oeapp.models.sentence import Sentence
+        from tests.conftest import create_test_project, create_test_sentence
+
+        project = create_test_project(db_session, name="Save First")
+        sentence = create_test_sentence(db_session, project.id, "Hwæt.")
+        main_window.app_context.current_project_id = project.id
+        main_window.load_project(project)
+        sentence.text_oe = "UNSAVED"
+        db_session.flush()  # dirty in session; autosave/project.save must commit
+
+        out = tmp_path / "Save_First-oe.txt"
+        monkeypatch.setattr(
+            "oeapp.ui.main_window.QFileDialog.getSaveFileName",
+            lambda *_args, **_kwargs: (str(out), "Text Files (*.txt)"),
+        )
+        monkeypatch.setattr(main_window.messages, "show_warning", MagicMock())
+        monkeypatch.setattr(main_window.messages, "show_information", MagicMock())
+        monkeypatch.setattr(main_window.messages, "show_error", MagicMock())
+
+        assert main_window.action_service.export_old_english_text() is True
+        assert out.exists()
+        assert "UNSAVED" in out.read_text(encoding="utf-8")
+        db_session.expire_all()
+        assert Sentence.get(sentence.id).text_oe == "UNSAVED"
+
+    def test_export_old_english_cancel_writes_nothing(
+        self, main_window, db_session, tmp_path, monkeypatch
+    ):
+        """Cancelling the OE export dialog should write no file."""
+        from tests.conftest import create_test_project, create_test_sentence
+
+        project = create_test_project(db_session, name="Cancel OE")
+        create_test_sentence(db_session, project.id, "Hwæt.")
+        main_window.app_context.current_project_id = project.id
+        monkeypatch.setattr(
+            "oeapp.ui.main_window.QFileDialog.getSaveFileName",
+            lambda *_args, **_kwargs: ("", ""),
+        )
+        assert main_window.action_service.export_old_english_text() is False
+        assert list(tmp_path.iterdir()) == []
+
 
 class TestMainWindowActions:
     """Test cases for MainWindowActions logic."""

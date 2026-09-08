@@ -38,6 +38,7 @@ from oeapp.services import (
     MigrationService,
     ProjectExporter,
     ProjectImporter,
+    ReadingTextExporter,
 )
 from oeapp.services.remembered_annotation_service import RememberedAnnotationService
 from oeapp.state import AppContext
@@ -768,6 +769,7 @@ class MainWindow(QMainWindow):
         """
         self.project_ui.load(project)
         self.token_details_sidebar.show_empty()
+        self.main_menu.project_menu.update_reading_export_enabled(project)
 
     def reload_project(self) -> None:
         """
@@ -1340,11 +1342,15 @@ class MainWindowActions:
             self.messages.show_warning("No project open")
             return False
 
+        self.autosave()
+
         # Get project name for default filename
         project = Project.get(target_project_id)
         if project is None:
             self.messages.show_warning("Project not found")
             return False
+
+        self.main_window.main_menu.project_menu.update_reading_export_enabled(project)
 
         default_filename = ProjectExporter.sanitize_filename(project.name) + ".json"
 
@@ -1365,6 +1371,121 @@ class MainWindowActions:
         exporter = ProjectExporter()
         try:
             exporter.export_project_json(target_project_id, file_path)
+        except ValueError as e:
+            self.messages.show_error(str(e), title="Export Error")
+            return False
+
+        self.messages.show_information(
+            f"Project exported successfully to:\n{file_path}",
+            title="Export Successful",
+        )
+        self.messages.show_message("Export completed", duration=3000)
+        return True
+
+    def export_old_english_text(self) -> bool:
+        """
+        Export the current project's Old English reading text to a UTF-8 file.
+
+        Side Effects:
+            Autosaves the current project before rendering, so unsaved edits
+            are included in the exported file.
+
+        Returns:
+            True if export was successful, False if canceled or failed.
+
+        """
+        project_id = self.app_context.current_project_id
+        if not self.app_context.session or project_id is None:
+            self.messages.show_warning("No project open")
+            return False
+
+        self.autosave()
+
+        project = Project.get(project_id)
+        if project is None:
+            self.messages.show_warning("Project not found")
+            return False
+
+        self.main_window.main_menu.project_menu.update_reading_export_enabled(project)
+
+        default_filename = (
+            ProjectExporter.sanitize_filename(project.name) + "-oe.txt"
+        )
+        file_path, _ = QFileDialog.getSaveFileName(
+            self.main_window,
+            "Export Old English Text",
+            default_filename,
+            "Text Files (*.txt);;All Files (*)",
+        )
+
+        # If the user cancels the dialog, do nothing
+        if not file_path:
+            return False
+
+        reading_text_exporter = ReadingTextExporter()
+        text = reading_text_exporter.render_old_english(project)
+        try:
+            reading_text_exporter.write_utf8(Path(file_path), text)
+        except ValueError as e:
+            self.messages.show_error(str(e), title="Export Error")
+            return False
+
+        self.messages.show_information(
+            f"Project exported successfully to:\n{file_path}",
+            title="Export Successful",
+        )
+        self.messages.show_message("Export completed", duration=3000)
+        return True
+
+    def export_translation_text(self) -> bool:
+        """
+        Export the current project's translation reading text to a UTF-8 file.
+
+        Side Effects:
+            Autosaves the current project before rendering, so unsaved edits
+            are included in the exported file.
+
+        Returns:
+            True if export was successful, False if canceled or failed.
+
+        """
+        project_id = self.app_context.current_project_id
+        if not self.app_context.session or project_id is None:
+            self.messages.show_warning("No project open")
+            return False
+
+        self.autosave()
+
+        project = Project.get(project_id)
+        if project is None:
+            self.messages.show_warning("Project not found")
+            return False
+
+        project_menu = self.main_window.main_menu.project_menu
+        project_menu.update_reading_export_enabled(project)
+
+        if not project_menu.export_translation_action.isEnabled():
+            self.messages.show_warning("No translation text to export")
+            return False
+
+        default_filename = (
+            ProjectExporter.sanitize_filename(project.name) + "-translation.txt"
+        )
+        file_path, _ = QFileDialog.getSaveFileName(
+            self.main_window,
+            "Export Translation",
+            default_filename,
+            "Text Files (*.txt);;All Files (*)",
+        )
+
+        # If the user cancels the dialog, do nothing
+        if not file_path:
+            return False
+
+        reading_text_exporter = ReadingTextExporter()
+        text = reading_text_exporter.render_translation(project)
+        try:
+            reading_text_exporter.write_utf8(Path(file_path), text)
         except ValueError as e:
             self.messages.show_error(str(e), title="Export Error")
             return False

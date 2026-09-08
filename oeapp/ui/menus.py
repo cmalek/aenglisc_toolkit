@@ -428,7 +428,7 @@ class ProjectMenu:
     A "Project" menu to be added to the main menu bar with the following actions:
 
     - Append OE text...
-    - Export...
+    - Export (submenu): Project file..., Old English..., Translation...
     - Import...
 
     Args:
@@ -451,6 +451,9 @@ class ProjectMenu:
         #: Main menu instance
         self.main_menu = main_menu
         self.populate()
+        project_id = main_window.app_context.current_project_id
+        current_project = Project.get(project_id) if project_id else None
+        self.update_reading_export_enabled(current_project)
 
     def populate(self) -> None:
         """
@@ -461,7 +464,7 @@ class ProjectMenu:
 
         - Edit Project...
         - Append OE text...
-        - Export...
+        - Export (submenu): Project file..., Old English..., Translation...
         - Import...
         """
         self.project_menu = self.main_menu.add_menu("&Project")
@@ -478,17 +481,65 @@ class ProjectMenu:
 
         self.project_menu.addSeparator()
 
-        export_action = QAction("&Export...", self.project_menu)
-        export_action.triggered.connect(
-            self.main_window.action_service.export_project_json
-        )
-        self.project_menu.addAction(export_action)
+        self._add_export_submenu()
 
         import_action = QAction("&Import...", self.project_menu)
         import_action.triggered.connect(
             self.main_window.action_service.import_project_json
         )
         self.project_menu.addAction(import_action)
+
+    def _add_export_submenu(self) -> None:
+        """
+        Add the "Export" submenu with the project file, Old English, and
+        translation reading-text export actions.
+        """
+        self.export_submenu = self.project_menu.addMenu("&Export")
+
+        self.export_project_file_action = QAction(
+            "&Project file...", self.export_submenu
+        )
+        self.export_project_file_action.triggered.connect(
+            self.main_window.action_service.export_project_json
+        )
+        self.export_submenu.addAction(self.export_project_file_action)
+
+        self.export_old_english_action = QAction(
+            "&Old English...", self.export_submenu
+        )
+        self.export_old_english_action.triggered.connect(
+            self.main_window.action_service.export_old_english_text
+        )
+        self.export_submenu.addAction(self.export_old_english_action)
+
+        self.export_translation_action = QAction(
+            "&Translation...", self.export_submenu
+        )
+        self.export_translation_action.triggered.connect(
+            self.main_window.action_service.export_translation_text
+        )
+        self.export_submenu.addAction(self.export_translation_action)
+
+    def update_reading_export_enabled(self, project: Project | None) -> None:
+        """
+        Enable or disable the Old English and Translation export actions.
+
+        The Old English action requires at least one sentence. The
+        Translation action additionally requires at least one sentence with
+        non-blank ``text_modern``. The Project file export action is always
+        enabled (it warns on click when no project is open).
+
+        Args:
+            project: Current project, or ``None`` when no project is open.
+
+        """
+        sentences = project.sentences if project else []
+        has_sentences = bool(sentences)
+        self.export_old_english_action.setEnabled(has_sentences)
+        has_translation = has_sentences and any(
+            (sentence.text_modern or "").strip() for sentence in sentences
+        )
+        self.export_translation_action.setEnabled(has_translation)
 
 
 class HelpMenu:

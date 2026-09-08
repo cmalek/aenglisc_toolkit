@@ -112,6 +112,39 @@ class TestProjectMenu:
         texts = [a.text() for a in actions]
         assert "&Edit Project..." in texts
 
+    def test_project_menu_export_submenu_items(self, db_session, mock_main_window, qapp):
+        """Project menu should expose an Export submenu with three items."""
+        main_menu = MainMenu(mock_main_window)
+        project_menu = ProjectMenu(main_menu, mock_main_window)
+        texts = [a.text() for a in project_menu.project_menu.actions() if not a.isSeparator()]
+        assert "&Export..." not in texts
+        assert "&Export" in texts
+        child_texts = [a.text() for a in project_menu.export_submenu.actions()]
+        assert child_texts == ["&Project file...", "&Old English...", "&Translation..."]
+
+    def test_reading_export_disabled_without_sentences(
+        self, db_session, mock_main_window, qapp
+    ):
+        """Reading-text export actions should reflect sentence/translation state."""
+        from oeapp.models.project import Project
+        from tests.conftest import create_test_project
+
+        main_menu = MainMenu(mock_main_window)
+        project_menu = ProjectMenu(main_menu, mock_main_window)
+        empty = create_test_project(db_session, name="EmptyMenu", text="")
+        project_menu.update_reading_export_enabled(empty)
+        assert not project_menu.export_old_english_action.isEnabled()
+        assert not project_menu.export_translation_action.isEnabled()
+
+        filled = Project.create(name="FilledMenu", text="Hwæt.")
+        project_menu.update_reading_export_enabled(filled)
+        assert project_menu.export_old_english_action.isEnabled()
+        assert not project_menu.export_translation_action.isEnabled()
+        filled.sentences[0].text_modern = "Lo."
+        db_session.commit()
+        project_menu.update_reading_export_enabled(filled)
+        assert project_menu.export_translation_action.isEnabled()
+
 
 class TestToolsMenu:
     """Test cases for ToolsMenu."""
