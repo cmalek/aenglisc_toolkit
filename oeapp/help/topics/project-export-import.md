@@ -5,13 +5,14 @@
 The Ænglisc Toolkit allows you to export and import entire projects in JSON format. This is useful for:
 
 - Sharing projects with others
-- Creating backups of your work
 - Moving projects between computers
 - Archiving completed projects
 
+Project Export JSON is Toolkit interchange format — not a **Backup** (whole-database recovery).
+
 ## Three Types of Export
 
-The application offers two different export options:
+The application offers three main export paths: File-menu DOCX, Full Translation PDF, and **Project → Export** (three items).
 
 ### DOCX Export (File Menu)
 
@@ -36,26 +37,28 @@ The application offers two different export options:
 
 - **Use when**: You want a polished publication-style copy
 
-### JSON Export (Project Menu)
+### Project Export submenu (Project Menu)
 
-- **Location**: Project → Export...
-- **Format**: JSON file (`.json`) or compressed JSON (`.json.gz`)
-- **Purpose**: Complete project backup, sharing, or migration
-- **Content**: All project data including sentences, tokens, annotations, and notes
-- **Use when**: You want to backup, share, or move the entire project
+- **Location**: Project → Export
+- **Items**:
+  - **Project file...** — JSON (optionally `.json.gz`). Complete project data for sharing between Toolkit installations or archiving that project. This is a Project Export; it can be imported. Default name: `my_project.json`.
+  - **Old English...** — UTF-8 `.txt` reading copy of the Old English text (official titles, verse indent, a line number every five verse lines). No notes or annotations. Default name: `my_project-oe.txt`. Disabled if the project has no sentences.
+  - **Translation...** — UTF-8 `.txt` reading copy of the Modern English translation (same layout rules; empty sentences stay empty). Default name: `my_project-translation.txt`. Disabled if there is no translation yet.
+- **Not for**: side-by-side reading (use File → DOCX Export or Full Translation → Export PDF).
+- **Import**: only Project file JSON / `.json.gz`. Old English and Translation `.txt` files cannot recreate a project.
 
 ## Exporting a Project
 
-### Step-by-Step Instructions
+### Project file export
 
 1. Open the project you want to export
-2. Go to **Project → Export...**
+2. Go to **Project → Export → Project file...**
 3. Choose a location to save the file
 4. The default filename is based on your project name (e.g., `my_project.json`)
-5. Optionally save as `my_project.json.gz` for a much smaller compressed backup
+5. Optionally save as `my_project.json.gz` for a much smaller compressed file
 6. Click **Save**
 
-The export includes:
+The Project file export includes:
 
 - Project name and metadata
 - All sentences in order
@@ -86,11 +89,13 @@ The JSON export is optimized for size while remaining machine-readable:
 ### Step-by-Step Instructions
 
 1. Go to **Project → Import...**
-2. Select the JSON file you want to import
+2. Select the Project Export file you want to import (`.json` or `.json.gz`)
 3. Click **Open**
 4. The project will be imported into your database
 
-Import accepts both plain `.json` files and gzip-compressed `.json.gz` files.
+Import accepts only Project Export JSON: plain `.json` files and gzip-compressed `.json.gz` files.
+
+If you select an Old English Text Export or Translation Export `.txt` file, import fails with an error explaining that those reading copies cannot be imported. Choose a `.json` or `.json.gz` Project file instead.
 
 ### What Happens During Import
 
@@ -131,11 +136,11 @@ If you see a compatibility error, you may need to:
 3. They import it using Project → Import...
 4. Both of you now have identical copies
 
-### Creating Manual Backups
+### Archiving projects outside the database
 
-While automatic backups protect your database, you can also create manual project backups:
+Database **Backup** (whole-database recovery) is separate from Project Export. To keep a portable copy of one project:
 
-1. Export important projects to JSON
+1. Export important projects with **Project → Export → Project file...**
 2. Store the JSON files in a safe location (cloud storage, external drive, etc.)
 3. Import them later if needed
 
@@ -159,7 +164,8 @@ While automatic backups protect your database, you can also create manual projec
 - **File Size**: Exports are compact by default and can be compressed further using `.json.gz`
 - **No Data Loss**: All annotations, notes, and metadata are preserved in the export
 - **One Project Per File**: Each JSON file contains exactly one project
-- **Readable Format**: JSON remains text-based and language-agnostic; use `.json` for readability and `.json.gz` for smallest backups
+- **Readable Format**: JSON remains text-based and language-agnostic; use `.json` for readability and `.json.gz` for the smallest Project Export files
+- **Reading-text exports**: Old English and Translation `.txt` files from Project → Export are for sharing plain text only; they cannot be imported back into the Toolkit
 
 ## Troubleshooting
 
@@ -181,7 +187,7 @@ While automatic backups protect your database, you can also create manual projec
 
 ## Best Practices
 
-1. **Regular Exports**: Export important projects periodically as additional backups
+1. **Regular Project file exports**: Export important projects periodically as portable archives
 2. **Version Control**: Keep track of which application version created each export
 3. **File Naming**: Use descriptive names when exporting (e.g., `beowulf_complete_2024-01-15.json`)
 4. **Storage**: Store exported JSON files in multiple locations for safety
@@ -189,7 +195,7 @@ While automatic backups protect your database, you can also create manual projec
 
 ## Undo Support
 
-> **Undo support:** Many in-editor operations are undoable with `Ctrl+Z` (and redo with `Ctrl+R` / `Ctrl+Shift+R`), but project-level destructive actions are not always undoable. When in doubt, create a backup or JSON export first.
+> **Undo support:** Many in-editor operations are undoable with `Ctrl+Z` (and redo with `Ctrl+R` / `Ctrl+Shift+R`), but project-level destructive actions are not always undoable. When in doubt, run database Backup or export a Project file first.
 
 ## Back to Start Here
 

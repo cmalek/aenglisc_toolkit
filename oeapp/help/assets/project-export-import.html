@@ -50,12 +50,12 @@
 <p>The Ænglisc Toolkit allows you to export and import entire projects in JSON format. This is useful for:</p>
 <ul>
 <li>Sharing projects with others</li>
-<li>Creating backups of your work</li>
 <li>Moving projects between computers</li>
 <li>Archiving completed projects</li>
 </ul>
+<p>Project Export JSON is Toolkit interchange format — not a <strong>Backup</strong> (whole-database recovery).</p>
 <h2>Three Types of Export</h2>
-<p>The application offers two different export options:</p>
+<p>The application offers three main export paths: File-menu DOCX, Full Translation PDF, and <strong>Project → Export</strong> (three items).</p>
 <h3>DOCX Export (File Menu)</h3>
 <ul>
 <li><strong>Location</strong>: File → Export... (or <strong>Ctrl+E</strong>)</li>
@@ -83,25 +83,27 @@
 <p><strong>Use when</strong>: You want a polished publication-style copy</p>
 </li>
 </ul>
-<h3>JSON Export (Project Menu)</h3>
+<h3>Project Export submenu (Project Menu)</h3>
 <ul>
-<li><strong>Location</strong>: Project → Export...</li>
-<li><strong>Format</strong>: JSON file (<code>.json</code>) or compressed JSON (<code>.json.gz</code>)</li>
-<li><strong>Purpose</strong>: Complete project backup, sharing, or migration</li>
-<li><strong>Content</strong>: All project data including sentences, tokens, annotations, and notes</li>
-<li><strong>Use when</strong>: You want to backup, share, or move the entire project</li>
+<li><strong>Location</strong>: Project → Export</li>
+<li><strong>Items</strong>:</li>
+<li><strong>Project file...</strong> — JSON (optionally <code>.json.gz</code>). Complete project data for sharing between Toolkit installations or archiving that project. This is a Project Export; it can be imported. Default name: <code>my_project.json</code>.</li>
+<li><strong>Old English...</strong> — UTF-8 <code>.txt</code> reading copy of the Old English text (official titles, verse indent, a line number every five verse lines). No notes or annotations. Default name: <code>my_project-oe.txt</code>. Disabled if the project has no sentences.</li>
+<li><strong>Translation...</strong> — UTF-8 <code>.txt</code> reading copy of the Modern English translation (same layout rules; empty sentences stay empty). Default name: <code>my_project-translation.txt</code>. Disabled if there is no translation yet.</li>
+<li><strong>Not for</strong>: side-by-side reading (use File → DOCX Export or Full Translation → Export PDF).</li>
+<li><strong>Import</strong>: only Project file JSON / <code>.json.gz</code>. Old English and Translation <code>.txt</code> files cannot recreate a project.</li>
 </ul>
 <h2>Exporting a Project</h2>
-<h3>Step-by-Step Instructions</h3>
+<h3>Project file export</h3>
 <ol>
 <li>Open the project you want to export</li>
-<li>Go to <strong>Project → Export...</strong></li>
+<li>Go to <strong>Project → Export → Project file...</strong></li>
 <li>Choose a location to save the file</li>
 <li>The default filename is based on your project name (e.g., <code>my_project.json</code>)</li>
-<li>Optionally save as <code>my_project.json.gz</code> for a much smaller compressed backup</li>
+<li>Optionally save as <code>my_project.json.gz</code> for a much smaller compressed file</li>
 <li>Click <strong>Save</strong></li>
 </ol>
-<p>The export includes:</p>
+<p>The Project file export includes:</p>
 <ul>
 <li>Project name and metadata</li>
 <li>All sentences in order</li>
@@ -130,11 +132,12 @@
 <h3>Step-by-Step Instructions</h3>
 <ol>
 <li>Go to <strong>Project → Import...</strong></li>
-<li>Select the JSON file you want to import</li>
+<li>Select the Project Export file you want to import (<code>.json</code> or <code>.json.gz</code>)</li>
 <li>Click <strong>Open</strong></li>
 <li>The project will be imported into your database</li>
 </ol>
-<p>Import accepts both plain <code>.json</code> files and gzip-compressed <code>.json.gz</code> files.</p>
+<p>Import accepts only Project Export JSON: plain <code>.json</code> files and gzip-compressed <code>.json.gz</code> files.</p>
+<p>If you select an Old English Text Export or Translation Export <code>.txt</code> file, import fails with an error explaining that those reading copies cannot be imported. Choose a <code>.json</code> or <code>.json.gz</code> Project file instead.</p>
 <h3>What Happens During Import</h3>
 <ol>
 <li><strong>Version Check</strong>: The application checks if the export file is compatible with the current version</li>
@@ -170,10 +173,10 @@
 <li>They import it using Project → Import...</li>
 <li>Both of you now have identical copies</li>
 </ol>
-<h3>Creating Manual Backups</h3>
-<p>While automatic backups protect your database, you can also create manual project backups:</p>
+<h3>Archiving projects outside the database</h3>
+<p>Database <strong>Backup</strong> (whole-database recovery) is separate from Project Export. To keep a portable copy of one project:</p>
 <ol>
-<li>Export important projects to JSON</li>
+<li>Export important projects with <strong>Project → Export → Project file...</strong></li>
 <li>Store the JSON files in a safe location (cloud storage, external drive, etc.)</li>
 <li>Import them later if needed</li>
 </ol>
@@ -197,7 +200,8 @@
 <li><strong>File Size</strong>: Exports are compact by default and can be compressed further using <code>.json.gz</code></li>
 <li><strong>No Data Loss</strong>: All annotations, notes, and metadata are preserved in the export</li>
 <li><strong>One Project Per File</strong>: Each JSON file contains exactly one project</li>
-<li><strong>Readable Format</strong>: JSON remains text-based and language-agnostic; use <code>.json</code> for readability and <code>.json.gz</code> for smallest backups</li>
+<li><strong>Readable Format</strong>: JSON remains text-based and language-agnostic; use <code>.json</code> for readability and <code>.json.gz</code> for the smallest Project Export files</li>
+<li><strong>Reading-text exports</strong>: Old English and Translation <code>.txt</code> files from Project → Export are for sharing plain text only; they cannot be imported back into the Toolkit</li>
 </ul>
 <h2>Troubleshooting</h2>
 <p><strong>Problem</strong>: Import fails with "migration version incompatible" error</p>
@@ -218,7 +222,7 @@
 </ul>
 <h2>Best Practices</h2>
 <ol>
-<li><strong>Regular Exports</strong>: Export important projects periodically as additional backups</li>
+<li><strong>Regular Project file exports</strong>: Export important projects periodically as portable archives</li>
 <li><strong>Version Control</strong>: Keep track of which application version created each export</li>
 <li><strong>File Naming</strong>: Use descriptive names when exporting (e.g., <code>beowulf_complete_2024-01-15.json</code>)</li>
 <li><strong>Storage</strong>: Store exported JSON files in multiple locations for safety</li>
@@ -226,7 +230,7 @@
 </ol>
 <h2>Undo Support</h2>
 <blockquote>
-<p><strong>Undo support:</strong> Many in-editor operations are undoable with <code>Ctrl+Z</code> (and redo with <code>Ctrl+R</code> / <code>Ctrl+Shift+R</code>), but project-level destructive actions are not always undoable. When in doubt, create a backup or JSON export first.</p>
+<p><strong>Undo support:</strong> Many in-editor operations are undoable with <code>Ctrl+Z</code> (and redo with <code>Ctrl+R</code> / <code>Ctrl+Shift+R</code>), but project-level destructive actions are not always undoable. When in doubt, run database Backup or export a Project file first.</p>
 </blockquote>
 <h2>Back to Start Here</h2>
 <ul>
