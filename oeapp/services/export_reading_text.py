@@ -115,9 +115,13 @@ class ReadingTextExporter:
             if sentence.is_verse and body:
                 body = self._indent_verse_body(body)
             parts.append(body)
+            if sentence.is_verse and not (previous is not None and previous.is_verse):
+                # A new verse run starts after prose (or at the very start of
+                # the document): number this run 5, 10, ... independently of
+                # any earlier run's leftover count.
+                verse_line_count = 0
             marker, verse_line_count = self._verse_number_marker(
                 sentence,
-                body,
                 verse_line_count,
                 translation=translation,
             )
@@ -144,17 +148,23 @@ class ReadingTextExporter:
     def _verse_number_marker(
         self,
         sentence: Sentence,
-        body: str,
         verse_line_count: int,
         *,
         translation: bool,
     ) -> tuple[str, int]:
         """
-        Advance the verse-line counter and optionally emit a number.
+        Advance the verse-line counter and optionally emit crossed numbers.
+
+        Line counting always uses the sentence's unindented ``text_oe``, even
+        on a Translation render, so a short Modern English body never
+        under-counts verse lines. A number is emitted for every multiple of
+        :attr:`VERSE_NUMBER_INTERVAL` that this stanza's lines cross, not
+        only when the running total lands exactly on a multiple, so a short
+        stanza that leaves the total off-multiple does not permanently stop
+        numbering.
 
         Args:
             sentence: Current sentence.
-            body: Rendered body (possibly indented).
             verse_line_count: Running count of verse lines so far.
 
         Keyword Args:
@@ -166,14 +176,31 @@ class ReadingTextExporter:
         """
         if not sentence.is_verse:
             return "", verse_line_count
-        line_count = len(body.split("\n")) if body else 0
-        verse_line_count += line_count
+        line_count = len(sentence.text_oe.split("\n")) if sentence.text_oe else 0
+        if not line_count:
+            return "", verse_line_count
+        before = verse_line_count
+        verse_line_count = before + line_count
         modern = (sentence.text_modern or "").strip()
         skip_empty_translation = translation and not modern
-        if (
-            line_count
-            and verse_line_count % self.VERSE_NUMBER_INTERVAL == 0
-            and not skip_empty_translation
-        ):
-            return f"\n{verse_line_count}", verse_line_count
+        crossed = self._crossed_multiples(before, verse_line_count)
+        if crossed and not skip_empty_translation:
+            marker = "".join(f"\n{number}" for number in crossed)
+            return marker, verse_line_count
         return "", verse_line_count
+
+    def _crossed_multiples(self, before: int, after: int) -> list[int]:
+        """
+        List multiples of :attr:`VERSE_NUMBER_INTERVAL` crossed by an increase.
+
+        Args:
+            before: Running verse-line count before this stanza.
+            after: Running verse-line count after this stanza.
+
+        Returns:
+            Multiples of :attr:`VERSE_NUMBER_INTERVAL` in ``(before, after]``.
+
+        """
+        interval = self.VERSE_NUMBER_INTERVAL
+        first = (before // interval + 1) * interval
+        return list(range(first, after + 1, interval))
