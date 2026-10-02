@@ -438,6 +438,12 @@ class AnnotationLookupsMixin(ThemeMixin):
 
     #: Color for idiom highlighting mode (pale magenta)
     IDIOM_HIGHLIGHT_COLOR: Final[QColor] = QColor(255, 200, 255)
+    #: Color for the selected token or span (translucent yellow)
+    SPAN_COLOR: Final[QColor] = QColor(200, 200, 0, 150)
+    #: Color for the selected idiom span (translucent pale magenta)
+    SPAN_IDIOM_COLOR: Final[QColor] = QColor(255, 200, 255, 150)
+    #: Color for search matches (bright yellow)
+    SEARCH_COLOR: Final[QColor] = QColor(255, 255, 0)
 
     def color_map(self, color_map_name: str) -> dict[str | None, QColor]:
         """
