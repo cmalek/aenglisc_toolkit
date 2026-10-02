@@ -1,8 +1,4 @@
 import pytest
-from PySide6.QtGui import QColor, QTextFormat
-from PySide6.QtWidgets import QComboBox, QLineEdit, QTextEdit
-from PySide6.QtWidgets import QTextEdit as PlainTextEdit
-
 from oeapp.commands import CommandManager
 from oeapp.models.annotation import Annotation
 from oeapp.models.idiom import Idiom
@@ -16,10 +12,14 @@ from oeapp.ui.highlight_layers import (
     HighlightStyle,
 )
 from oeapp.ui.highlighting import SearchHighlighter
-from oeapp.ui.search_controller import normalized_oe_query
 from oeapp.ui.mixins import AnnotationLookupsMixin, ThemeMixin
 from oeapp.ui.oe_text_edit import OldEnglishTextEdit
+from oeapp.ui.search_controller import normalized_oe_query
 from oeapp.ui.sentence_card import SentenceCard
+from PySide6.QtGui import QTextFormat
+from PySide6.QtWidgets import QComboBox, QLineEdit
+from PySide6.QtWidgets import QTextEdit as PlainTextEdit
+
 from tests.conftest import create_test_project
 
 

@@ -107,20 +107,22 @@ D6 — Layers are declarative, token-anchored and theme-resolved
 --------------------------------------------------------------
 
 A layer entry is ``(first_token_id, last_token_id, style)``. It carries no
-cursor, no document offset and no concrete colour. ``style`` is a semantic key
-(for example ``MODE_POS``, ``MODE_IDIOM``, ``SPAN``, ``SPAN_IDIOM``,
-``SEARCH``). At compose time the editor resolves:
+cursor, no document offset and no concrete colour. ``style`` is a
+``HighlightStyle(source, key)``: the name of an ``AnnotationLookupsMixin``
+colour map plus a key (for example ``HighlightStyle("POS_COLORS", "N")``), or
+the name of a single colour constant (for example
+``HighlightStyle("SPAN_COLOR")``). At compose time the editor resolves:
 
 - Offsets, through ``OldEnglishTextEdit.token_to_position``, which
   ``render_token`` fills in as it renders:
   ``start = token_to_position[first_token_id][0]`` and
   ``end = token_to_position[last_token_id][1]``.
 - The character format, from the style key against the current palette,
-  including the dark-theme foreground that ``highlight_positions`` sets today.
+  including the dark-theme foreground that the old ``highlight_positions`` set.
 
-Mode entries are one per token (``first == last``). Span entries for an idiom
-or note span use its end tokens, so the highlight covers any superscripts
-between them. An entry whose token id is missing from the map, for example
+Mode entries are one per token (``first == last``). Span entries are also one per
+token, as today, so note superscripts between tokens stay unhighlighted; the
+``(first, last)`` shape allows a contiguous run if a future layer needs one. An entry whose token id is missing from the map, for example
 after a split or delete, is skipped.
 
 Because styles resolve at compose time, a live theme switch needs only
@@ -165,9 +167,10 @@ own layer:
 - ``SearchHighlighter.clear_highlight`` clears the search layer.
 
 Highlighter commands build entries and no longer build ``QTextCursor``
-selections. The property tags ``1001`` and ``1002``, ``existing_selections``,
-and the merge code in ``set_highlights`` and ``set_existing_selections`` are
-removed. The public ``highlight()`` and ``unhighlight()`` names are kept so
+selections. The property tag ``1001``, ``existing_selections``, and the merge
+code in ``set_highlights`` and ``set_existing_selections`` are removed. Tag
+``1002`` (``SEARCH_HIGHLIGHT_PROPERTY``) stays, because the direct path for
+editors without layers still uses it. The public ``highlight()`` and ``unhighlight()`` names are kept so
 callers do not change.
 
 Consequences
@@ -203,9 +206,9 @@ Consequences
 Open questions
 ==============
 
-- Whether the span layer is ever used for a whole-sentence note. The entry
-  shape assumes a token or span target; verify before implementing, and add a
-  whole-sentence form if it is.
+None. The span layer is only ever set from token order ranges (token click,
+range selection, idiom, note), so the token-run entry shape is sufficient and no
+whole-sentence form is needed.
 
 Alternatives considered
 =======================

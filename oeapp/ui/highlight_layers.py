@@ -88,6 +88,13 @@ class HighlightLayers:
     """
 
     def __init__(self, editor: "OldEnglishTextEdit") -> None:
+        """
+        Initialize the instance.
+
+        Args:
+            editor: The editor whose layers this object manages.
+
+        """
         #: The editor whose layers we manage
         self.editor = editor
         #: Palette and colour lookups
