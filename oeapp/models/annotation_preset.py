@@ -38,6 +38,16 @@ class AnnotationPreset(SaveDeleteMixin, Base):
             "verb_transitivity IN ('transitive','intransitive')",
             name="ck_annotation_presets_verb_transitivity",
         ),
+        CheckConstraint(
+            "declension IN ('s','w','o','i','u','ja','jo','wa','wo','pu','r',"
+            "'i-mut','er','nd','th')",
+            name="ck_annotation_presets_declension",
+        ),
+        CheckConstraint(
+            "verb_class IN ('a','w1','w2','w3','pp',"
+            "'s1','s2','s3','s4','s5','s6','s7')",
+            name="ck_annotation_presets_verb_class",
+        ),
     )
 
     #: The preset ID.
