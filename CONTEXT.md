@@ -135,6 +135,12 @@ A named, reusable bundle of annotation field values for a given POS, applied
 manually when filling the annotation form.
 _Avoid_: Template (unscoped), remembered annotation, default
 
+**POS Field Catalog**:
+The single definition, per part of speech, of which annotation fields exist,
+their canonical labels, and their order. The annotation form, the preset form,
+and the token details view all present the same catalog.
+_Avoid_: Field list, form schema, field specs (per-surface copies)
+
 **Remembered Annotation**:
 A token-only annotation template keyed by exact surface text, scoped globally
 or to one project, used to batch-apply the same analysis to matching tokens.
