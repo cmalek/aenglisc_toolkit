@@ -653,53 +653,6 @@ class AnnotationPresetManagementDialog(AnnotationLookupsMixin, SessionMixin, QDi
         if manager:
             manager.load_from_values(field_values)
 
-    def _extract_combo_value(self, idx: int, reverse_map: dict) -> str | bool | None:
-        """
-        Compatibility helper retained for direct unit tests.
-
-        Args:
-            idx: Index to extract the value from
-            reverse_map: Dictionary to map the index to the value
-
-        Returns:
-            The value for the index, if found
-
-        """
-        if idx == 0:
-            return None
-        if idx == 1:
-            return CLEAR_SENTINEL
-        return reverse_map.get(idx - 1)
-
-    def _set_combo_value(
-        self,
-        combo: QComboBox,
-        value: str | bool | None,
-        reverse_map: dict[int, str | bool],
-    ) -> None:
-        """
-        Compatibility helper retained for direct unit tests.
-
-        Args:
-            combo: Combo.
-            value: Value.
-            reverse_map: Reverse map.
-
-        """
-        if value is None:
-            combo.setCurrentIndex(0)
-            return
-        if value == CLEAR_SENTINEL:
-            combo.setCurrentIndex(1)
-            return
-
-        code_to_original_index = {v: k for k, v in reverse_map.items()}
-        original_index = code_to_original_index.get(value)
-        if original_index is not None:
-            combo.setCurrentIndex(original_index + 1)
-        else:
-            combo.setCurrentIndex(0)
-
     def _clear_preset_form(self, pos: str) -> None:
         """
         Clear one tab form (name and managed combo fields).

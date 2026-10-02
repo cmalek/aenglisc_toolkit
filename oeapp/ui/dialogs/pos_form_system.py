@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 from PySide6.QtWidgets import (
@@ -16,7 +15,7 @@ from PySide6.QtWidgets import (
 
 from oeapp.models import Annotation
 from oeapp.ui.mixins import AnnotationLookupsMixin
-from oeapp.ui.pos_field_catalog import PosFieldCatalog
+from oeapp.ui.pos_field_catalog import PosField, PosFieldCatalog
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -25,24 +24,6 @@ if TYPE_CHECKING:
 
 #: Sentinel value to represent an explicit "Clear" field selection in presets.
 CLEAR_SENTINEL = "__CLEAR__"
-
-
-@dataclass(frozen=True)
-class PosFieldSpec:
-    """Describe one rendered POS field."""
-
-    #: Attr.
-    attr: str
-    #: Label.
-    label: str
-    #: Lookup map.
-    lookup_map: Mapping[Any, str] | None = None
-    #: Editable.
-    editable: bool = False
-    #: Object name.
-    object_name: str | None = None
-    #: Preset clear mode.
-    preset_clear_mode: bool = True
 
 
 class PartOfSpeechFieldsBase(AnnotationLookupsMixin):
@@ -515,103 +496,77 @@ class AnnotationPosFormManager:
 
 class PresetPartOfSpeechFieldsBase(AnnotationLookupsMixin):
     """
-    Base class for preset-dialog POS field groups.
+    Preset-dialog POS field group built from the POS field catalog.
 
     Args:
         layout: Layout.
         parent_widget: Parent widget.
+        pos: Part of speech code.
 
     """
 
-    #: Part of speech.
-    PART_OF_SPEECH: str = ""
-    #: Field specs.
-    FIELD_SPECS: ClassVar[tuple[PosFieldSpec, ...]] = ()
-    #: Preset verb boolean map.
-    PRESET_VERB_BOOLEAN_MAP: ClassVar[dict[bool | None, str]] = {
-        None: "",
-        False: "No",
-        True: "Yes",
-    }
-    #: Preset verb transitivity map.
-    PRESET_VERB_TRANSITIVITY_MAP: ClassVar[dict[str | None, str]] = {
-        None: "",
-        "transitive": "Transitive",
-        "intransitive": "Intransitive",
-    }
-
-    def __init__(self, layout: QFormLayout, parent_widget: QWidget) -> None:
+    def __init__(self, layout: QFormLayout, parent_widget: QWidget, pos: str) -> None:
         """
         Initialize the instance.
 
         Args:
             layout: Layout.
             parent_widget: Parent widget.
+            pos: Part of speech code.
 
         """
         #: Layout.
         self.layout = layout
         #: Parent widget.
         self.parent_widget = parent_widget
+        #: Part of speech code.
+        self.pos = pos
         #: Fields.
         self.fields: dict[str, QComboBox] = {}
         #: Specs by attr.
-        self._specs_by_attr: dict[str, PosFieldSpec] = {}
+        self._specs_by_attr: dict[str, PosField] = {}
         #: Code to index map.
         self.code_to_index_map: dict[str, dict[Any, int]] = {}
         #: Index to code map.
         self.index_to_code_map: dict[str, dict[int, Any]] = {}
 
     def build(self) -> None:
-        """Build all configured preset fields."""
-        for spec in self.FIELD_SPECS:
-            self._specs_by_attr[spec.attr] = spec
-            self._add_field(spec)
+        """Build one combo per catalog field for this preset POS."""
+        for field in PosFieldCatalog.fields(self.pos):
+            self._specs_by_attr[field.attr] = field
+            self._add_field(field)
 
-    def _add_field(self, spec: PosFieldSpec) -> None:
+    def _add_field(self, field: PosField) -> None:
         """
-        Add field.
+        Add one code-mapped combo for a catalog field.
 
         Args:
-            spec: Spec.
+            field: The catalog field to render.
 
         """
         combo = QComboBox(self.parent_widget)
-        if spec.object_name:
-            combo.setObjectName(spec.object_name)
+        combo.setObjectName(f"{self.pos.lower()}_{field.attr}_combo")
+        combo.addItem("")
+        offset = 1
+        if field.preset_clear_mode:
+            combo.addItem("Clear")
+            offset = 2
 
-        if spec.editable:
-            combo.setEditable(True)
-            values = list(spec.lookup_map.values()) if spec.lookup_map else [""]
-            combo.addItems([str(value) for value in values])
-        else:
-            combo.addItem("")
-            if spec.preset_clear_mode:
-                combo.addItem("Clear")
-                offset = 2
-            else:
-                offset = 1
+        codes = list(field.lookup_map.keys())
+        values = list(field.lookup_map.values())
+        if values and values[0] == "":
+            codes = codes[1:]
+            values = values[1:]
 
-            if not spec.lookup_map:
-                msg = f"Field '{spec.attr}' is missing lookup_map"
-                raise ValueError(msg)
-
-            codes = list(spec.lookup_map.keys())
-            values = list(spec.lookup_map.values())
-            if values and values[0] == "":
-                codes = codes[1:]
-                values = values[1:]
-
-            combo.addItems([str(value) for value in values])
-            self.code_to_index_map[spec.attr] = {
-                code: index for index, code in enumerate(codes, start=offset)
-            }
-            self.index_to_code_map[spec.attr] = {
-                index: code for code, index in self.code_to_index_map[spec.attr].items()
-            }
-
-        self.fields[spec.attr] = combo
-        self.layout.addRow(spec.label, combo)
+        combo.addItems([str(value) for value in values])
+        self.code_to_index_map[field.attr] = {
+            code: index for index, code in enumerate(codes, start=offset)
+        }
+        self.index_to_code_map[field.attr] = {
+            index: code for code, index in self.code_to_index_map[field.attr].items()
+        }
+        self.fields[field.attr] = combo
+        self.layout.addRow(f"{field.label}:", combo)
 
     def reset(self) -> None:
         """Reset rendered preset combos to empty."""
@@ -631,269 +586,31 @@ class PresetPartOfSpeechFieldsBase(AnnotationLookupsMixin):
             combo = self.fields.get(attr)
             if not spec or not combo:
                 continue
-
-            if spec.editable:
-                combo.setCurrentText(str(value) if value else "")
-                continue
-
             if value is None:
                 combo.setCurrentIndex(0)
-                continue
-
-            if spec.preset_clear_mode and value == CLEAR_SENTINEL:
+            elif spec.preset_clear_mode and value == CLEAR_SENTINEL:
                 combo.setCurrentIndex(1)
-                continue
-
-            combo.setCurrentIndex(self.code_to_index_map[attr].get(value, 0))
+            else:
+                combo.setCurrentIndex(self.code_to_index_map[attr].get(value, 0))
 
     def extract_values(self) -> dict[str, str | bool | None]:
         """
         Extract preset values with empty/clear semantics.
 
         Returns:
-            The computed value.
+            Field values keyed by attribute; ``None`` for blank.
 
         """
         extracted: dict[str, str | bool | None] = {}
         for attr, spec in self._specs_by_attr.items():
-            combo = self.fields[attr]
-            if spec.editable:
-                text = combo.currentText().strip()
-                extracted[attr] = text or None
-                continue
-
-            index = combo.currentIndex()
+            index = self.fields[attr].currentIndex()
             if index == 0:
                 extracted[attr] = None
-                continue
-            if spec.preset_clear_mode and index == 1:
+            elif spec.preset_clear_mode and index == 1:
                 extracted[attr] = CLEAR_SENTINEL
-                continue
-            extracted[attr] = self.index_to_code_map[attr].get(index)
-
+            else:
+                extracted[attr] = self.index_to_code_map[attr].get(index)
         return extracted
-
-
-class PresetNounFields(PresetPartOfSpeechFieldsBase):
-    """Preset fields for noun POS."""
-
-    #: Part of speech.
-    PART_OF_SPEECH = "N"
-    #: Field specs.
-    FIELD_SPECS: ClassVar[tuple[PosFieldSpec, ...]] = (
-        PosFieldSpec(
-            "gender",
-            "Gender:",
-            PresetPartOfSpeechFieldsBase.GENDER_MAP,
-            object_name="gender_combo",
-        ),
-        PosFieldSpec(
-            "number",
-            "Number:",
-            PresetPartOfSpeechFieldsBase.NUMBER_MAP,
-            object_name="number_combo",
-        ),
-        PosFieldSpec(
-            "case",
-            "Case:",
-            PresetPartOfSpeechFieldsBase.CASE_MAP,
-            object_name="case_combo",
-        ),
-        PosFieldSpec(
-            "declension",
-            "Declension:",
-            PresetPartOfSpeechFieldsBase.DECLENSION_MAP,
-            editable=True,
-            object_name="declension_combo",
-            preset_clear_mode=False,
-        ),
-    )
-
-
-class PresetVerbFields(PresetPartOfSpeechFieldsBase):
-    """Preset fields for verb POS."""
-
-    #: Part of speech.
-    PART_OF_SPEECH = "V"
-    #: Field specs.
-    FIELD_SPECS: ClassVar[tuple[PosFieldSpec, ...]] = (
-        PosFieldSpec(
-            "verb_class",
-            "Class:",
-            PresetPartOfSpeechFieldsBase.VERB_CLASS_MAP,
-            editable=True,
-            object_name="verb_class_combo",
-            preset_clear_mode=False,
-        ),
-        PosFieldSpec(
-            "verb_tense",
-            "Tense:",
-            PresetPartOfSpeechFieldsBase.VERB_TENSE_MAP,
-            object_name="verb_tense_combo",
-        ),
-        PosFieldSpec(
-            "verb_mood",
-            "Mood:",
-            PresetPartOfSpeechFieldsBase.VERB_MOOD_MAP,
-            object_name="verb_mood_combo",
-        ),
-        PosFieldSpec(
-            "verb_person",
-            "Person:",
-            PresetPartOfSpeechFieldsBase.VERB_PERSON_MAP,
-            object_name="verb_person_combo",
-        ),
-        PosFieldSpec(
-            "number",
-            "Number:",
-            PresetPartOfSpeechFieldsBase.NUMBER_MAP,
-            object_name="verb_number_combo",
-        ),
-        PosFieldSpec(
-            "verb_aspect",
-            "Aspect:",
-            PresetPartOfSpeechFieldsBase.VERB_ASPECT_MAP,
-            object_name="verb_aspect_combo",
-        ),
-        PosFieldSpec(
-            "verb_form",
-            "Form:",
-            PresetPartOfSpeechFieldsBase.VERB_FORM_MAP,
-            object_name="verb_form_combo",
-        ),
-        PosFieldSpec(
-            "verb_direct_object_case",
-            "Direct Object Case:",
-            PresetPartOfSpeechFieldsBase.VERB_DIRECT_OBJECT_CASE_MAP,
-            object_name="verb_direct_object_case_combo",
-        ),
-        PosFieldSpec(
-            "verb_requires_infinitive",
-            "Requires Infinitive:",
-            PresetPartOfSpeechFieldsBase.PRESET_VERB_BOOLEAN_MAP,
-            object_name="verb_requires_infinitive_combo",
-        ),
-        PosFieldSpec(
-            "verb_impersonal",
-            "Impersonal:",
-            PresetPartOfSpeechFieldsBase.PRESET_VERB_BOOLEAN_MAP,
-            object_name="verb_impersonal_combo",
-        ),
-        PosFieldSpec(
-            "verb_transitivity",
-            "Transitivity:",
-            PresetPartOfSpeechFieldsBase.PRESET_VERB_TRANSITIVITY_MAP,
-            object_name="verb_transitivity_combo",
-        ),
-    )
-
-
-class PresetAdjectiveFields(PresetPartOfSpeechFieldsBase):
-    """Preset fields for adjective POS."""
-
-    #: Part of speech.
-    PART_OF_SPEECH = "A"
-    #: Field specs.
-    FIELD_SPECS: ClassVar[tuple[PosFieldSpec, ...]] = (
-        PosFieldSpec(
-            "adjective_degree",
-            "Degree:",
-            PresetPartOfSpeechFieldsBase.ADJECTIVE_DEGREE_MAP,
-            object_name="adj_degree_combo",
-        ),
-        PosFieldSpec(
-            "adjective_inflection",
-            "Inflection:",
-            PresetPartOfSpeechFieldsBase.ADJECTIVE_INFLECTION_MAP,
-            object_name="adj_inflection_combo",
-        ),
-        PosFieldSpec(
-            "gender",
-            "Gender:",
-            PresetPartOfSpeechFieldsBase.GENDER_MAP,
-            object_name="adj_gender_combo",
-        ),
-        PosFieldSpec(
-            "number",
-            "Number:",
-            PresetPartOfSpeechFieldsBase.NUMBER_MAP,
-            object_name="adj_number_combo",
-        ),
-        PosFieldSpec(
-            "case",
-            "Case:",
-            PresetPartOfSpeechFieldsBase.CASE_MAP,
-            object_name="adj_case_combo",
-        ),
-    )
-
-
-class PresetPronounFields(PresetPartOfSpeechFieldsBase):
-    """Preset fields for pronoun POS."""
-
-    #: Part of speech.
-    PART_OF_SPEECH = "R"
-    #: Field specs.
-    FIELD_SPECS: ClassVar[tuple[PosFieldSpec, ...]] = (
-        PosFieldSpec(
-            "pronoun_type",
-            "Type:",
-            PresetPartOfSpeechFieldsBase.PRONOUN_TYPE_MAP,
-            object_name="pro_type_combo",
-        ),
-        PosFieldSpec(
-            "gender",
-            "Gender:",
-            PresetPartOfSpeechFieldsBase.GENDER_MAP,
-            object_name="pro_gender_combo",
-        ),
-        PosFieldSpec(
-            "pronoun_number",
-            "Number:",
-            PresetPartOfSpeechFieldsBase.PRONOUN_NUMBER_MAP,
-            object_name="pro_number_combo",
-        ),
-        PosFieldSpec(
-            "case",
-            "Case:",
-            PresetPartOfSpeechFieldsBase.CASE_MAP,
-            object_name="pro_case_combo",
-        ),
-    )
-
-
-class PresetArticleFields(PresetPartOfSpeechFieldsBase):
-    """Preset fields for article POS."""
-
-    #: Part of speech.
-    PART_OF_SPEECH = "D"
-    #: Field specs.
-    FIELD_SPECS: ClassVar[tuple[PosFieldSpec, ...]] = (
-        PosFieldSpec(
-            "article_type",
-            "Type:",
-            PresetPartOfSpeechFieldsBase.ARTICLE_TYPE_MAP,
-            object_name="article_type_combo",
-        ),
-        PosFieldSpec(
-            "gender",
-            "Gender:",
-            PresetPartOfSpeechFieldsBase.GENDER_MAP,
-            object_name="article_gender_combo",
-        ),
-        PosFieldSpec(
-            "number",
-            "Number:",
-            PresetPartOfSpeechFieldsBase.NUMBER_MAP,
-            object_name="article_number_combo",
-        ),
-        PosFieldSpec(
-            "case",
-            "Case:",
-            PresetPartOfSpeechFieldsBase.CASE_MAP,
-            object_name="article_case_combo",
-        ),
-    )
 
 
 class PresetPosFormManager:
@@ -906,15 +623,6 @@ class PresetPosFormManager:
         parent_widget: Parent widget.
 
     """
-
-    #: Pos field classes.
-    POS_FIELD_CLASSES: ClassVar[dict[str, type[PresetPartOfSpeechFieldsBase]]] = {
-        "N": PresetNounFields,
-        "V": PresetVerbFields,
-        "A": PresetAdjectiveFields,
-        "R": PresetPronounFields,
-        "D": PresetArticleFields,
-    }
 
     def __init__(
         self,
@@ -931,7 +639,7 @@ class PresetPosFormManager:
             parent_widget: Parent widget.
 
         """
-        if pos not in self.POS_FIELD_CLASSES:
+        if not PosFieldCatalog.preset_supported(pos):
             msg = f"Unsupported preset Part of Speech: {pos}"
             raise ValueError(msg)
         #: Pos.
@@ -941,7 +649,7 @@ class PresetPosFormManager:
         #: Parent widget.
         self.parent_widget = parent_widget
         #: Current.
-        self.current = self.POS_FIELD_CLASSES[pos](form_layout, parent_widget)
+        self.current = PresetPartOfSpeechFieldsBase(form_layout, parent_widget, pos)
         self.current.build()
 
     def reset(self) -> None:

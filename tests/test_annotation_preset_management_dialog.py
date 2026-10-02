@@ -164,25 +164,6 @@ class TestAnnotationPresetManagementDialog:
         if case_combo.count() > 2:
             assert field_values.get("case") is not None
 
-    def test_set_combo_value_sets_empty_for_none(self, qapp, db_session):
-        """Test that setting None value sets combo to empty (index 0), not 'Clear' (index 1).
-
-        When loading a preset with None, it should show as empty (index 0), not "Clear" (index 1).
-        "Clear" is only used when explicitly clearing a field when applying a preset.
-        """
-        from oeapp.ui.dialogs import AnnotationPresetManagementDialog
-
-        dialog = AnnotationPresetManagementDialog(
-            save_mode=True, initial_pos="N"
-        )
-        gender_combo = _field(dialog, "gender")
-
-        if gender_combo.count() > 2:
-            gender_combo.setCurrentIndex(2)
-            dialog._set_combo_value(gender_combo, None, dialog.GENDER_REVERSE_MAP)
-            assert gender_combo.currentIndex() == 0
-            assert gender_combo.currentText() == ""
-
     def test_save_preset_with_clear_values(self, qapp, db_session):
         """Test saving a preset with 'Clear' selected for some fields."""
         from oeapp.ui.dialogs import AnnotationPresetManagementDialog
@@ -210,29 +191,6 @@ class TestAnnotationPresetManagementDialog:
         assert preset.gender is None
         if number_combo.count() > 2:
             assert preset.number is not None
-
-    def test_set_combo_value_sets_actual_values_correctly(self, qapp, db_session):
-        """Test that setting actual values (not None) sets combo to correct index."""
-        from oeapp.ui.dialogs import AnnotationPresetManagementDialog
-
-        dialog = AnnotationPresetManagementDialog(
-            save_mode=True, initial_pos="N"
-        )
-        gender_combo = _field(dialog, "gender")
-        number_combo = _field(dialog, "number")
-        case_combo = _field(dialog, "case")
-
-        dialog._set_combo_value(gender_combo, "m", dialog.GENDER_REVERSE_MAP)
-        assert gender_combo.currentIndex() == 2
-        assert "Masculine" in gender_combo.currentText()
-
-        dialog._set_combo_value(number_combo, "s", dialog.NUMBER_REVERSE_MAP)
-        assert number_combo.currentIndex() == 2
-        assert "Singular" in number_combo.currentText()
-
-        dialog._set_combo_value(case_combo, "d", dialog.CASE_REVERSE_MAP)
-        assert case_combo.currentIndex() == 5
-        assert "Dative" in case_combo.currentText()
 
     def test_save_mode_verb_metadata_defaults_are_persisted(self, qapp, db_session):
         """Verb preset save mode should persist new verb metadata defaults."""
