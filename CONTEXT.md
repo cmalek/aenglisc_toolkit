@@ -206,6 +206,34 @@ Old English Text Export, without notes, annotation markup, or empty-sentence
 placeholders.
 _Avoid_: Combined, ModE dump, meaning export
 
+### Highlighting
+
+**Highlighting Mode**:
+The single choice, made from a drop-down on the sentence card, of what to
+colour across the whole sentence: nothing, part of speech, case, number, or
+Idiom. Exactly one is active at a time.
+_Avoid_: Highlighter type, filter
+
+**Highlight Layer**:
+One independent kind of colouring shown over a sentence's Old English Text.
+Each layer is set and cleared on its own and never disturbs the others.
+_Avoid_: Highlight channel, selection group
+
+**Mode Layer**:
+The Highlight Layer that shows the sentence's current Highlighting Mode,
+colouring every Token that mode cares about.
+_Avoid_: Whole-sentence highlight, combo highlight
+
+**Span Layer**:
+The Highlight Layer marking the single Token or Span the translator has
+selected.
+_Avoid_: Selection highlight, single-instance highlight
+
+**Search Layer**:
+The Highlight Layer marking matches for the current search. It always shows
+above the other layers, because a search match is the most important signal.
+_Avoid_: Find highlight, match highlight
+
 ### Backup and transfer
 
 **Backup**:

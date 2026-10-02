@@ -34,6 +34,22 @@ copy-paste starting point only, so copy its structure into the new
 `doc/source/architecture/adr_NNNN_slug.rst` file rather than editing it
 in place.
 
+## Saving to the Wiki (Required)
+
+This project's knowledge belongs in the linguistics wiki, not the default
+vault. Before any wiki save (`/wiki-capture`, `/wiki-ingest`, or any
+`obsidian-wiki` command or skill):
+
+1. Run the `language-wiki` bash function. It exports `OBSIDIAN_VAULT_PATH`,
+   `OBSIDIAN_SOURCES_DIR` and `QMD_WIKI_COLLECTION`. Shell state does not
+   persist between Bash calls, so chain it in the same call as the command
+   that needs it, e.g. `language-wiki && echo "$OBSIDIAN_VAULT_PATH"`.
+2. Confirm `OBSIDIAN_VAULT_PATH` is exactly
+   `/Users/cmalek/Documents/vaults/cmalek-linguistics`. If it is not, stop
+   and ask; do not fall back to another vault.
+3. Only then write (for example to `$OBSIDIAN_VAULT_PATH/_raw/`). When writing
+   with a file tool instead of Bash, use that absolute vault path.
+
 ## Python Environment (Required)
 
 Before any Python work in `wordwending`, activate the repo-local virtual

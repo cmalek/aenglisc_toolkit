@@ -16,3 +16,4 @@ writing instructions.
    adr_0001_usability_overhaul
    adr_0002_idiom_creation_undo
    adr_0003_project_export_reading_text
+   adr_0004_highlight_layers
