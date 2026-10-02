@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 
 from oeapp.models import Annotation
 from oeapp.ui.mixins import AnnotationLookupsMixin
+from oeapp.ui.pos_field_catalog import PosFieldCatalog
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -56,6 +57,8 @@ class PartOfSpeechFieldsBase(AnnotationLookupsMixin):
 
     #: The Part of Speech Name
     PART_OF_SPEECH: str
+    #: One-letter POS code used to look fields up in the POS field catalog.
+    POS_CODE: str | None = None
 
     def __init__(self, layout: QFormLayout, parent_widget: QWidget) -> None:
         """
@@ -129,9 +132,9 @@ class PartOfSpeechFieldsBase(AnnotationLookupsMixin):
         self.layout.addRow(label, field)
 
     def build(self) -> None:
-        """Build the POS form."""
-        msg = "Subclasses must implement this method"
-        raise NotImplementedError(msg)
+        """Build one combo per field in the POS field catalog."""
+        for field in PosFieldCatalog.fields(self.POS_CODE):
+            self.add_combo(field.attr, field.label, field.lookup_map)
 
     def load_from_indices(self, indices: dict[str, int]) -> None:
         """
@@ -229,15 +232,8 @@ class NounFields(PartOfSpeechFieldsBase):
 
     #: Part of speech.
     PART_OF_SPEECH: str = "Noun"
-
-    def build(self) -> None:
-        """
-        Build.
-        """
-        self.add_combo("gender", "Gender", self.GENDER_MAP)
-        self.add_combo("number", "Number", self.NUMBER_MAP)
-        self.add_combo("case", "Case", self.CASE_MAP)
-        self.add_combo("declension", "Declension", self.DECLENSION_MAP)
+    #: Catalog code.
+    POS_CODE = "N"
 
 
 class VerbFields(PartOfSpeechFieldsBase):
@@ -245,34 +241,12 @@ class VerbFields(PartOfSpeechFieldsBase):
 
     #: Part of speech.
     PART_OF_SPEECH: str = "Verb"
-    #: Verb requires inf map.
-    VERB_REQUIRES_INF_MAP: ClassVar[dict[bool, str]] = {False: "No", True: "Yes"}
-    #: Verb impersonal map.
-    VERB_IMPERSONAL_MAP: ClassVar[dict[bool, str]] = {False: "No", True: "Yes"}
+    #: Catalog code.
+    POS_CODE = "V"
 
     def build(self) -> None:
-        """
-        Build.
-        """
-        self.add_combo("verb_class", "Class", self.VERB_CLASS_MAP)
-        self.add_combo("verb_tense", "Tense", self.VERB_TENSE_MAP)
-        self.add_combo("verb_mood", "Mood", self.VERB_MOOD_MAP)
-        self.add_combo("verb_person", "Person", self.VERB_PERSON_MAP)
-        self.add_combo("number", "Number", self.NUMBER_MAP)
-        self.add_combo("verb_aspect", "Aspect", self.VERB_ASPECT_MAP)
-        self.add_combo(
-            "verb_direct_object_case",
-            "Direct Object Case",
-            self.VERB_DIRECT_OBJECT_CASE_MAP,
-        )
-        self.add_combo("verb_form", "Form", self.VERB_FORM_MAP)
-        self.add_combo(
-            "verb_requires_infinitive",
-            "Requires Infinitive",
-            self.VERB_REQUIRES_INF_MAP,
-        )
-        self.add_combo("verb_impersonal", "Impersonal", self.VERB_IMPERSONAL_MAP)
-        self.add_combo("verb_transitivity", "Transitivity", self.VERB_TRANSITIVITY_MAP)
+        """Build the verb fields and wire the class-change rule."""
+        super().build()
         self.fields["verb_class"].currentIndexChanged.connect(self._on_class_changed)
 
     def _on_class_changed(self, _index: int) -> None:
@@ -296,15 +270,8 @@ class PronounFields(PartOfSpeechFieldsBase):
 
     #: Part of speech.
     PART_OF_SPEECH: str = "Pronoun"
-
-    def build(self) -> None:
-        """
-        Build.
-        """
-        self.add_combo("pronoun_type", "Type", self.PRONOUN_TYPE_MAP)
-        self.add_combo("gender", "Gender", self.GENDER_MAP)
-        self.add_combo("pronoun_number", "Number", self.PRONOUN_NUMBER_MAP)
-        self.add_combo("case", "Case", self.CASE_MAP)
+    #: Catalog code.
+    POS_CODE = "R"
 
 
 class PrepositionFields(PartOfSpeechFieldsBase):
@@ -312,12 +279,8 @@ class PrepositionFields(PartOfSpeechFieldsBase):
 
     #: Part of speech.
     PART_OF_SPEECH: str = "Preposition"
-
-    def build(self) -> None:
-        """
-        Build.
-        """
-        self.add_combo("prep_case", "Governed Case", self.PREPOSITION_CASE_MAP)
+    #: Catalog code.
+    POS_CODE = "E"
 
 
 class AdjectiveFields(PartOfSpeechFieldsBase):
@@ -325,20 +288,8 @@ class AdjectiveFields(PartOfSpeechFieldsBase):
 
     #: Part of speech.
     PART_OF_SPEECH: str = "Adjective"
-
-    def build(self) -> None:
-        """
-        Build.
-        """
-        self.add_combo("adjective_degree", "Degree", self.ADJECTIVE_DEGREE_MAP)
-        self.add_combo(
-            "adjective_inflection",
-            "Inflection",
-            self.ADJECTIVE_INFLECTION_MAP,
-        )
-        self.add_combo("gender", "Gender", self.GENDER_MAP)
-        self.add_combo("number", "Number", self.NUMBER_MAP)
-        self.add_combo("case", "Case", self.CASE_MAP)
+    #: Catalog code.
+    POS_CODE = "A"
 
 
 class ArticleFields(PartOfSpeechFieldsBase):
@@ -346,15 +297,8 @@ class ArticleFields(PartOfSpeechFieldsBase):
 
     #: Part of speech.
     PART_OF_SPEECH: str = "Article"
-
-    def build(self) -> None:
-        """
-        Build.
-        """
-        self.add_combo("article_type", "Type", self.ARTICLE_TYPE_MAP)
-        self.add_combo("gender", "Gender", self.GENDER_MAP)
-        self.add_combo("number", "Number", self.NUMBER_MAP)
-        self.add_combo("case", "Case", self.CASE_MAP)
+    #: Catalog code.
+    POS_CODE = "D"
 
 
 class AdverbFields(PartOfSpeechFieldsBase):
@@ -362,12 +306,8 @@ class AdverbFields(PartOfSpeechFieldsBase):
 
     #: Part of speech.
     PART_OF_SPEECH: str = "Adverb"
-
-    def build(self) -> None:
-        """
-        Build.
-        """
-        self.add_combo("adverb_degree", "Degree", self.ADVERB_DEGREE_MAP)
+    #: Catalog code.
+    POS_CODE = "B"
 
 
 class ConjunctionFields(PartOfSpeechFieldsBase):
@@ -375,12 +315,8 @@ class ConjunctionFields(PartOfSpeechFieldsBase):
 
     #: Part of speech.
     PART_OF_SPEECH: str = "Conjunction"
-
-    def build(self) -> None:
-        """
-        Build.
-        """
-        self.add_combo("conjunction_type", "Type", self.CONJUNCTION_TYPE_MAP)
+    #: Catalog code.
+    POS_CODE = "C"
 
 
 class InterjectionFields(PartOfSpeechFieldsBase):
@@ -388,12 +324,8 @@ class InterjectionFields(PartOfSpeechFieldsBase):
 
     #: Part of speech.
     PART_OF_SPEECH: str = "Interjection"
-
-    def build(self) -> None:
-        """
-        Build.
-        """
-        return
+    #: Catalog code.
+    POS_CODE = "I"
 
 
 class NumberFields(PartOfSpeechFieldsBase):
@@ -401,12 +333,8 @@ class NumberFields(PartOfSpeechFieldsBase):
 
     #: Part of speech.
     PART_OF_SPEECH: str = "Number"
-
-    def build(self) -> None:
-        """
-        Build.
-        """
-        return
+    #: Catalog code.
+    POS_CODE = "L"
 
 
 class NoneFields(PartOfSpeechFieldsBase):
@@ -414,12 +342,8 @@ class NoneFields(PartOfSpeechFieldsBase):
 
     #: Part of speech.
     PART_OF_SPEECH: str = "N/A"
-
-    def build(self) -> None:
-        """
-        Build.
-        """
-        return
+    #: Catalog code.
+    POS_CODE = None
 
 
 class AnnotationPosFormManager:

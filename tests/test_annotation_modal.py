@@ -23,6 +23,7 @@ from oeapp.ui.dialogs.annotation_modal import (
     PronounFields,
     VerbFields,
 )
+from oeapp.ui.pos_field_catalog import PosFieldCatalog
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication, QFormLayout, QVBoxLayout, QWidget
 
@@ -144,8 +145,8 @@ class TestPartOfSpeechSubclasses:
             "verb_aspect": PartOfSpeechFieldsBase.VERB_ASPECT_MAP,
             "verb_form": PartOfSpeechFieldsBase.VERB_FORM_MAP,
             "verb_direct_object_case": PartOfSpeechFieldsBase.VERB_DIRECT_OBJECT_CASE_MAP,
-            "verb_requires_infinitive": VerbFields.VERB_REQUIRES_INF_MAP,
-            "verb_impersonal": VerbFields.VERB_IMPERSONAL_MAP,
+            "verb_requires_infinitive": VerbFields.VERB_BOOLEAN_MAP,
+            "verb_impersonal": VerbFields.VERB_BOOLEAN_MAP,
             "verb_transitivity": PartOfSpeechFieldsBase.VERB_TRANSITIVITY_MAP,
         }),
         (PronounFields, {
@@ -290,6 +291,33 @@ class TestPartOfSpeechFormManager:
             manager.current.code_to_index_map["verb_requires_infinitive"][False]
         )
         assert manager.current.extract_values()["verb_requires_infinitive"] is False
+
+
+class TestModalBuildsFromCatalog:
+    """The modal field groups are driven by the POS field catalog."""
+
+    @pytest.mark.parametrize(
+        "cls",
+        [
+            NounFields, VerbFields, PronounFields, PrepositionFields,
+            AdjectiveFields, ArticleFields, AdverbFields, ConjunctionFields,
+            InterjectionFields, NoneFields,
+        ],
+    )
+    def test_built_fields_match_catalog(self, qapp, cls):
+        parent = QWidget()
+        fields_obj = cls(QFormLayout(parent), parent)
+        fields_obj.build()
+        expected = [f.attr for f in PosFieldCatalog.fields(cls.POS_CODE)]
+        assert list(fields_obj.fields) == expected
+
+    def test_preterite_present_class_sets_requires_infinitive(self, qapp):
+        parent = QWidget()
+        fields_obj = VerbFields(QFormLayout(parent), parent)
+        fields_obj.build()
+        class_combo = fields_obj.fields["verb_class"]
+        class_combo.setCurrentIndex(fields_obj.code_to_index_map["verb_class"]["pp"])
+        assert fields_obj.extract_values()["verb_requires_infinitive"] is True
 
 
 class TestPOSFieldModelMapping:
