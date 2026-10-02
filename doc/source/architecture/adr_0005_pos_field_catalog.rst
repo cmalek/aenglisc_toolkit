@@ -90,9 +90,9 @@ dropped, since the preset combo already prepends a blank. Preset
 flag is removed, so ``declension`` and ``verb_class`` are code-mapped combos on
 every surface. These two keep ``preset_clear_mode=False``: removing
 ``editable`` must not let ``CLEAR_SENTINEL`` into columns that carry a
-``CHECK``. The dead ``_set_combo_value`` helpers and ``*_REVERSE_MAP`` entries
-in ``annotation_preset_management.py`` are removed together with the tests that
-exist only for them.
+``CHECK``. The dead ``*_REVERSE_MAP`` entries (in ``oeapp/ui/mixins.py``) and
+the ``_set_combo_value`` helpers (in ``annotation_preset_management.py``) are
+removed together with the tests that exist only for them.
 
 D4 — Cross-field rules stay out of the schema
 ----------------------------------------------
@@ -124,7 +124,9 @@ enforces codes). On both tables, in order, it:
    c. the value equals a known label after case and whitespace normalisation,
       using a label-to-code table frozen inside the revision that covers every
       label the maps have carried (taken from the history of
-      ``oeapp/ui/mixins.py``), not only today's;
+      ``oeapp/ui/mixins.py``), not only today's. The revision's table has no
+      entry for the short-lived ``wa-stem (wo)`` label from the 2025-11-15
+      history; tier b already maps it to ``wo``;
 
    Fuzzy matching is deliberately not used: the labels differ by one character
    ("Strong Class 1 (s1)" against "Strong Class 2 (s2)"), so a near match
@@ -179,8 +181,9 @@ Consequences
 - Adding a field is one catalog edit plus the model column and migration.
 - Some labels and the preset verb order change visibly. Tests that match on
   them are updated.
-- Presets can no longer hold values outside the maps, and the database now
-  enforces that.
+- Preset ``declension`` and ``verb_class`` can no longer hold values outside
+  the maps, and the database now enforces that. Other preset columns have no
+  ``CHECK`` and may still hold ``__CLEAR__``.
 - Help and documentation that mention the old labels (for example "Verb
   Class") must be audited and updated in three places: the Sphinx docs under
   ``doc/source/`` (``overview/annotation.rst``, ``overview/translation.rst``),

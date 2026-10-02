@@ -13,7 +13,9 @@ from oeapp.services.pos_code_repair import PosCodeRepair
 
 ROOT = Path(__file__).resolve().parents[1]
 MIGRATION = next(
-    (ROOT / "oeapp/models/alembic/versions").glob("*_repair_declension_and_verb_class_codes.py")
+    (ROOT / "oeapp/models/alembic/versions").glob(
+        "*_repair_declension_and_verb_class_codes.py"
+    )
 )
 FIELD_MAPPINGS = ROOT / "oeapp/etc/field_mappings.json"
 
@@ -26,7 +28,9 @@ def _migration():
 
 
 def _revision() -> str:
-    return re.search(r'^revision: str = ["\']([^"\']+)["\']', MIGRATION.read_text(), re.M).group(1)
+    return re.search(
+        r'^revision: str = ["\']([^"\']+)["\']', MIGRATION.read_text(), re.M
+    ).group(1)
 
 
 def _repairers() -> dict[str, PosCodeRepair]:
@@ -39,7 +43,12 @@ def _importer() -> ProjectImporter:
 
 
 def test_from_mapping_rejects_malformed_specs():
-    for bad in ({}, {"codes": ["s"]}, {"codes": "s", "labels": {}}, {"codes": ["s"], "labels": []}):
+    for bad in (
+        {},
+        {"codes": ["s"]},
+        {"codes": "s", "labels": {}},
+        {"codes": ["s"], "labels": []},
+    ):
         with pytest.raises(ValueError, match="Malformed"):
             PosCodeRepair.from_mapping(bad)
 
@@ -55,10 +64,16 @@ def test_json_tables_equal_the_frozen_migration_tables():
 @pytest.mark.parametrize(
     ("column", "value"),
     [
-        ("declension", "Strong (s)"), ("declension", " weak (w) "), ("declension", "-nd nouns(nd)"),
-        ("declension", ""), ("declension", "s"), ("declension", "unknown text"),
-        ("verb_class", "Anomolous (a)"), ("verb_class", "Strong Class 2 (s2)"),
-        ("verb_class", "Strong Class 9"), ("verb_class", "pp"),
+        ("declension", "Strong (s)"),
+        ("declension", " weak (w) "),
+        ("declension", "-nd nouns(nd)"),
+        ("declension", ""),
+        ("declension", "s"),
+        ("declension", "unknown text"),
+        ("verb_class", "Anomolous (a)"),
+        ("verb_class", "Strong Class 2 (s2)"),
+        ("verb_class", "Strong Class 9"),
+        ("verb_class", "pp"),
     ],
 )
 def test_runtime_repair_agrees_with_the_migration(column, value):
@@ -69,7 +84,9 @@ def test_old_export_label_values_import_as_codes():
     importer = _importer()
     data = {
         "presets": [{"pos": "N", "declension": "Strong (s)", "gender": "m"}],
-        "annotations": [{"declension": "Strong (s)", "verb_class": "Preterite-Present (pp)"}],
+        "annotations": [
+            {"declension": "Strong (s)", "verb_class": "Preterite-Present (pp)"}
+        ],
     }
     mappings = {"rev1": json.loads(FIELD_MAPPINGS.read_text())[_revision()]}
     with patch.object(importer, "_load_field_mappings", return_value=mappings):
@@ -80,7 +97,10 @@ def test_old_export_label_values_import_as_codes():
 
 def test_unmatched_and_non_string_values_pass_through():
     importer = _importer()
-    data = {"a": {"declension": "free text", "verb_class": None}, "b": [{"declension": 5}]}
+    data = {
+        "a": {"declension": "free text", "verb_class": None},
+        "b": [{"declension": 5}],
+    }
     mappings = {"rev1": json.loads(FIELD_MAPPINGS.read_text())[_revision()]}
     with patch.object(importer, "_load_field_mappings", return_value=mappings):
         result = importer._apply_field_mappings(data, ["rev1"])

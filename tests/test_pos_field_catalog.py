@@ -1,6 +1,8 @@
 """Parity tests for the POS field catalog."""
 
+import importlib.util
 import re
+from pathlib import Path
 
 import pytest
 from oeapp.models.annotation import Annotation
@@ -8,7 +10,8 @@ from oeapp.models.annotation_preset import AnnotationPreset
 from oeapp.ui.pos_field_catalog import PosFieldCatalog
 
 ALL_POS = ["N", "V", "A", "R", "D", "E", "B", "C", "I", "L", None]
-_IN_CLAUSE = re.compile(r"^(\w+) IN \((.*)\)$")
+VERSIONS = Path(__file__).resolve().parents[1] / "oeapp/models/alembic/versions"
+_IN_CLAUSE = re.compile(r"^\"?(\w+)\"? IN \((.*)\)$")
 
 
 def _check_codes() -> dict[str, set[str]]:
@@ -20,6 +23,11 @@ def _check_codes() -> dict[str, set[str]]:
         if match:
             allowed[match.group(1)] = set(re.findall(r"'([^']+)'", match.group(2)))
     return allowed
+
+
+def test_check_parser_finds_known_columns():
+    parsed = _check_codes()
+    assert {"declension", "verb_class", "case"} <= set(parsed)
 
 
 def test_noun_fields_in_canonical_order():
@@ -98,3 +106,19 @@ def test_lookup_map_codes_match_check_constraints(pos):
         # The benign direction: only the documented exceptions may be unlabelled.
         unlabelled = allowed[field.attr] - codes
         assert unlabelled == KNOWN_UNLABELLED.get(field.attr, set()), field.attr
+
+
+def test_preset_check_codes_match_migration_valid_codes():
+    path = next(VERSIONS.glob("7cd945e38aff_*.py"))
+    spec = importlib.util.spec_from_file_location("pos_codes_revision", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    for column in ("declension", "verb_class"):
+        presets: set[str] = set()
+        for constraint in AnnotationPreset.__table__.constraints:
+            text = str(getattr(constraint, "sqltext", ""))
+            match = _IN_CLAUSE.match(text)
+            if match and match.group(1) == column:
+                presets = set(re.findall(r"'([^']+)'", match.group(2)))
+        assert presets, column
+        assert presets == set(module._VALID_CODES[column]), column

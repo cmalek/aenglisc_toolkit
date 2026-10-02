@@ -44,7 +44,16 @@ class PosCodeRepair:
 
     @staticmethod
     def _normalise(text: str) -> str:
-        """Collapse whitespace and case-fold ``text``."""
+        """
+        Collapse whitespace and case-fold ``text``.
+
+        Args:
+            text: The raw value or label.
+
+        Returns:
+            The normalised text.
+
+        """
         return " ".join(text.split()).casefold()
 
     @classmethod

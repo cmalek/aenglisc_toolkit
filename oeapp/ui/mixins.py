@@ -117,12 +117,6 @@ class AnnotationLookupsMixin(ThemeMixin):
         "p": "Possessive (p)",
         "D": "Demonstrative (D)",
     }
-    #: A Reverse lookup map for article type long form to code.  The key
-    #: is the index of the long form in the ARTICLE_TYPE_MAP, and the value
-    #: is the code.
-    ARTICLE_TYPE_REVERSE_MAP: Final[dict[int, str]] = {
-        i: k for i, k in enumerate(ARTICLE_TYPE_MAP.keys()) if k is not None
-    }
 
     #: A lookup map for gender codes to their long form.
     GENDER_MAP: Final[dict[str | None, str]] = {
@@ -131,24 +125,12 @@ class AnnotationLookupsMixin(ThemeMixin):
         "f": "Feminine (f)",
         "n": "Neuter (n)",
     }
-    #: A Reverse lookup map for gender long form to code.  The key
-    #: is the index of the long form in the GENDER_MAP, and the value
-    #: is the code.
-    GENDER_REVERSE_MAP: Final[dict[int, str]] = {
-        i: k for i, k in enumerate(GENDER_MAP.keys()) if k is not None
-    }
 
     #: A lookup map for number codes to their long form.
     NUMBER_MAP: Final[dict[str | None, str]] = {
         None: "",
         "s": "Singular (s)",
         "p": "Plural (p)",
-    }
-    #: A Reverse lookup map for number long form to code.  The key
-    #: is the index of the long form in the NUMBER_MAP, and the value
-    #: is the code.
-    NUMBER_REVERSE_MAP: Final[dict[int, str]] = {
-        i: k for i, k in enumerate(NUMBER_MAP.keys()) if k is not None
     }
     #: Color maps for highlighting numbers (both from NUMBER_MAP and
     #: PRONOUN_NUMBER_MAP)
@@ -167,12 +149,6 @@ class AnnotationLookupsMixin(ThemeMixin):
         "g": "Genitive (g)",
         "d": "Dative (d)",
         "i": "Instrumental (i)",
-    }
-    #: A Reverse lookup map for case long form to code.  The key
-    #: is the index of the long form in the CASE_MAP, and the value
-    #: is the code.
-    CASE_REVERSE_MAP: Final[dict[int, str]] = {
-        i: k for i, k in enumerate(CASE_MAP.keys()) if k is not None
     }
     #: Color maps for highlighting cases
     CASE_COLORS: Final[dict[str | None, QColor]] = {
@@ -202,12 +178,6 @@ class AnnotationLookupsMixin(ThemeMixin):
         "nd": "-nd nouns(nd)",
         "th": "-þ endings (th)",
     }
-    #: A Reverse lookup map for declension long form to code.  The key
-    #: is the index of the long form in the DECLENSION_MAP, and the value
-    #: is the code.
-    DECLENSION_REVERSE_MAP: Final[dict[int, str]] = {
-        i: k for i, k in enumerate(DECLENSION_MAP.keys()) if k is not None
-    }
 
     #: A lookup map for verb class codes to their long form.
     VERB_CLASS_MAP: Final[dict[str | None, str]] = {
@@ -225,22 +195,12 @@ class AnnotationLookupsMixin(ThemeMixin):
         "s6": "Strong Class 6 (s6)",
         "s7": "Strong Class 7 (s7)",
     }
-    #: A Reverse lookup map for verb class long form to code.  The key
-    #: is the index of the long form in the VERB_CLASS_MAP, and the value
-    #: is the code.
-    VERB_CLASS_REVERSE_MAP: Final[dict[int, str]] = {
-        i: k for i, k in enumerate(VERB_CLASS_MAP.keys()) if k is not None
-    }
 
     #: A lookup map for verb tense codes to their long form.
     VERB_TENSE_MAP: Final[dict[str | None, str]] = {
         None: "",
         "p": "Past (p)",
         "n": "Present (n)",
-    }
-    #: Verb tense reverse map.
-    VERB_TENSE_REVERSE_MAP: Final[dict[int, str]] = {
-        i: k for i, k in enumerate(VERB_TENSE_MAP.keys()) if k is not None
     }
 
     #: A lookup map for verb mood codes to their long form.
@@ -249,12 +209,6 @@ class AnnotationLookupsMixin(ThemeMixin):
         "i": "Indicative (i)",
         "s": "Subjunctive (s)",
         "imp": "Imperative (imp)",
-    }
-    #: A Reverse lookup map for verb mood long form to code.  The key
-    #: is the index of the long form in the VERB_MOOD_MAP, and the value
-    #: is the code.
-    VERB_MOOD_REVERSE_MAP: Final[dict[int, str]] = {
-        i: k for i, k in enumerate(VERB_MOOD_MAP.keys()) if k is not None
     }
 
     #: A lookup map for verb person codes to their long form.
@@ -265,25 +219,12 @@ class AnnotationLookupsMixin(ThemeMixin):
         "3": "3rd",
     }
 
-    #: A Reverse lookup map for verb person long form to code.  The key
-    #: is the index of the long form in the VERB_PERSON_MAP, and the value
-    #: is the code.
-    VERB_PERSON_REVERSE_MAP: Final[dict[int, str]] = {
-        i: k for i, k in enumerate(VERB_PERSON_MAP.keys()) if k is not None
-    }
-
     #: A lookup map for verb aspect codes to their long form.
     VERB_ASPECT_MAP: Final[dict[str | None, str]] = {
         None: "",
         "p": "Perfect (p)",
         "prg": "Progressive (prg)",
         "gn": "Gnomic (gn)",
-    }
-    #: A Reverse lookup map for verb aspect long form to code.  The key
-    #: is the index of the long form in the VERB_ASPECT_MAP, and the value
-    #: is the code.
-    VERB_ASPECT_REVERSE_MAP: Final[dict[int, str]] = {
-        i: k for i, k in enumerate(VERB_ASPECT_MAP.keys()) if k is not None
     }
 
     #: A lookup map for verb form codes to their long form.
@@ -293,10 +234,6 @@ class AnnotationLookupsMixin(ThemeMixin):
         "i": "Infinitive (i)",
         "p": "Participle (p)",
         "ii": "Inflected Infinitive (ii)",
-    }
-    #: Verb form reverse map.
-    VERB_FORM_REVERSE_MAP: Final[dict[int, str]] = {
-        i: k for i, k in enumerate(VERB_FORM_MAP.keys()) if k is not None
     }
 
     #: A lookup map for verb direct object case codes to their long form.
@@ -309,27 +246,15 @@ class AnnotationLookupsMixin(ThemeMixin):
         "g": "Genitive (g)",
         "i": "Instrumental (i)",
     }
-    #: Verb direct object case reverse map.
-    VERB_DIRECT_OBJECT_CASE_REVERSE_MAP: Final[dict[int, str]] = {
-        i: k for i, k in enumerate(VERB_DIRECT_OBJECT_CASE_MAP.keys()) if k is not None
-    }
     #: A lookup map for verb transitivity values.
     VERB_TRANSITIVITY_MAP: Final[dict[str, str]] = {
         "transitive": "Transitive",
         "intransitive": "Intransitive",
     }
-    #: Reverse map for verb transitivity combo indices.
-    VERB_TRANSITIVITY_REVERSE_MAP: Final[dict[int, str]] = {
-        i: k for i, k in enumerate(VERB_TRANSITIVITY_MAP.keys())
-    }
     #: Lookup map for yes/no verb metadata flags.
     VERB_BOOLEAN_MAP: Final[dict[bool, str]] = {
         False: "No",
         True: "Yes",
-    }
-    #: Reverse map for yes/no verb metadata flags.
-    VERB_BOOLEAN_REVERSE_MAP: Final[dict[int, bool]] = {
-        i: k for i, k in enumerate(VERB_BOOLEAN_MAP.keys(), start=1)
     }
 
     # Pronoun
@@ -346,12 +271,6 @@ class AnnotationLookupsMixin(ThemeMixin):
         "m": "Miscellaneous (m)",
         "ind": "Indefinite (ind)",
     }
-    #: A Reverse lookup map for pronoun type long form to code.  The key
-    #: is the index of the long form in the PRONOUN_TYPE_MAP, and the value
-    #: is the code.
-    PRONOUN_TYPE_REVERSE_MAP: Final[dict[int, str]] = {
-        i: k for i, k in enumerate(PRONOUN_TYPE_MAP.keys()) if k is not None
-    }
 
     #: A lookup map for pronoun number codes to their long form.
     PRONOUN_NUMBER_MAP: Final[dict[str | None, str]] = {
@@ -359,12 +278,6 @@ class AnnotationLookupsMixin(ThemeMixin):
         "s": "Singular (s)",
         "d": "Dual (d)",
         "pl": "Plural (pl)",
-    }
-    #: A Reverse lookup map for pronoun number long form to code.  The key
-    #: is the index of the long form in the PRONOUN_NUMBER_MAP, and the value
-    #: is the code.
-    PRONOUN_NUMBER_REVERSE_MAP: Final[dict[int, str]] = {
-        i: k for i, k in enumerate(PRONOUN_NUMBER_MAP.keys()) if k is not None
     }
 
     #: A lookup map for adjective degree codes to their long form.
@@ -374,24 +287,12 @@ class AnnotationLookupsMixin(ThemeMixin):
         "c": "Comparative (c)",
         "s": "Superlative (s)",
     }
-    #: A Reverse lookup map for adjective degree long form to code.  The key
-    #: is the index of the long form in the ADJECTIVE_DEGREE_MAP, and the value
-    #: is the code.
-    ADJECTIVE_DEGREE_REVERSE_MAP: Final[dict[int, str]] = {
-        i: k for i, k in enumerate(ADJECTIVE_DEGREE_MAP.keys()) if k is not None
-    }
 
     #: A lookup map for adjective inflection codes to their long form.
     ADJECTIVE_INFLECTION_MAP: Final[dict[str | None, str]] = {
         None: "",
         "s": "Strong (s)",
         "w": "Weak (w)",
-    }
-    #: A Reverse lookup map for adjective inflection long form to code.  The key
-    #: is the index of the long form in the ADJECTIVE_INFLECTION_MAP, and the value
-    #: is the code.
-    ADJECTIVE_INFLECTION_REVERSE_MAP: Final[dict[int, str]] = {
-        i: k for i, k in enumerate(ADJECTIVE_INFLECTION_MAP.keys()) if k is not None
     }
 
     #: A lookup map for adverb degree codes to their long form.
@@ -400,12 +301,6 @@ class AnnotationLookupsMixin(ThemeMixin):
         "p": "Positive (p)",
         "c": "Comparative (c)",
         "s": "Superlative (s)",
-    }
-    #: A Reverse lookup map for adverb degree long form to code.  The key
-    #: is the index of the long form in the ADVERB_DEGREE_MAP, and the value
-    #: is the code.
-    ADVERB_DEGREE_REVERSE_MAP: Final[dict[int, str]] = {
-        i: k for i, k in enumerate(ADVERB_DEGREE_MAP.keys()) if k is not None
     }
 
     #: A lookup map for preposition case codes to their long form.
@@ -416,24 +311,12 @@ class AnnotationLookupsMixin(ThemeMixin):
         "g": "Genitive (g)",
         "i": "Instrumental (i)",
     }
-    #: A Reverse lookup map for preposition case long form to code.  The key
-    #: is the index of the long form in the PREPOSITION_CASE_MAP, and the value
-    #: is the code.
-    PREPOSITION_CASE_REVERSE_MAP: Final[dict[int, str]] = {
-        i: k for i, k in enumerate(PREPOSITION_CASE_MAP.keys()) if k is not None
-    }
 
     #: A lookup map for conjunction type codes to their long form.
     CONJUNCTION_TYPE_MAP: Final[dict[str | None, str]] = {
         None: "",
         "c": "Coordinating (c)",
         "s": "Subordinating (s)",
-    }
-    #: A Reverse lookup map for conjunction type long form to code.  The key
-    #: is the index of the long form in the CONJUNCTION_TYPE_MAP, and the value
-    #: is the code.
-    CONJUNCTION_TYPE_REVERSE_MAP: Final[dict[int, str]] = {
-        i: k for i, k in enumerate(CONJUNCTION_TYPE_MAP.keys()) if k is not None
     }
 
     #: Color for idiom highlighting mode (pale magenta)

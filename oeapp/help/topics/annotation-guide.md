@@ -76,7 +76,11 @@ When a phrase should be treated as one unit, annotate it as an idiom instead of 
 
 ### Prepositions
 
-- **Object Case**: Accusative (a), Dative (d), Genitive (g)
+- **Governed Case**: Accusative (a), Dative (d), Genitive (g), Instrumental (i)
+
+### Conjunctions
+
+- **Type**: Coordinating (c), Subordinating (s)
 
 ### Adverbs
 
