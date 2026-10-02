@@ -13,6 +13,7 @@ from oeapp.models.mixins import SessionMixin
 from oeapp.models.project import Project
 from oeapp.models.remembered_annotation import RememberedAnnotation
 from oeapp.models.sentence import Sentence
+from oeapp.services.pos_code_repair import PosCodeRepair
 from oeapp.utils import from_utc_iso
 
 from .import_export_schema import ProjectExportPayload
@@ -397,7 +398,7 @@ class ProjectImporter(SessionMixin):
         self, data: dict[str, Any], migration_chain: list[str]
     ) -> dict[str, Any]:
         """
-        Apply field mappings incrementally through migration chain.
+        Apply field renames and value repairs incrementally through the chain.
 
         Args:
             data: Data dictionary to transform
@@ -406,18 +407,50 @@ class ProjectImporter(SessionMixin):
         Returns:
             Transformed data dictionary
 
+        Raises:
+            ValueError: If a revision's ``values`` section is malformed
+
         """
         field_mappings = self._load_field_mappings()
 
-        # Apply mappings for each migration in order
         for migration_sha in migration_chain:
             if migration_sha not in field_mappings:
                 continue
-
-            migration_mappings = field_mappings[migration_sha]
+            migration_mappings = dict(field_mappings[migration_sha])
+            values: Any = migration_mappings.pop("values", None)
             self._apply_mappings_recursive(data, migration_mappings)
+            if values:
+                if not isinstance(values, dict):
+                    msg = f"Malformed values mapping: {values!r}"
+                    raise ValueError(msg)
+                repairers = {
+                    attr: PosCodeRepair.from_mapping(spec)
+                    for attr, spec in values.items()
+                }
+                self._apply_value_repairs(data, repairers)
 
         return data
+
+    def _apply_value_repairs(
+        self, obj: Any, repairers: dict[str, PosCodeRepair]
+    ) -> None:
+        """
+        Repair string values of the named keys wherever they appear.
+
+        Args:
+            obj: Object to transform (dict, list, or primitive)
+            repairers: Repairer per key name
+
+        """
+        if isinstance(obj, dict):
+            for attr, repairer in repairers.items():
+                if isinstance(obj.get(attr), str):
+                    obj[attr] = repairer.repair(obj[attr])
+            for value in obj.values():
+                self._apply_value_repairs(value, repairers)
+        elif isinstance(obj, list):
+            for item in obj:
+                self._apply_value_repairs(item, repairers)
 
     def _apply_mappings_recursive(
         self, obj: Any, mappings: dict[str, dict[str, str]]

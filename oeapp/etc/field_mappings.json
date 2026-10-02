@@ -1,2 +1,72 @@
-{}
-
+{
+  "7cd945e38aff": {
+    "values": {
+      "declension": {
+        "codes": [
+          "er",
+          "i",
+          "i-mut",
+          "ja",
+          "jo",
+          "nd",
+          "o",
+          "pu",
+          "r",
+          "s",
+          "th",
+          "u",
+          "w",
+          "wa",
+          "wo"
+        ],
+        "labels": {
+          "Strong (s)": "s",
+          "Weak (w)": "w",
+          "Other (o)": "o",
+          "i-stem (i)": "i",
+          "u-stem (u)": "u",
+          "ja-stem (ja)": "ja",
+          "jo-stem (jo)": "jo",
+          "wa-stem (wa)": "wa",
+          "wo-stem (wo)": "wo",
+          "abstract -pu/-po (pu)": "pu",
+          "r-stem (r)": "r",
+          "i-mutation (i-mut)": "i-mut",
+          "er nouns (children) (er)": "er",
+          "-nd nouns(nd)": "nd",
+          "-þ endings (th)": "th"
+        }
+      },
+      "verb_class": {
+        "codes": [
+          "a",
+          "pp",
+          "s1",
+          "s2",
+          "s3",
+          "s4",
+          "s5",
+          "s6",
+          "s7",
+          "w1",
+          "w2",
+          "w3"
+        ],
+        "labels": {
+          "Anomolous (a)": "a",
+          "Weak Class I (w1)": "w1",
+          "Weak Class II (w2)": "w2",
+          "Weak Class III (w3)": "w3",
+          "Preterite-Present (pp)": "pp",
+          "Strong Class 1 (s1)": "s1",
+          "Strong Class 2 (s2)": "s2",
+          "Strong Class 3 (s3)": "s3",
+          "Strong Class 4 (s4)": "s4",
+          "Strong Class 5 (s5)": "s5",
+          "Strong Class 6 (s6)": "s6",
+          "Strong Class 7 (s7)": "s7"
+        }
+      }
+    }
+  }
+}
