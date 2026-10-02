@@ -144,3 +144,6 @@ default.db
 
 # Help-asset rebuild marker (see Makefile HELP_MARKER)
 oeapp/help/assets/.topics-*
+
+# Isolated git worktrees for feature work
+.worktrees/

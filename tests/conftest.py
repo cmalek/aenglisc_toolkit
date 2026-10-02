@@ -24,6 +24,18 @@ if "AENGLISC_TOOLKIT_DATA_PATH" not in os.environ:
     import tempfile
     os.environ["AENGLISC_TOOLKIT_DATA_PATH"] = tempfile.mkdtemp()
 
+# Redirect QSettings away from the real ~/Library/Preferences plist. Must run
+# before any QSettings() is constructed. IniFormat is the default so the
+# NativeFormat (plist) backend is never used.
+from PySide6.QtCore import QCoreApplication, QSettings
+
+_TEST_SETTINGS_DIR = tempfile.mkdtemp(prefix="oeapp-qsettings-")
+QSettings.setDefaultFormat(QSettings.Format.IniFormat)
+for _scope in (QSettings.Scope.UserScope, QSettings.Scope.SystemScope):
+    QSettings.setPath(QSettings.Format.IniFormat, _scope, _TEST_SETTINGS_DIR)
+QCoreApplication.setOrganizationName("oeapp-tests")
+QCoreApplication.setApplicationName("oeapp-tests")
+
 from oeapp.services.logs import configure_logging
 configure_logging()
 
@@ -102,10 +114,24 @@ def isolate_qsettings():
     """
     from PySide6.QtCore import QSettings
 
-    tmp_dir = tempfile.mkdtemp(prefix="oeapp-test-qsettings-")
+    # Reuse the module-level dir so this and ``isolated_qsettings`` agree.
+    tmp_dir = _TEST_SETTINGS_DIR
     QSettings.setDefaultFormat(QSettings.Format.IniFormat)
     QSettings.setPath(QSettings.Format.IniFormat, QSettings.Scope.UserScope, tmp_dir)
     QSettings.setPath(QSettings.Format.IniFormat, QSettings.Scope.SystemScope, tmp_dir)
+
+
+@pytest.fixture(autouse=True)
+def isolated_qsettings():
+    """Give every test an empty, temp-dir-backed QSettings store."""
+    settings = QSettings()
+    assert settings.fileName().startswith(_TEST_SETTINGS_DIR), (
+        f"QSettings resolves outside the test dir: {settings.fileName()}"
+    )
+    settings.clear()
+    settings.sync()
+    yield
+    QSettings().clear()
 
 
 @pytest.fixture(autouse=True)
@@ -286,6 +312,25 @@ class MockMainWindow(QWidget):
         self.refresh_project = MagicMock()
         self.setWindowTitle = MagicMock()
         self.refresh_theme_dependent_widgets = MagicMock()
+
+
+class _MockProjectUI:
+    """Minimal workspace selection holder for tests."""
+
+    def __init__(self) -> None:
+        self._selected_sentence_card = None
+
+    def get_selected_sentence_card(self):
+        """Return selected sentence card for action tests."""
+        return self._selected_sentence_card
+
+    def set_selected_sentence_card(self, card) -> None:
+        """Store selected sentence card for action tests."""
+        self._selected_sentence_card = card
+
+    def clear_selected_sentence_card(self) -> None:
+        """Clear the selected sentence card."""
+        self._selected_sentence_card = None
 
 
 class _MockProjectUI:

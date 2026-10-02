@@ -1056,14 +1056,10 @@ class SearchHighlighter:
         """
         Clear search highlights from ``text_edit``.
 
-        If the text edit is read-only, do nothing.
-
         Args:
             text_edit: QTextEdit to clear highlights from
 
         """
-        if text_edit.isReadOnly():
-            return
         selections = text_edit.extraSelections()
         selections = [
             s

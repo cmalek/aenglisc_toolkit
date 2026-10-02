@@ -126,6 +126,8 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, QWidget):
         #: Controller for command execution and annotation modal routing.
         self.controller = SentenceCardController(self)
         self.build()
+        #: Controller for command execution and annotation modal routing.
+        self.controller = SentenceCardController(self)
         self.edit_oe_button.clicked.connect(
             self.sentence_highlighter._on_edit_oe_clicked
         )

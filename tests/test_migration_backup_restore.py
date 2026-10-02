@@ -397,3 +397,23 @@ class TestMigrationFailureDialog:
                     assert exc_info.value.error is not None
                     assert isinstance(exc_info.value.error, Exception)
                     assert exc_info.value.backup_migration_version == "test_version"
+
+
+class TestFreshDatabaseStamp:
+    """A fresh database must be stamped at the Alembic head."""
+
+    @pytest.fixture
+    def service(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("OE_ANNOTATOR_DB_PATH", str(tmp_path / "fresh.db"))
+        return MigrationService()
+
+    def test_latest_migration_version_is_alembic_head(self, service):
+        assert service.latest_migration_version() == service.script.get_current_head()
+
+    def test_fresh_database_can_be_migrated_twice(self, service):
+        first = service.apply_migrations()
+        assert first.migration_version == service.script.get_current_head()
+
+        second = service.apply_migrations()
+
+        assert second.migration_version == service.script.get_current_head()

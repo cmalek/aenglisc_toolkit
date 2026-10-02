@@ -104,6 +104,20 @@ Prefer cohesive, human-comprehensible classes over loose function collections, e
 - Put per-run orchestration and mutable run state in a dedicated execution/orchestrator class
 - Prefer stateless collaborators; isolate per-run mutable state in one accumulator/orchestrator
 
+## Fat ORM Typing (Required)
+
+Fat ORM models in this repository sometimes define a classmethod named `list`
+(for example, `Project.list`). On those classes, do not use bare `list[T]` in type
+annotations inside the class body. Ruff (`A003`) and mypy resolve unqualified
+`list` to the classmethod, not the builtin.
+
+Use `builtins.list[T]` for return types and local annotations instead. Example:
+`Project._chapter_search_matches` returns
+`tuple[builtins.list[SearchResult], int, dict[int, set[int]]]`.
+
+Apply the same pattern repo-wide on any ORM model that defines a `list()`
+classmethod.
+
 ## Documentation Contract (Required)
 
 For all non-test Python code:

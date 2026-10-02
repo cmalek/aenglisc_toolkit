@@ -9,6 +9,13 @@ from oeapp.ui.sentence_card import SentenceCard
 from tests.conftest import create_test_project
 
 
+def _card_for(sentence, qtbot, main_window):
+    """Build the SentenceCard parent that NotesPanel requires."""
+    card = SentenceCard(sentence, main_window=main_window, parent=None)
+    qtbot.addWidget(card)
+    return card
+
+
 class TestNotesPanel:
     """Test cases for NotesPanel."""
 

@@ -6,6 +6,7 @@ from unittest.mock import patch
 from oeapp.commands import CommandManager
 from oeapp.models.annotation import Annotation
 from oeapp.ui.highlighting import (
+    SearchHighlighter,
     POSHighlighterCommand,
     CaseHighlighterCommand,
     NumberHighlighterCommand,
@@ -414,3 +415,46 @@ class TestSingleInstanceHighlighter:
         selections = card.oe_text_edit.extraSelections()
         highlights = [s for s in selections if s.format.property(span_highlighter.HIGHLIGHT_PROPERTY)]
         assert len(highlights) == 1
+
+
+class TestSearchHighlighterClear:
+    def test_clear_drops_search_marks_on_read_only_edit(self, qapp):
+        """clear_highlight removes search selections even when read-only."""
+        edit = QTextEdit()
+        edit.setPlainText("Se cyning fēoll.")
+        other = QTextEdit.ExtraSelection()
+        other.cursor = QTextCursor(edit.document())
+        edit.setExtraSelections([other])
+        SearchHighlighter.highlight_token_ranges(edit, [(3, 9)])
+        edit.setReadOnly(True)
+        assert len(edit.extraSelections()) == 2
+
+        SearchHighlighter.clear_highlight(edit)
+
+        remaining = edit.extraSelections()
+        assert len(remaining) == 1
+        assert not remaining[0].format.property(
+            SearchHighlighter.SEARCH_HIGHLIGHT_PROPERTY
+        )
+
+    def test_card_clears_read_only_translation_on_scope_change(
+        self, db_session, qapp, qtbot, mock_main_window
+    ):
+        """A scope that excludes ModE clears marks on the read-only translation pane."""
+        project = create_test_project(db_session, name="Clear", text="Se cyning fēoll.")
+        card = SentenceCard(
+            project.sentences[0],
+            command_manager=CommandManager(db_session),
+            main_window=mock_main_window,
+            parent=None,
+        )
+        qtbot.addWidget(card)
+        card.translation_edit.setPlainText("The king fell.")
+
+        card.highlight_search("king", "ModE text")
+        assert card.translation_edit.isReadOnly()
+        assert card.translation_edit.extraSelections()
+
+        card.highlight_search("king", "OE Text")
+
+        assert not card.translation_edit.extraSelections()
