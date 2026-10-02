@@ -706,12 +706,18 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, QWidget):
         palette). Neither updates on its own when the theme changes, so this
         must be called explicitly by whatever drives a live theme switch.
 
+        The highlight layers resolve their styles at compose time, so
+        recomposing them is enough.
+
         Returns:
             None
 
         """
         self._apply_verse_background_style()
         self.sentence_highlighter.highlight()
+        # Layer entries hold semantic styles, so recomposing recolours the
+        # mode, span and search layers against the new palette.
+        self.oe_text_edit.recompose_highlights()
 
     # ========================================================================
     # Annotation related methods

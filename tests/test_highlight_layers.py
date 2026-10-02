@@ -1,5 +1,5 @@
 import pytest
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QColor, QTextFormat
 from PySide6.QtWidgets import QComboBox, QLineEdit, QTextEdit
 from PySide6.QtWidgets import QTextEdit as PlainTextEdit
 
@@ -17,7 +17,7 @@ from oeapp.ui.highlight_layers import (
 )
 from oeapp.ui.highlighting import SearchHighlighter
 from oeapp.ui.search_controller import normalized_oe_query
-from oeapp.ui.mixins import AnnotationLookupsMixin
+from oeapp.ui.mixins import AnnotationLookupsMixin, ThemeMixin
 from oeapp.ui.oe_text_edit import OldEnglishTextEdit
 from oeapp.ui.sentence_card import SentenceCard
 from tests.conftest import create_test_project
@@ -467,3 +467,21 @@ class TestEditModeAndRerender:
 
         assert not edit.in_edit_mode
         assert selection_ranges(edit.extraSelections()) == [(3, 9)]
+
+
+class TestThemeSwitch:
+    def test_refresh_theme_recolours_span_and_search_layers(self, card, monkeypatch):
+        edit = card.oe_text_edit
+        edit.span_highlighter.highlight(0)
+        SearchHighlighter.highlight_text(edit, "fēoll")
+        has_foreground = QTextFormat.Property.ForegroundBrush
+        assert not any(s.format.hasProperty(has_foreground) for s in edit.extraSelections())
+
+        monkeypatch.setattr(ThemeMixin, "is_dark_theme", property(lambda self: True))
+        card.refresh_theme()
+
+        assert all(s.format.hasProperty(has_foreground) for s in edit.extraSelections())
+
+    def test_refresh_theme_without_active_command_does_not_crash(self, card):
+        card.sentence_highlighter.build_combo_box()
+        card.refresh_theme()
