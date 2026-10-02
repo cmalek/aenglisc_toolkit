@@ -17,6 +17,23 @@ if TYPE_CHECKING:
     from oeapp.ui.sentence_card import SentenceCard
 
 
+def normalized_oe_query(pattern: str, scope: str) -> str | None:
+    """
+    Return the normalized OE search query for OE-aware scopes.
+
+    Args:
+        pattern: Raw search pattern.
+        scope: Search scope.
+
+    Returns:
+        Normalized OE query, or None when the scope disables OE matching.
+
+    """
+    if scope not in {"OE Text", "Notes", "All"}:
+        return None
+    return normalize_old_english(pattern) or None
+
+
 class SearchController(ThemeMixin):
     """
     Manage project search UI state and navigation.
@@ -244,10 +261,7 @@ class SearchController(ThemeMixin):
             Normalized OE query, or None when scope disables OE matching.
 
         """
-        if scope not in {"OE Text", "Notes", "All"}:
-            return None
-        normalized = normalize_old_english(pattern)
-        return normalized or None
+        return normalized_oe_query(pattern, scope)
 
     def _apply_visible_highlights(
         self,

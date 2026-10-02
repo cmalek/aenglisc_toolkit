@@ -35,6 +35,7 @@ from oeapp.ui.highlighting import SearchHighlighter, WholeSentenceHighlighter
 from oeapp.ui.mixins import AnnotationLookupsMixin
 from oeapp.ui.notes_panel import NotesPanel
 from oeapp.ui.oe_text_edit import OldEnglishTextEdit
+from oeapp.ui.search_controller import normalized_oe_query
 from oeapp.ui.sentence_card_controller import HierarchyPosition, SentenceCardController
 from oeapp.ui.token_table import TokenTable
 
@@ -131,6 +132,7 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, QWidget):
         self.edit_oe_button.clicked.connect(
             self.sentence_highlighter._on_edit_oe_clicked
         )
+        self.edit_mode_finished.connect(self.reapply_search)
         self.set_tokens()
         # We need to do this here because it has to come after
         # :meth:`set_tokens()` is called to set up all the lookups
@@ -256,6 +258,30 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, QWidget):
             return
         self.setStyleSheet(self._flash_base_stylesheet)
         self._flash_base_stylesheet = None
+
+    def reapply_search(self) -> int:
+        """
+        Re-run the main window's active search against this card.
+
+        Called after edit mode ends, because saving re-tokenizes the sentence
+        and the search layer is a cache that is not trusted across a token
+        change.
+
+        Returns:
+            Number of matches found, or 0 when there is no active search.
+
+        """
+        search_input = getattr(self.main_window, "search_input", None)
+        scope_combo = getattr(self.main_window, "search_scope_combo", None)
+        if search_input is None or scope_combo is None:
+            return 0
+        pattern = search_input.text()
+        if not pattern:
+            return 0
+        scope = scope_combo.currentText()
+        return self.highlight_search(
+            pattern, scope, normalized_oe_query(pattern, scope), None
+        )
 
     def highlight_search(
         self,

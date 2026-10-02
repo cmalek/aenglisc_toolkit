@@ -14,7 +14,6 @@ from PySide6.QtWidgets import QTextEdit, QWidget
 from oeapp.models import Idiom
 from oeapp.ui.highlight_layers import HighlightEntry, HighlightLayer, HighlightLayers
 from oeapp.ui.highlighting import (
-    SearchHighlighter,
     SingleInstanceHighlighter,
     WholeSentenceHighlighter,
 )
@@ -657,6 +656,7 @@ class OldEnglishTextEdit(QTextEdit):
             self._original_oe_text = self.sentence_text
             cast("SingleInstanceHighlighter", self.span_highlighter).unhighlight()
             cast("WholeSentenceHighlighter", self.sentence_highlighter).unhighlight()
+            self.clear_layer(HighlightLayer.SEARCH)
             self.render_editable_text(self._original_oe_text)
         else:
             self.setReadOnly(True)
@@ -932,7 +932,6 @@ class OldEnglishTextEdit(QTextEdit):
             return
 
         sentence = cast("Sentence", self.sentence_card.sentence)
-        highlighter = cast("SingleInstanceHighlighter", self.span_highlighter)
 
         # Ensure relationships are loaded
         try:
@@ -975,24 +974,10 @@ class OldEnglishTextEdit(QTextEdit):
         if last_pos < len(text):
             cursor.insertText(text[last_pos:], QTextCharFormat())
 
-        # Restore highlight if a token was selected
-        current_token_index = self.current_token_index()
-        if current_token_index is not None:
-            token = cast("Token", self.tokens_by_index.get(current_token_index))
-            if token:
-                highlighter.highlight(token.order_index)
-
-        # Re-apply search highlighting if needed
-        if (
-            self._main_window
-            and hasattr(self._main_window, "search_input")
-            and self._main_window.search_input.text()
-        ):
-            scope = self._main_window.search_scope_combo.currentText()
-            if scope in ["OE Text", "Notes", "All"]:
-                SearchHighlighter.highlight_text(
-                    self, self._main_window.search_input.text()
-                )
+        # The document was rebuilt: layer entries are token-anchored, so drop
+        # cached offsets and recompose against the fresh token_to_position map.
+        self.highlight_layers.invalidate_search_cache()
+        self.recompose_highlights()
 
         self.resize_to_fit_text()
 

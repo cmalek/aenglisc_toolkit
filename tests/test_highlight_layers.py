@@ -1,6 +1,6 @@
 import pytest
 from PySide6.QtGui import QColor
-from PySide6.QtWidgets import QTextEdit
+from PySide6.QtWidgets import QComboBox, QLineEdit, QTextEdit
 from PySide6.QtWidgets import QTextEdit as PlainTextEdit
 
 from oeapp.commands import CommandManager
@@ -16,6 +16,7 @@ from oeapp.ui.highlight_layers import (
     HighlightStyle,
 )
 from oeapp.ui.highlighting import SearchHighlighter
+from oeapp.ui.search_controller import normalized_oe_query
 from oeapp.ui.mixins import AnnotationLookupsMixin
 from oeapp.ui.oe_text_edit import OldEnglishTextEdit
 from oeapp.ui.sentence_card import SentenceCard
@@ -362,3 +363,107 @@ class TestSearchLayerEntryPoints:
         )
         SearchHighlighter.clear_highlight(plain)
         assert plain.extraSelections() == []
+
+
+class TestEditModeAndRerender:
+    @pytest.fixture(autouse=True)
+    def patch_dialog_exec(self, monkeypatch):
+        monkeypatch.setattr(SentenceFilterDialog, "exec", lambda self: self.show())
+
+    @pytest.fixture
+    def search_ui(self, mock_main_window):
+        mock_main_window.search_input = QLineEdit("cyning")
+        mock_main_window.search_scope_combo = QComboBox()
+        mock_main_window.search_scope_combo.addItems(["OE Text", "ModE text", "Notes", "All"])
+        return mock_main_window
+
+    def test_normalized_oe_query_depends_on_scope(self):
+        assert normalized_oe_query("Cyning", "OE Text") == "cyning"
+        assert normalized_oe_query("Cyning", "ModE text") is None
+
+    def test_entering_edit_mode_clears_all_layers(self, card, search_ui):
+        edit = card.oe_text_edit
+        card.sentence_highlighter.build_combo_box()  # unhighlight() needs the combo
+        edit.span_highlighter.highlight(0)
+        SearchHighlighter.highlight_text(edit, "cyning")
+        assert edit.extraSelections()
+
+        edit.in_edit_mode = True
+
+        assert edit.extraSelections() == []
+        # Review focus 4: nothing is composed while editable, and nothing crashes.
+        edit.set_search_pattern("cyning")
+        edit.span_highlighter.highlight(1)
+        assert edit.extraSelections() == []
+
+    def test_leaving_edit_mode_reapplies_search(self, card, search_ui):
+        edit = card.oe_text_edit
+        card.sentence_highlighter.build_combo_box()
+        edit.in_edit_mode = True
+        edit.in_edit_mode = False
+
+        card.edit_mode_finished.emit()
+
+        assert (3, 9) in selection_ranges(edit.extraSelections())
+
+    def test_reapply_search_without_search_ui_is_a_no_op(self, card):
+        assert card.reapply_search() == 0
+
+    def test_reapply_search_with_empty_query_is_a_no_op(self, card, search_ui):
+        search_ui.search_input.setText("")
+        assert card.reapply_search() == 0
+        assert card.oe_text_edit.extraSelections() == []
+
+    def test_rerender_keeps_span_and_search_layers(self, card, search_ui):
+        edit = card.oe_text_edit
+        edit.span_highlighter.highlight(0)
+        SearchHighlighter.highlight_text(edit, "fēoll")
+
+        edit.render_readonly_text()
+
+        assert selection_ranges(edit.extraSelections()) == [(0, 2), (10, 15)]
+
+    def test_composing_with_no_token_positions_is_empty(self, card, search_ui):
+        """Review focus 5: layers whose tokens are all gone compose to nothing."""
+        edit = card.oe_text_edit
+        edit.span_highlighter.highlight(0)
+        SearchHighlighter.highlight_token_ids(edit, {edit.tokens[1].id})
+        assert edit.extraSelections()
+
+        edit.token_to_position.clear()  # what a render of a token-less sentence leaves
+        edit.recompose_highlights()
+
+        assert edit.extraSelections() == []
+
+    def test_save_with_retokenize_reresolves_search_at_new_offsets(
+        self, card, search_ui
+    ):
+        """Saving a split re-runs the search against the new tokens."""
+        edit = card.oe_text_edit
+        search_ui.search_input.setText("cyn")
+        search_ui.search_scope_combo.setCurrentText("OE Text")
+        card.sentence_highlighter.build_combo_box()
+        card.highlight_search("cyn", "OE Text", normalized_oe_query("cyn", "OE Text"), None)
+        assert selection_ranges(edit.extraSelections()) == [(3, 9)]
+
+        card._on_edit_oe_clicked()
+        assert edit.extraSelections() == []
+        edit.setPlainText("Se cyn ing")
+        card._on_save_oe_clicked()
+
+        assert not edit.in_edit_mode
+        assert selection_ranges(edit.extraSelections()) == [(3, 6)]
+
+    def test_cancel_edit_restores_search_at_original_offsets(self, card, search_ui):
+        edit = card.oe_text_edit
+        search_ui.search_scope_combo.setCurrentText("OE Text")
+        card.sentence_highlighter.build_combo_box()
+        card.highlight_search("cyning", "OE Text", "cyning", None)
+        assert selection_ranges(edit.extraSelections()) == [(3, 9)]
+
+        card._on_edit_oe_clicked()
+        edit.setPlainText("Se cyn ing")
+        card._on_cancel_edit_clicked()
+
+        assert not edit.in_edit_mode
+        assert selection_ranges(edit.extraSelections()) == [(3, 9)]
