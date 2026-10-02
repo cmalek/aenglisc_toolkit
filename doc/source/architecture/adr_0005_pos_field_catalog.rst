@@ -4,7 +4,7 @@
 ADR 0005: One POS field catalog shared by form, preset and sidebar
 ==================================================================
 
-:Status: Proposed
+:Status: Accepted
 :Date: 2026-10-02
 
 Context
@@ -130,7 +130,10 @@ enforces codes). On both tables, in order, it:
    ("Strong Class 1 (s1)" against "Strong Class 2 (s2)"), so a near match
    could silently pick the wrong class.
 2. sets the empty string to ``NULL`` (a blank combo artefact, not a value);
-3. leaves ``NULL`` and ``"__CLEAR__"`` untouched;
+3. leaves ``NULL`` and ``"__CLEAR__"`` untouched; a sentinel found in the
+   preset ``declension``/``verb_class`` columns counts as an unmatched value
+   and so skips the preset ``CHECK`` constraints (the app cannot write it there
+   today, since those fields have ``preset_clear_mode=False``);
 4. leaves any value no tier matches in place and logs it;
 5. on ``annotation_presets`` only, adds the ``CHECK`` constraints in batch
    mode, but only if no unmatched value remains; otherwise it skips them and
@@ -196,8 +199,8 @@ Consequences
   combo). The annotation modal, light/dark/themes, preset-dropdown and
   remembered-annotations screenshots show only unchanged Noun fields or modal
   labels and stay as they are.
-- Ordering: the revision and the removal of ``editable`` land together, before
-  the remaining parts of speech move to the catalog.
+- The catalog is consumed surface by surface (modal, preset, sidebar), each
+  handling every part of speech, rather than part of speech by part of speech.
 - Guard tests tie the catalog to the models (D7).
 - A value that matches no tier is never deleted or guessed: it stays, is
   logged, and the ``annotation_presets`` ``CHECK`` is skipped on that database.

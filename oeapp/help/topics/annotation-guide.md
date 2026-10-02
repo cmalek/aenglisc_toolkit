@@ -39,7 +39,7 @@ When a phrase should be treated as one unit, annotate it as an idiom instead of 
 
 ### Verbs
 
-- **Verb Class**: Anomolous (a), Weak Class I (w1), Weak Class II (w2), Weak Class III (w3), Strong Class I-VII (s1-s7)
+- **Class**: Anomolous (a), Weak Class I (w1), Weak Class II (w2), Weak Class III (w3), Strong Class I-VII (s1-s7)
 - **Tense**: Past (p), Present (n)
 - **Mood**: Indicative (i), Subjunctive (s), Imperative (imp)
 - **Person**: First (1), Second (2), Third (3)
@@ -62,7 +62,7 @@ When a phrase should be treated as one unit, annotate it as an idiom instead of 
 
 ### Pronouns
 
-- **Pronoun Type**: Personal (p), Relative (r), Demonstrative (d), Interrogative (i)
+- **Type**: Personal (p), Relative (r), Demonstrative (d), Interrogative (i)
 - **Gender**: Masculine (m), Feminine (f), Neuter (n)
 - **Number**: Singular (s), Plural (p)
 - **Case**: Nominative (n), Accusative (a), Genitive (g), Dative (d), Instrumental (i)
