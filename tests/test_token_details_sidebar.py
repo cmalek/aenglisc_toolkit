@@ -1,9 +1,15 @@
 """Unit tests for TokenDetailsSidebar."""
 
 import pytest
-from PySide6.QtWidgets import QApplication, QLabel
+from PySide6.QtWidgets import QApplication, QLabel, QVBoxLayout, QWidget
 
-from oeapp.ui.token_details_sidebar import TokenDetailsSidebar
+from oeapp.models.annotation import Annotation
+from oeapp.ui.token_details_sidebar import (
+    NounRenderer,
+    PronounRenderer,
+    TokenDetailsSidebar,
+    VerbRenderer,
+)
 from tests.conftest import create_test_project, create_test_sentence
 
 
@@ -336,3 +342,54 @@ class TestTokenDetailsSidebar:
 
         # If the bug exists, clear_layout's setParent(None) might make them visible windows
         assert not visible_new_windows, f"Expected no new visible windows after update, found {visible_new_windows}"
+
+
+def _label_texts(layout) -> list[str]:
+    texts: list[str] = []
+    for i in range(layout.count()):
+        item = layout.itemAt(i)
+        if item.widget() is not None and isinstance(item.widget(), QLabel):
+            texts.append(item.widget().text())
+        elif item.layout() is not None:
+            texts.extend(_label_texts(item.layout()))
+    return texts
+
+
+def _render(renderer_cls, annotation) -> list[str]:
+    host = QWidget()
+    layout = QVBoxLayout(host)
+    renderer_cls(annotation).render(layout)
+    return _label_texts(layout)
+
+
+class TestSidebarRendersFromCatalog:
+    def test_verb_uses_canonical_class_label(self, qapp):
+        annotation = Annotation(pos="V", verb_class="s1")
+        texts = _render(VerbRenderer, annotation)
+        assert "Class: " in texts
+        assert "Verb Class: " not in texts
+        assert texts[texts.index("Class: ") + 1] == "Strong Class 1 (s1)"
+
+    def test_unset_field_renders_question_mark(self, qapp):
+        texts = _render(VerbRenderer, Annotation(pos="V", verb_class="s1"))
+        assert texts[texts.index("Aspect: ") + 1] == "?"
+
+    def test_unknown_code_renders_question_mark_not_error(self, qapp):
+        texts = _render(NounRenderer, Annotation(pos="N", declension="zz"))
+        assert texts[texts.index("Declension: ") + 1] == "?"
+
+    def test_label_form_declension_renders_question_mark(self, qapp):
+        texts = _render(NounRenderer, Annotation(pos="N", declension="Strong (s)"))
+        assert texts[texts.index("Declension: ") + 1] == "?"
+
+    def test_pronoun_uses_canonical_type_label(self, qapp):
+        texts = _render(PronounRenderer, Annotation(pos="R", pronoun_type="p"))
+        assert "Type: " in texts and "Pronoun Type: " not in texts
+
+    def test_boolean_flag_renders_yes_no(self, qapp):
+        annotation = Annotation(
+            pos="V", verb_requires_infinitive=True, verb_impersonal=False
+        )
+        texts = _render(VerbRenderer, annotation)
+        assert texts[texts.index("Requires Infinitive: ") + 1] == "Yes"
+        assert texts[texts.index("Impersonal: ") + 1] == "No"

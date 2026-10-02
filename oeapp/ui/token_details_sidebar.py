@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 
 from oeapp.exc import NoAnnotationAvailable
 from oeapp.ui.mixins import AnnotationLookupsMixin
+from oeapp.ui.pos_field_catalog import PosFieldCatalog
 from oeapp.utils import clear_layout, open_bosworth_toller, render_svg
 
 if TYPE_CHECKING:
@@ -135,6 +136,21 @@ class AbstractPartOfSpeechRenderer(AnnotationLookupsMixin):
             pos_label.setStyleSheet(self.POS_LABEL_STYLE)
             parent_layout.addWidget(pos_label)
             parent_layout.addSpacing(23)
+        self._render_fields(parent_layout)
+
+    def _render_fields(self, parent_layout: QVBoxLayout) -> None:
+        """
+        Render one labelled row per catalog field for the annotation's POS.
+
+        Args:
+            parent_layout: Parent layout to add the rows to
+
+        """
+        annotation = cast("Annotation", self.annotation)
+        for field in PosFieldCatalog.fields(annotation.pos):
+            value = getattr(annotation, field.attr)
+            text = "?" if value is None else field.lookup_map.get(value, "?")
+            self.field_renderer.format_field(field.label, text, parent_layout)
 
 
 class NounRenderer(AbstractPartOfSpeechRenderer):
@@ -142,98 +158,11 @@ class NounRenderer(AbstractPartOfSpeechRenderer):
     Noun Renderer for this module.
     """
 
-    def render(self, parent_layout: QVBoxLayout) -> None:
-        """
-        Render the noun.  This renders these fields:
-
-        - Gender
-        - Number
-        - Case
-        - Declension
-
-        Args:
-            parent_layout: Parent layout to add the fields to
-
-        """
-        super().render(parent_layout)
-        annotation = cast("Annotation", self.annotation)
-        gender_value = self.GENDER_MAP.get(annotation.gender, "?")
-        self.field_renderer.format_field("Gender", gender_value, parent_layout)
-        number_value = self.NUMBER_MAP.get(annotation.number, "?")
-        self.field_renderer.format_field("Number", number_value, parent_layout)
-        case_value = self.CASE_MAP.get(annotation.case, "?")
-        self.field_renderer.format_field("Case", case_value, parent_layout)
-        declension_value = (
-            self.DECLENSION_MAP.get(annotation.declension, "?")
-            if annotation.declension is not None
-            else "?"
-        )
-        self.field_renderer.format_field("Declension", declension_value, parent_layout)
-
 
 class VerbRenderer(AbstractPartOfSpeechRenderer):
     """
     Verb Renderer for this module.
     """
-
-    def render(self, parent_layout: QVBoxLayout) -> None:
-        """
-        Render the verb.  This renders these fields:
-
-        - Verb Class
-        - Verb Tense
-        - Verb Mood
-        - Verb Person
-        - Number
-        - Verb Aspect
-        - Verb Form
-        - Direct Object Case
-        - Requires Infinitive
-        - Impersonal
-        - Transitivity
-
-        Args:
-            parent_layout: Parent layout to add the fields to
-
-        """
-        super().render(parent_layout)
-        annotation = cast("Annotation", self.annotation)
-        verb_class_value = self.VERB_CLASS_MAP.get(annotation.verb_class, "?")
-        self.field_renderer.format_field("Verb Class", verb_class_value, parent_layout)
-        tense_value = self.VERB_TENSE_MAP.get(annotation.verb_tense, "?")
-        self.field_renderer.format_field("Tense", tense_value, parent_layout)
-        mood_value = self.VERB_MOOD_MAP.get(annotation.verb_mood, "?")
-        self.field_renderer.format_field("Mood", mood_value, parent_layout)
-        person_value = self.VERB_PERSON_MAP.get(annotation.verb_person, "?")
-        self.field_renderer.format_field("Person", person_value, parent_layout)
-        number_value = self.NUMBER_MAP.get(annotation.number, "?")
-        self.field_renderer.format_field("Number", number_value, parent_layout)
-        aspect_value = self.VERB_ASPECT_MAP.get(annotation.verb_aspect, "?")
-        self.field_renderer.format_field("Aspect", aspect_value, parent_layout)
-        direct_object_case_value = self.VERB_DIRECT_OBJECT_CASE_MAP.get(
-            annotation.verb_direct_object_case, "?"
-        )
-        if annotation.verb_direct_object_case is None:
-            direct_object_case_value = "?"
-        self.field_renderer.format_field(
-            "Direct Object Case", direct_object_case_value, parent_layout
-        )
-        form_value = self.VERB_FORM_MAP.get(annotation.verb_form, "?")
-        self.field_renderer.format_field("Form", form_value, parent_layout)
-        requires_inf_value = self.VERB_BOOLEAN_MAP.get(
-            annotation.verb_requires_infinitive, "?"
-        )
-        self.field_renderer.format_field(
-            "Requires Infinitive", requires_inf_value, parent_layout
-        )
-        impersonal_value = self.VERB_BOOLEAN_MAP.get(annotation.verb_impersonal, "?")
-        self.field_renderer.format_field("Impersonal", impersonal_value, parent_layout)
-        transitivity_value = self.VERB_TRANSITIVITY_MAP.get(
-            annotation.verb_transitivity, "?"
-        )
-        self.field_renderer.format_field(
-            "Transitivity", transitivity_value, parent_layout
-        )
 
 
 class AdjectiveRenderer(AbstractPartOfSpeechRenderer):
@@ -241,72 +170,11 @@ class AdjectiveRenderer(AbstractPartOfSpeechRenderer):
     Adjective Renderer for this module.
     """
 
-    def render(self, parent_layout: QVBoxLayout) -> None:
-        """
-        Render the adjective.  This renders these fields:
-
-        - Degree
-        - Inflection
-        - Gender
-        - Number
-        - Case
-
-        Args:
-            parent_layout: Parent layout to add the fields to
-
-        """
-        super().render(parent_layout)
-        annotation = cast("Annotation", self.annotation)
-        adjective_degree_value = self.ADJECTIVE_DEGREE_MAP.get(
-            annotation.adjective_degree, "?"
-        )
-        self.field_renderer.format_field(
-            "Degree", adjective_degree_value, parent_layout
-        )
-        adjective_inflection_value = self.ADJECTIVE_INFLECTION_MAP.get(
-            annotation.adjective_inflection, "?"
-        )
-        self.field_renderer.format_field(
-            "Inflection", adjective_inflection_value, parent_layout
-        )
-        gender_value = self.GENDER_MAP.get(annotation.gender, "?")
-        self.field_renderer.format_field("Gender", gender_value, parent_layout)
-        number_value = self.NUMBER_MAP.get(annotation.number, "?")
-        self.field_renderer.format_field("Number", number_value, parent_layout)
-        case_value = self.CASE_MAP.get(annotation.case, "?")
-        self.field_renderer.format_field("Case", case_value, parent_layout)
-
 
 class PronounRenderer(AbstractPartOfSpeechRenderer):
     """
     Pronoun Renderer for this module.
     """
-
-    def render(self, parent_layout: QVBoxLayout) -> None:
-        """
-        Render the pronoun.  This renders these fields:
-
-        - Pronoun Type
-        - Gender
-        - Number
-        - Case
-
-        Args:
-            parent_layout: Parent layout to add the fields to
-
-        """
-        super().render(parent_layout)
-        annotation = cast("Annotation", self.annotation)
-        pronoun_type_value = self.PRONOUN_TYPE_MAP.get(annotation.pronoun_type, "?")
-        self.field_renderer.format_field(
-            "Pronoun Type", pronoun_type_value, parent_layout
-        )
-        gender_value = self.GENDER_MAP.get(annotation.gender, "?")
-        self.field_renderer.format_field("Gender", gender_value, parent_layout)
-        number_value = self.PRONOUN_NUMBER_MAP.get(annotation.pronoun_number, "?")
-        self.field_renderer.format_field("Number", number_value, parent_layout)
-        case_value = self.CASE_MAP.get(annotation.case, "?")
-        self.field_renderer.format_field("Case", case_value, parent_layout)
 
 
 class ArticleRenderer(AbstractPartOfSpeechRenderer):
@@ -314,56 +182,11 @@ class ArticleRenderer(AbstractPartOfSpeechRenderer):
     Article Renderer for this module.
     """
 
-    def render(self, parent_layout: QVBoxLayout) -> None:
-        """
-        Render the article.  This renders these fields:
-
-        - Article Type
-        - Gender
-        - Number
-        - Case
-
-        Args:
-            parent_layout: Parent layout to add the fields to
-
-        """
-        super().render(parent_layout)
-        annotation = cast("Annotation", self.annotation)
-        article_type_value = self.ARTICLE_TYPE_MAP.get(annotation.article_type, "?")
-        self.field_renderer.format_field(
-            "Article Type", article_type_value, parent_layout
-        )
-        gender_value = self.GENDER_MAP.get(annotation.gender, "?")
-        self.field_renderer.format_field("Gender", gender_value, parent_layout)
-        number_value = self.NUMBER_MAP.get(annotation.number, "?")
-        self.field_renderer.format_field("Number", number_value, parent_layout)
-        case_value = self.CASE_MAP.get(annotation.case, "?")
-        self.field_renderer.format_field("Case", case_value, parent_layout)
-
 
 class PrepositionRenderer(AbstractPartOfSpeechRenderer):
     """
     Preposition Renderer for this module.
     """
-
-    def render(self, parent_layout: QVBoxLayout) -> None:
-        """
-        Render the preposition.  This renders these fields:
-
-        - Governed Case
-
-        Args:
-            parent_layout: Parent layout to add the fields to
-
-        """
-        super().render(parent_layout)
-        annotation = cast("Annotation", self.annotation)
-        preposition_case_value = self.PREPOSITION_CASE_MAP.get(
-            annotation.prep_case, "?"
-        )
-        self.field_renderer.format_field(
-            "Governed Case", preposition_case_value, parent_layout
-        )
 
 
 class AdverbRenderer(AbstractPartOfSpeechRenderer):
@@ -371,47 +194,11 @@ class AdverbRenderer(AbstractPartOfSpeechRenderer):
     Adverb Renderer for this module.
     """
 
-    def render(self, parent_layout: QVBoxLayout) -> None:
-        """
-        Render the adverb.  This renders these fields:
-
-        - Adverb Degree
-
-        Args:
-            parent_layout: Parent layout to add the fields to
-
-        """
-        super().render(parent_layout)
-        annotation = cast("Annotation", self.annotation)
-        adverb_degree_value = self.ADVERB_DEGREE_MAP.get(annotation.adverb_degree, "?")
-        self.field_renderer.format_field(
-            "Adverb Degree", adverb_degree_value, parent_layout
-        )
-
 
 class ConjunctionRenderer(AbstractPartOfSpeechRenderer):
     """
     Conjunction Renderer for this module.
     """
-
-    def render(self, parent_layout: QVBoxLayout) -> None:
-        """
-        Render the conjunction.  This renders these fields:
-
-        - Conjunction Type
-
-        Args:
-            parent_layout: Parent layout to add the fields to
-
-        """
-        super().render(parent_layout)
-        annotation = cast("Annotation", self.annotation)
-        conjunction_type_value = self.CONJUNCTION_TYPE_MAP.get(
-            annotation.conjunction_type, "?"
-        )
-        self.field_renderer.format_field(
-            "Conjunction Type", conjunction_type_value, parent_layout
-        )
 
 
 class InterjectionRenderer(AbstractPartOfSpeechRenderer):
