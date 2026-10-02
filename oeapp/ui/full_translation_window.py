@@ -2,7 +2,7 @@
 
 import re
 from pathlib import Path
-from typing import TYPE_CHECKING, Final, cast
+from typing import TYPE_CHECKING, ClassVar, Final, cast
 
 from PySide6.QtCore import (
     QEasingCurve,
@@ -94,6 +94,10 @@ class FullProjectOldEnglishTextEdit(ThemeMixin, OldEnglishTextEdit):
         parent: The parent widget (optional)
 
     """
+
+    #: This editor keeps its own ExtraSelection writers and position map; it
+    #: does not use the sentence card's highlight layers (finding F9).
+    uses_highlight_layers: ClassVar[bool] = False
 
     #: Signal emitted when a token is hovered
     token_hovered = Signal(object)  # Token or None

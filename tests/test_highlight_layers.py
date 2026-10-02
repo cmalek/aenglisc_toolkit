@@ -3,6 +3,7 @@ from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QTextEdit
 
 from oeapp.commands import CommandManager
+from oeapp.ui.full_translation_window import FullProjectOldEnglishTextEdit
 from oeapp.ui.highlight_layers import (
     SEARCH_STYLE,
     HighlightEntry,
@@ -11,6 +12,7 @@ from oeapp.ui.highlight_layers import (
     HighlightStyle,
 )
 from oeapp.ui.mixins import AnnotationLookupsMixin
+from oeapp.ui.oe_text_edit import OldEnglishTextEdit
 from oeapp.ui.sentence_card import SentenceCard
 from tests.conftest import create_test_project
 
@@ -154,3 +156,41 @@ class TestHighlightLayers:
         layers.clear_layer(HighlightLayer.SEARCH)
 
         assert layers.compose() == []
+
+
+class TestEditorLayerApi:
+    def test_capability_flag(self):
+        assert OldEnglishTextEdit.uses_highlight_layers is True
+        assert FullProjectOldEnglishTextEdit.uses_highlight_layers is False
+
+    def test_set_layer_writes_composed_selections(self, card, token_ids):
+        edit = card.oe_text_edit
+        edit.set_layer(
+            HighlightLayer.SPAN,
+            [HighlightEntry(token_ids[1], token_ids[1], HighlightStyle("SPAN_COLOR"))],
+        )
+
+        assert selection_ranges(edit.extraSelections()) == [(3, 9)]
+
+    def test_clear_layer_removes_only_that_layer(self, card, token_ids):
+        edit = card.oe_text_edit
+        edit.set_layer(
+            HighlightLayer.SPAN,
+            [HighlightEntry(token_ids[1], token_ids[1], HighlightStyle("SPAN_COLOR"))],
+        )
+        edit.set_layer(
+            HighlightLayer.SEARCH, [HighlightEntry(token_ids[0], token_ids[0], SEARCH_STYLE)]
+        )
+
+        edit.clear_layer(HighlightLayer.SPAN)
+
+        assert selection_ranges(edit.extraSelections()) == [(0, 2)]
+
+    def test_set_search_pattern_writes_selections(self, card):
+        edit = card.oe_text_edit
+        edit.set_search_pattern("ing")
+
+        assert selection_ranges(edit.extraSelections()) == [(6, 9)]
+
+        edit.set_search_pattern(None)
+        assert edit.extraSelections() == []

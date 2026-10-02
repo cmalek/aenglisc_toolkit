@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Final, cast
+from typing import TYPE_CHECKING, ClassVar, Final, cast
 
 from PySide6.QtCore import QPoint, Qt, QTimer, Signal
 from PySide6.QtGui import (
@@ -12,6 +12,7 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import QTextEdit, QWidget
 
 from oeapp.models import Idiom
+from oeapp.ui.highlight_layers import HighlightEntry, HighlightLayer, HighlightLayers
 from oeapp.ui.highlighting import (
     SearchHighlighter,
     SingleInstanceHighlighter,
@@ -452,6 +453,11 @@ class OldEnglishTextEdit(QTextEdit):
 
     """
 
+    #: Whether this editor composes its highlights through
+    #: :class:`~oeapp.ui.highlight_layers.HighlightLayers`. Subclasses that keep
+    #: their own ExtraSelection writers set this to ``False``.
+    uses_highlight_layers: ClassVar[bool] = True
+
     # =======================
     # Signals
     # =======================
@@ -511,6 +517,8 @@ class OldEnglishTextEdit(QTextEdit):
         self.order_to_list_index: dict[int, int] = {}
         #: Token to position in the text editor
         self.token_to_position: dict[int, tuple[int, int]] = {}
+        #: Layered highlight state; composed into this editor's ExtraSelections
+        self.highlight_layers = HighlightLayers(self)
 
         #: Original Old English text
         self._original_oe_text: str | None = None
@@ -808,6 +816,46 @@ class OldEnglishTextEdit(QTextEdit):
             self.span_highlighter.unhighlight()
             if self.selector:
                 self.selector.reset_selection()
+
+    def set_layer(self, layer: HighlightLayer, entries: list[HighlightEntry]) -> None:
+        """
+        Replace a highlight layer and recompose.
+
+        Args:
+            layer: Layer to replace.
+            entries: New entries for the layer.
+
+        """
+        self.highlight_layers.set_layer(layer, entries)
+        self.recompose_highlights()
+
+    def clear_layer(self, layer: HighlightLayer) -> None:
+        """
+        Clear a highlight layer and recompose.
+
+        Args:
+            layer: Layer to clear.
+
+        """
+        self.highlight_layers.clear_layer(layer)
+        self.recompose_highlights()
+
+    def set_search_pattern(self, pattern: str | None) -> None:
+        """
+        Make the search layer a text search and recompose.
+
+        Args:
+            pattern: Text to match, or ``None`` to clear the search layer.
+
+        """
+        self.highlight_layers.set_search_pattern(pattern)
+        self.recompose_highlights()
+
+    def recompose_highlights(self) -> None:
+        """
+        Write the composed layers as this editor's ExtraSelections.
+        """
+        self.setExtraSelections(self.highlight_layers.compose())
 
     def highlight_sentence(self) -> None:
         """
