@@ -562,7 +562,7 @@ class OldEnglishTextEdit(QTextEdit):
         self.span_highlighter = SingleInstanceHighlighter(value)
         self.selector = OldEnglishTextSelector(self)
         self.clicked.connect(self.selector.select_tokens)
-        QTimer.singleShot(0, self.render_readonly_text)
+        QTimer.singleShot(0, self.initial_render)
         self.connect_signals()
 
     def disconnect_signals(self) -> None:
@@ -816,6 +816,17 @@ class OldEnglishTextEdit(QTextEdit):
             self.span_highlighter.unhighlight()
             if self.selector:
                 self.selector.reset_selection()
+
+    def initial_render(self) -> None:
+        """
+        Render the read-only text for the first time.
+
+        A card built while a search is active (navigation, section change) has
+        no search layer yet, so the active search is re-applied afterwards.
+        """
+        self.render_readonly_text()
+        if self.uses_highlight_layers and self.sentence_card:
+            self.sentence_card.reapply_search()
 
     def set_layer(self, layer: HighlightLayer, entries: list[HighlightEntry]) -> None:
         """

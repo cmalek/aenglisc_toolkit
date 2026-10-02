@@ -180,8 +180,12 @@ Consequences
   filter-and-merge code is gone. Edit mode still clears the card's highlights
   on entry, now deliberately and followed by a search re-run on exit.
 - A selected span now survives a mode change, which it did not before.
-- A search match found by normalized form or root now survives an edit and
-  re-render; the previous pattern-only re-apply lost it.
+- A search match found by normalized form or root now survives a re-render
+  and a new card's first render; the previous pattern-only re-apply lost it.
+  In the running application entering edit mode also empties the main
+  window's search box (``edit_mode_started`` clears the search), so
+  ``reapply_search`` finds no query on exit today; it is correct for any
+  caller that keeps the query across an edit.
 - Theme switching reduces to ``recompose()`` for the three layers.
 - Every highlighter command's ``highlight`` body changes, because it emits
   entries instead of cursor selections, and the colour constants become

@@ -926,19 +926,21 @@ class SearchHighlighter:
             token_ids: Ids of the tokens that matched.
 
         Returns:
-            Number of highlighted tokens (ids unknown to the editor are skipped).
+            Number of tokens that currently resolve to a position (ids not yet
+            rendered, or no longer present, are kept but not counted).
 
         """
         positions = text_edit.token_to_position
-        known = sorted(
-            (token_id for token_id in token_ids if token_id in positions),
-            key=lambda token_id: positions[token_id][0],
+        # Keep every id: the map is empty until the first render, and compose
+        # skips ids that are missing at that time. Resolvable ids sort first.
+        ordered = sorted(
+            token_ids, key=lambda token_id: positions.get(token_id, (1 << 62,))[0]
         )
         text_edit.set_layer(
             HighlightLayer.SEARCH,
-            [HighlightEntry(token_id, token_id, SEARCH_STYLE) for token_id in known],
+            [HighlightEntry(token_id, token_id, SEARCH_STYLE) for token_id in ordered],
         )
-        return len(known)
+        return text_edit.highlight_layers.match_count(HighlightLayer.SEARCH)
 
     @staticmethod
     def highlight_token_ranges(

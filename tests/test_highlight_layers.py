@@ -410,6 +410,8 @@ class TestEditModeAndRerender:
         assert card.reapply_search() == 0
 
     def test_reapply_search_with_empty_query_is_a_no_op(self, card, search_ui):
+        # The card's deferred first render may already have applied "cyning".
+        card.oe_text_edit.clear_layer(HighlightLayer.SEARCH)
         search_ui.search_input.setText("")
         assert card.reapply_search() == 0
         assert card.oe_text_edit.extraSelections() == []
@@ -485,3 +487,39 @@ class TestThemeSwitch:
     def test_refresh_theme_without_active_command_does_not_crash(self, card):
         card.sentence_highlighter.build_combo_box()
         card.refresh_theme()
+
+
+class TestSearchBeforeFirstRender:
+    @pytest.fixture
+    def fresh_card(self, db_session, qapp, qtbot, mock_main_window):
+        """A card; tests clear its position map to mimic the pre-render state."""
+        project = create_test_project(db_session, name="Fresh", text="Se cyning fēoll.")
+        card = SentenceCard(
+            project.sentences[0],
+            command_manager=CommandManager(db_session),
+            main_window=mock_main_window,
+            parent=None,
+        )
+        qtbot.addWidget(card)
+        return card
+
+    def test_token_id_search_survives_first_render(self, fresh_card):
+        edit = fresh_card.oe_text_edit
+        ids = {edit.tokens[1].id}
+
+        edit.token_to_position.clear()  # as before the first render
+        SearchHighlighter.highlight_token_ids(edit, ids)
+        edit.render_readonly_text()
+
+        assert selection_ranges(edit.extraSelections()) == [(3, 9)]
+
+    def test_first_render_applies_the_active_search(self, fresh_card, mock_main_window):
+        mock_main_window.search_input = QLineEdit("cyning")
+        mock_main_window.search_scope_combo = QComboBox()
+        mock_main_window.search_scope_combo.addItems(["OE Text", "ModE text"])
+        edit = fresh_card.oe_text_edit
+        edit.token_to_position.clear()
+
+        edit.initial_render()
+
+        assert selection_ranges(edit.extraSelections()) == [(3, 9)]
