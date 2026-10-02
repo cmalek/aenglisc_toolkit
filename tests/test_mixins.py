@@ -350,3 +350,46 @@ class TestAnnotationTextualMixin:
         result = mixin.format_context(annotation)
         assert result == ""
 
+
+
+class TestAnnotationTextualMixinUnknownCodes:
+    """Unrecognised stored values fall back to the stored text, never raise."""
+
+    def test_format_pos_unknown_noun_declension(self):
+        annotation = Annotation(pos="N", declension="Strong (s)")
+        assert AnnotationTextualMixin().format_pos(annotation) == "n:Strong (s)"
+
+    def test_format_pos_unknown_verb_class(self):
+        annotation = Annotation(pos="V", verb_class="Weak Class II (w2)")
+        assert AnnotationTextualMixin().format_pos(annotation) == "v:Weak Class II (w2)"
+
+    def test_format_pos_unknown_adjective_values(self):
+        annotation = Annotation(
+            pos="A", adjective_inflection="odd", adjective_degree="weird"
+        )
+        result = AnnotationTextualMixin().format_pos(annotation)
+        assert result.endswith(":odd:weird")
+
+    def test_format_gender_unknown(self):
+        annotation = Annotation(pos="N", gender="zz")
+        assert AnnotationTextualMixin().format_gender(annotation) == "zz"
+
+    def test_format_context_unknown_case_and_number(self):
+        annotation = Annotation(pos="N", case="zz", number="qq")
+        assert AnnotationTextualMixin().format_context(annotation) == "zzqq"
+
+    def test_format_context_unknown_verb_values(self):
+        annotation = Annotation(
+            pos="V", verb_tense="t?", verb_mood="m?", verb_person="p?", number="n?"
+        )
+        assert AnnotationTextualMixin().format_context(annotation) == "t?m?p?n?"
+
+    def test_format_pos_unknown_part_of_speech_does_not_raise(self):
+        annotation = Annotation(pos="Z")
+        assert AnnotationTextualMixin().format_pos(annotation) == "Z"
+
+    def test_known_codes_are_unchanged(self):
+        annotation = Annotation(pos="N", declension="s", gender="m", case="n", number="s")
+        mixin = AnnotationTextualMixin()
+        assert mixin.format_pos(annotation) == "n:strong"
+        assert mixin.format_gender(annotation) == "m"

@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Final
 
 if TYPE_CHECKING:
@@ -218,6 +219,21 @@ class AnnotationTextualMixin:
         "s": "sub",
     }
 
+    @staticmethod
+    def _label(mapping: Mapping[str, str], code: str) -> str:
+        """
+        Look a code up in a display map, falling back to the stored text.
+
+        Args:
+            mapping: Code-to-display map.
+            code: The stored value.
+
+        Returns:
+            The display text, or ``code`` itself when the map does not know it.
+
+        """
+        return mapping.get(code, code)
+
     def format_pos(self, annotation: "Annotation") -> str:  # noqa: PLR0911, PLR0912
         """
         Format part of speech abbreviation for display.  This is the bit
@@ -234,58 +250,66 @@ class AnnotationTextualMixin:
             return ""
 
         # Start with the part of speech abbreviation
-        pos_str = self.PART_OF_SPEECH_MAP[annotation.pos]
+        pos_str = self._label(self.PART_OF_SPEECH_MAP, annotation.pos)
         if annotation.pos == "N":
             # Nouns get declension
             if not annotation.declension:
                 return pos_str
-            noun_declension_str = self.DECLENSION_MAP[annotation.declension]
+            noun_declension_str = self._label(
+                self.DECLENSION_MAP, annotation.declension
+            )
             pos_str += f":{noun_declension_str}"
         elif annotation.pos == "V":
             # Verbs get class
             if not annotation.verb_class:
                 return pos_str
-            verb_class_str = self.VERB_CLASS_MAP[annotation.verb_class]
+            verb_class_str = self._label(self.VERB_CLASS_MAP, annotation.verb_class)
             pos_str += f":{verb_class_str}"
         elif annotation.pos == "A":
             # Adjectives get inflection and degree
             if not annotation.adjective_inflection:
                 return pos_str
-            adjective_inflection_str = self.ADJECTIVE_INFLECTION_MAP[
-                annotation.adjective_inflection
-            ]
+            adjective_inflection_str = self._label(
+                self.ADJECTIVE_INFLECTION_MAP, annotation.adjective_inflection
+            )
             pos_str += f":{adjective_inflection_str}"
             if not annotation.adjective_degree:
                 return pos_str
-            adjective_degree_str = self.ADJECTIVE_DEGREE_MAP[
-                annotation.adjective_degree
-            ]
+            adjective_degree_str = self._label(
+                self.ADJECTIVE_DEGREE_MAP, annotation.adjective_degree
+            )
             pos_str += f":{adjective_degree_str}"
         elif annotation.pos == "R":
             # Pronouns get type
             if not annotation.pronoun_type:
                 return pos_str
-            pronoun_type_str = self.PRONOUN_TYPE_MAP[annotation.pronoun_type]
+            pronoun_type_str = self._label(
+                self.PRONOUN_TYPE_MAP, annotation.pronoun_type
+            )
             pos_str += f":{pronoun_type_str}"
         elif annotation.pos == "D":
             # Articles/Determiners get type
             if not annotation.article_type:
                 return pos_str
-            article_type_str = self.ARTICLE_TYPE_MAP[annotation.article_type]
+            article_type_str = self._label(
+                self.ARTICLE_TYPE_MAP, annotation.article_type
+            )
             pos_str += f":{article_type_str}"
         elif annotation.pos == "B":
             # Adverbs get degree
             if not annotation.adverb_degree:
                 return pos_str
-            adverb_degree_str = self.ADVERB_DEGREE_MAP[annotation.adverb_degree]
+            adverb_degree_str = self._label(
+                self.ADVERB_DEGREE_MAP, annotation.adverb_degree
+            )
             pos_str += f":{adverb_degree_str}"
         elif annotation.pos == "C":
             # Conjunctions get type
             if not annotation.conjunction_type:
                 return pos_str
-            conjunction_type_str = self.CONJUNCTION_TYPE_MAP[
-                annotation.conjunction_type
-            ]
+            conjunction_type_str = self._label(
+                self.CONJUNCTION_TYPE_MAP, annotation.conjunction_type
+            )
             pos_str += f":{conjunction_type_str}"
         elif annotation.pos in {"E", "I", "L"}:
             # Prepositions, interjections, and numbers don't get any additional
@@ -312,7 +336,7 @@ class AnnotationTextualMixin:
         if annotation.pos in {"N", "V", "A", "R", "D"}:
             if not annotation.gender:
                 return ""
-            return self.GENDER_MAP[annotation.gender]
+            return self._label(self.GENDER_MAP, annotation.gender)
         return ""
 
     def format_context(self, annotation: "Annotation") -> str:  # noqa: PLR0911, PLR0912
@@ -334,44 +358,48 @@ class AnnotationTextualMixin:
             # Nouns, adjectives, pronouns, and articles/determiners get case and number
             if not annotation.case:
                 return context_str
-            context_str += self.CASE_MAP[annotation.case]
+            context_str += self._label(self.CASE_MAP, annotation.case)
             if annotation.pos == "R":
                 if not annotation.pronoun_number:
                     return context_str
-                context_str += self.PRONOUN_NUMBER_MAP[annotation.pronoun_number]
+                context_str += self._label(
+                    self.PRONOUN_NUMBER_MAP, annotation.pronoun_number
+                )
             else:
                 if not annotation.number:
                     return context_str
-                context_str += self.NUMBER_MAP[annotation.number]
+                context_str += self._label(self.NUMBER_MAP, annotation.number)
         elif annotation.pos == "V":
             if annotation.verb_form == "p":
                 # If it's a participle, just return the form, and the tense
-                context_str += self.VERB_FORM_MAP[annotation.verb_form]
+                context_str += self._label(self.VERB_FORM_MAP, annotation.verb_form)
                 if not annotation.verb_tense:
                     return context_str
-                context_str += f":{self.VERB_TENSE_MAP[annotation.verb_tense]}"
+                context_str += (
+                    f":{self._label(self.VERB_TENSE_MAP, annotation.verb_tense)}"
+                )
             elif annotation.verb_form in {"i", "ii"}:
                 # If it's an infinitive, just return the form
-                context_str += self.VERB_FORM_MAP[annotation.verb_form]
+                context_str += self._label(self.VERB_FORM_MAP, annotation.verb_form)
             else:
                 # If it's a finite verb, return the tense, mood, person and number
                 if not annotation.verb_tense:
                     return context_str
-                context_str += self.VERB_TENSE_MAP[annotation.verb_tense]
+                context_str += self._label(self.VERB_TENSE_MAP, annotation.verb_tense)
                 if not annotation.verb_mood:
                     return context_str
-                context_str += self.VERB_MOOD_MAP[annotation.verb_mood]
+                context_str += self._label(self.VERB_MOOD_MAP, annotation.verb_mood)
                 if not annotation.verb_person:
                     return context_str
-                context_str += self.VERB_PERSON_MAP[annotation.verb_person]
+                context_str += self._label(self.VERB_PERSON_MAP, annotation.verb_person)
                 if not annotation.number:
                     return context_str
-                context_str += self.VERB_NUMBER_MAP[annotation.number]
+                context_str += self._label(self.VERB_NUMBER_MAP, annotation.number)
         elif annotation.pos == "E":
             # Prepositions get preposition case
             if not annotation.prep_case:
                 return context_str
-            context_str += self.PREP_CASE_MAP[annotation.prep_case]
+            context_str += self._label(self.PREP_CASE_MAP, annotation.prep_case)
         return context_str
 
 
