@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING, ClassVar, cast
 
 from PySide6.QtCore import QSettings
-from PySide6.QtGui import QColor, QPalette, QTextCharFormat, QTextCursor, QTextDocument
+from PySide6.QtGui import QColor, QPalette, QTextCursor, QTextDocument
 from PySide6.QtWidgets import QComboBox, QTextEdit
 from qtpy.QtWidgets import QApplication
 
@@ -9,6 +9,12 @@ from oeapp.ui.dialogs import (
     CaseFilterDialog,
     NumberFilterDialog,
     PartOfSpeechFilterDialog,
+)
+from oeapp.ui.highlight_layers import (
+    SEARCH_STYLE,
+    HighlightEntry,
+    HighlightLayer,
+    HighlightStyle,
 )
 
 from .mixins import AnnotationLookupsMixin
@@ -19,6 +25,7 @@ if TYPE_CHECKING:
     from oeapp.models.token import Token
     from oeapp.ui.dialogs import SentenceFilterDialog
     from oeapp.ui.main_window import MainWindow
+    from oeapp.ui.oe_text_edit import OldEnglishTextEdit
     from oeapp.ui.sentence_card import SentenceCard
 
 
@@ -42,7 +49,7 @@ class SelectTokensMixin(AnnotationLookupsMixin):
         #: The sentence card
         self.card = card
         #: The Old English text edit
-        self.oe_text_edit: QTextEdit = card.oe_text_edit
+        self.oe_text_edit: OldEnglishTextEdit = card.oe_text_edit
         #: The tokens in the sentence
         self.tokens: list[Token] = []
         #: The token positions in the sentence
@@ -85,73 +92,6 @@ class SelectTokensMixin(AnnotationLookupsMixin):
                 token_positions.append(self.token_positions[token.id])
         return token_positions
 
-    def select_tokens(
-        self, token: "Token", color: QColor
-    ) -> QTextEdit.ExtraSelection | None:
-        """
-        Create an extra selection for highlighting a token's surface text.
-
-        Args:
-            token: Token to highlight
-            color: Color to use for highlighting
-
-        Returns:
-            ExtraSelection object or None if token not found
-
-        """
-        if token.id not in self.token_positions:
-            return None
-        token_start, token_end = self.token_positions[token.id]
-        return self.highlight_positions(token_start, token_end, color)
-
-    def highlight_positions(
-        self,
-        start_pos: int,
-        end_pos: int,
-        color: QColor,
-        highlight_property: int | None = None,
-    ) -> QTextEdit.ExtraSelection:
-        """
-        Create an extra selection for highlighting a range of positions.
-
-        Args:
-            start_pos: Starting position
-            end_pos: Ending position
-            color: Color to use for highlighting
-
-        Keyword Args:
-            highlight_property: Property ID to use for highlighting. Defaults to not
-              applying a property ID.
-
-        Returns:
-            Extra selection for highlighting the range of positions
-
-        """
-        assert start_pos >= 0, "Start position must be greater than 0"  # noqa: S101
-        assert end_pos >= start_pos, "End position must be greater than start position"  # noqa: S101
-        # Create cursor and highlight the text
-        cursor = QTextCursor(self.oe_text_edit.document())
-        cursor.setPosition(start_pos)
-        cursor.setPosition(end_pos, QTextCursor.MoveMode.KeepAnchor)
-
-        # Apply highlight format
-        char_format = QTextCharFormat()
-        char_format.setBackground(color)
-        if self.is_dark_theme:
-            char_format.setForeground(self.theme_base_color)
-
-        # Mark as selection highlight if a property is provided
-        if highlight_property:
-            # Mark as selection highlight
-            char_format.setProperty(highlight_property, True)  # noqa: FBT003
-
-        # Create extra selection
-        extra_selection = QTextEdit.ExtraSelection()
-        extra_selection.cursor = cursor  # type: ignore[attr-defined]
-        extra_selection.format = char_format  # type: ignore[attr-defined]
-
-        return extra_selection
-
 
 class HighlighterCommandBase(SelectTokensMixin):
     """
@@ -171,11 +111,9 @@ class HighlighterCommandBase(SelectTokensMixin):
     #: Descriptive name of the highlighting mode.  This will be used in the
     #: highlighting dropdown and filter dialog.
     DESCRIPTIVE_NAME: ClassVar[str] = ""
-    #: Color map for highlighting tokens, or a single color if there is no mapping
-    #: needed.  This is either a string name of a color map from
-    #: :class:`~oeapp.mixins.AnnotationLookupsMixin` : or a single
-    #: :class:`~PySide6.QtGui.QColor`.
-    COLORS: ClassVar[str | QColor] = ""
+    #: Name of a color map or of a single color constant on
+    #: :class:`~oeapp.ui.mixins.AnnotationLookupsMixin`.
+    COLORS: ClassVar[str] = ""
     #: Atrribute db code to human-readable name.  Set this to one of the `*_MAP`
     # attributes : From :class:`~oeapp.mixins.AnnotationLookupsMixin`.
     CODE_TO_NAME_MAPPING: ClassVar[dict[str | None, str] | None] = None
@@ -264,17 +202,13 @@ class HighlighterCommandBase(SelectTokensMixin):
         Apply the highlighting for the command.
         """
         self.refresh_command_views()
-        colors: QColor | dict[str | None, QColor]
-        if isinstance(self.COLORS, QColor):
-            colors = cast("QColor", self.COLORS)
-        else:
-            colors = self.color_map(self.COLORS)
+        colors = self.color_map(self.COLORS)
         self.unhighlight()
         text = self.highlighter.get_oe_text()
         if not text or not self.tokens:
             return
 
-        extra_selections = []
+        entries: list[HighlightEntry] = []
         for token in self.tokens:
             if not token.id:
                 continue
@@ -286,17 +220,16 @@ class HighlighterCommandBase(SelectTokensMixin):
                 # Don't highlight if there is no value for the annotation
                 continue
             if not self.dialog or value in self.filter_selection:
-                if isinstance(colors, QColor):
-                    color = colors
-                else:
-                    color = colors.get(value, colors[None])
-                    if color == colors[None]:
-                        # Don't highlight if the value is the default
-                        continue
-                if selection := self.select_tokens(token, color):
-                    extra_selections.append(selection)
+                if colors.get(value, colors[None]) == colors[None]:
+                    # Don't highlight if the value is the default
+                    continue
+                entries.append(
+                    HighlightEntry(
+                        token.id, token.id, HighlightStyle(self.COLORS, value)
+                    )
+                )
 
-        self.highlighter.set_highlights(extra_selections)
+        self.highlighter.set_highlights(entries)
 
     def get_value(self, annotation: "Annotation") -> str | None:
         """
@@ -368,7 +301,7 @@ class POSHighlighterCommand(HighlighterCommandBase):
     #: Descriptive name.
     DESCRIPTIVE_NAME: ClassVar[str] = "Part of Speech"
     #: Colors.
-    COLORS: ClassVar[str | QColor] = "POS_COLORS"
+    COLORS: ClassVar[str] = "POS_COLORS"
     #: Code to name mapping.
     CODE_TO_NAME_MAPPING: ClassVar[dict[str | None, str] | None] = (
         AnnotationLookupsMixin.PART_OF_SPEECH_MAP
@@ -399,7 +332,7 @@ class CaseHighlighterCommand(HighlighterCommandBase):
     #: Descriptive name.
     DESCRIPTIVE_NAME: ClassVar[str] = "Case"
     #: Colors.
-    COLORS: ClassVar[str | QColor] = "CASE_COLORS"
+    COLORS: ClassVar[str] = "CASE_COLORS"
     #: Code to name mapping.
     CODE_TO_NAME_MAPPING: ClassVar[dict[str | None, str] | None] = (
         AnnotationLookupsMixin.CASE_MAP
@@ -445,7 +378,7 @@ class NumberHighlighterCommand(HighlighterCommandBase):
     #: Descriptive name.
     DESCRIPTIVE_NAME: ClassVar[str] = "Number"
     #: Colors.
-    COLORS: ClassVar[str | QColor] = "NUMBER_COLORS"
+    COLORS: ClassVar[str] = "NUMBER_COLORS"
     #: Code to name mapping.
     CODE_TO_NAME_MAPPING: ClassVar[dict[str | None, str] | None] = (
         AnnotationLookupsMixin.NUMBER_MAP
@@ -491,8 +424,8 @@ class IdiomHighlighterCommand(HighlighterCommandBase):
 
     #: Descriptive name.
     DESCRIPTIVE_NAME: ClassVar[str] = "Idiom"
-    #: Color for idiom highlighting
-    COLORS: ClassVar[str | QColor] = AnnotationLookupsMixin.IDIOM_HIGHLIGHT_COLOR
+    #: Name of the idiom color constant
+    COLORS: ClassVar[str] = "IDIOM_HIGHLIGHT_COLOR"
 
     def highlight(self) -> None:
         """
@@ -505,25 +438,27 @@ class IdiomHighlighterCommand(HighlighterCommandBase):
             method.
 
         """
-        color = cast("QColor", self.COLORS)
         self.unhighlight()
         text = self.highlighter.get_oe_text()
         if not text or not self.tokens or not self.idioms:
             return
 
-        extra_selections = []
+        style = HighlightStyle(self.COLORS)
+        entries: list[HighlightEntry] = []
         for idiom in self.idioms:
             # Highlight every token in the idiom
-            start_order = idiom.start_token.order_index
-            end_order = idiom.end_token.order_index
-            for order_idx in range(start_order, end_order + 1):
+            for order_idx in range(
+                idiom.start_token.order_index, idiom.end_token.order_index + 1
+            ):
                 token = self.tokens_by_index.get(order_idx)
-                if token:
-                    selection = self.select_tokens(token, color)
-                    if selection:
-                        extra_selections.append(selection)
+                if token and token.id in self.token_positions:
+                    entries.append(
+                        HighlightEntry(
+                            cast("int", token.id), cast("int", token.id), style
+                        )
+                    )
 
-        self.highlighter.set_highlights(extra_selections)
+        self.highlighter.set_highlights(entries)
 
 
 class WholeSentenceHighlighter:
@@ -644,7 +579,7 @@ class WholeSentenceHighlighter:
 
     def unhighlight(self) -> None:
         """
-        Clear all highlights in our associated sentence card's OE text edit.
+        Clear the mode layer of our associated sentence card's OE text edit.
         """
         assert self.card, "Sentence card is required"  # noqa: S101
         assert self.highlighting_combo, (  # noqa: S101
@@ -652,7 +587,7 @@ class WholeSentenceHighlighter:
         )
         # Block signals temporarily to avoid triggering change signal
         self.highlighting_combo.blockSignals(True)  # noqa: FBT003
-        self.card.oe_text_edit.setExtraSelections([])
+        self.card.oe_text_edit.clear_layer(HighlightLayer.MODE)
         self.highlighting_combo.blockSignals(False)  # noqa: FBT003
 
     def clear_active_command(self) -> None:
@@ -668,27 +603,16 @@ class WholeSentenceHighlighter:
         self.highlighting_combo.blockSignals(False)  # noqa: FBT003
         self.active_command = NoneHighlighterCommand(self)
 
-    def set_highlights(self, extra_selections: list[QTextEdit.ExtraSelection]) -> None:
+    def set_highlights(self, entries: list[HighlightEntry]) -> None:
         """
-        Set the highlights for the sentence, preserving search highlights.
+        Set the mode layer for the sentence.
 
         Args:
-            extra_selections: List of extra selections to set
+            entries: Entries for the mode layer
 
         """
         assert self.card, "Sentence card is required"  # noqa: S101
-
-        # Get existing search highlights
-        existing = self.card.oe_text_edit.extraSelections()
-        search_highlights = [
-            s
-            for s in existing
-            if s.format.property(SearchHighlighter.SEARCH_HIGHLIGHT_PROPERTY)  # type: ignore[attr-defined]
-        ]
-
-        # Combine new highlights with search highlights
-        all_highlights = [*extra_selections, *search_highlights]
-        self.card.oe_text_edit.setExtraSelections(all_highlights)
+        self.card.oe_text_edit.set_layer(HighlightLayer.MODE, entries)
 
     def highlight(self) -> None:
         """
@@ -791,11 +715,14 @@ class SingleInstanceHighlighter(SelectTokensMixin):
 
     #: Color for highlighting tokens
     COLORS: ClassVar[dict[str, QColor]] = {
-        "default": QColor(200, 200, 0, 150),  # Yellow with semi-transparency
-        "idiom": QColor(255, 200, 255, 150),  # Pale magenta
+        "default": AnnotationLookupsMixin.SPAN_COLOR,
+        "idiom": AnnotationLookupsMixin.SPAN_IDIOM_COLOR,
     }
-    #: Property ID for selection highlight in ExtraSelection
-    HIGHLIGHT_PROPERTY: ClassVar[int] = 1001
+    #: Highlight style for each color name
+    STYLES: ClassVar[dict[str, HighlightStyle]] = {
+        "default": HighlightStyle("SPAN_COLOR"),
+        "idiom": HighlightStyle("SPAN_IDIOM_COLOR"),
+    }
 
     def __init__(self, card: "SentenceCard"):
         """
@@ -808,8 +735,6 @@ class SingleInstanceHighlighter(SelectTokensMixin):
         super().__init__(card)
         #: The main window
         self.main_window: MainWindow = cast("MainWindow", card.main_window)
-        #: Existing extra selections
-        self.existing_selections: list[QTextEdit.ExtraSelection] = []
         #: The current highlight start position
         self._current_highlight_start: int | None = None
         #: The current highlight length
@@ -829,43 +754,11 @@ class SingleInstanceHighlighter(SelectTokensMixin):
             and self._current_highlight_length is not None
         )
 
-    def set_existing_selections(
-        self, selections: list[QTextEdit.ExtraSelection]
-    ) -> None:
-        """
-        Set the existing extra selections, preserving search highlights.
-
-        Args:
-            selections: Selections.
-
-        """
-        # Get existing search highlights
-        existing = self.oe_text_edit.extraSelections()
-        search_highlights = [
-            s
-            for s in existing
-            if s.format.property(SearchHighlighter.SEARCH_HIGHLIGHT_PROPERTY)  # type: ignore[attr-defined]
-        ]
-
-        # Combine provided selections with search highlights
-        all_selections = [*selections, *search_highlights]
-        self.oe_text_edit.setExtraSelections(all_selections)
-        self.existing_selections = [
-            s
-            for s in self.oe_text_edit.extraSelections()
-            if not s.format.property(SearchHighlighter.SEARCH_HIGHLIGHT_PROPERTY)  # type: ignore[attr-defined]
-        ]
-
     def unhighlight(self) -> None:
         """
-        Unhighlight the tokens in the sentence.
+        Unhighlight the tokens in the sentence by clearing the span layer.
         """
-        filtered_selections = [
-            selection
-            for selection in self.existing_selections
-            if not selection.format.property(self.HIGHLIGHT_PROPERTY)  # type: ignore[attr-defined]
-        ]
-        self.set_existing_selections(filtered_selections)
+        self.oe_text_edit.clear_layer(HighlightLayer.SPAN)
         self.reset()
 
     def reset(self) -> None:
@@ -892,8 +785,8 @@ class SingleInstanceHighlighter(SelectTokensMixin):
             color_name: Color to use for highlighting. Defaults to "default".
 
         """
-        assert color_name in self.COLORS, "Invalid color name"  # noqa: S101
-        color = self.COLORS[color_name]
+        assert color_name in self.STYLES, "Invalid color name"  # noqa: S101
+        style = self.STYLES[color_name]
 
         if end_order is None:
             end_order = start_order
@@ -914,19 +807,16 @@ class SingleInstanceHighlighter(SelectTokensMixin):
         if not token_positions:
             return
 
-        # Create highlights for all tokens in range
-        range_highlights = []
-        for token_start, token_end in token_positions:
-            selection = self.highlight_positions(
-                token_start, token_end, color, self.HIGHLIGHT_PROPERTY
-            )
-            range_highlights.append(selection)
+        # One entry per token, so note superscripts between tokens stay unhighlighted
+        entries = [
+            HighlightEntry(cast("int", token.id), cast("int", token.id), style)
+            for order_idx in range(start_order, end_order + 1)
+            if (token := self.tokens_by_index.get(order_idx))
+            and token.id in self.token_positions
+        ]
+        self.oe_text_edit.set_layer(HighlightLayer.SPAN, entries)
 
-        # Combine existing selections with range highlights
-        all_selections = [*self.existing_selections, *range_highlights]
-        self.set_existing_selections(all_selections)
-
-        # Store range for clearing later
+        # Store range for is_highlighted
         first_start = token_positions[0][0]
         last_end = token_positions[-1][1]
         self._current_highlight_start = first_start
@@ -939,9 +829,23 @@ class SearchHighlighter:
     """
 
     #: Color for search highlighting (bright yellow)
-    SEARCH_COLOR: ClassVar[QColor] = QColor(255, 255, 0)
+    SEARCH_COLOR: ClassVar[QColor] = AnnotationLookupsMixin.SEARCH_COLOR
     #: Property ID for search highlight in ExtraSelection
     SEARCH_HIGHLIGHT_PROPERTY: ClassVar[int] = 1002
+
+    @staticmethod
+    def _uses_layers(text_edit: QTextEdit) -> bool:
+        """
+        Whether a text edit composes its highlights through highlight layers.
+
+        Args:
+            text_edit: Text edit to check.
+
+        Returns:
+            True for editors that opt in with ``uses_highlight_layers``.
+
+        """
+        return bool(getattr(text_edit, "uses_highlight_layers", False))
 
     @staticmethod
     def highlight_text(text_edit: QTextEdit, pattern: str) -> int:
@@ -956,6 +860,10 @@ class SearchHighlighter:
             int: Number of matches found
 
         """
+        if SearchHighlighter._uses_layers(text_edit):
+            editor = cast("OldEnglishTextEdit", text_edit)
+            editor.set_search_pattern(pattern or None)
+            return editor.highlight_layers.match_count(HighlightLayer.SEARCH)
         settings = QSettings()
         is_dark_theme = settings.value("theme/name", "dark", type=str) == "dark"
         # First, remove existing search highlights
@@ -1005,6 +913,32 @@ class SearchHighlighter:
 
         text_edit.setExtraSelections(selections)
         return matches
+
+    @staticmethod
+    def highlight_token_ids(
+        text_edit: "OldEnglishTextEdit", token_ids: set[int]
+    ) -> int:
+        """
+        Highlight tokens as search matches in a layered editor.
+
+        Args:
+            text_edit: Editor whose search layer to set.
+            token_ids: Ids of the tokens that matched.
+
+        Returns:
+            Number of highlighted tokens (ids unknown to the editor are skipped).
+
+        """
+        positions = text_edit.token_to_position
+        known = sorted(
+            (token_id for token_id in token_ids if token_id in positions),
+            key=lambda token_id: positions[token_id][0],
+        )
+        text_edit.set_layer(
+            HighlightLayer.SEARCH,
+            [HighlightEntry(token_id, token_id, SEARCH_STYLE) for token_id in known],
+        )
+        return len(known)
 
     @staticmethod
     def highlight_token_ranges(
@@ -1060,6 +994,9 @@ class SearchHighlighter:
             text_edit: QTextEdit to clear highlights from
 
         """
+        if SearchHighlighter._uses_layers(text_edit):
+            cast("OldEnglishTextEdit", text_edit).clear_layer(HighlightLayer.SEARCH)
+            return
         selections = text_edit.extraSelections()
         selections = [
             s

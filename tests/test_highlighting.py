@@ -330,8 +330,7 @@ class TestSingleInstanceHighlighter:
         assert span_highlighter._current_highlight_length == 2
 
         selections = card.oe_text_edit.extraSelections()
-        found = any(s.format.property(span_highlighter.HIGHLIGHT_PROPERTY) for s in selections)
-        assert found
+        assert [(s.cursor.selectionStart(), s.cursor.selectionEnd()) for s in selections] == [(0, 2)]
 
     def test_highlight_range(self, span_highlighter, card):
         """Test highlighting a range of tokens."""
@@ -342,8 +341,7 @@ class TestSingleInstanceHighlighter:
         assert span_highlighter._current_highlight_length == 9
 
         selections = card.oe_text_edit.extraSelections()
-        highlights = [s for s in selections if s.format.property(span_highlighter.HIGHLIGHT_PROPERTY)]
-        assert len(highlights) == 2 # One for each token in range
+        assert len(selections) == 2  # One for each token in range
 
     def test_unhighlight(self, span_highlighter, card):
         """Test clearing highlights."""
@@ -352,41 +350,24 @@ class TestSingleInstanceHighlighter:
 
         span_highlighter.unhighlight()
         assert not span_highlighter.is_highlighted
+        assert card.oe_text_edit.extraSelections() == []
 
-        selections = card.oe_text_edit.extraSelections()
-        highlights = [s for s in selections if s.format.property(span_highlighter.HIGHLIGHT_PROPERTY)]
-        assert len(highlights) == 0
-
-    def test_unhighlight_preserves_other_selections(self, span_highlighter, card):
-        """Test that unhighlighting only removes its own highlights."""
-        # Create a manual selection that isn't ours
-        cursor = QTextCursor(card.oe_text_edit.document())
-        cursor.setPosition(0)
-        cursor.setPosition(2, QTextCursor.MoveMode.KeepAnchor)
-
-        other_selection = QTextEdit.ExtraSelection()
-        other_selection.cursor = cursor
-        other_selection.format.setBackground(QColor("red"))
-        # Crucially, it doesn't have our HIGHLIGHT_PROPERTY
-
-        card.oe_text_edit.setExtraSelections([other_selection])
-        # Update highlighter's view of existing selections
-        span_highlighter.existing_selections = card.oe_text_edit.extraSelections()
-
-        span_highlighter.highlight(1) # Highlight "cyning"
+    def test_unhighlight_preserves_other_layers(self, span_highlighter, card):
+        """Unhighlighting the span leaves the search layer alone."""
+        SearchHighlighter.highlight_text(card.oe_text_edit, "fēoll")
+        span_highlighter.highlight(1)  # "cyning"
         assert len(card.oe_text_edit.extraSelections()) == 2
 
         span_highlighter.unhighlight()
 
         remaining = card.oe_text_edit.extraSelections()
         assert len(remaining) == 1
-        assert remaining[0].format.background().color().name() == QColor("red").name()
+        assert remaining[0].format.background().color() == SearchHighlighter.SEARCH_COLOR
 
     def test_highlight_different_colors(self, span_highlighter, card):
         """Test highlighting with different defined colors."""
         span_highlighter.highlight(0, color_name="idiom")
-        selections = card.oe_text_edit.extraSelections()
-        highlight = next(s for s in selections if s.format.property(span_highlighter.HIGHLIGHT_PROPERTY))
+        highlight = card.oe_text_edit.extraSelections()[0]
         assert highlight.format.background().color() == span_highlighter.COLORS["idiom"]
 
     def test_highlight_invalid_color(self, span_highlighter):
@@ -410,11 +391,10 @@ class TestSingleInstanceHighlighter:
         assert span_highlighter._current_highlight_start == 0
 
         span_highlighter.highlight(1)
-        assert span_highlighter._current_highlight_start == 3 # "cyning" starts at 3
+        assert span_highlighter._current_highlight_start == 3  # "cyning" starts at 3
 
         selections = card.oe_text_edit.extraSelections()
-        highlights = [s for s in selections if s.format.property(span_highlighter.HIGHLIGHT_PROPERTY)]
-        assert len(highlights) == 1
+        assert [(s.cursor.selectionStart(), s.cursor.selectionEnd()) for s in selections] == [(3, 9)]
 
 
 class TestSearchHighlighterClear:

@@ -13,6 +13,7 @@ from oeapp.models.section import Section
 from oeapp.models.sentence import Sentence
 from oeapp.models.note import Note
 from oeapp.models.token import Token
+from oeapp.ui.highlighting import SearchHighlighter
 
 @pytest.fixture
 def full_window(qapp, db_session, mock_main_window):
@@ -111,6 +112,24 @@ class TestFullTranslationWindow:
         selections = full_window.oe_edit.extraSelections()
         note_highlights = [s for s in selections if s.format.property(14) == note.id]
         assert len(note_highlights) == 0
+
+    def test_oe_edit_search_keeps_direct_path(self, full_window):
+        """The full window's editor must not be captured by the layer path."""
+        edit = full_window.oe_edit
+        assert edit.uses_highlight_layers is False
+        pattern = full_window.project.sentences[0].text_oe.split()[0][:2]
+
+        assert SearchHighlighter.highlight_text(edit, pattern) > 0
+        assert any(
+            s.format.property(SearchHighlighter.SEARCH_HIGHLIGHT_PROPERTY)
+            for s in edit.extraSelections()
+        )
+
+        SearchHighlighter.clear_highlight(edit)
+        assert not any(
+            s.format.property(SearchHighlighter.SEARCH_HIGHLIGHT_PROPERTY)
+            for s in edit.extraSelections()
+        )
 
     def test_search_notes(self, full_window, db_session):
         """Test that searching highlights text in notes."""

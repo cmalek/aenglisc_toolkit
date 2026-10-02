@@ -1,8 +1,12 @@
 import pytest
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QTextEdit
+from PySide6.QtWidgets import QTextEdit as PlainTextEdit
 
 from oeapp.commands import CommandManager
+from oeapp.models.annotation import Annotation
+from oeapp.models.idiom import Idiom
+from oeapp.ui.dialogs.sentence_filters import SentenceFilterDialog
 from oeapp.ui.full_translation_window import FullProjectOldEnglishTextEdit
 from oeapp.ui.highlight_layers import (
     SEARCH_STYLE,
@@ -11,6 +15,7 @@ from oeapp.ui.highlight_layers import (
     HighlightLayers,
     HighlightStyle,
 )
+from oeapp.ui.highlighting import SearchHighlighter
 from oeapp.ui.mixins import AnnotationLookupsMixin
 from oeapp.ui.oe_text_edit import OldEnglishTextEdit
 from oeapp.ui.sentence_card import SentenceCard
@@ -194,3 +199,166 @@ class TestEditorLayerApi:
 
         edit.set_search_pattern(None)
         assert edit.extraSelections() == []
+
+
+def annotate_pos(card, db_session, pos_by_index):
+    """Give tokens a POS annotation and tell the sentence highlighter."""
+    tokens = card.oe_text_edit.tokens
+    for index, pos in pos_by_index.items():
+        tokens[index].annotation = Annotation(token_id=tokens[index].id, pos=pos)
+    db_session.commit()
+    card.sentence_highlighter.annotations = {
+        t.id: t.annotation for t in tokens if t.id
+    }
+
+
+def backgrounds(edit):
+    return [s.format.background().color() for s in edit.extraSelections()]
+
+
+class TestLayerCoexistence:
+    @pytest.fixture(autouse=True)
+    def patch_dialog_exec(self, monkeypatch):
+        monkeypatch.setattr(SentenceFilterDialog, "exec", lambda self: self.show())
+
+    @pytest.fixture
+    def combo(self, card, db_session):
+        annotate_pos(card, db_session, {0: "D", 1: "N"})
+        return card.sentence_highlighter.build_combo_box()
+
+    def test_search_and_mode_coexist(self, card, combo):
+        """The card's required test: search plus mode."""
+        edit = card.oe_text_edit
+        combo.setCurrentIndex(1)  # Part of Speech
+        assert len(edit.extraSelections()) == 2
+
+        SearchHighlighter.highlight_text(edit, "fēoll")
+
+        assert selection_ranges(edit.extraSelections())[-1] == (10, 15)
+        assert len(edit.extraSelections()) == 3
+        assert backgrounds(edit)[-1] == AnnotationLookupsMixin.SEARCH_COLOR
+
+        combo.setCurrentIndex(0)  # None
+        assert selection_ranges(edit.extraSelections()) == [(10, 15)]
+
+    def test_search_and_span_coexist(self, card):
+        edit = card.oe_text_edit
+        edit.span_highlighter.highlight(1)
+        SearchHighlighter.highlight_text(edit, "fēoll")
+        assert len(edit.extraSelections()) == 2
+
+        edit.span_highlighter.unhighlight()
+
+        assert selection_ranges(edit.extraSelections()) == [(10, 15)]
+
+    def test_mode_unhighlight_keeps_search_and_span(self, card, combo):
+        """Regression for the setExtraSelections([]) wipe in unhighlight."""
+        edit = card.oe_text_edit
+        combo.setCurrentIndex(1)
+        edit.span_highlighter.highlight(0)
+        SearchHighlighter.highlight_text(edit, "fēoll")
+
+        card.sentence_highlighter.unhighlight()
+
+        assert selection_ranges(edit.extraSelections()) == [(0, 2), (10, 15)]
+
+    def test_switching_mode_replaces_mode_layer(self, card, combo):
+        edit = card.oe_text_edit
+        combo.setCurrentIndex(1)  # POS: two tokens
+        assert len(edit.extraSelections()) == 2
+
+        combo.setCurrentIndex(4)  # Idiom: no idioms in this sentence
+
+        assert edit.extraSelections() == []
+
+    def test_mode_change_preserves_selected_span(self, card, combo):
+        edit = card.oe_text_edit
+        edit.span_highlighter.highlight(2)
+
+        combo.setCurrentIndex(1)
+
+        assert (10, 15) in selection_ranges(edit.extraSelections())
+
+    def test_stacking_order_mode_span_search(self, card, combo):
+        edit = card.oe_text_edit
+        combo.setCurrentIndex(1)
+        edit.span_highlighter.highlight(1)
+        SearchHighlighter.highlight_text(edit, "ing")
+
+        colours = backgrounds(edit)
+
+        assert colours[-2] == AnnotationLookupsMixin.SPAN_COLOR
+        assert colours[-1] == AnnotationLookupsMixin.SEARCH_COLOR
+
+    def test_repeated_mode_highlight_does_not_accumulate(self, card, combo):
+        """Review focus 3."""
+        edit = card.oe_text_edit
+        combo.setCurrentIndex(1)
+        before = len(edit.extraSelections())
+
+        card.sentence_highlighter.highlight()
+        card.sentence_highlighter.highlight()
+
+        assert len(edit.extraSelections()) == before
+
+    def test_idiom_mode_and_span_use_distinct_alpha(self, card, db_session):
+        edit = card.oe_text_edit
+        tokens = edit.tokens
+        idiom = Idiom(
+            sentence_id=card.sentence.id,
+            start_token_id=tokens[0].id,
+            end_token_id=tokens[1].id,
+        )
+        idiom.start_token = tokens[0]
+        idiom.end_token = tokens[1]
+        card.sentence_highlighter.idioms = [idiom]
+        card.sentence_highlighter.build_combo_box().setCurrentIndex(4)
+
+        mode_colours = backgrounds(edit)
+        assert len(mode_colours) == 2
+        assert all(c.alpha() == 255 for c in mode_colours)
+
+        edit.span_highlighter.highlight(0, 1, color_name="idiom")
+        span_colours = backgrounds(edit)[2:]
+        assert [c.alpha() for c in span_colours] == [150, 150]
+        assert not any(s.format.fontItalic() for s in edit.extraSelections())
+
+
+class TestSearchLayerEntryPoints:
+    def test_empty_pattern_clears_and_returns_zero(self, card):
+        """Review focus 2."""
+        edit = card.oe_text_edit
+        assert SearchHighlighter.highlight_text(edit, "ing") == 1
+
+        assert SearchHighlighter.highlight_text(edit, "") == 0
+        assert edit.extraSelections() == []
+
+    def test_token_ids_search_skips_unknown_ids(self, card, token_ids):
+        edit = card.oe_text_edit
+
+        count = SearchHighlighter.highlight_token_ids(
+            edit, {token_ids[0], token_ids[2], 999_999}
+        )
+
+        assert count == 2
+        assert selection_ranges(edit.extraSelections()) == [(0, 2), (10, 15)]
+
+    def test_clear_highlight_clears_search_layer(self, card):
+        edit = card.oe_text_edit
+        SearchHighlighter.highlight_text(edit, "ing")
+
+        SearchHighlighter.clear_highlight(edit)
+
+        assert edit.extraSelections() == []
+
+    def test_plain_text_edit_keeps_direct_path(self, qapp):
+        plain = PlainTextEdit()
+        plain.setPlainText("one two one")
+
+        assert SearchHighlighter.highlight_text(plain, "one") == 2
+        assert all(
+            s.format.property(SearchHighlighter.SEARCH_HIGHLIGHT_PROPERTY)
+            for s in plain.extraSelections()
+        )
+        SearchHighlighter.clear_highlight(plain)
+        assert plain.extraSelections() == []

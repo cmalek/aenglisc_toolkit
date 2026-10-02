@@ -331,8 +331,7 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, QWidget):
         if not token_ids and normalized_oe:
             token_ids = self._matching_oe_token_ids(normalized_oe)
         if token_ids:
-            ranges = self._token_ranges_for_ids(token_ids)
-            return SearchHighlighter.highlight_token_ranges(self.oe_text_edit, ranges)
+            return SearchHighlighter.highlight_token_ids(self.oe_text_edit, token_ids)
         return SearchHighlighter.highlight_text(self.oe_text_edit, pattern)
 
     def _matching_oe_token_ids(self, normalized_oe: str) -> set[int]:
@@ -357,24 +356,6 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, QWidget):
             if root and normalized_oe in root:
                 token_ids.add(token.id)
         return token_ids
-
-    def _token_ranges_for_ids(self, token_ids: set[int]) -> list[tuple[int, int]]:
-        """
-        Convert token ids to character ranges in the OE text editor.
-
-        Args:
-            token_ids: Token ids to map.
-
-        Returns:
-            Ordered list of ``(start, end)`` positions.
-
-        """
-        ranges = [
-            self.oe_text_edit.token_to_position[token_id]
-            for token_id in token_ids
-            if token_id in self.oe_text_edit.token_to_position
-        ]
-        return sorted(ranges, key=lambda item: item[0])
 
     def focus_token_by_id(self, token_id: int | None) -> None:
         """
