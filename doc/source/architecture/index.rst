@@ -18,3 +18,4 @@ writing instructions.
    adr_0003_project_export_reading_text
    adr_0004_highlight_layers
    adr_0005_pos_field_catalog
+   adr_0006_copied_annotation

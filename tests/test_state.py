@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch
 
 from oeapp.commands import CommandManager
 from oeapp.db import clear_runtime_session, set_runtime_session
+from oeapp.models import AnnotationJson
 from oeapp.state import AppContext
 from PySide6.QtCore import QSettings
 from sqlalchemy.orm import Session
@@ -40,7 +41,7 @@ class TestAppContext:
         context.current_project_id = 123
         context.current_chapter_id = 7
         context.current_section_id = 3
-        context.copied_annotation = {"pos": "N"}
+        context.copied_annotation = AnnotationJson(pos="N")
         mock_window = MagicMock()
         context.set_main_window(mock_window)
 
@@ -83,12 +84,45 @@ class TestAppContext:
         with qtbot.waitSignal(context.current_section_id_changed, timeout=1000):
             context.current_section_id = 3
         with qtbot.waitSignal(context.copied_annotation_changed, timeout=1000):
-            context.copied_annotation = {"pos": "N", "root": "cyning"}
+            context.copied_annotation = AnnotationJson(pos="N", root="cyning")
 
         assert context.current_project_id == 42
         assert context.current_chapter_id == 7
         assert context.current_section_id == 3
-        assert context.copied_annotation == {"pos": "N", "root": "cyning"}
+        assert context.copied_annotation == AnnotationJson(pos="N", root="cyning")
+
+    def test_copied_annotation_signal_emits_plain_dict(self, db_session, qtbot):
+        """Signal payload is a plain JSON dict."""
+        context = AppContext(session=db_session)
+        with qtbot.waitSignal(
+            context.copied_annotation_changed, timeout=1000
+        ) as blocker:
+            context.copied_annotation = AnnotationJson(pos="N", root="cyning")
+        payload = blocker.args[0]
+        assert isinstance(payload, dict)
+        assert payload["pos"] == "N"
+        assert payload["root"] == "cyning"
+
+    def test_reset_clears_copied_annotation_and_emits_none(self, db_session, qtbot):
+        """Reset clears the copied annotation and emits None."""
+        context = AppContext(session=db_session)
+        context.copied_annotation = AnnotationJson(pos="N")
+        with qtbot.waitSignal(
+            context.copied_annotation_changed, timeout=1000
+        ) as blocker:
+            context.reset()
+        assert blocker.args == [None]
+        assert context.copied_annotation is None
+
+    def test_copy_replaces_previous_and_emits_only_on_change(self, db_session, qtbot):
+        """Setting an equal annotation does not re-emit."""
+        context = AppContext(session=db_session)
+        context.copied_annotation = AnnotationJson(pos="N")
+        with qtbot.waitSignal(context.copied_annotation_changed, timeout=1000):
+            context.copied_annotation = AnnotationJson(pos="V")
+        assert context.copied_annotation == AnnotationJson(pos="V")
+        with qtbot.assertNotEmitted(context.copied_annotation_changed):
+            context.copied_annotation = AnnotationJson(pos="V")
 
     def test_runtime_session_provider_syncs(self, db_session):
         """AppContext session should stay in sync with runtime session provider."""

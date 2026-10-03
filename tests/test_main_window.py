@@ -9,6 +9,7 @@ from PySide6.QtCore import QPoint
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import QLabel, QSplitter, QStatusBar, QWidget
 
+from oeapp.models import AnnotationJson
 from oeapp.models.note import Note
 from oeapp.state import AppContext
 from oeapp.ui.main_window import MainWindow, Messages
@@ -377,9 +378,9 @@ class TestMainWindowActions:
 
         assert actions.copy_annotation() is True
         assert main_window.app_context.copied_annotation is not None
-        assert main_window.app_context.copied_annotation["pos"] == "N"
+        assert main_window.app_context.copied_annotation.pos == "N"
         assert (
-            main_window.app_context.copied_annotation["modern_english_meaning"]
+            main_window.app_context.copied_annotation.modern_english_meaning
             == "king"
         )
 
@@ -387,7 +388,7 @@ class TestMainWindowActions:
     def test_paste_annotation_state(self, mock_command, main_window):
         """Test that paste_annotation uses copied app-context state."""
         actions = main_window.action_service
-        copied_data = {"pos": "V", "root": "gangan"}
+        copied_data = AnnotationJson(pos="V", root="gangan")
         main_window.app_context.copied_annotation = copied_data
 
         mock_token = MagicMock()
@@ -410,7 +411,9 @@ class TestMainWindowActions:
             assert actions.paste_annotation() is True
 
         mock_command.assert_called_once()
-        assert mock_command.call_args.kwargs["after"] == copied_data
+        assert mock_command.call_args.kwargs["after"] == copied_data.model_dump(
+            exclude={"created_at", "updated_at"}
+        )
 
     def test_status_bar_messages(self, main_window):
         """Test that Messages helper updates the status bar."""

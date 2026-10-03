@@ -32,6 +32,8 @@
 
 **Note:** Copy and Paste annotation shortcuts only work when a token is selected. When editing text fields, these shortcuts work normally for text operations.
 
+**Note:** If copying an annotation shows "Cannot copy annotation: invalid data", nothing was copied and your previous copy is kept. The details are recorded in the application log (open it from **Window > View Logs**); please include the log when you report the problem.
+
 ## Editing
 
 | Action | Shortcut |
