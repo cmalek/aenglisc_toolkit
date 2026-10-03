@@ -135,6 +135,13 @@ A named, reusable bundle of annotation field values for a given POS, applied
 manually when filling the annotation form.
 _Avoid_: Template (unscoped), remembered annotation, default
 
+**Copied Annotation**:
+The field values of one token's annotation, held by the app for the current
+session so they can be pasted onto another token. Excludes timestamps.
+Independent of the system clipboard.
+_Avoid_: Clipboard annotation (conflates with the system clipboard), remembered
+annotation, preset
+
 **POS Field Catalog**:
 The single definition, per part of speech, of which annotation fields exist,
 their canonical labels, and their order. The annotation form, the preset form,
