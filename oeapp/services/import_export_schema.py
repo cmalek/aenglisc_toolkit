@@ -6,7 +6,9 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
-from oeapp.models.annotation_json import AnnotationJson  # noqa: TC001 - pydantic resolves at runtime
+from oeapp.models.annotation_json import (
+    AnnotationJson,  # noqa: TC001 - pydantic resolves at runtime
+)
 
 
 class TokenJson(BaseModel):
