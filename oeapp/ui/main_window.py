@@ -5,6 +5,7 @@ from contextlib import suppress
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final, cast
 
+from pydantic import ValidationError
 from PySide6.QtCore import QPoint, QSettings, Qt, QTimer
 from PySide6.QtWidgets import (
     QApplication,
@@ -41,6 +42,7 @@ from oeapp.services import (
     ProjectImporter,
     ReadingTextExporter,
 )
+from oeapp.services.logs import get_logger
 from oeapp.services.remembered_annotation_service import RememberedAnnotationService
 from oeapp.state import AppContext
 from oeapp.ui.dialogs import (
@@ -67,6 +69,7 @@ from oeapp.utils import get_logo_pixmap
 if TYPE_CHECKING:
     from PySide6.QtGui import QKeyEvent
 
+    from oeapp.models.annotation import Annotation
     from oeapp.models.token import Token
 
 
@@ -1077,11 +1080,43 @@ class MainWindowActions:
 
         # Extract annotation fields
         annotation = token.annotation
-        self.app_context.copied_annotation = AnnotationJson.model_validate(
-            annotation.to_json()
-        )
+        copied = self._validated_copied_annotation(token, annotation)
+        if copied is None:
+            return True
+        self.app_context.copied_annotation = copied
         self.messages.show_message("Annotation copied")
         return True
+
+    def _validated_copied_annotation(
+        self, token: "Token", annotation: "Annotation"
+    ) -> AnnotationJson | None:
+        """
+        Validate a token's annotation payload for the Copied Annotation.
+
+        Args:
+            token: Token that owns the annotation (for log context).
+            annotation: Annotation being copied.
+
+        Side Effects:
+            On failure, logs the payload and shows a status message.
+
+        Returns:
+            The validated payload, or ``None`` when validation failed.
+
+        """
+        payload = annotation.to_json()
+        try:
+            return AnnotationJson.model_validate(payload)
+        except ValidationError as exc:
+            get_logger(self.__class__.__name__).error(
+                "annotation.copy.invalid",
+                token_id=token.id,
+                annotation_id=annotation.id,
+                payload=payload,
+                errors=exc.errors(include_context=False),
+            )
+            self.messages.show_message("Cannot copy annotation: invalid data")
+            return None
 
     def _selected_sentence_card(self) -> SentenceCard | None:
         """

@@ -5,10 +5,11 @@ from unittest.mock import MagicMock
 import pytest
 
 from oeapp.commands import CommandManager
-from oeapp.models import AnnotationJson
+from oeapp.models import Annotation, AnnotationJson
 from oeapp.models.project import Project
 from oeapp.ui.main_window import MainWindowActions
 from oeapp.ui.sentence_card import SentenceCard
+from structlog.testing import capture_logs
 from tests.conftest import create_test_project
 
 
@@ -137,6 +138,39 @@ class TestCopyAnnotation:
         copied = mock_main_window.app_context.copied_annotation
         assert isinstance(copied, AnnotationJson)
         assert copied.pos == "N"
+
+    def test_copy_invalid_payload_is_refused(
+        self, db_session, qapp, mock_main_window, monkeypatch
+    ):
+        """An invalid payload is refused, logged, and leaves the old copy."""
+        del qapp
+        project = create_test_project(db_session, name="Bad", text="Se cyning")
+        sentence = project.sentences[0]
+        token = sentence.tokens[0]
+        token.annotation.pos = "N"
+        token.annotation.save()
+        db_session.refresh(token)
+        _select_card(db_session, mock_main_window, sentence, 0)
+        actions = _actions(mock_main_window)
+        assert actions.copy_annotation() is True  # a good copy first
+        previous = mock_main_window.app_context.copied_annotation
+
+        real_to_json = Annotation.to_json
+        monkeypatch.setattr(
+            Annotation, "to_json", lambda self: {**real_to_json(self), "bogus": 1}
+        )
+        with capture_logs() as logs:
+            assert actions.copy_annotation() is True  # event handled
+
+        mock_main_window.messages.show_message.assert_called_with(
+            "Cannot copy annotation: invalid data"
+        )
+        assert mock_main_window.app_context.copied_annotation is previous
+        entry = next(e for e in logs if e["event"] == "annotation.copy.invalid")
+        assert entry["log_level"] == "error"
+        assert entry["payload"]["bogus"] == 1
+        assert entry["payload"]["pos"] == "N"
+        assert entry["errors"]
 
 
 class TestPasteAnnotation:
