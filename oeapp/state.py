@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import sys
-from typing import TYPE_CHECKING, Any, Final, cast
+from typing import TYPE_CHECKING, Final, cast
 
 from PySide6.QtCore import QObject, QSettings, Signal
 
@@ -13,6 +13,7 @@ from oeapp.db import clear_runtime_session, get_runtime_session, set_runtime_ses
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
+    from oeapp.models import AnnotationJson
     from oeapp.ui.main_window import MainWindow
 
 
@@ -68,8 +69,8 @@ class AppContext(QObject):
         self._current_chapter_id: int | None = None
         #: Backing store for current section id.
         self._current_section_id: int | None = None
-        #: Backing store for copied annotation payload.
-        self._copied_annotation: dict[str, Any] | None = None
+        #: Backing store for the Copied Annotation (validated payload).
+        self._copied_annotation: AnnotationJson | None = None
         #: Command manager for undoable app actions.
         self.command_manager = CommandManager(self.session)
 
@@ -204,32 +205,35 @@ class AppContext(QObject):
         self.current_section_id_changed.emit(section_id)
 
     @property
-    def copied_annotation(self) -> dict[str, Any] | None:
+    def copied_annotation(self) -> AnnotationJson | None:
         """
-        Return copied annotation payload for paste workflows.
+        Return the Copied Annotation for paste workflows.
 
         Returns:
-            Copied annotation payload, or ``None`` when empty.
+            Validated annotation payload, or ``None`` when empty.
 
         """
         return self._copied_annotation
 
     @copied_annotation.setter
-    def copied_annotation(self, annotation_state: dict[str, Any] | None) -> None:
+    def copied_annotation(self, annotation: AnnotationJson | None) -> None:
         """
-        Set or clear copied annotation payload.
+        Set or clear the Copied Annotation.
 
         Args:
-            annotation_state: Serialized annotation payload, or ``None`` to clear it.
+            annotation: Validated annotation payload, or ``None`` to clear it.
 
         Side Effects:
-            Emits :attr:`copied_annotation_changed` when value changes.
+            Emits :attr:`copied_annotation_changed` with a plain JSON dict (or
+            ``None``) when the value changes.
 
         """
-        if self._copied_annotation == annotation_state:
+        if self._copied_annotation == annotation:
             return
-        self._copied_annotation = annotation_state
-        self.copied_annotation_changed.emit(annotation_state)
+        self._copied_annotation = annotation
+        self.copied_annotation_changed.emit(
+            None if annotation is None else annotation.model_dump(mode="json")
+        )
 
     def has_current_project(self) -> bool:
         """

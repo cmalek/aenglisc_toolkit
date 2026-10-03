@@ -28,6 +28,7 @@ from oeapp.commands import (
 from oeapp.db import run_pragma_optimize
 from oeapp.exc import MigrationFailed
 from oeapp.help.help_engine import HelpEngineError
+from oeapp.models.annotation_json import AnnotationJson
 from oeapp.models.project import Project
 from oeapp.models.search_result import SearchResult
 from oeapp.services import (
@@ -1076,7 +1077,9 @@ class MainWindowActions:
 
         # Extract annotation fields
         annotation = token.annotation
-        self.app_context.copied_annotation = annotation.to_json()
+        self.app_context.copied_annotation = AnnotationJson.model_validate(
+            annotation.to_json()
+        )
         self.messages.show_message("Annotation copied")
         return True
 
@@ -1140,7 +1143,7 @@ class MainWindowActions:
         command = AnnotateTokenCommand(
             token_id=token.id,
             before=before_state,
-            after=copied_annotation,
+            after=copied_annotation.model_dump(exclude={"created_at", "updated_at"}),
         )
 
         if self.command_manager.execute(command):

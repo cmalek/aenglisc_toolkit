@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from oeapp.commands import CommandManager
+from oeapp.models import AnnotationJson
 from oeapp.models.project import Project
 from oeapp.ui.main_window import MainWindowActions
 from oeapp.ui.sentence_card import SentenceCard
@@ -71,14 +72,14 @@ class TestCopyAnnotation:
 
         copied = mock_main_window.app_context.copied_annotation
         assert copied is not None
-        assert copied["pos"] == "N"
-        assert copied["gender"] == "m"
-        assert copied["number"] == "s"
-        assert copied["case"] == "n"
-        assert copied["declension"] == "i"
-        assert copied["modern_english_meaning"] == "king"
-        assert copied["sense"] == "ruler in this line"
-        assert copied["root"] == "cyning"
+        assert copied.pos == "N"
+        assert copied.gender == "m"
+        assert copied.number == "s"
+        assert copied.case == "n"
+        assert copied.declension == "i"
+        assert copied.modern_english_meaning == "king"
+        assert copied.sense == "ruler in this line"
+        assert copied.root == "cyning"
 
     def test_copy_annotation_copies_none_values(self, db_session, qapp, mock_main_window):
         """Test copy_annotation preserves explicit None values."""
@@ -112,11 +113,30 @@ class TestCopyAnnotation:
         assert _actions(mock_main_window).copy_annotation() is True
         copied = mock_main_window.app_context.copied_annotation
         assert copied is not None
-        assert copied["pos"] == "V"
-        assert copied["gender"] is None
-        assert copied["case"] is None
-        assert copied["verb_class"] == "w1"
-        assert copied["root"] == "bēon"
+        assert copied.pos == "V"
+        assert copied.gender is None
+        assert copied.case is None
+        assert copied.verb_class == "w1"
+        assert copied.root == "bēon"
+
+
+    def test_copy_annotation_stores_annotation_json(
+        self, db_session, qapp, mock_main_window
+    ):
+        """Copy stores a validated AnnotationJson."""
+        del qapp
+        project = create_test_project(db_session, name="Typed", text="Se cyning")
+        sentence = project.sentences[0]
+        token = sentence.tokens[0]
+        token.annotation.pos = "N"
+        token.annotation.save()
+        db_session.refresh(token)
+        _select_card(db_session, mock_main_window, sentence, 0)
+
+        assert _actions(mock_main_window).copy_annotation() is True
+        copied = mock_main_window.app_context.copied_annotation
+        assert isinstance(copied, AnnotationJson)
+        assert copied.pos == "N"
 
 
 class TestPasteAnnotation:
@@ -126,7 +146,7 @@ class TestPasteAnnotation:
         """Test paste_annotation returns False when no token is selected."""
         del db_session, qapp
         main_window = MagicMock()
-        main_window.app_context = MagicMock(copied_annotation={"pos": "N"})
+        main_window.app_context = MagicMock(copied_annotation=AnnotationJson(pos="N"))
         main_window.project_ui = MagicMock()
         main_window.project_ui.get_selected_sentence_card.return_value = None
         main_window.messages = MagicMock()
@@ -152,16 +172,16 @@ class TestPasteAnnotation:
         sentence = project.sentences[0]
         token = sentence.tokens[1]
 
-        mock_main_window.app_context.copied_annotation = {
-            "pos": "N",
-            "gender": "m",
-            "number": "s",
-            "case": "n",
-            "declension": "i",
-            "modern_english_meaning": "king",
-            "sense": "ruler in this line",
-            "root": "cyning",
-        }
+        mock_main_window.app_context.copied_annotation = AnnotationJson(
+            pos="N",
+            gender="m",
+            number="s",
+            case="n",
+            declension="i",
+            modern_english_meaning="king",
+            sense="ruler in this line",
+            root="cyning",
+        )
         command_manager = mock_main_window.app_context.command_manager
 
         _select_card(db_session, mock_main_window, sentence, 1)
@@ -182,11 +202,9 @@ class TestPasteAnnotation:
         sentence = project.sentences[0]
         token = sentence.tokens[1]
 
-        mock_main_window.app_context.copied_annotation = {
-            "pos": "N",
-            "gender": "m",
-            "number": "s",
-        }
+        mock_main_window.app_context.copied_annotation = AnnotationJson(
+            pos="N", gender="m", number="s"
+        )
         command_manager = mock_main_window.app_context.command_manager
 
         _select_card(db_session, mock_main_window, sentence, 1)
@@ -200,6 +218,27 @@ class TestPasteAnnotation:
         db_session.refresh(token)
         assert token.annotation.pos == "N"
         assert token.annotation.gender == "m"
+
+
+    def test_paste_annotation_does_not_copy_source_timestamps(
+        self, db_session, qapp, mock_main_window
+    ):
+        """Paste ignores source created_at/updated_at."""
+        del qapp
+        project = create_test_project(db_session, name="Stamp", text="Se cyning")
+        sentence = project.sentences[0]
+        token = sentence.tokens[1]
+        mock_main_window.app_context.copied_annotation = AnnotationJson(
+            pos="N",
+            created_at="2020-01-01T00:00:00+00:00",
+            updated_at="2020-01-01T00:00:00+00:00",
+        )
+        _select_card(db_session, mock_main_window, sentence, 1)
+
+        assert _actions(mock_main_window).paste_annotation() is True
+        db_session.refresh(token)
+        assert token.annotation.pos == "N"
+        assert token.annotation.updated_at.year != 2020
 
 
 class TestCopyPasteIntegration:
