@@ -6,7 +6,11 @@ from pydantic import BaseModel, ConfigDict
 
 
 class AnnotationJson(BaseModel):
-    """Annotation Json for this module."""
+    """
+    Strict (extra=forbid) JSON schema for one annotation's payload.
+
+    Used by project import/export and the Copied Annotation.
+    """
 
     #: Model config.
     model_config = ConfigDict(extra="forbid")
