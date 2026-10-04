@@ -147,3 +147,5 @@ oeapp/help/assets/.topics-*
 
 # Isolated git worktrees for feature work
 .worktrees/
+default.db-shm
+default.db-wal
