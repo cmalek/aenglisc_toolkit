@@ -1,12 +1,14 @@
 """Unit tests for BackupService."""
 
 import json
+import sqlite3
 import tempfile
 from datetime import datetime, timedelta, UTC
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+from sqlalchemy.exc import SQLAlchemyError
 
 from oeapp.db import get_project_db_path
 from oeapp.exc import BackupFailed
@@ -291,3 +293,72 @@ class TestBackupService:
         result = backup_service.restore_backup(missing_file)
         assert result is None
 
+
+    def test_create_backup_includes_pages_still_in_the_wal(self, backup_service, tmp_path):
+        db_path = tmp_path / "wal.db"
+        live = sqlite3.connect(db_path)
+        live.execute("pragma journal_mode=wal")
+        live.execute("pragma wal_autocheckpoint=0")
+        live.execute("create table t (v text)")
+        live.execute("insert into t values ('in-the-wal')")
+        live.commit()
+        backup_service.db_path = db_path
+
+        backup_path = backup_service.create_backup()
+        live.close()
+
+        copy = sqlite3.connect(backup_path)
+        assert copy.execute("select v from t").fetchall() == [("in-the-wal",)]
+        copy.close()
+
+    def test_backups_in_the_same_instant_get_distinct_files(self, backup_service):
+        fixed = datetime(2026, 10, 3, 12, 0, 0, 123456, tzinfo=UTC)
+        with patch("oeapp.services.backup.datetime") as clock:
+            clock.now.return_value = fixed
+            first = backup_service.create_backup()
+            second = backup_service.create_backup()
+
+        assert first != second
+        assert first.exists() and second.exists()
+        assert first.with_suffix(".json").exists()
+        assert second.with_suffix(".json").exists()
+
+    def test_sidecar_records_maintaining_and_creating_versions(self, backup_service):
+        from oeapp import __version__
+
+        default = json.loads(backup_service.create_backup().with_suffix(".json").read_text())
+        stamped = json.loads(
+            backup_service.create_backup(maintained_by="0.9.0").with_suffix(".json").read_text()
+        )
+        unknown = json.loads(
+            backup_service.create_backup(maintained_by=None).with_suffix(".json").read_text()
+        )
+
+        assert default["application_version"] == __version__
+        assert stamped["application_version"] == "0.9.0"
+        assert unknown["application_version"] is None
+        assert {default["created_by_version"], stamped["created_by_version"]} == {__version__}
+
+    def test_prune_false_defers_retention(self, backup_service):
+        backup_service.settings.setValue("backup/num_backups", 1)
+
+        backup_service.create_backup(prune=False)
+        backup_service.create_backup(prune=False)
+        assert len(list(backup_service.backup_dir.glob("*.db"))) == 2
+
+        backup_service.cleanup_old_backups()
+        assert len(list(backup_service.backup_dir.glob("*.db"))) == 1
+
+    def test_sidecar_keeps_the_revision_when_projects_cannot_be_listed(self, backup_service):
+        engine_db = backup_service.db_path
+        connection = sqlite3.connect(engine_db)
+        connection.execute("create table alembic_version (version_num varchar(32) primary key)")
+        connection.execute("insert into alembic_version values ('f38623b35077')")
+        connection.commit()
+        connection.close()
+
+        with patch("oeapp.services.backup.Project.list", side_effect=SQLAlchemyError("no table")):
+            sidecar = json.loads(backup_service.create_backup().with_suffix(".json").read_text())
+
+        assert sidecar["migration_version"] == "f38623b35077"
+        assert sidecar["projects"] == []
