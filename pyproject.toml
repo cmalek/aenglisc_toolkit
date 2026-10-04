@@ -1,6 +1,6 @@
 [project]
 name = "aenglisc_toolkit"
-version = "1.0.1"
+version = "1.1.0"
 description = "A desktop application to assist in translation from Old English/Anglo Saxon to Modern English"
 readme = "README.md"
 requires-python = ">=3.13"
@@ -55,7 +55,7 @@ docs = [
     # We use our own version of sphinx-terraform that fixes a bug in the
     # upstream version that has yet to be merged as of Jan 2024.
     "sphinx-terraform",                                 # https://gitlab.com/cmalek1/sphinx-terraform
-    "sphinxcontrib-images>=1.0.1",
+    "sphinxcontrib-images>=1.1.0",
     "sphinxcontrib-jsonglobaltoc==0.1.5",               # https://github.com/caltechads/sphinxcontrib-jsonglobaltoc
 ]
 test = [
