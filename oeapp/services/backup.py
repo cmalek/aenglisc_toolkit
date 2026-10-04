@@ -414,9 +414,7 @@ class BackupService(QObject):
                 "backup.restore.failed", error=e, backup_path=str(backup_path)
             )
             return None
-        metadata = self.read_backup_metadata(
-            backup_path
-        )  # before pruning may delete it
+        metadata = self.read_backup_metadata(backup_path)  # read before pruning
         self._prune_quietly()
         return metadata
 
