@@ -105,15 +105,16 @@
 <h2>Backup Files</h2>
 <p>Each backup is named with a timestamp:</p>
 <ul>
-<li>Format: <code>project_db_YYYY-MM-DD_HH-MM-SS.db</code></li>
-<li>Example: <code>project_db_2024-01-15_14-30-00.db</code></li>
+<li>Format: <code>default_YYYY-MM-DD_HH-MM-SS-ffffff.db</code> (the last part is microseconds;
+  a <code>-N</code> suffix is added if two backups would share a name)</li>
+<li>Example: <code>default_2024-01-15_14-30-00-123456.db</code></li>
 <li>The corresponding metadata file has the same name with <code>.json</code> extension</li>
 </ul>
 <h2>Restoring from a Backup</h2>
 <p>If you need to restore your project from a backup:</p>
 <ol>
-<li>The application can restore backups automatically if database migrations fail</li>
-<li>Manual restore functionality may be available in future versions</li>
+<li>The application restores the pre-migration backup automatically if a database migration fails</li>
+<li>Use <strong>Tools &gt; Restore...</strong> to pick a backup and restore it; the application exits afterwards and must be started again</li>
 <li>Backup files can be found in the <code>backups</code> folder if you need to access them directly</li>
 </ol>
 <h2>Important Notes</h2>

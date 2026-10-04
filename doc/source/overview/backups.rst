@@ -52,11 +52,12 @@ backup and restore it. Restoring:
 1. Takes a backup of the *current* database first, so restoring is itself
    undoable.
 2. Copies the selected backup file over the current database.
-3. Warns you if the backup's migration version doesn't match the version
-   the running application expects, since restoring an incompatible backup
-   can cause SQL errors.
+3. Refuses a backup whose database revision this build does not know,
+   since restoring it would leave the application unable to open its own
+   database.
 
-The application must be restarted after a restore completes.
+The application exits by itself after a successful restore; start it again
+to continue.
 
 Per-project backups
 ====================

@@ -96,6 +96,8 @@ Press **F1** to open the in-app Help Center's Troubleshooting topic, which
 covers database, annotation, export, and performance issues with concrete
 fixes.
 
+.. _database-version-mismatch:
+
 Database version mismatch
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 

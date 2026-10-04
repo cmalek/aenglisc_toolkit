@@ -203,8 +203,10 @@ After a *successful* migration, ``migrate`` takes a **post-migration backup**
 (``prune=False``), which carries the new revision and the running application
 version. Without it the newest Backup would describe the old revision until the
 user's interval elapses, and the sidecar lookup in D6 would have nothing to
-find for the new revision. ``migrate`` then calls ``cleanup_old_backups()`` once,
-whether the migration succeeded or was rolled back. With ``num_backups=1`` the
+find for the new revision. After success ``migrate`` then calls
+``cleanup_old_backups()`` once. After a rollback it does not prune itself:
+``restore_backup`` prunes after the copy, and nothing is pruned if the restore
+fails. With ``num_backups=1`` the
 retained Backup is the newest one: the post-migration backup after success, or
 the failed-state safety copy after a rollback. The pre-migration copy cannot be
 evicted before it is used; ``restore_backup`` reads its sidecar before pruning,
@@ -354,8 +356,9 @@ Consequences
   and the Restore dialog gains a refusal path.
 - A successful migration writes two Backups (pre and post), so each migration
   uses two retention slots until the single prune at the end.
-- The sparse catalog means resolution step 1 rarely hits; step 2 carries the
-  common case. Backing every revision in the catalog would need git archaeology
+- The sparse catalog means resolution step 1 only helps for catalogs shipped
+  with a newer build (the bundled catalog lists only revisions this build
+  already knows); step 2 carries the common case. Backing every revision in the catalog would need git archaeology
   and is out of scope.
 - Removing skip/abort drops the only guard against migrating past a chosen
   revision. If that is wanted later it needs a real setting and a script-graph
@@ -363,7 +366,7 @@ Consequences
 - D7 and D8 rely on the committed ``1.0.0`` baseline fixture. Tests come first
   and must include: failure rollback against a temp-path engine, a
   ``num_backups=1`` rollback, restore over a WAL database with leftover
-  sidecars, a populated-database upgrade that checks row counts, an
+  sidecars, a populated-database upgrade that checks row counts,
   a Restore that exits the application and does not leave it running on the
   replaced database, two backups created within the same second that stay distinct, a
   rollback within one second that restores the original database, a Restore

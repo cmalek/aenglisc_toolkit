@@ -10,8 +10,8 @@ Fixes
 - Backups and restores use SQLite's backup API, so pages still in the
   write-ahead log are no longer missed.
 - A failed migration now restores the database that was backed up. Backup
-  filenames no longer collide, and restoring a backup can no longer delete that
-  backup when only one backup is kept.
+  filenames no longer collide, and restoring a backup can no longer delete a
+  backup before it is restored.
 - Migrations run with foreign keys off on the database that was opened, so a
   table rebuild cannot delete child rows.
 

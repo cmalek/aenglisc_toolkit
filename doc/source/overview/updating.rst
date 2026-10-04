@@ -37,8 +37,9 @@ What happens on startup
    full backup of the database (the same kind of backup described in
    :doc:`/overview/backups`).
 3. **Apply the migrations.**
-4. **On success**, the backup is discarded and the application starts
-   normally.
+4. **On success**, the pre-migration backup is kept and a second backup of
+   the migrated database is added. Both appear in the Restore list and count
+   toward the retention limit. The application then starts normally.
 5. **On failure**, the application:
 
    - Restores the database from the backup taken in step 2, so your data is

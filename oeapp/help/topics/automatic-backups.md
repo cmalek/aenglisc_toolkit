@@ -61,16 +61,17 @@ Backups are created automatically:
 
 Each backup is named with a timestamp:
 
-- Format: `project_db_YYYY-MM-DD_HH-MM-SS.db`
-- Example: `project_db_2024-01-15_14-30-00.db`
+- Format: `default_YYYY-MM-DD_HH-MM-SS-ffffff.db` (the last part is microseconds;
+  a `-N` suffix is added if two backups would share a name)
+- Example: `default_2024-01-15_14-30-00-123456.db`
 - The corresponding metadata file has the same name with `.json` extension
 
 ## Restoring from a Backup
 
 If you need to restore your project from a backup:
 
-1. The application can restore backups automatically if database migrations fail
-2. Manual restore functionality may be available in future versions
+1. The application restores the pre-migration backup automatically if a database migration fails
+2. Use **Tools > Restore...** to pick a backup and restore it; the application exits afterwards and must be started again
 3. Backup files can be found in the `backups` folder if you need to access them directly
 
 ## Important Notes
