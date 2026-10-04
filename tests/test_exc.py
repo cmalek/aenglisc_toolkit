@@ -8,7 +8,6 @@ from oeapp.exc import (
     DoesNotExist,
     MigrationCreationFailed,
     MigrationFailed,
-    MigrationSkipped,
 )
 
 
@@ -114,22 +113,6 @@ class TestMigrationFailed:
         assert isinstance(exc, Exception)
 
 
-class TestMigrationSkipped:
-    """Test cases for MigrationSkipped exception."""
-
-    def test_creates_exception_with_skip_version(self):
-        """Test creates exception with skip version."""
-        exc = MigrationSkipped("1.0.0")
-        assert exc.skip_until_version == "1.0.0"
-        assert "Migration skipped" in str(exc)
-        assert "1.0.0" in str(exc)
-
-    def test_inherits_from_exception(self):
-        """Test exception inherits from Exception."""
-        exc = MigrationSkipped("1.0.0")
-        assert isinstance(exc, Exception)
-
-
 class TestBackupFailed:
     """Test cases for BackupFailed exception."""
 
@@ -149,4 +132,3 @@ class TestBackupFailed:
         backup_path = Path("/tmp/backup.db")
         exc = BackupFailed(error, backup_path)
         assert isinstance(exc, Exception)
-

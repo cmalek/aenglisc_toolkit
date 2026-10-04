@@ -123,28 +123,6 @@ class MigrationFailed(Exception):  # noqa: N818
         super().__init__(f"Migration failed: {error}")
 
 
-class MigrationSkipped(Exception):  # noqa: N818
-    """
-    Exception raised when a migration is skipped.
-
-    Args:
-        skip_until_version: Skip until version.
-
-    """
-
-    def __init__(self, skip_until_version: str):
-        """
-        Initialize the instance.
-
-        Args:
-            skip_until_version: Skip until version.
-
-        """
-        #: Skip until version.
-        self.skip_until_version = skip_until_version
-        super().__init__(f"Migration skipped: {skip_until_version}")
-
-
 class BackupFailed(Exception):  # noqa: N818
     """
     Exception raised when a backup fails.

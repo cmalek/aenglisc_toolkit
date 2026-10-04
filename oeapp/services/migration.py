@@ -31,7 +31,6 @@ from oeapp.exc import (
     BackupFailed,
     MigrationCreationFailed,
     MigrationFailed,
-    MigrationSkipped,
 )
 
 from .backup import BackupService
@@ -306,80 +305,6 @@ class FieldMappingService(ProjectFoldersMixin):
         return revision_id, renames
 
 
-class BackupFileMetadataService:
-    """
-    Service for handling backup file metadata.
-
-    This handles the metadata JSON file for each backup file.
-
-    Args:
-        backup_path: Path to the backup file
-
-    Raises:
-        FileNotFoundError: If the backup file metadata JSON file is not found
-
-    """
-
-    def __init__(self, backup_path: Path) -> None:
-        """
-        Initialize backup file metadata service.
-
-        Args:
-            backup_path: Backup path.
-
-        """
-        json_file = backup_path.with_suffix(".json")
-        if not json_file.exists():
-            msg = f"Backup file metadata JSON file not found: {json_file}"
-            raise FileNotFoundError(msg)
-        #: Backup path.
-        self.backup_path = json_file
-
-    @property
-    def metadata(self) -> dict[str, Any]:
-        """
-        Read metadata from backup file metadata JSON file.
-
-        Args:
-            backup_path: Path to the backup file
-
-        Returns:
-            Metadata dictionary, or None if not found
-
-        """
-        try:
-            with self.backup_path.open("r", encoding="utf-8") as f:
-                metadata = json.load(f)
-        except FileNotFoundError:
-            return {}
-        return metadata
-
-    @property
-    def migration_version(self) -> str | None:
-        """
-        Read migration version from backup metadata JSON.
-
-        Args:
-            backup_path: Path to the backup file
-
-        Returns:
-            Migration version string, or None if not found
-
-        """
-        return self.metadata.get("migration_version")
-
-    @property
-    def app_version(self) -> str | None:
-        """
-        Read application version from backup metadata JSON.
-
-        Returns:
-            Application version string, or None if not found
-
-        """
-        return self.metadata.get("application_version")
-
-
 class MigrationService(ProjectFoldersMixin):
     """
     Service for handling database migrations.
@@ -594,25 +519,6 @@ class MigrationService(ProjectFoldersMixin):
 
         return chain
 
-    def should_abort(self, skip_until_version: str | None = None) -> bool:
-        """
-        The user can put in their settings the maximum version they want to
-        migrate to.  If the current database version is greater than the version
-        the user wants to migrate to, the migrations will be aborted.
-
-        Args:
-            skip_until_version (_type_, optional): _description_. Defaults to None.
-
-        Returns:
-            True if the migrations should be aborted, False otherwise
-
-        """
-        current_db_version = self.db_migration_version()
-        # Compare versions as strings (Alembic versions are hex strings)
-        return bool(
-            current_db_version and str(current_db_version) < str(skip_until_version)
-        )
-
     def has_pending_migrations(self) -> bool:
         """
         Check if there are pending migrations by comparing the database version
@@ -763,26 +669,6 @@ class MigrationService(ProjectFoldersMixin):
                     backup_path=str(backup_path),
                 )
 
-    def restore(self, backup_path: Path) -> tuple[str | None, str | None]:
-        """
-        Restore the database from a backup after a failed migration
-
-        Args:
-            backup_path: Path to the backup file to restore
-
-        Returns:
-            Tuple containing the backup application version and the backup
-            migration version, or None if the backup failed
-
-        """
-        metadata = self.backup_service.restore_backup(backup_path)
-        backup_app_version = None
-        if metadata:
-            backup_app_version = metadata.get("application_version")
-            migration_version = metadata.get("migration_version")
-            return backup_app_version, migration_version
-        return None, None
-
     def create(self, name: str) -> MigrationCreationResult:
         """
         Create a new migration.
@@ -812,17 +698,12 @@ class MigrationService(ProjectFoldersMixin):
             revision_id=result.revision,
         )
 
-    def migrate(self, skip_until_version: str | None = None) -> MigrationResult:
+    def migrate(self) -> MigrationResult:
         """
         Migrate the database to the latest version.
 
-        Args:
-            skip_until_version: Version to skip migrations up to
-
         Raises:
             MigrationFailed: If the migration fails
-            MigrationSkipped: If the migration is skipped
-
 
         Returns:
             The computed value.
@@ -837,10 +718,6 @@ class MigrationService(ProjectFoldersMixin):
                 app_version=__version__,
                 migration_version=cast("str", db_version) if db_version else "",
             )
-
-        if skip_until_version:
-            if self.should_abort(skip_until_version):
-                raise MigrationSkipped(skip_until_version)
 
         # Create pre-migration backup
         try:

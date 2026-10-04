@@ -3,7 +3,7 @@
 import sys
 from contextlib import suppress
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Final, cast
+from typing import TYPE_CHECKING, Any, Final
 
 from pydantic import ValidationError
 from PySide6.QtCore import QPoint, QSettings, Qt, QTimer
@@ -583,11 +583,8 @@ class MainWindow(QMainWindow):
         """
         settings = QSettings()
         migration_service = MigrationService()
-        skip_until_version = cast(
-            "str | None", settings.value("migration/skip_until_version", None, type=str)
-        )
         try:
-            result = migration_service.migrate(skip_until_version)
+            result = migration_service.migrate()
         except MigrationFailed as e:
             dialog = MigrationFailureDialog(
                 self,
