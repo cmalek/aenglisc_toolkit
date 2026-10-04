@@ -414,12 +414,17 @@ class MigrationService(ProjectFoldersMixin):
         """
         #: The logger for the migration service.
         self.logger = get_logger(__name__)
-        #: Allow dependency injection for testing, but create defaults for normal use
-        self.backup_service = (
-            backup_service if backup_service is not None else BackupService()
-        )
         #: Engine.
         self.engine = engine if engine is not None else create_engine_with_path()
+        #: Database file the engine points at; backup, upgrade and restore all use it.
+        database = self.engine.url.database
+        self.db_path = Path(database) if database else get_project_db_path()
+        #: Allow dependency injection for testing, but create defaults for normal use
+        self.backup_service = (
+            backup_service
+            if backup_service is not None
+            else BackupService(db_path=self.db_path)
+        )
         #: Migration metadata service.
         self.migration_metadata_service = (
             migration_metadata_service
@@ -870,6 +875,30 @@ class MigrationService(ProjectFoldersMixin):
             self._delete_pre_migration_backup()
             return migration_result
 
+    def _upgrade_to_head(self) -> None:
+        """
+        Run ``alembic upgrade head`` on the injected engine's database.
+
+        Foreign keys are switched OFF on the migration connection before any
+        statement, because batch table recreation under ``foreign_keys=ON`` can
+        cascade-delete child rows. The pragma is a no-op once a transaction has
+        begun, so it must come first. It is switched back ON afterwards because
+        the pooled connection is reused.
+
+        Side Effects:
+            Upgrades the database schema and commits.
+
+        """
+        with self.engine.connect() as connection:
+            connection.exec_driver_sql("PRAGMA foreign_keys=OFF")
+            config = self.config
+            config.attributes["connection"] = connection
+            try:
+                command.upgrade(config, "head")
+                connection.commit()
+            finally:
+                connection.exec_driver_sql("PRAGMA foreign_keys=ON")
+
     def apply_migrations(self) -> MigrationResult:
         """
         Apply pending Alembic migrations.
@@ -914,7 +943,7 @@ class MigrationService(ProjectFoldersMixin):
                 migration_version=cast("str", initial_version),
             )
         # Existing database - apply migrations normally
-        command.upgrade(self.config, "head")
+        self._upgrade_to_head()
         # Migration succeeded - return current version
         current_version = self.db_migration_version()
         self.logger.info(

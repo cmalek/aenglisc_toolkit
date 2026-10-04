@@ -31,13 +31,19 @@ class BackupService(QObject):
     Handles creating backups, managing retention, and extracting metadata.
     """
 
-    def __init__(self) -> None:
-        """Initialize backup service."""
+    def __init__(self, db_path: "Path | None" = None) -> None:
+        """
+        Initialize backup service.
+
+        Args:
+            db_path: Database file to back up (defaults to the project database)
+
+        """
         super().__init__()
         #: The global settings for the application.
         self.settings = QSettings()
         #: The path to the project database.
-        self.db_path = get_project_db_path()
+        self.db_path = db_path if db_path is not None else get_project_db_path()
         #: The directory to store backups.
         self.backup_dir = self.db_path.parent / "backups"
         self.backup_dir.mkdir(parents=True, exist_ok=True)
