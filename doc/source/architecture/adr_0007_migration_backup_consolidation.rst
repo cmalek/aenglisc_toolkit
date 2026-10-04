@@ -4,7 +4,7 @@
 ADR 0007: One migration backup path and one source of migration state
 =====================================================================
 
-:Status: Proposed
+:Status: Accepted
 :Date: 2026-10-03
 
 Context
