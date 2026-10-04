@@ -3,6 +3,7 @@
 import json
 import shutil
 import sqlite3
+from contextlib import closing
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Final, cast
 
@@ -22,6 +23,7 @@ if TYPE_CHECKING:
 
 #: QSettings key holding the application version that last started successfully.
 LAST_APP_VERSION_KEY: Final[str] = "app/current_version"
+
 
 class BackupService(QObject):
     """
@@ -206,6 +208,7 @@ class BackupService(QObject):
             self.logger.exception(
                 "backup.failed", error=e, backup_path=str(backup_path)
             )
+            backup_path.unlink(missing_ok=True)
             raise BackupFailed(e, backup_path) from e
         metadata = self._collect_metadata(maintained_by)
         try:
@@ -217,6 +220,8 @@ class BackupService(QObject):
                 error=e,
                 backup_path=str(backup_path),
             )
+            backup_path.unlink(missing_ok=True)
+            metadata_path.unlink(missing_ok=True)
             raise BackupFailed(e, metadata_path) from e
         self.set_last_backup_time(datetime.now(UTC))
         if prune:
@@ -253,13 +258,11 @@ class BackupService(QObject):
             target_path: File to write
 
         """
-        source = sqlite3.connect(source_path)
-        target = sqlite3.connect(target_path)
-        try:
+        with (
+            closing(sqlite3.connect(source_path)) as source,
+            closing(sqlite3.connect(target_path)) as target,
+        ):
             source.backup(target)
-        finally:
-            target.close()
-            source.close()
 
     def _collect_metadata(self, maintained_by: str | None) -> dict[str, Any]:
         """

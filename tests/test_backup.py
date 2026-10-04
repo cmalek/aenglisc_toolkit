@@ -362,3 +362,21 @@ class TestBackupService:
 
         assert sidecar["migration_version"] == "f38623b35077"
         assert sidecar["projects"] == []
+
+    def test_failed_snapshot_leaves_nothing_behind(self, backup_service):
+        def partial(source, target):
+            Path(target).write_bytes(b"partial")
+            raise sqlite3.OperationalError("disk full")
+
+        with patch.object(BackupService, "_snapshot", side_effect=partial):
+            with pytest.raises(BackupFailed):
+                backup_service.create_backup()
+
+        assert list(backup_service.backup_dir.iterdir()) == []
+
+    def test_failed_sidecar_write_leaves_no_db_behind(self, backup_service):
+        with patch("oeapp.services.backup.json.dump", side_effect=OSError("full")):
+            with pytest.raises(BackupFailed):
+                backup_service.create_backup()
+
+        assert list(backup_service.backup_dir.iterdir()) == []
