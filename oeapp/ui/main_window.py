@@ -42,6 +42,7 @@ from oeapp.services import (
     ProjectImporter,
     ReadingTextExporter,
 )
+from oeapp.services.backup import LAST_APP_VERSION_KEY
 from oeapp.services.logs import get_logger
 from oeapp.services.remembered_annotation_service import RememberedAnnotationService
 from oeapp.state import AppContext
@@ -605,7 +606,7 @@ class MainWindow(QMainWindow):
             )
         if result.app_version:
             settings.setValue(
-                "app/current_version",
+                LAST_APP_VERSION_KEY,
                 result.app_version,
             )
 
