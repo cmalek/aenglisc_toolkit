@@ -26,6 +26,18 @@ def _upgrade(db_path: Path, monkeypatch) -> None:
     command.upgrade(_config(), "head")
 
 
+def _stamped_revision(path: Path) -> str:
+    connection = sqlite3.connect(path)
+    try:
+        return connection.execute("select version_num from alembic_version").fetchone()[0]
+    finally:
+        connection.close()
+
+
+def _head() -> str:
+    return ScriptDirectory.from_config(_config()).get_current_head()
+
+
 def test_baseline_upgrades_to_the_create_all_schema(tmp_path, monkeypatch):
     upgraded, fresh = tmp_path / "upgraded.db", tmp_path / "fresh.db"
     build_baseline_db(upgraded)
@@ -33,6 +45,8 @@ def test_baseline_upgrades_to_the_create_all_schema(tmp_path, monkeypatch):
 
     _upgrade(upgraded, monkeypatch)
 
+    # The 1.0.0 baseline currently equals create_all, so this guards future drift.
+    assert _stamped_revision(upgraded) == _head()
     assert schema_snapshot(upgraded) == schema_snapshot(fresh)
 
 
@@ -48,11 +62,10 @@ def test_baseline_upgrade_keeps_rows_and_stamps_head(tmp_path, monkeypatch):
             table: connection.execute(f"select count(*) from {table}").fetchone()[0]
             for table in SEED_COUNTS
         }
-        revision = connection.execute("select version_num from alembic_version").fetchone()[0]
     finally:
         connection.close()
     assert counts == SEED_COUNTS
-    assert revision == ScriptDirectory.from_config(_config()).get_current_head()
+    assert _stamped_revision(db_path) == _head()
 
 
 def test_schema_snapshot_detects_drift(tmp_path):
