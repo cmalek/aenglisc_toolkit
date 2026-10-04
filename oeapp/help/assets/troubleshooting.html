@@ -60,6 +60,10 @@
 <ul>
 <li><strong>Solution</strong>: Ensure the project file (.db) isn't corrupted. Check file permissions.</li>
 </ul>
+<p><strong>Problem</strong>: "Database Version Mismatch" at startup, or "Can't determine app version to use with db revision ..."</p>
+<ul>
+<li><strong>Solution</strong>: Your database was last used by a newer version of the application than the one you are running. Your data has not been changed. Install the application version named in the message (or any newer release), then start the app again. If the message cannot name a version, install the newest release from the project's GitHub Releases page. The same check stops you from restoring a backup made by a newer version.</li>
+</ul>
 <h3>Annotation Issues</h3>
 <p><strong>Problem</strong>: Annotation modal not opening</p>
 <ul>

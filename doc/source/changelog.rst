@@ -1,6 +1,29 @@
 CHANGELOG
 =========
 
+Unreleased
+----------
+
+Fixes
+^^^^^
+
+- Backups and restores use SQLite's backup API, so pages still in the
+  write-ahead log are no longer missed.
+- A failed migration now restores the database that was backed up. Backup
+  filenames no longer collide, and restoring a backup can no longer delete that
+  backup when only one backup is kept.
+- Migrations run with foreign keys off on the database that was opened, so a
+  table rebuild cannot delete child rows.
+
+Changed
+^^^^^^^
+
+- A migration now takes a backup before and after it runs; both appear in the
+  Restore dialog. Restoring a backup exits the application.
+- Starting the app on a database made by a newer version, or restoring such a
+  backup, shows which version to install instead of failing later.
+- Removed the unused ``migration/skip_until_version`` setting.
+
 1.0.1 (2026-09-06)
 ------------------
 
