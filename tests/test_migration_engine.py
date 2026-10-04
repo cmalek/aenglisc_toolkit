@@ -3,6 +3,12 @@
 import sqlite3
 from unittest.mock import MagicMock, patch
 
+import pytest
+import sqlalchemy as sa
+from alembic import op
+from alembic.operations import Operations
+from alembic.runtime.migration import MigrationContext
+
 from oeapp.db import create_engine_with_path, read_alembic_revision
 from oeapp.services.migration import MigrationService
 from tests.migration_baseline import SEED_COUNTS, build_baseline_db
@@ -63,3 +69,62 @@ def test_upgrade_with_the_app_engine_keeps_every_row(tmp_path):
     finally:
         connection.close()
     assert counts == SEED_COUNTS
+
+
+def test_failed_upgrade_rolls_back_and_restores_foreign_keys(tmp_path):
+    db_path = tmp_path / "live.db"
+    build_baseline_db(db_path)
+    engine = create_engine_with_path(db_path)
+
+    def failing_upgrade(config, revision):
+        config.attributes["connection"].exec_driver_sql(
+            "CREATE TABLE scratch (id integer)"
+        )
+        config.attributes["connection"].exec_driver_sql(
+            "INSERT INTO scratch VALUES (1)"
+        )
+        msg = "boom"
+        raise RuntimeError(msg)
+
+    with (
+        patch("oeapp.services.migration.command.upgrade", side_effect=failing_upgrade),
+        pytest.raises(RuntimeError, match="boom"),
+    ):
+        _service(engine).apply_migrations()
+
+    with engine.connect() as connection:
+        assert connection.exec_driver_sql("PRAGMA foreign_keys").scalar() == 1
+
+
+def test_batch_recreation_does_not_cascade_delete_children(tmp_path):
+    db_path = tmp_path / "cascade.db"
+    setup = sqlite3.connect(db_path)
+    setup.executescript(
+        """
+        CREATE TABLE parent (id integer PRIMARY KEY, name text);
+        CREATE TABLE child (
+            id integer PRIMARY KEY,
+            parent_id integer REFERENCES parent(id) ON DELETE CASCADE
+        );
+        INSERT INTO parent VALUES (1, 'a'), (2, 'b');
+        INSERT INTO child VALUES (1, 1), (2, 1), (3, 2);
+        """
+    )
+    setup.commit()
+    setup.close()
+    engine = create_engine_with_path(db_path)
+
+    def batch_upgrade(config, revision):
+        context = MigrationContext.configure(config.attributes["connection"])
+        with Operations.context(context):
+            with op.batch_alter_table("parent", recreate="always") as batch:
+                batch.add_column(sa.Column("extra", sa.Text()))
+
+    with patch("oeapp.services.migration.command.upgrade", side_effect=batch_upgrade):
+        _service(engine)._upgrade_to_head()
+
+    connection = sqlite3.connect(db_path)
+    try:
+        assert connection.execute("select count(*) from child").fetchone()[0] == 3
+    finally:
+        connection.close()

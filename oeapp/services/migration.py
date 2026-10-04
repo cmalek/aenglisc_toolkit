@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final, cast
 
 if TYPE_CHECKING:
-    from sqlalchemy import Engine
+    from sqlalchemy import Connection, Engine
 
 from alembic import command
 from alembic.config import Config
@@ -897,7 +897,23 @@ class MigrationService(ProjectFoldersMixin):
                 command.upgrade(config, "head")
                 connection.commit()
             finally:
-                connection.exec_driver_sql("PRAGMA foreign_keys=ON")
+                self._restore_foreign_keys(connection)
+
+    def _restore_foreign_keys(self, connection: "Connection") -> None:
+        """
+        Roll back any open transaction, then switch foreign keys back ON.
+
+        The pragma is a no-op inside a transaction, so a failed upgrade must be
+        rolled back first or the pooled connection keeps foreign keys OFF. A
+        failure here is logged, never raised, so it cannot mask the original
+        migration exception.
+        """
+        try:
+            if connection.in_transaction():
+                connection.rollback()
+            connection.exec_driver_sql("PRAGMA foreign_keys=ON")
+        except Exception:
+            self.logger.exception("migration.foreign_keys.restore_failed")
 
     def apply_migrations(self) -> MigrationResult:
         """
