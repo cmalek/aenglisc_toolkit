@@ -595,7 +595,7 @@ class MigrationService(ProjectFoldersMixin):
         try:
             result = self.apply_migrations()
         except Exception as e:
-            raise self._roll_back(e, backup_path) from e
+            raise self._safe_roll_back(e, backup_path) from e
         self._backup_after_migration()
         return result
 
@@ -625,6 +625,9 @@ class MigrationService(ProjectFoldersMixin):
         Take the post-migration backup and enforce retention once.
 
         A failure here is logged, never raised: the migration has committed.
+
+        Side Effects:
+            Writes a backup and prunes old backups.
         """
         try:
             self.backup_service.create_backup(prune=False)
@@ -654,6 +657,12 @@ class MigrationService(ProjectFoldersMixin):
         metadata = self.backup_service.restore_backup(backup_path)
         if metadata is None:
             self.logger.error("migration.restore.failed", backup_path=str(backup_path))
+            sidecar = self.backup_service.read_backup_metadata(backup_path)
+            return MigrationFailed(
+                error,
+                sidecar.get("application_version"),
+                sidecar.get("migration_version"),
+            )
         try:
             migration_version = self.db_migration_version()
         except (OSError, SQLAlchemyError) as version_error:
@@ -662,8 +671,30 @@ class MigrationService(ProjectFoldersMixin):
             )
             migration_version = None
         return MigrationFailed(
-            error, (metadata or {}).get("application_version"), migration_version
+            error, metadata.get("application_version"), migration_version
         )
+
+    def _safe_roll_back(self, error: Exception, backup_path: Path) -> MigrationFailed:
+        """
+        Roll back without ever masking the original migration error.
+
+        Args:
+            error: The exception that aborted the migration
+            backup_path: The Pre-migration Backup to restore
+
+        Side Effects:
+            Overwrites the live database with the backup.
+
+        Returns:
+            The exception to raise; carries no backup details if rollback itself
+            raised
+
+        """
+        try:
+            return self._roll_back(error, backup_path)
+        except Exception:
+            self.logger.exception("migration.rollback.failed")
+            return MigrationFailed(error, None, None)
 
     def _upgrade_to_head(self) -> None:
         """

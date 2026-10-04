@@ -213,3 +213,74 @@ class TestMigrate:
         assert service.backup_service.get_backup_list() == []
         assert result.migration_version == service.code_migration_version()
         engine.dispose()
+
+
+class TestRetentionAndRollbackEdges:
+    def _seed_older_backup(self, flow):
+        QSettings().setValue("backup/num_backups", 1)
+        return flow.backup_service.create_backup()
+
+    def test_pre_migration_backup_does_not_evict_older_backups_before_upgrade(
+        self, flow
+    ):
+        self._seed_older_backup(flow)
+        seen: list[int] = []
+        succeed = _succeeding_apply(flow)
+
+        def apply() -> MigrationResult:
+            seen.append(len(_backups(flow)))
+            return succeed()
+
+        with patch.object(flow, "apply_migrations", side_effect=apply):
+            flow.migrate()
+
+        assert seen == [2]
+
+    def test_older_backup_survives_a_failed_restore(self, flow):
+        older = self._seed_older_backup(flow)
+        real = BackupService._snapshot
+
+        def snapshot(source, target):
+            if target == flow.db_path:
+                raise OSError("restore broke")
+            real(source, target)
+
+        with (
+            patch.object(BackupService, "_snapshot", side_effect=snapshot),
+            patch.object(flow, "apply_migrations", side_effect=_failing_apply(flow)),
+            pytest.raises(MigrationFailed),
+        ):
+            flow.migrate()
+
+        assert older.exists()
+
+    def test_failed_restore_reports_the_sidecar_not_the_broken_database(self, flow):
+        QSettings().setValue(LAST_APP_VERSION_KEY, "1.0.0")
+        real = BackupService._snapshot
+
+        def snapshot(source, target):
+            if target == flow.db_path:
+                raise OSError("restore broke")
+            real(source, target)
+
+        with (
+            patch.object(BackupService, "_snapshot", side_effect=snapshot),
+            patch.object(flow, "apply_migrations", side_effect=_failing_apply(flow)),
+            pytest.raises(MigrationFailed) as failure,
+        ):
+            flow.migrate()
+
+        assert failure.value.backup_app_version == "1.0.0"
+        assert failure.value.backup_migration_version == OLD_REV
+
+    def test_a_crashing_rollback_still_raises_the_original_error(self, flow):
+        with (
+            patch.object(flow, "apply_migrations", side_effect=_failing_apply(flow)),
+            patch.object(flow, "_roll_back", side_effect=ValueError("rollback bug")),
+            pytest.raises(MigrationFailed) as failure,
+        ):
+            flow.migrate()
+
+        assert isinstance(failure.value.__cause__, RuntimeError)
+        assert failure.value.backup_app_version is None
+        assert failure.value.backup_migration_version is None
