@@ -6,12 +6,12 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, cast
 
 from PySide6.QtCore import QObject, QSettings
-from sqlalchemy import Engine, create_engine, inspect, text
+from sqlalchemy import Engine, create_engine
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import sessionmaker
 
 from oeapp import __version__
-from oeapp.db import get_project_db_path
+from oeapp.db import get_project_db_path, read_alembic_revision
 from oeapp.exc import BackupFailed
 from oeapp.models.project import Project
 
@@ -122,20 +122,7 @@ class BackupService(QObject):
             Migration version string, or None if no version is set
 
         """
-        inspector = inspect(engine)
-        existing_tables = inspector.get_table_names()
-
-        if "alembic_version" not in existing_tables:
-            return None
-
-        with engine.connect() as conn:
-            result = conn.execute(
-                text("SELECT version_num FROM alembic_version LIMIT 1")
-            )
-            row = result.fetchone()
-            if row:
-                return row[0]
-        return None
+        return read_alembic_revision(engine)
 
     def extract_backup_metadata(self, engine: Engine) -> dict[str, Any]:
         """

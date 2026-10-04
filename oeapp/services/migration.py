@@ -24,6 +24,7 @@ from oeapp.db import (
     Base,
     create_engine_with_path,
     get_project_db_path,
+    read_alembic_revision,
     table_to_model_name,
 )
 from oeapp.exc import (
@@ -509,20 +510,7 @@ class MigrationService(ProjectFoldersMixin):
             Migration version string, or None if no version is set
 
         """
-        db_inspector = inspect(self.engine)
-        existing_tables = db_inspector.get_table_names()
-
-        if "alembic_version" not in existing_tables:
-            return None
-
-        with self.engine.connect() as conn:
-            result = conn.execute(
-                text("SELECT version_num FROM alembic_version LIMIT 1")
-            )
-            row = result.fetchone()
-            if row:
-                return row[0]
-        return None
+        return read_alembic_revision(self.engine)
 
     def code_migration_version(self) -> str | None:
         """

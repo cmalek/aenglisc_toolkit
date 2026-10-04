@@ -5,13 +5,14 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from sqlalchemy import text
+from sqlalchemy import create_engine, text
 
 from oeapp.db import (
     Base,
     SessionLocal,
     create_engine_with_path,
     get_project_db_path,
+    read_alembic_revision,
     run_pragma_optimize,
     table_to_model_name,
 )
@@ -239,3 +240,24 @@ class TestTableToModelName:
         """Test handles single character."""
         result = table_to_model_name("s")
         assert result == ""
+
+
+class TestReadAlembicRevision:
+    """Tests for read_alembic_revision()."""
+
+    def test_returns_none_without_the_table(self, tmp_path):
+        engine = create_engine(f"sqlite:///{tmp_path / 'a.db'}")
+        assert read_alembic_revision(engine) is None
+
+    def test_returns_the_stored_revision(self, tmp_path):
+        engine = create_engine(f"sqlite:///{tmp_path / 'b.db'}")
+        with engine.begin() as conn:
+            conn.exec_driver_sql("create table alembic_version (version_num varchar(32) primary key)")
+            conn.exec_driver_sql("insert into alembic_version values ('abc123')")
+        assert read_alembic_revision(engine) == "abc123"
+
+    def test_returns_none_when_the_table_is_empty(self, tmp_path):
+        engine = create_engine(f"sqlite:///{tmp_path / 'c.db'}")
+        with engine.begin() as conn:
+            conn.exec_driver_sql("create table alembic_version (version_num varchar(32) primary key)")
+        assert read_alembic_revision(engine) is None

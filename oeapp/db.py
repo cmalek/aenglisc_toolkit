@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final, cast
 
-from sqlalchemy import Engine, create_engine, event
+from sqlalchemy import Engine, create_engine, event, inspect, text
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 if TYPE_CHECKING:
@@ -222,6 +222,27 @@ def create_engine_with_path(db_path: Path | None = None) -> Engine:
         cursor.close()
 
     return engine
+
+
+def read_alembic_revision(engine: Engine) -> str | None:
+    """
+    Read the database's current Alembic revision.
+
+    Args:
+        engine: Engine for the database to inspect
+
+    Returns:
+        The revision in ``alembic_version``, or None when the table is missing
+        or empty
+
+    """
+    if "alembic_version" not in inspect(engine).get_table_names():
+        return None
+    with engine.connect() as conn:
+        row = conn.execute(
+            text("SELECT version_num FROM alembic_version LIMIT 1")
+        ).fetchone()
+    return cast("str", row[0]) if row else None
 
 
 #: Create default engine and session factory
