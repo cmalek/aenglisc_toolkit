@@ -41,6 +41,7 @@ source = { editable = "." }
 dependencies = [
     { name = "alembic" },
     { name = "markdown" },
+    { name = "packaging" },
     { name = "pydantic" },
     { name = "pyside6" },
     { name = "python-docx" },
@@ -79,6 +80,7 @@ test = [
 requires-dist = [
     { name = "alembic", specifier = ">=1.13" },
     { name = "markdown", specifier = ">=3.5.0" },
+    { name = "packaging", specifier = ">=26.3" },
     { name = "pydantic", specifier = ">=2.12.5" },
     { name = "pyside6", specifier = ">=6.6.0" },
     { name = "python-docx", specifier = ">=1.1.0" },

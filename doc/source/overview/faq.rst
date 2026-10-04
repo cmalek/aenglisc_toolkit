@@ -96,6 +96,25 @@ Press **F1** to open the in-app Help Center's Troubleshooting topic, which
 covers database, annotation, export, and performance issues with concrete
 fixes.
 
+.. _database-version-mismatch:
+
+Database version mismatch
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+If the app says it can't use your database, the database was last used by a
+newer version of ``Ænglisc Toolkit`` than the one you are running. Your data
+has not been changed. Install the version named in the message (or any newer
+one) and start the app again.
+
+If the message says it **can't determine** the version, find your database
+revision (shown in the message) in the list below. Each line maps a database
+revision to the application version that introduced it. If your revision is not
+listed, install the newest release from the
+`GitHub Releases page <https://github.com/cmalek/aenglisc_toolkit/releases>`_.
+
+.. literalinclude:: ../../../oeapp/etc/migration_versions.json
+   :language: json
+
 Getting help
 ------------
 

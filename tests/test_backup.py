@@ -1,18 +1,36 @@
 """Unit tests for BackupService."""
 
 import json
+import sqlite3
 import tempfile
 from datetime import datetime, timedelta, UTC
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+from sqlalchemy.exc import SQLAlchemyError
 
 from oeapp.db import get_project_db_path
 from oeapp.exc import BackupFailed
 from oeapp.services.backup import BackupService
 from oeapp.models.project import Project
 from tests.conftest import create_test_project
+
+
+def _make_sqlite(path: Path, value: str) -> None:
+    connection = sqlite3.connect(path)
+    connection.execute("create table t (v text)")
+    connection.execute("insert into t values (?)", (value,))
+    connection.commit()
+    connection.close()
+
+
+def _read_value(path: Path) -> str:
+    connection = sqlite3.connect(path)
+    try:
+        return connection.execute("select v from t").fetchone()[0]
+    finally:
+        connection.close()
 
 
 class TestBackupService:
@@ -243,7 +261,7 @@ class TestBackupService:
         """Test restore_backup() creates backup of current database first."""
         # Create a backup file to restore
         backup_file = temp_backup_dir / "backup.db"
-        backup_file.write_bytes(b"backup data")
+        _make_sqlite(backup_file, "restored")
 
         # Mock create_backup to verify it's called
         with patch.object(backup_service, "create_backup") as mock_create:
@@ -254,21 +272,18 @@ class TestBackupService:
         """Test restore_backup() copies backup file over database."""
         # Create a backup file with content
         backup_file = temp_backup_dir / "backup.db"
-        backup_content = b"restored data"
-        backup_file.write_bytes(backup_content)
+        _make_sqlite(backup_file, "restored")
 
-        # Mock create_backup to avoid side effects
         with patch.object(backup_service, "create_backup"):
-            result = backup_service.restore_backup(backup_file)
+            backup_service.restore_backup(backup_file)
 
-        # Check that database was overwritten
-        assert mock_db_path.read_bytes() == backup_content
+        assert _read_value(mock_db_path) == "restored"
 
     def test_restore_backup_returns_metadata(self, backup_service, temp_backup_dir, mock_db_path):
         """Test restore_backup() returns metadata from JSON file."""
         # Create backup file and metadata
         backup_file = temp_backup_dir / "backup.db"
-        backup_file.touch()
+        _make_sqlite(backup_file, "restored")
         metadata_file = temp_backup_dir / "backup.json"
         metadata = {
             "backup_timestamp": datetime.now(UTC).isoformat(),
@@ -291,3 +306,259 @@ class TestBackupService:
         result = backup_service.restore_backup(missing_file)
         assert result is None
 
+
+    def test_create_backup_includes_pages_still_in_the_wal(self, backup_service, tmp_path):
+        db_path = tmp_path / "wal.db"
+        live = sqlite3.connect(db_path)
+        live.execute("pragma journal_mode=wal")
+        live.execute("pragma wal_autocheckpoint=0")
+        live.execute("create table t (v text)")
+        live.execute("insert into t values ('in-the-wal')")
+        live.commit()
+        backup_service.db_path = db_path
+
+        backup_path = backup_service.create_backup()
+        live.close()
+
+        copy = sqlite3.connect(backup_path)
+        assert copy.execute("select v from t").fetchall() == [("in-the-wal",)]
+        copy.close()
+
+    def test_backups_in_the_same_instant_get_distinct_files(self, backup_service):
+        fixed = datetime(2026, 10, 3, 12, 0, 0, 123456, tzinfo=UTC)
+        with patch("oeapp.services.backup.datetime") as clock:
+            clock.now.return_value = fixed
+            first = backup_service.create_backup()
+            second = backup_service.create_backup()
+
+        assert first != second
+        assert first.exists() and second.exists()
+        assert first.with_suffix(".json").exists()
+        assert second.with_suffix(".json").exists()
+
+    def test_sidecar_records_maintaining_and_creating_versions(self, backup_service):
+        from oeapp import __version__
+
+        default = json.loads(backup_service.create_backup().with_suffix(".json").read_text())
+        stamped = json.loads(
+            backup_service.create_backup(maintained_by="0.9.0").with_suffix(".json").read_text()
+        )
+        unknown = json.loads(
+            backup_service.create_backup(maintained_by=None).with_suffix(".json").read_text()
+        )
+
+        assert default["application_version"] == __version__
+        assert stamped["application_version"] == "0.9.0"
+        assert unknown["application_version"] is None
+        assert {default["created_by_version"], stamped["created_by_version"]} == {__version__}
+
+    def test_prune_false_defers_retention(self, backup_service):
+        backup_service.settings.setValue("backup/num_backups", 1)
+
+        backup_service.create_backup(prune=False)
+        backup_service.create_backup(prune=False)
+        assert len(list(backup_service.backup_dir.glob("*.db"))) == 2
+
+        backup_service.cleanup_old_backups()
+        assert len(list(backup_service.backup_dir.glob("*.db"))) == 1
+
+    def test_sidecar_keeps_the_revision_when_projects_cannot_be_listed(self, backup_service):
+        engine_db = backup_service.db_path
+        connection = sqlite3.connect(engine_db)
+        connection.execute("create table alembic_version (version_num varchar(32) primary key)")
+        connection.execute("insert into alembic_version values ('f38623b35077')")
+        connection.commit()
+        connection.close()
+
+        with patch("oeapp.services.backup.Project.list", side_effect=SQLAlchemyError("no table")):
+            sidecar = json.loads(backup_service.create_backup().with_suffix(".json").read_text())
+
+        assert sidecar["migration_version"] == "f38623b35077"
+        assert sidecar["projects"] == []
+
+    def test_failed_snapshot_leaves_nothing_behind(self, backup_service):
+        def partial(source, target):
+            Path(target).write_bytes(b"partial")
+            raise sqlite3.OperationalError("disk full")
+
+        with patch.object(BackupService, "_snapshot", side_effect=partial):
+            with pytest.raises(BackupFailed):
+                backup_service.create_backup()
+
+        assert list(backup_service.backup_dir.iterdir()) == []
+
+    def test_failed_sidecar_write_leaves_no_db_behind(self, backup_service):
+        with patch("oeapp.services.backup.json.dump", side_effect=OSError("full")):
+            with pytest.raises(BackupFailed):
+                backup_service.create_backup()
+
+        assert list(backup_service.backup_dir.iterdir()) == []
+
+    def test_restore_never_prunes_before_the_copy(self, backup_service):
+        backup_service.settings.setValue("backup/num_backups", 1)
+        _make_sqlite(backup_service.db_path, "original")
+        backup_path = backup_service.create_backup()
+        connection = sqlite3.connect(backup_service.db_path)
+        connection.execute("update t set v='changed'")
+        connection.commit()
+        connection.close()
+
+        metadata = backup_service.restore_backup(backup_path)
+
+        assert metadata is not None
+        assert metadata["application_version"]  # sidecar read before pruning removed it
+        assert _read_value(backup_service.db_path) == "original"
+
+    def test_restore_proceeds_when_the_safety_copy_fails(self, backup_service, temp_backup_dir):
+        backup_file = temp_backup_dir / "backup.db"
+        _make_sqlite(backup_file, "restored")
+
+        with patch.object(
+            backup_service, "create_backup", side_effect=BackupFailed(OSError("disk full"), backup_file)
+        ):
+            metadata = backup_service.restore_backup(backup_file)
+
+        assert metadata is not None
+        assert _read_value(backup_service.db_path) == "restored"
+
+    def test_restore_of_a_corrupt_backup_fails_and_keeps_the_database(self, backup_service, temp_backup_dir):
+        _make_sqlite(backup_service.db_path, "original")
+        backup_file = temp_backup_dir / "bad.db"
+        backup_file.write_bytes(b"not a database" * 100)
+
+        with patch.object(backup_service, "create_backup"):
+            assert backup_service.restore_backup(backup_file) is None
+
+        assert _read_value(backup_service.db_path) == "original"
+
+    def test_read_backup_metadata_tolerates_a_missing_or_corrupt_sidecar(self, backup_service, temp_backup_dir):
+        backup_file = temp_backup_dir / "x.db"
+        backup_file.touch()
+        assert backup_service.read_backup_metadata(backup_file) == {}
+
+        backup_file.with_suffix(".json").write_text("{not json")
+        assert backup_service.read_backup_metadata(backup_file) == {}
+
+    def test_non_object_sidecars_are_treated_as_empty(self, backup_service, temp_backup_dir):
+        backup_file = temp_backup_dir / "test_x.db"
+        backup_file.touch()
+        for text in ("[1, 2]", "3", '"s"', "null"):
+            backup_file.with_suffix(".json").write_text(text)
+            assert backup_service.read_backup_metadata(backup_file) == {}
+            listed = backup_service.get_backup_list()
+            assert [b["migration_version"] for b in listed] == [None]
+
+    def test_restore_from_a_missing_source_leaves_the_database_intact(self, backup_service, temp_backup_dir):
+        _make_sqlite(backup_service.db_path, "original")
+        missing = temp_backup_dir / "gone.db"
+
+        real_exists = Path.exists
+
+        def racy_exists(path):  # the file vanishes after the exists() check
+            return True if path == missing else real_exists(path)
+
+        with patch.object(Path, "exists", racy_exists):
+            assert backup_service.restore_backup(missing) is None
+
+        assert not missing.exists()  # the source was not created
+        assert _read_value(backup_service.db_path) == "original"
+
+    def test_restore_from_a_zero_byte_source_leaves_the_database_intact(self, backup_service, temp_backup_dir):
+        _make_sqlite(backup_service.db_path, "original")
+        empty = temp_backup_dir / "empty.db"
+        empty.touch()
+
+        assert backup_service.restore_backup(empty) is None
+
+        assert _read_value(backup_service.db_path) == "original"
+
+    def test_unlink_failure_during_failed_snapshot_still_raises_backup_failed(self, backup_service):
+        def partial(source, target):
+            Path(target).write_bytes(b"partial")
+            raise sqlite3.OperationalError("disk full")
+
+        with (
+            patch.object(BackupService, "_snapshot", side_effect=partial),
+            patch.object(Path, "unlink", side_effect=OSError("locked")),
+        ):
+            with pytest.raises(BackupFailed):
+                backup_service.create_backup()
+
+    def test_unlink_failure_during_failed_sidecar_write_still_raises_backup_failed(self, backup_service):
+        with (
+            patch("oeapp.services.backup.json.dump", side_effect=OSError("full")),
+            patch.object(Path, "unlink", side_effect=OSError("locked")),
+        ):
+            with pytest.raises(BackupFailed):
+                backup_service.create_backup()
+
+    def test_restore_proceeds_when_the_safety_copy_cleanup_cannot_unlink(self, backup_service, temp_backup_dir):
+        _make_sqlite(backup_service.db_path, "original")
+        backup_file = temp_backup_dir / "backup.db"
+        _make_sqlite(backup_file, "restored")
+        real = BackupService._snapshot
+
+        def fail_only_the_safety_copy(source, target):
+            if source == backup_service.db_path:
+                Path(target).write_bytes(b"partial")
+                raise sqlite3.OperationalError("disk full")
+            real(source, target)
+
+        with (
+            patch.object(BackupService, "_snapshot", side_effect=fail_only_the_safety_copy),
+            patch.object(Path, "unlink", side_effect=OSError("locked")),
+        ):
+            metadata = backup_service.restore_backup(backup_file)
+
+        assert metadata is not None
+        assert _read_value(backup_service.db_path) == "restored"
+
+    def test_restore_over_a_wal_database_with_leftover_sidecars(self, tmp_path):
+        from oeapp.db import create_engine_with_path
+
+        live = tmp_path / "live.db"
+        engine = create_engine_with_path(live)
+        service = BackupService(db_path=live)
+        reader = None
+        try:
+            with engine.connect() as setup:
+                setup.exec_driver_sql("pragma wal_autocheckpoint=0")
+                setup.exec_driver_sql("create table t (v text)")
+                setup.exec_driver_sql("insert into t values ('backup')")
+                setup.commit()
+            pooled = engine.connect()
+            pooled.exec_driver_sql("pragma wal_autocheckpoint=0")
+            pooled.exec_driver_sql("select count(*) from t").fetchone()
+            pooled.commit()
+            reader = sqlite3.connect(live)
+            reader.execute("begin")
+            assert reader.execute("select v from t").fetchone()[0] == "backup"
+            with engine.begin() as conn:
+                conn.exec_driver_sql("pragma wal_autocheckpoint=0")
+                for i in range(50):
+                    conn.exec_driver_sql("insert into t values (?)", (f"x{i}",))
+            assert Path(f"{live}-wal").stat().st_size > 0
+
+            backup_path = service.create_backup()
+            with engine.begin() as conn:
+                conn.exec_driver_sql("update t set v='changed'")
+                conn.exec_driver_sql("insert into t values ('after')")
+
+            assert service.restore_backup(backup_path) is not None
+
+            expected = ["backup", *[f"x{i}" for i in range(50)]]
+            rows = pooled.exec_driver_sql("select v from t order by rowid").fetchall()
+            assert [r[0] for r in rows] == expected
+            reader.rollback()
+            assert [r[0] for r in reader.execute("select v from t order by rowid")] == expected
+            fresh = sqlite3.connect(live)
+            try:
+                assert [r[0] for r in fresh.execute("select v from t order by rowid")] == expected
+                assert fresh.execute("pragma integrity_check").fetchone()[0] == "ok"
+            finally:
+                fresh.close()
+            pooled.close()
+        finally:
+            if reader is not None:
+                reader.close()
+            engine.dispose()

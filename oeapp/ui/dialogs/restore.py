@@ -1,8 +1,9 @@
 from pathlib import Path
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Any, Final
 
 from PySide6.QtCore import QSettings, Qt
 from PySide6.QtWidgets import (
+    QApplication,
     QDialog,
     QDialogButtonBox,
     QHeaderView,
@@ -15,6 +16,7 @@ from PySide6.QtWidgets import (
 from oeapp.services import BackupService, MigrationService
 from oeapp.utils import get_logo_pixmap
 
+from .unknown_revision import describe_unknown_revision
 from .utils import DateTimeTableWidgetItem
 
 if TYPE_CHECKING:
@@ -146,76 +148,91 @@ class RestoreDialog:
 
     def restore_backup(self) -> None:
         """
-        Restore the selected backup.
+        Restore the selected backup, then exit the application.
+
+        A backup whose database revision this build does not know is refused
+        before anything is overwritten.
         """
-        # Get the selected row
         selected_row = self.backup_table.currentRow()
         if selected_row < 0:
             self.main_window.messages.show_warning("Please select a backup to restore.")
             return
-
         time_item = self.backup_table.item(selected_row, 0)
         if not time_item:
             return
-
         backup_path = time_item.data(Qt.ItemDataRole.UserRole)
         if not backup_path:
             return
 
-        # Confirm restore
+        backup_service = BackupService()
+        metadata = backup_service.read_backup_metadata(Path(backup_path))
+        if self._refuse_unknown_revision(metadata):
+            return
+        if not self._confirm_restore():
+            return
+
+        restored = backup_service.restore_backup(Path(backup_path))
+        if restored is None:
+            self.main_window.messages.show_error("Failed to restore backup.")
+            return
+        backup_migration = restored.get("migration_version")
+        if backup_migration:
+            QSettings().setValue("migration/last_working_version", backup_migration)
+        self.main_window.messages.show_information(
+            "Backup restored successfully. The application will now exit; "
+            "start it again to continue.",
+            title="Restore Complete",
+        )
+        self.dialog.accept()
+        # close() runs MainWindow.closeEvent, which stops the backup timer and
+        # autosave (cancel only, no write) so nothing touches the restored file.
+        self.main_window.close()
+        QApplication.quit()
+
+    def _refuse_unknown_revision(self, metadata: dict[str, Any]) -> bool:
+        """
+        Refuse a backup whose database revision this build does not know.
+
+        A backup with no recorded revision cannot be judged and is allowed.
+
+        Args:
+            metadata: The backup's sidecar metadata
+
+        Returns:
+            True if the restore was refused
+
+        """
+        revision = metadata.get("migration_version")
+        if not revision or MigrationService().is_known_revision(revision):
+            return False
+        self.main_window.messages.show_warning(
+            describe_unknown_revision(revision, metadata.get("application_version")),
+            title="Cannot Restore Backup",
+        )
+        return True
+
+    def _confirm_restore(self) -> bool:
+        """
+        Ask the user to confirm the restore.
+
+        Returns:
+            True if the user chose Yes
+
+        """
         msg_box = QMessageBox(
             QMessageBox.Icon.Question,
             "Confirm Restore",
             "This will replace your current database with the selected backup.\n"
-            "A backup of your current database will be created first.\n\n"
+            "A backup of your current database will be created first, and the "
+            "application will exit afterwards.\n\n"
             "Continue?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             self.dialog,
         )
-        # Set custom icon
         logo_pixmap = get_logo_pixmap(75)
         if logo_pixmap:
             msg_box.setIconPixmap(logo_pixmap)
-        reply = msg_box.exec()
-
-        if reply != QMessageBox.StandardButton.Yes:
-            return
-
-        # Restore backup
-        migration_service = MigrationService()
-        backup_service = BackupService()
-        metadata = backup_service.restore_backup(Path(backup_path))
-
-        if metadata:
-            # Check for version mismatch
-            backup_migration = metadata.get("migration_version")
-            current_code_migration = migration_service.code_migration_version()
-
-            if (
-                backup_migration
-                and current_code_migration
-                and backup_migration != current_code_migration
-            ):
-                self.main_window.messages.show_warning(
-                    f"The restored backup was created with migration version "
-                    f"{backup_migration}, but your application expects version "
-                    f"{current_code_migration}.\n\n"
-                    "You may experience SQL errors. Consider downgrading your "
-                    "application to match the backup version.",
-                    title="Version Mismatch",
-                )
-
-            settings = QSettings()
-            if backup_migration:
-                settings.setValue("migration/last_working_version", backup_migration)
-
-            self.main_window.messages.show_information(
-                "Backup restored successfully. Please restart the application.",
-                title="Restore Complete",
-            )
-            self.dialog.accept()
-        else:
-            self.main_window.messages.show_error("Failed to restore backup.")
+        return msg_box.exec() == QMessageBox.StandardButton.Yes
 
     def execute(self) -> None:
         """

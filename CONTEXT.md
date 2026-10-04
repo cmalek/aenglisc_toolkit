@@ -256,6 +256,34 @@ the database, is not meant for sharing, and is restored rather than
 imported.
 _Avoid_: Snapshot, save point, project export (see Project Export)
 
+**Pre-migration Backup**:
+The Backup taken immediately before a Pending Migration runs, so a failed
+migration can be rolled back. It is an ordinary Backup made by the same
+service: it appears in the Restore dialog and counts toward retention. It is
+never taken for a Fresh Database.
+_Avoid_: `.pre-migration` file, migration snapshot, rollback copy
+
+**Pending Migration**:
+The state where the database's Alembic revision differs from the Alembic head
+the code expects. This comparison is the only test for whether to migrate; the
+application-version catalog (`migration_versions.json`) plays no part in it.
+_Avoid_: Needs upgrade, version mismatch
+
+**Unknown Database Revision**:
+A database whose Alembic revision is not among the revisions the running code
+knows, usually because a newer build migrated it or a Backup from a newer build
+was restored. Startup stops with a dialog naming the application version to
+install, or saying it cannot be determined; the Restore dialog refuses such a
+Backup.
+_Avoid_: Newer database, version mismatch
+
+**Fresh Database**:
+A database with no `alembic_version` table. It is built from the current
+models and stamped at head rather than replaying revisions, because the
+revision chain cannot be replayed from an empty database. Every released
+database has `alembic_version`, so unversioned databases are out of scope.
+_Avoid_: New DB, empty DB
+
 **Project Export**:
 A JSON (optionally gzip-compressed) serialization of one project's complete
 data — sentences, tokens, annotations, and notes — used for sharing a single

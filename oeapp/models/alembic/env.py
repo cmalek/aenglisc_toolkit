@@ -1,7 +1,7 @@
 from logging.config import fileConfig
 
 from alembic import context
-from sqlalchemy import engine_from_config, pool
+from sqlalchemy import Connection, engine_from_config, pool
 
 # Import Base and all models for autogenerate support
 from oeapp.db import Base, get_project_db_path
@@ -65,14 +65,38 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 
+def _run_with_connection(connection: Connection) -> None:
+    """
+    Configure Alembic on ``connection`` and run the migrations.
+
+    Args:
+        connection: The connection to migrate on
+
+    Side Effects:
+        Runs the pending migrations inside a transaction on ``connection``.
+
+    """
+    context.configure(
+        connection=connection,
+        target_metadata=target_metadata,
+        render_as_batch=True,  # Enable batch mode for SQLite
+    )
+
+    with context.begin_transaction():
+        context.run_migrations()
+
+
 def run_migrations_online() -> None:
     """
     Run migrations in 'online' mode.
 
-    In this scenario we need to create an Engine and associate a connection with
-    the context.
-
+    When the caller injected a connection (``config.attributes["connection"]``)
+    it is used as is; otherwise an engine is built from the configured URL.
     """
+    injected = config.attributes.get("connection")
+    if injected is not None:
+        _run_with_connection(injected)
+        return
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
@@ -80,14 +104,7 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
-        context.configure(
-            connection=connection,
-            target_metadata=target_metadata,
-            render_as_batch=True,  # Enable batch mode for SQLite
-        )
-
-        with context.begin_transaction():
-            context.run_migrations()
+        _run_with_connection(connection)
 
 
 if context.is_offline_mode():

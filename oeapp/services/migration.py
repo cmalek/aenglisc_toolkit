@@ -4,14 +4,13 @@ import ast
 import json
 import os
 import re
-import shutil
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final, cast
 
 if TYPE_CHECKING:
-    from sqlalchemy import Engine
+    from sqlalchemy import Connection, Engine
 
 from alembic import command
 from alembic.config import Config
@@ -24,18 +23,20 @@ from oeapp.db import (
     Base,
     create_engine_with_path,
     get_project_db_path,
+    read_alembic_revision,
     table_to_model_name,
 )
 from oeapp.exc import (
     BackupFailed,
     MigrationCreationFailed,
     MigrationFailed,
-    MigrationSkipped,
+    UnknownDatabaseRevision,
 )
 
-from .backup import BackupService
+from .backup import LAST_APP_VERSION_KEY, BackupService
 from .logs import get_logger
 from .mixins import ProjectFoldersMixin
+from .revision_version import RevisionVersionResolver
 
 
 @dataclass
@@ -305,80 +306,6 @@ class FieldMappingService(ProjectFoldersMixin):
         return revision_id, renames
 
 
-class BackupFileMetadataService:
-    """
-    Service for handling backup file metadata.
-
-    This handles the metadata JSON file for each backup file.
-
-    Args:
-        backup_path: Path to the backup file
-
-    Raises:
-        FileNotFoundError: If the backup file metadata JSON file is not found
-
-    """
-
-    def __init__(self, backup_path: Path) -> None:
-        """
-        Initialize backup file metadata service.
-
-        Args:
-            backup_path: Backup path.
-
-        """
-        json_file = backup_path.with_suffix(".json")
-        if not json_file.exists():
-            msg = f"Backup file metadata JSON file not found: {json_file}"
-            raise FileNotFoundError(msg)
-        #: Backup path.
-        self.backup_path = json_file
-
-    @property
-    def metadata(self) -> dict[str, Any]:
-        """
-        Read metadata from backup file metadata JSON file.
-
-        Args:
-            backup_path: Path to the backup file
-
-        Returns:
-            Metadata dictionary, or None if not found
-
-        """
-        try:
-            with self.backup_path.open("r", encoding="utf-8") as f:
-                metadata = json.load(f)
-        except FileNotFoundError:
-            return {}
-        return metadata
-
-    @property
-    def migration_version(self) -> str | None:
-        """
-        Read migration version from backup metadata JSON.
-
-        Args:
-            backup_path: Path to the backup file
-
-        Returns:
-            Migration version string, or None if not found
-
-        """
-        return self.metadata.get("migration_version")
-
-    @property
-    def app_version(self) -> str | None:
-        """
-        Read application version from backup metadata JSON.
-
-        Returns:
-            Application version string, or None if not found
-
-        """
-        return self.metadata.get("application_version")
-
-
 class MigrationService(ProjectFoldersMixin):
     """
     Service for handling database migrations.
@@ -413,17 +340,26 @@ class MigrationService(ProjectFoldersMixin):
         """
         #: The logger for the migration service.
         self.logger = get_logger(__name__)
-        #: Allow dependency injection for testing, but create defaults for normal use
-        self.backup_service = (
-            backup_service if backup_service is not None else BackupService()
-        )
         #: Engine.
         self.engine = engine if engine is not None else create_engine_with_path()
+        #: Database file the engine points at; backup, upgrade and restore all use it.
+        database = self.engine.url.database
+        self.db_path = Path(database) if database else get_project_db_path()
+        #: Allow dependency injection for testing, but create defaults for normal use
+        self.backup_service = (
+            backup_service
+            if backup_service is not None
+            else BackupService(db_path=self.db_path)
+        )
         #: Migration metadata service.
         self.migration_metadata_service = (
             migration_metadata_service
             if migration_metadata_service is not None
             else MigrationMetadataService()
+        )
+        #: Resolves which application version a database revision needs.
+        self.revision_versions = RevisionVersionResolver(
+            self.migration_metadata_service, self.backup_service
         )
 
     @property
@@ -509,20 +445,46 @@ class MigrationService(ProjectFoldersMixin):
             Migration version string, or None if no version is set
 
         """
-        db_inspector = inspect(self.engine)
-        existing_tables = db_inspector.get_table_names()
+        return read_alembic_revision(self.engine)
 
-        if "alembic_version" not in existing_tables:
-            return None
+    def known_revisions(self) -> set[str]:
+        """
+        List every revision this build's Alembic scripts define.
 
-        with self.engine.connect() as conn:
-            result = conn.execute(
-                text("SELECT version_num FROM alembic_version LIMIT 1")
-            )
-            row = result.fetchone()
-            if row:
-                return row[0]
-        return None
+        Returns:
+            The set of revision IDs
+
+        """
+        return {script.revision for script in self.script.walk_revisions()}
+
+    def is_known_revision(self, revision: str) -> bool:
+        """
+        Check whether this build understands a database revision.
+
+        Args:
+            revision: Alembic revision to check
+
+        Returns:
+            True if the revision is one of this build's scripts
+
+        """
+        return revision in self.known_revisions()
+
+    def ensure_known_revision(self) -> None:
+        """
+        Refuse to proceed with a database this build does not understand.
+
+        Raises:
+            UnknownDatabaseRevision: If the database revision is not one of this
+                build's scripts
+
+        """
+        revision = self.db_migration_version()
+        if revision is None or self.is_known_revision(revision):
+            return
+        raise UnknownDatabaseRevision(
+            revision, self.revision_versions.required_app_version(revision)
+        )
 
     def code_migration_version(self) -> str | None:
         """
@@ -601,194 +563,21 @@ class MigrationService(ProjectFoldersMixin):
 
         return chain
 
-    def should_abort(self, skip_until_version: str | None = None) -> bool:
-        """
-        The user can put in their settings the maximum version they want to
-        migrate to.  If the current database version is greater than the version
-        the user wants to migrate to, the migrations will be aborted.
-
-        Args:
-            skip_until_version (_type_, optional): _description_. Defaults to None.
-
-        Returns:
-            True if the migrations should be aborted, False otherwise
-
-        """
-        current_db_version = self.db_migration_version()
-        # Compare versions as strings (Alembic versions are hex strings)
-        return bool(
-            current_db_version and str(current_db_version) < str(skip_until_version)
-        )
-
     def has_pending_migrations(self) -> bool:
         """
-        Check if there are pending migrations by comparing the database version
-        to the expected migration version from migration_versions.json.
+        Check whether the database revision differs from the Alembic head.
+
+        Alembic is the only source of truth: the application-version catalog
+        plays no part.
 
         Returns:
-            True if there are pending migrations, False otherwise
+            True if the database revision is not the head, False otherwise
 
         """
-        # Get current database migration version
-        db_version = self.db_migration_version()
-
-        # If database has no version (fresh database), check if migrations exist
-        if db_version is None:
-            # Check if there are any migrations defined
-            head_version = self.code_migration_version()
-            return head_version is not None
-
-        # Get the head migration version (latest)
         head_version = self.code_migration_version()
         if head_version is None:
             return False
-
-        # Get expected migration version from migration_versions.json
-        versions = self.migration_metadata_service.versions
-        if versions is None:
-            # No migration versions file - check if database is behind head
-            return str(db_version) != str(head_version)
-
-        # Find the expected migration revision for the current app version
-        # The versions dict maps: {revision_id: app_version}
-        # We need to find which revision(s) correspond to the current app version
-        expected_revisions = [
-            revision_id
-            for revision_id, app_version in versions.items()
-            if app_version == __version__
-        ]
-
-        # If we found revisions for this app version, check if db matches any of them
-        if expected_revisions:
-            # Check if database version matches any expected revision
-            if str(db_version) in expected_revisions:
-                # Database matches expected version, but check if head is newer
-                return str(db_version) != str(head_version)
-            # Database doesn't match expected version - migrations needed
-            return True
-
-        # No revisions found for current app version
-        # Compare database version to head version
-        return str(db_version) != str(head_version)
-
-    def _get_pre_migration_backup_path(self) -> Path:
-        """
-        Get the path to the pre-migration backup file.
-
-        Returns:
-            Path to the pre-migration backup file
-
-        """
-        db_path = get_project_db_path()
-        return Path(f"{db_path}.pre-migration")
-
-    def _create_pre_migration_backup(self) -> Path:
-        """
-        Create a backup of the database file before migration.
-
-        Returns:
-            Path to the created backup file
-
-        Raises:
-            BackupFailed: If the backup fails
-
-        """
-        db_path = get_project_db_path()
-        backup_path = self._get_pre_migration_backup_path()
-
-        if not db_path.exists():
-            msg = f"Database file does not exist: {db_path}"
-            self.logger.error(
-                "migration.backup.failed",
-                error=OSError(msg),
-                db_path=db_path,
-                backup_path=backup_path,
-            )
-            raise BackupFailed(OSError(msg), backup_path)
-
-        try:
-            shutil.copy2(db_path, backup_path)
-            self.logger.info("migration.backup.created", backup_path=str(backup_path))
-        except (OSError, PermissionError) as e:
-            self.logger.exception(
-                "migration.backup.failed", error=e, backup_path=str(backup_path)
-            )
-            raise BackupFailed(e, backup_path) from e
-
-        return backup_path
-
-    def _restore_pre_migration_backup(self) -> None:
-        """
-        Restore the database from the pre-migration backup file.
-
-        Raises:
-            BackupFailed: If the restore fails
-
-        """
-        db_path = get_project_db_path()
-        backup_path = self._get_pre_migration_backup_path()
-
-        if not backup_path.exists():
-            msg = f"Pre-migration backup file does not exist: {backup_path}"
-            self.logger.error(
-                "migration.restore.no-backup-file",
-                db_path=db_path,
-                backup_path=str(backup_path),
-            )
-            raise BackupFailed(OSError(msg), backup_path)
-
-        try:
-            shutil.copy2(backup_path, db_path)
-            self.logger.info(
-                "migration.restore.success",
-                db_path=db_path,
-                backup_path=str(backup_path),
-            )
-        except (OSError, PermissionError) as e:
-            self.logger.exception(
-                "migration.restore.failed",
-                db_path=db_path,
-                backup_path=str(backup_path),
-            )
-            raise BackupFailed(e, backup_path) from e
-
-    def _delete_pre_migration_backup(self) -> None:
-        """
-        Delete the pre-migration backup file.
-
-        """
-        backup_path = self._get_pre_migration_backup_path()
-        if backup_path.exists():
-            try:
-                backup_path.unlink()
-                self.logger.info(
-                    "migration.backup.deleted", backup_path=str(backup_path)
-                )
-            except (OSError, PermissionError):
-                self.logger.exception(
-                    "migration.backup.delete.failed",
-                    backup_path=str(backup_path),
-                )
-
-    def restore(self, backup_path: Path) -> tuple[str | None, str | None]:
-        """
-        Restore the database from a backup after a failed migration
-
-        Args:
-            backup_path: Path to the backup file to restore
-
-        Returns:
-            Tuple containing the backup application version and the backup
-            migration version, or None if the backup failed
-
-        """
-        metadata = self.backup_service.restore_backup(backup_path)
-        backup_app_version = None
-        if metadata:
-            backup_app_version = metadata.get("application_version")
-            migration_version = metadata.get("migration_version")
-            return backup_app_version, migration_version
-        return None, None
+        return self.db_migration_version() != head_version
 
     def create(self, name: str) -> MigrationCreationResult:
         """
@@ -819,68 +608,280 @@ class MigrationService(ProjectFoldersMixin):
             revision_id=result.revision,
         )
 
-    def migrate(self, skip_until_version: str | None = None) -> MigrationResult:
+    def migrate(self) -> MigrationResult:
         """
         Migrate the database to the latest version.
 
-        Args:
-            skip_until_version: Version to skip migrations up to
+        A Fresh Database is built and stamped with no backup. Otherwise a
+        Pre-migration Backup is taken, the upgrade runs, and a post-migration
+        backup follows. On failure the pre-migration backup is restored.
+
+        Side Effects:
+            Writes backups, upgrades the database, and prunes old backups.
 
         Raises:
-            MigrationFailed: If the migration fails
-            MigrationSkipped: If the migration is skipped
-
+            MigrationFailed: If the backup or the migration fails
+            UnknownDatabaseRevision: If the database revision is not one of this
+                build's scripts (raised before any backup or upgrade)
 
         Returns:
-            The computed value.
+            The resulting migration state
 
         """
-        # Check for pending migrations
+        self.ensure_known_revision()
         if not self.has_pending_migrations():
             self.logger.info("migration.no-pending-migrations")
-            # Return current migration state
             db_version = self.db_migration_version()
             return MigrationResult(
                 app_version=__version__,
-                migration_version=cast("str", db_version) if db_version else "",
+                migration_version=db_version or "",
             )
-
-        if skip_until_version:
-            if self.should_abort(skip_until_version):
-                raise MigrationSkipped(skip_until_version)
-
-        # Create pre-migration backup
+        if not self._has_alembic_table():
+            return self.apply_migrations()  # Fresh Database: nothing to protect
+        backup_path = self._backup_before_migration()
         try:
-            self._create_pre_migration_backup()
+            result = self.apply_migrations()
+        except Exception as e:
+            raise self._safe_roll_back(e, backup_path) from e
+        self._backup_after_migration()
+        return result
+
+    def _has_alembic_table(self) -> bool:
+        """
+        Check whether the database has an ``alembic_version`` table.
+
+        A Fresh Database has none; an existing but empty table (a first launch
+        interrupted before stamping) is an ordinary pending migration.
+
+        Returns:
+            True if the table exists, even when it is empty
+
+        """
+        return "alembic_version" in inspect(self.engine).get_table_names()
+
+    def _backup_before_migration(self) -> Path:
+        """
+        Take the Pre-migration Backup, stamped with the previous build's version.
+
+        Raises:
+            MigrationFailed: If the backup cannot be created
+
+        Returns:
+            Path to the backup
+
+        """
+        previous = cast(
+            "str | None", QSettings().value(LAST_APP_VERSION_KEY, None, type=str)
+        )
+        try:
+            return self.backup_service.create_backup(
+                prune=False, maintained_by=previous or None
+            )
         except BackupFailed as e:
             raise MigrationFailed(e, None, None) from e
 
-        # Apply migrations
+    def _backup_after_migration(self) -> None:
+        """
+        Take the post-migration backup and enforce retention once.
+
+        A failure here is logged, never raised: the migration has committed.
+
+        Side Effects:
+            Writes a backup and prunes old backups.
+        """
         try:
-            migration_result = self.apply_migrations()
-        except Exception as e:
-            # Migration failed - restore backup
+            self.backup_service.create_backup(prune=False)
+        except BackupFailed:
+            self.logger.exception("migration.post-backup.failed")
+        try:
+            self.backup_service.cleanup_old_backups()
+        except OSError:
+            self.logger.exception("migration.cleanup.failed")
+
+    def _roll_back(self, error: Exception, backup_path: Path) -> MigrationFailed:
+        """
+        Restore the pre-migration backup and describe the failure.
+
+        Args:
+            error: The exception that aborted the migration
+            backup_path: The Pre-migration Backup to restore
+
+        Side Effects:
+            Overwrites the live database with the backup.
+
+        Returns:
+            The exception to raise, carrying the previous build's version and the
+            restored database's revision
+
+        """
+        metadata = self.backup_service.restore_backup(backup_path)
+        if metadata is None:
+            self.logger.error("migration.restore.failed", backup_path=str(backup_path))
+            return self._unrestored_failure(error, backup_path)
+        try:
+            migration_version = self.db_migration_version()
+        except Exception as version_error:  # noqa: BLE001
+            self.logger.debug(
+                "migration.restore.version-unreadable", error=version_error
+            )
+            migration_version = None
+        return MigrationFailed(
+            error,
+            metadata.get("application_version"),
+            migration_version,
+            restored=True,
+            backup_path=backup_path,
+            database_path=self.db_path,
+        )
+
+    def _unrestored_failure(
+        self, error: Exception, backup_path: Path
+    ) -> MigrationFailed:
+        """
+        Describe a failure whose automatic restore did not happen.
+
+        Never raises; versions come from the backup's sidecar when readable.
+
+        Args:
+            error: The exception that aborted the migration
+            backup_path: The Pre-migration Backup that could not be restored
+
+        Returns:
+            The exception to raise, with ``restored=False``
+
+        """
+        try:
+            sidecar = self.backup_service.read_backup_metadata(backup_path)
+        except Exception:
+            self.logger.exception("migration.rollback.sidecar-unreadable")
+            sidecar = {}
+        return MigrationFailed(
+            error,
+            sidecar.get("application_version"),
+            sidecar.get("migration_version"),
+            restored=False,
+            backup_path=backup_path,
+            database_path=self.db_path,
+        )
+
+    def _safe_roll_back(self, error: Exception, backup_path: Path) -> MigrationFailed:
+        """
+        Roll back without ever masking the original migration error.
+
+        Args:
+            error: The exception that aborted the migration
+            backup_path: The Pre-migration Backup to restore
+
+        Side Effects:
+            Overwrites the live database with the backup.
+
+        Returns:
+            The exception to raise; ``restored=False`` if rollback itself raised
+
+        """
+        try:
+            return self._roll_back(error, backup_path)
+        except Exception:
+            self.logger.exception("migration.rollback.failed")
+            return self._unrestored_failure(error, backup_path)
+
+    def _upgrade_to_head(self) -> None:
+        """
+        Run ``alembic upgrade head`` on the injected engine's database.
+
+        Foreign keys are switched OFF on the migration connection before any
+        statement, because batch table recreation under ``foreign_keys=ON`` can
+        cascade-delete child rows. The pragma is a no-op once a transaction has
+        begun, so it must come first. It is switched back ON afterwards because
+        the pooled connection is reused.
+
+        Side Effects:
+            Upgrades the database schema and commits.
+
+        """
+        with self.engine.connect() as connection:
+            connection.exec_driver_sql("PRAGMA foreign_keys=OFF")
+            config = self.config
+            config.attributes["connection"] = connection
             try:
-                self._restore_pre_migration_backup()
-            except BackupFailed:
-                # If restore fails, log it but still raise the original migration error
-                self.logger.exception("migration.restore.failed")
-            # Get backup metadata for error reporting
-            app_version, migration_version = None, None
-            try:
-                # Try to get version info from database after restore
-                db_version = self.db_migration_version()
-                migration_version = db_version
-            except (OSError, ValueError, AttributeError) as version_error:
-                self.logger.debug(
-                    "migration.restore.failed",
-                    error=version_error,
+                command.upgrade(config, "head")
+                connection.commit()
+            finally:
+                self._restore_foreign_keys(connection)
+
+    def _restore_foreign_keys(self, connection: "Connection") -> None:
+        """
+        Roll back any open transaction, then switch foreign keys back ON.
+
+        The pragma is a no-op inside a transaction, so a failed upgrade must be
+        rolled back first or the pooled connection keeps foreign keys OFF. A
+        failure here is logged, never raised, so it cannot mask the original
+        migration exception.
+
+        Args:
+            connection: The connection the upgrade ran on
+
+        Side Effects:
+            Rolls back an open transaction and resets ``PRAGMA foreign_keys``.
+
+        """
+        try:
+            if connection.in_transaction():
+                connection.rollback()
+            connection.exec_driver_sql("PRAGMA foreign_keys=ON")
+        except Exception:
+            self.logger.exception("migration.foreign_keys.restore_failed")
+
+    def _build_fresh_database(self) -> MigrationResult:
+        """
+        Create the ``alembic_version`` table, every model table, and stamp head.
+
+        Side Effects:
+            Creates the schema and the ``alembic_version`` table.
+
+        Returns:
+            The resulting migration state
+
+        """
+        with self.engine.connect() as conn:
+            conn.execute(
+                text(
+                    "CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL, PRIMARY KEY (version_num))"  # noqa: E501
                 )
-            raise MigrationFailed(e, app_version, migration_version) from e
-        else:
-            # Migration succeeded - delete backup
-            self._delete_pre_migration_backup()
-            return migration_result
+            )
+            conn.commit()
+        return self._stamp_unstamped_database()
+
+    def _stamp_unstamped_database(self) -> MigrationResult:
+        """
+        Complete the schema from the models and stamp the head revision.
+
+        Used for a database whose ``alembic_version`` table exists but holds no
+        revision (a first launch interrupted before stamping); ``create_all``
+        only adds what is missing.
+
+        Side Effects:
+            Creates missing tables and inserts the head revision.
+
+        Returns:
+            The resulting migration state
+
+        """
+        Base.metadata.create_all(self.engine)
+        initial_version = self.latest_migration_version()
+        with self.engine.connect() as conn:
+            conn.execute(
+                text("INSERT INTO alembic_version (version_num) VALUES (:version)"),
+                {"version": initial_version},
+            )
+            conn.commit()
+        self.logger.info(
+            "migration.alembic.table.created", initial_version=initial_version
+        )
+        return MigrationResult(
+            app_version=__version__,
+            migration_version=cast("str", initial_version),
+        )
 
     def apply_migrations(self) -> MigrationResult:
         """
@@ -897,36 +898,12 @@ class MigrationService(ProjectFoldersMixin):
             current application version
 
         """
-        # Check if database is fresh (no alembic_version table)
-        db_inspector = inspect(self.engine)
-        existing_tables = db_inspector.get_table_names()
-
-        if "alembic_version" not in existing_tables:
-            # Fresh database - create tables from models
-            Base.metadata.create_all(self.engine)
-            # Create alembic_version table and mark initial migration as applied
-            initial_version = self.latest_migration_version()
-            with self.engine.connect() as conn:
-                conn.execute(
-                    text(
-                        "CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL, PRIMARY KEY (version_num))"  # noqa: E501
-                    )
-                )
-                conn.execute(
-                    text("INSERT INTO alembic_version (version_num) VALUES (:version)"),
-                    {"version": initial_version},
-                )
-                conn.commit()
-                self.logger.info(
-                    "migration.alembic.table.created",
-                    initial_version=initial_version,
-                )
-            return MigrationResult(
-                app_version=__version__,
-                migration_version=cast("str", initial_version),
-            )
+        if not self._has_alembic_table():
+            return self._build_fresh_database()
+        if self.db_migration_version() is None:
+            return self._stamp_unstamped_database()
         # Existing database - apply migrations normally
-        command.upgrade(self.config, "head")
+        self._upgrade_to_head()
         # Migration succeeded - return current version
         current_version = self.db_migration_version()
         self.logger.info(

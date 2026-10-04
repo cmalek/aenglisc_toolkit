@@ -3,7 +3,7 @@
 import sys
 from contextlib import suppress
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Final, cast
+from typing import TYPE_CHECKING, Any, Final
 
 from pydantic import ValidationError
 from PySide6.QtCore import QPoint, QSettings, Qt, QTimer
@@ -27,7 +27,7 @@ from oeapp.commands import (
     AnnotateTokenCommand,
 )
 from oeapp.db import run_pragma_optimize
-from oeapp.exc import MigrationFailed
+from oeapp.exc import MigrationFailed, UnknownDatabaseRevision
 from oeapp.help.help_engine import HelpEngineError
 from oeapp.models.annotation_json import AnnotationJson
 from oeapp.models.project import Project
@@ -42,6 +42,7 @@ from oeapp.services import (
     ProjectImporter,
     ReadingTextExporter,
 )
+from oeapp.services.backup import LAST_APP_VERSION_KEY
 from oeapp.services.logs import get_logger
 from oeapp.services.remembered_annotation_service import RememberedAnnotationService
 from oeapp.state import AppContext
@@ -56,6 +57,7 @@ from oeapp.ui.dialogs import (
     RememberedAnnotationsDialog,
     RestoreDialog,
     SettingsDialog,
+    UnknownRevisionDialog,
 )
 from oeapp.ui.dialogs.help_center_dialog import HelpCenterDialog
 from oeapp.ui.menus import MainMenu
@@ -583,21 +585,25 @@ class MainWindow(QMainWindow):
         """
         settings = QSettings()
         migration_service = MigrationService()
-        skip_until_version = cast(
-            "str | None", settings.value("migration/skip_until_version", None, type=str)
-        )
         try:
-            result = migration_service.migrate(skip_until_version)
+            result = migration_service.migrate()
+        except UnknownDatabaseRevision as e:
+            UnknownRevisionDialog(self, e).execute()
+            sys.exit(1)
         except MigrationFailed as e:
             dialog = MigrationFailureDialog(
                 self,
                 e.error,
                 e.backup_app_version,
+                restored=e.restored,
+                backup_path=e.backup_path,
+                database_path=e.database_path,
             )
-            settings.setValue(
-                "migration/last_working_version",
-                e.backup_migration_version,
-            )
+            if e.restored:
+                settings.setValue(
+                    "migration/last_working_version",
+                    e.backup_migration_version,
+                )
             dialog.execute()
             sys.exit(1)
 
@@ -608,7 +614,7 @@ class MainWindow(QMainWindow):
             )
         if result.app_version:
             settings.setValue(
-                "app/current_version",
+                LAST_APP_VERSION_KEY,
                 result.app_version,
             )
 

@@ -1,17 +1,17 @@
 """Backup service for database backups."""
 
 import json
-import shutil
+import sqlite3
+from contextlib import closing, suppress
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, Final, cast
 
 from PySide6.QtCore import QObject, QSettings
-from sqlalchemy import Engine, create_engine, inspect, text
+from sqlalchemy import Engine, create_engine
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import sessionmaker
 
 from oeapp import __version__
-from oeapp.db import get_project_db_path
+from oeapp.db import get_project_db_path, read_alembic_revision
 from oeapp.exc import BackupFailed
 from oeapp.models.project import Project
 
@@ -19,6 +19,9 @@ from .logs import get_logger
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+#: QSettings key holding the application version that last started successfully.
+LAST_APP_VERSION_KEY: Final[str] = "app/current_version"
 
 
 class BackupService(QObject):
@@ -28,13 +31,19 @@ class BackupService(QObject):
     Handles creating backups, managing retention, and extracting metadata.
     """
 
-    def __init__(self) -> None:
-        """Initialize backup service."""
+    def __init__(self, db_path: "Path | None" = None) -> None:
+        """
+        Initialize backup service.
+
+        Args:
+            db_path: Database file to back up (defaults to the project database)
+
+        """
         super().__init__()
         #: The global settings for the application.
         self.settings = QSettings()
         #: The path to the project database.
-        self.db_path = get_project_db_path()
+        self.db_path = db_path if db_path is not None else get_project_db_path()
         #: The directory to store backups.
         self.backup_dir = self.db_path.parent / "backups"
         self.backup_dir.mkdir(parents=True, exist_ok=True)
@@ -122,153 +131,214 @@ class BackupService(QObject):
             Migration version string, or None if no version is set
 
         """
-        inspector = inspect(engine)
-        existing_tables = inspector.get_table_names()
+        return read_alembic_revision(engine)
 
-        if "alembic_version" not in existing_tables:
-            return None
-
-        with engine.connect() as conn:
-            result = conn.execute(
-                text("SELECT version_num FROM alembic_version LIMIT 1")
-            )
-            row = result.fetchone()
-            if row:
-                return row[0]
-        return None
-
-    def extract_backup_metadata(self, engine: Engine) -> dict[str, Any]:
+    def extract_backup_metadata(
+        self, engine: Engine, *, maintained_by: str | None = __version__
+    ) -> dict[str, Any]:
         """
-        Extract metadata from the database for backup.
+        Extract metadata from the database for a backup sidecar.
 
         Args:
-            session: SQLAlchemy session
-            engine: SQLAlchemy engine
+            engine: SQLAlchemy engine for the database being backed up
+
+        Keyword Args:
+            maintained_by: Application version that maintained the captured state
 
         Returns:
             Dictionary containing backup metadata
 
         """
-        # Get migration version
-        migration_version = self.get_current_migration_version(engine)
-
-        # Get database file size
         db_size = self.db_path.stat().st_size if self.db_path.exists() else 0
+        return {
+            "backup_timestamp": datetime.now(UTC).isoformat(),
+            "database_file_size": db_size,
+            "migration_version": self.get_current_migration_version(engine),
+            "application_version": maintained_by,
+            "created_by_version": __version__,
+            "projects": self._project_summaries(),
+        }
 
-        # Get projects with token counts
-        projects_data = []
-        projects = Project.list()
-        for project in projects:
-            # Count tokens for this project through sentences
-            total_tokens = project.total_token_count()
-            projects_data.append(
+    def _project_summaries(self) -> list[dict[str, Any]]:
+        """
+        Summarise each project for the sidecar.
+
+        Returns:
+            One dict per project, or an empty list when projects cannot be read
+
+        """
+        try:
+            return [
                 {
                     "id": project.id,
                     "name": project.name,
                     "last_updated": project.updated_at.isoformat(),
-                    "token_count": total_tokens,
+                    "token_count": project.total_token_count(),
                 }
-            )
+                for project in Project.list()
+            ]
+        except SQLAlchemyError as e:
+            self.logger.warning("backup.projects.failed", error=e)
+            return []
 
-        return {
-            "backup_timestamp": datetime.now(UTC).isoformat(),
-            "database_file_size": db_size,
-            "migration_version": migration_version,
-            "application_version": __version__,
-            "projects": projects_data,
-        }
-
-    def create_backup(self) -> "Path":
+    def create_backup(
+        self, *, prune: bool = True, maintained_by: str | None = __version__
+    ) -> "Path":
         """
         Create a backup of the database immediately.
 
-        Returns:
-            Path to the created backup file, or None if backup failed
+        Keyword Args:
+            prune: Whether to enforce the retention limit afterwards
+            maintained_by: Application version that maintained the database
+                state being captured (the running version unless a caller is
+                capturing state the previous version left)
+
+        Side Effects:
+            Writes a ``.db`` snapshot and ``.json`` sidecar to the backup
+            directory and updates the last-backup time.
 
         Raises:
-            BackupFailed: If the backup fails
-            BackupFailed: If the database file does not exist
+            BackupFailed: If the database is missing or the backup fails
+
+        Returns:
+            Path to the created backup file
 
         """
         if not self.db_path.exists():
             raise BackupFailed(OSError("Database file does not exist"), self.db_path)
-
-        # Generate backup filename with timestamp (UTC to avoid DST issues)
-        timestamp = datetime.now(UTC).strftime("%Y-%m-%d_%H-%M-%S")
-        backup_filename = f"{self.db_path.stem}_{timestamp}.db"
-        backup_path = self.backup_dir / backup_filename
-
-        # Copy database file
+        backup_path, metadata_path = self._free_backup_paths()
         try:
-            shutil.copy2(self.db_path, backup_path)
-        except (OSError, PermissionError) as e:
+            self._snapshot(self.db_path, backup_path)
+        except (OSError, sqlite3.Error) as e:
             self.logger.exception(
                 "backup.failed", error=e, backup_path=str(backup_path)
             )
+            with suppress(OSError):  # cleanup must never mask BackupFailed
+                backup_path.unlink(missing_ok=True)
             raise BackupFailed(e, backup_path) from e
-
-        # Create temporary engine and session to extract metadata
-        temp_engine = create_engine(
-            f"sqlite:///{self.db_path}",
-            connect_args={"check_same_thread": False},
-        )
-        SessionLocal = sessionmaker(bind=temp_engine)  # noqa: N806
-        temp_session = SessionLocal()
-
+        metadata = self._collect_metadata(maintained_by)
         try:
-            # Extract metadata (may fail if database is empty/fresh or has errors)
+            with metadata_path.open("w", encoding="utf-8") as f:
+                json.dump(metadata, f, indent=2)
+        except (OSError, TypeError) as e:
+            self.logger.exception(
+                "backup.metadata.save.failed",
+                error=e,
+                backup_path=str(backup_path),
+            )
+            with suppress(OSError):  # cleanup must never mask BackupFailed
+                backup_path.unlink(missing_ok=True)
+                metadata_path.unlink(missing_ok=True)
+            raise BackupFailed(e, metadata_path) from e
+        self.set_last_backup_time(datetime.now(UTC))
+        if prune:
+            self._prune_quietly()
+        self.logger.info("backup.success", backup_path=str(backup_path))
+        return backup_path
 
-            try:
-                metadata = self.extract_backup_metadata(temp_engine)
-            except (SQLAlchemyError, OSError) as e:
-                self.logger.exception(
-                    "backup.metadata.extraction.failed",
-                    error=e,
-                    backup_path=str(backup_path),
-                )
-                # If metadata extraction fails, create minimal metadata
-                try:
-                    db_size = self.db_path.stat().st_size
-                except OSError:
-                    db_size = 0
-                metadata = {
-                    "backup_timestamp": datetime.now(UTC).isoformat(),
-                    "database_file_size": db_size,
-                    "migration_version": None,
-                    "application_version": __version__,
-                    "projects": [],
-                }
+    def _free_backup_paths(self) -> tuple["Path", "Path"]:
+        """
+        Pick a backup path and sidecar path that do not exist yet.
 
-            # Save metadata to JSON file
-            metadata_filename = f"{self.db_path.stem}_{timestamp}.json"
-            metadata_path = self.backup_dir / metadata_filename
-            try:
-                with metadata_path.open("w", encoding="utf-8") as f:
-                    json.dump(metadata, f, indent=2)
-            except (OSError, PermissionError, TypeError) as e:
-                self.logger.exception(
-                    "backup.metadata.save.failed",
-                    error=e,
-                    backup_path=str(backup_path),
-                )
-                raise BackupFailed(e, metadata_path) from e
-                # Continue anyway - backup file was created successfully
+        Returns:
+            The ``.db`` path and its ``.json`` sidecar path
 
-            # Update last backup time (UTC to avoid DST issues)
-            self.set_last_backup_time(datetime.now(UTC))
+        """
+        stamp = datetime.now(UTC).strftime("%Y-%m-%d_%H-%M-%S-%f")
+        base = f"{self.db_path.stem}_{stamp}"
+        attempt = 0
+        while True:
+            name = base if attempt == 0 else f"{base}-{attempt}"
+            backup_path = self.backup_dir / f"{name}.db"
+            metadata_path = backup_path.with_suffix(".json")
+            if not backup_path.exists() and not metadata_path.exists():
+                return backup_path, metadata_path
+            attempt += 1
 
-            # Cleanup old backups (non-critical, continue even if it fails)
-            try:
-                self.cleanup_old_backups()
-            except OSError as e:
-                print(f"Failed to cleanup old backups: {e}")  # noqa: T201
-                # Continue - backup was successful
+    @staticmethod
+    def _open_source(source_path: "Path") -> sqlite3.Connection:
+        """
+        Open an existing database for reading without ever creating it.
 
-            self.logger.info("backup.success", backup_path=str(backup_path))
-            return backup_path
+        ``mode=rw`` fails on a missing file; ``mode=ro`` would break WAL readers.
+
+        Args:
+            source_path: Database to open
+
+        Returns:
+            An open connection the caller must close
+
+        """
+        return sqlite3.connect(f"{source_path.resolve().as_uri()}?mode=rw", uri=True)
+
+    @classmethod
+    def _snapshot(cls, source_path: "Path", target_path: "Path") -> None:
+        """
+        Copy a database with SQLite's backup API (WAL-safe).
+
+        Args:
+            source_path: Database to read (must already exist)
+            target_path: File to write
+
+        """
+        with (
+            closing(cls._open_source(source_path)) as source,
+            closing(sqlite3.connect(target_path)) as target,
+        ):
+            source.backup(target)
+
+    @classmethod
+    def _require_pages(cls, source_path: "Path") -> None:
+        """
+        Refuse a database file that is missing or has no pages.
+
+        Args:
+            source_path: Database to check
+
+        Raises:
+            sqlite3.DatabaseError: If the database has no pages
+
+        """
+        with closing(cls._open_source(source_path)) as source:
+            if source.execute("pragma page_count").fetchone()[0] == 0:
+                msg = "backup source database is empty"
+                raise sqlite3.DatabaseError(msg)
+
+    def _collect_metadata(self, maintained_by: str | None) -> dict[str, Any]:
+        """
+        Build the sidecar metadata, falling back to minimal metadata on failure.
+
+        Args:
+            maintained_by: Application version that maintained the captured state
+
+        Returns:
+            Sidecar metadata dictionary
+
+        """
+        engine = create_engine(
+            f"sqlite:///{self.db_path}", connect_args={"check_same_thread": False}
+        )
+        try:
+            return self.extract_backup_metadata(engine, maintained_by=maintained_by)
+        except (SQLAlchemyError, OSError) as e:
+            self.logger.exception("backup.metadata.extraction.failed", error=e)
+            return {
+                "backup_timestamp": datetime.now(UTC).isoformat(),
+                "database_file_size": 0,
+                "migration_version": None,
+                "application_version": maintained_by,
+                "created_by_version": __version__,
+                "projects": [],
+            }
         finally:
-            temp_session.close()
-            temp_engine.dispose()
+            engine.dispose()
+
+    def _prune_quietly(self) -> None:
+        """Enforce retention, logging instead of failing the backup."""
+        try:
+            self.cleanup_old_backups()
+        except OSError as e:
+            self.logger.warning("backup.cleanup.failed", error=e)
 
     def cleanup_old_backups(self) -> None:
         """Remove backups beyond the retention limit."""
@@ -310,6 +380,8 @@ class BackupService(QObject):
                 except (OSError, json.JSONDecodeError):
                     # Metadata file is corrupted or unreadable - continue without it
                     pass
+                if not isinstance(metadata, dict):
+                    metadata = {}  # a valid JSON list or scalar is not metadata
 
             # Get file stats
             try:
@@ -354,39 +426,86 @@ class BackupService(QObject):
         backups.sort(key=lambda b: b["backup_timestamp"], reverse=True)
         return backups
 
+    def application_versions_for(self, revision: str) -> list[str]:
+        """
+        List the application versions recorded for backups at ``revision``.
+
+        Args:
+            revision: Alembic revision to match
+
+        Returns:
+            The ``application_version`` of every backup whose sidecar has that
+            ``migration_version`` and a recorded application version
+
+        """
+        return [
+            backup["application_version"]
+            for backup in self.get_backup_list()
+            if backup["migration_version"] == revision and backup["application_version"]
+        ]
+
     def restore_backup(self, backup_path: "Path") -> dict[str, Any] | None:
         """
-        Restore a backup file over the current database.
+        Restore a backup over the current database.
+
+        Retention is enforced only after the copy, so the safety copy of the
+        current database can never evict the backup being restored.
 
         Args:
             backup_path: Path to the backup file to restore
 
+        Side Effects:
+            Overwrites the live database and may prune old backups.
+
         Returns:
-            Dictionary containing backup metadata, or None if restore failed
+            The backup's sidecar metadata (empty when it has none), or None if
+            the file is missing or the restore failed
 
         """
         if not backup_path.exists():
             return None
-
-        # Create a backup of current database before restoring
-        _ = self.create_backup()
-
-        # Copy backup file over current database
         try:
-            shutil.copy2(backup_path, self.db_path)
-        except (OSError, PermissionError) as e:
-            print(f"Failed to restore backup file: {e}")  # noqa: T201
+            self._require_pages(backup_path)  # before anything touches the live db
+        except (OSError, sqlite3.Error) as e:
+            self.logger.exception(
+                "backup.restore.failed", error=e, backup_path=str(backup_path)
+            )
             return None
-
-        # Load metadata from JSON file
-        json_file = backup_path.with_suffix(".json")
-        metadata: dict[str, Any] = {}
-        if json_file.exists():
-            try:
-                with json_file.open("r", encoding="utf-8") as f:
-                    metadata = json.load(f)
-            except (OSError, json.JSONDecodeError) as e:
-                print(f"Failed to load backup metadata: {e}")  # noqa: T201
-                # Continue - restore was successful even if metadata is missing
-
+        try:
+            self.create_backup(prune=False)
+        except BackupFailed as e:
+            self.logger.warning("backup.restore.safety-copy.failed", error=e)
+        try:
+            self._snapshot(backup_path, self.db_path)
+        except (OSError, sqlite3.Error) as e:
+            self.logger.exception(
+                "backup.restore.failed", error=e, backup_path=str(backup_path)
+            )
+            return None
+        metadata = self.read_backup_metadata(backup_path)  # read before pruning
+        self._prune_quietly()
         return metadata
+
+    def read_backup_metadata(self, backup_path: "Path") -> dict[str, Any]:
+        """
+        Read a backup's sidecar JSON.
+
+        Args:
+            backup_path: Path to the backup file
+
+        Returns:
+            The sidecar metadata, or an empty dict if it is missing or corrupt
+
+        """
+        json_file = backup_path.with_suffix(".json")
+        if not json_file.exists():
+            return {}
+        try:
+            with json_file.open("r", encoding="utf-8") as f:
+                metadata = json.load(f)
+        except (OSError, json.JSONDecodeError) as e:
+            self.logger.warning(
+                "backup.metadata.load.failed", error=e, backup_path=str(backup_path)
+            )
+            return {}
+        return cast("dict[str, Any]", metadata) if isinstance(metadata, dict) else {}
