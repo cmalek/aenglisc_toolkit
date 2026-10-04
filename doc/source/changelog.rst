@@ -14,6 +14,9 @@ Fixes
   backup before it is restored.
 - Migrations run with foreign keys off on the database that was opened, so a
   table rebuild cannot delete child rows.
+- When a failed migration cannot be rolled back automatically, the failure
+  dialog now says so and names the backup to restore by hand, instead of
+  claiming the database was restored.
 
 Changed
 ^^^^^^^

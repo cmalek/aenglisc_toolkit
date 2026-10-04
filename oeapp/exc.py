@@ -1,7 +1,4 @@
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from pathlib import Path
+from pathlib import Path
 
 
 class DoesNotExist(Exception):  # noqa: N818
@@ -97,13 +94,22 @@ class MigrationFailed(Exception):  # noqa: N818
         backup_app_version: Backup app version.
         backup_migration_version: Backup migration version.
 
+    Keyword Args:
+        restored: Whether the pre-migration backup was restored.
+        backup_path: Path of the pre-migration backup, if one was taken.
+        database_path: Path of the live database.
+
     """
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         error: Exception,
         backup_app_version: str | None,
         backup_migration_version: str | None,
+        *,
+        restored: bool = True,
+        backup_path: Path | None = None,
+        database_path: Path | None = None,
     ):
         """
         Initialize the instance.
@@ -113,6 +119,11 @@ class MigrationFailed(Exception):  # noqa: N818
             backup_app_version: Backup app version.
             backup_migration_version: Backup migration version.
 
+        Keyword Args:
+            restored: Whether the pre-migration backup was restored.
+            backup_path: Path of the pre-migration backup, if one was taken.
+            database_path: Path of the live database.
+
         """
         #: Error.
         self.error = error
@@ -120,6 +131,12 @@ class MigrationFailed(Exception):  # noqa: N818
         self.backup_app_version = backup_app_version
         #: Backup migration version.
         self.backup_migration_version = backup_migration_version
+        #: Whether the pre-migration backup was restored.
+        self.restored = restored
+        #: Path of the pre-migration backup, if one was taken.
+        self.backup_path = backup_path
+        #: Path of the live database.
+        self.database_path = database_path
         super().__init__(f"Migration failed: {error}")
 
 

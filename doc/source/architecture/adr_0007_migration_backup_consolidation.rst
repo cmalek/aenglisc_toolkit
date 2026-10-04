@@ -190,6 +190,10 @@ restored. If the safety copy itself fails, the failure is logged and the
 restore still proceeds, because a rollback must not depend on having room for
 one more copy.
 
+If the rollback restore itself fails, ``MigrationFailed`` carries
+``restored=False`` plus the backup and database paths, and the failure dialog
+says so and names the backup to restore by hand.
+
 D4 — Pruning is deferred, and a successful migration takes a post-migration backup
 ------------------------------------------------------------------------------------
 

@@ -333,4 +333,58 @@ class TestRetentionAndRollbackEdges:
 
         assert isinstance(failure.value.__cause__, RuntimeError)
         assert failure.value.backup_app_version is None
-        assert failure.value.backup_migration_version is None
+        assert failure.value.backup_migration_version == OLD_REV
+
+
+class TestHonestRestoreFlag:
+    def _break_restore(self, flow):
+        real = BackupService._snapshot
+
+        def snapshot(source, target):
+            if target == flow.db_path:
+                raise OSError("restore broke")
+            real(source, target)
+
+        return patch.object(BackupService, "_snapshot", side_effect=snapshot)
+
+    def test_failed_restore_is_not_restored_and_names_the_backup(self, flow):
+        QSettings().setValue(LAST_APP_VERSION_KEY, "1.0.0")
+        with (
+            self._break_restore(flow),
+            patch.object(flow, "apply_migrations", side_effect=_failing_apply(flow)),
+            pytest.raises(MigrationFailed) as failure,
+        ):
+            flow.migrate()
+
+        exc = failure.value
+        assert exc.restored is False
+        assert exc.backup_path is not None
+        assert exc.backup_path.exists()
+        assert exc.database_path == flow.db_path
+        assert exc.backup_app_version == "1.0.0"
+        assert exc.backup_migration_version == OLD_REV
+
+    def test_successful_restore_is_restored(self, flow):
+        with (
+            patch.object(flow, "apply_migrations", side_effect=_failing_apply(flow)),
+            pytest.raises(MigrationFailed) as failure,
+        ):
+            flow.migrate()
+
+        assert failure.value.restored is True
+        assert failure.value.backup_path is not None
+        assert failure.value.database_path == flow.db_path
+
+    def test_crashing_rollback_is_not_restored_and_keeps_paths(self, flow):
+        with (
+            patch.object(flow, "apply_migrations", side_effect=_failing_apply(flow)),
+            patch.object(flow, "_roll_back", side_effect=ValueError("rollback bug")),
+            pytest.raises(MigrationFailed) as failure,
+        ):
+            flow.migrate()
+
+        exc = failure.value
+        assert exc.restored is False
+        assert exc.backup_path is not None
+        assert exc.backup_path.exists()
+        assert exc.database_path == flow.db_path

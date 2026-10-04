@@ -718,12 +718,7 @@ class MigrationService(ProjectFoldersMixin):
         metadata = self.backup_service.restore_backup(backup_path)
         if metadata is None:
             self.logger.error("migration.restore.failed", backup_path=str(backup_path))
-            sidecar = self.backup_service.read_backup_metadata(backup_path)
-            return MigrationFailed(
-                error,
-                sidecar.get("application_version"),
-                sidecar.get("migration_version"),
-            )
+            return self._unrestored_failure(error, backup_path)
         try:
             migration_version = self.db_migration_version()
         except (OSError, SQLAlchemyError) as version_error:
@@ -732,7 +727,42 @@ class MigrationService(ProjectFoldersMixin):
             )
             migration_version = None
         return MigrationFailed(
-            error, metadata.get("application_version"), migration_version
+            error,
+            metadata.get("application_version"),
+            migration_version,
+            restored=True,
+            backup_path=backup_path,
+            database_path=self.db_path,
+        )
+
+    def _unrestored_failure(
+        self, error: Exception, backup_path: Path
+    ) -> MigrationFailed:
+        """
+        Describe a failure whose automatic restore did not happen.
+
+        Never raises; versions come from the backup's sidecar when readable.
+
+        Args:
+            error: The exception that aborted the migration
+            backup_path: The Pre-migration Backup that could not be restored
+
+        Returns:
+            The exception to raise, with ``restored=False``
+
+        """
+        try:
+            sidecar = self.backup_service.read_backup_metadata(backup_path)
+        except Exception:
+            self.logger.exception("migration.rollback.sidecar-unreadable")
+            sidecar = {}
+        return MigrationFailed(
+            error,
+            sidecar.get("application_version"),
+            sidecar.get("migration_version"),
+            restored=False,
+            backup_path=backup_path,
+            database_path=self.db_path,
         )
 
     def _safe_roll_back(self, error: Exception, backup_path: Path) -> MigrationFailed:
@@ -747,15 +777,14 @@ class MigrationService(ProjectFoldersMixin):
             Overwrites the live database with the backup.
 
         Returns:
-            The exception to raise; carries no backup details if rollback itself
-            raised
+            The exception to raise; ``restored=False`` if rollback itself raised
 
         """
         try:
             return self._roll_back(error, backup_path)
         except Exception:
             self.logger.exception("migration.rollback.failed")
-            return MigrationFailed(error, None, None)
+            return self._unrestored_failure(error, backup_path)
 
     def _upgrade_to_head(self) -> None:
         """

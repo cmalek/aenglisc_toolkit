@@ -55,10 +55,11 @@ What happens on startup
      application version the restored backup was made with) until a fix is
      available.
 
-Because the restore happens automatically before you ever see the failure
-dialog, a failed migration cannot leave your database partially migrated or
-corrupted — you either end up fully on the new version, or fully back on
-the old one.
+A failed migration is rolled back automatically before you see the failure
+dialog, so you end up fully on the new version or fully back on the old one.
+If the automatic restore also fails, the dialog says so, shows the path of the
+pre-migration backup, and lists the steps to restore it by hand. Do not use the
+database until you have done that.
 
 .. important::
 

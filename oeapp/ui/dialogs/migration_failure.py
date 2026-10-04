@@ -24,7 +24,12 @@ class MigrationFailureDialog:
     Args:
         main_window: Main window instance
         error: The exception that occurred during migration
-        backup_app_version: Application version from the restored backup
+        backup_app_version: Application version from the backup
+
+    Keyword Args:
+        restored: Whether the database was automatically restored
+        backup_path: Path of the pre-migration backup
+        database_path: Path of the live database
 
     """
 
@@ -33,11 +38,15 @@ class MigrationFailureDialog:
     #: Dialog height
     DIALOG_HEIGHT: Final[int] = 500
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         main_window: "MainWindow",
         error: Exception,
         backup_app_version: str | None,
+        *,
+        restored: bool = True,
+        backup_path: Path | None = None,
+        database_path: Path | None = None,
     ) -> None:
         """
         Initialize the instance.
@@ -47,6 +56,11 @@ class MigrationFailureDialog:
             error: Error.
             backup_app_version: Backup app version.
 
+        Keyword Args:
+            restored: Whether the database was automatically restored.
+            backup_path: Path of the pre-migration backup.
+            database_path: Path of the live database.
+
         """
         #: Main window.
         self.main_window = main_window
@@ -54,8 +68,82 @@ class MigrationFailureDialog:
         self.error = error
         #: Backup app version.
         self.backup_app_version = backup_app_version
+        #: Whether the database was automatically restored.
+        self.restored = restored
+        #: Path of the pre-migration backup.
+        self.backup_path = backup_path
+        #: Path of the live database.
+        self.database_path = database_path
         #: App context.
         self.app_context = main_window.app_context
+
+    def _message_text(self) -> str:
+        """
+        Build the explanatory text for the top of the dialog.
+
+        Returns:
+            The restored or the restore-failed message
+
+        """
+        if self.restored:
+            return self._restored_text()
+        return self._not_restored_text()
+
+    def _restored_text(self) -> str:
+        """
+        Build the text for a migration that was rolled back automatically.
+
+        Returns:
+            The message, naming the backup's application version when known
+
+        """
+        text = (
+            "Database migration failed during startup.\n\n"
+            "Your database has been automatically restored to the backup created "
+            "before the migration attempt.\n\n"
+        )
+        if self.backup_app_version:
+            text += (
+                f"To continue working, please downgrade to application version "
+                f"{self.backup_app_version}.\n\n"
+                f"The restored backup was created with application version "
+                f"{self.backup_app_version}."
+            )
+        return text
+
+    def _not_restored_text(self) -> str:
+        """
+        Build the text for a migration whose automatic restore also failed.
+
+        Returns:
+            The message with the backup and database paths and recovery steps
+
+        """
+        text = (
+            "Database migration failed during startup, and the automatic "
+            "restore also failed. Your database may be partly migrated: do not "
+            "use or edit it.\n\n"
+            "Your pre-migration backup is safe. It is also listed in the "
+            "Restore dialog.\n"
+            f"Backup: {self.backup_path or 'unknown'}\n"
+            f"Database: {self.database_path or 'unknown'}\n\n"
+            "To recover:\n"
+            "1. Close the application.\n"
+            "2. Make a copy of the backup file.\n"
+        )
+        step = 3
+        if self.backup_app_version:
+            text += (
+                f"{step}. Install application version {self.backup_app_version}, "
+                "which made the backup.\n"
+            )
+            step += 1
+        text += (
+            f"{step}. Rename the copy to the database's file name, replacing "
+            "the database file, and start the application.\n\n"
+            "You can save or copy the stack trace below for a bug report."
+        )
+        return text
 
     def build(self) -> None:
         """
@@ -67,19 +155,7 @@ class MigrationFailureDialog:
         self.layout = QVBoxLayout(self.dialog)
 
         # Error message
-        error_label = QLabel(
-            "Database migration failed during startup.\n\n"
-            "Your database has been automatically restored to the backup created "
-            "before the migration attempt.\n\n"
-        )
-        if self.backup_app_version:
-            error_label.setText(
-                error_label.text()
-                + f"To continue working, please downgrade to application version "
-                f"{self.backup_app_version}.\n\n"
-                f"The restored backup was created with application version "
-                f"{self.backup_app_version}."
-            )
+        error_label = QLabel(self._message_text())
         error_label.setWordWrap(True)
         self.layout.addWidget(error_label)
 

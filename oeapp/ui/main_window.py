@@ -595,11 +595,15 @@ class MainWindow(QMainWindow):
                 self,
                 e.error,
                 e.backup_app_version,
+                restored=e.restored,
+                backup_path=e.backup_path,
+                database_path=e.database_path,
             )
-            settings.setValue(
-                "migration/last_working_version",
-                e.backup_migration_version,
-            )
+            if e.restored:
+                settings.setValue(
+                    "migration/last_working_version",
+                    e.backup_migration_version,
+                )
             dialog.execute()
             sys.exit(1)
 
