@@ -389,6 +389,25 @@ class BackupService(QObject):
         backups.sort(key=lambda b: b["backup_timestamp"], reverse=True)
         return backups
 
+    def application_versions_for(self, revision: str) -> list[str]:
+        """
+        List the application versions recorded for backups at ``revision``.
+
+        Args:
+            revision: Alembic revision to match
+
+        Returns:
+            The ``application_version`` of every backup whose sidecar has that
+            ``migration_version`` and a recorded application version
+
+        """
+        return [
+            backup["application_version"]
+            for backup in self.get_backup_list()
+            if backup["migration_version"] == revision
+            and backup["application_version"]
+        ]
+
     def restore_backup(self, backup_path: "Path") -> dict[str, Any] | None:
         """
         Restore a backup over the current database.

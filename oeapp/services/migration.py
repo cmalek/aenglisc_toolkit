@@ -31,11 +31,13 @@ from oeapp.exc import (
     BackupFailed,
     MigrationCreationFailed,
     MigrationFailed,
+    UnknownDatabaseRevision,
 )
 
 from .backup import LAST_APP_VERSION_KEY, BackupService
 from .logs import get_logger
 from .mixins import ProjectFoldersMixin
+from .revision_version import RevisionVersionResolver
 
 
 @dataclass
@@ -356,6 +358,10 @@ class MigrationService(ProjectFoldersMixin):
             if migration_metadata_service is not None
             else MigrationMetadataService()
         )
+        #: Resolves which application version a database revision needs.
+        self.revision_versions = RevisionVersionResolver(
+            self.migration_metadata_service, self.backup_service
+        )
 
     @property
     def config(self) -> Config:
@@ -441,6 +447,45 @@ class MigrationService(ProjectFoldersMixin):
 
         """
         return read_alembic_revision(self.engine)
+
+    def known_revisions(self) -> set[str]:
+        """
+        List every revision this build's Alembic scripts define.
+
+        Returns:
+            The set of revision IDs
+
+        """
+        return {script.revision for script in self.script.walk_revisions()}
+
+    def is_known_revision(self, revision: str) -> bool:
+        """
+        Check whether this build understands a database revision.
+
+        Args:
+            revision: Alembic revision to check
+
+        Returns:
+            True if the revision is one of this build's scripts
+
+        """
+        return revision in self.known_revisions()
+
+    def ensure_known_revision(self) -> None:
+        """
+        Refuse to proceed with a database this build does not understand.
+
+        Raises:
+            UnknownDatabaseRevision: If the database revision is not one of this
+                build's scripts
+
+        """
+        revision = self.db_migration_version()
+        if revision is None or self.is_known_revision(revision):
+            return
+        raise UnknownDatabaseRevision(
+            revision, self.revision_versions.required_app_version(revision)
+        )
 
     def code_migration_version(self) -> str | None:
         """
@@ -577,11 +622,14 @@ class MigrationService(ProjectFoldersMixin):
 
         Raises:
             MigrationFailed: If the backup or the migration fails
+            UnknownDatabaseRevision: If the database revision is not one of this
+                build's scripts (raised before any backup or upgrade)
 
         Returns:
             The resulting migration state
 
         """
+        self.ensure_known_revision()
         if not self.has_pending_migrations():
             self.logger.info("migration.no-pending-migrations")
             db_version = self.db_migration_version()

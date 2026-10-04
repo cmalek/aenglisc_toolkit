@@ -123,6 +123,34 @@ class MigrationFailed(Exception):  # noqa: N818
         super().__init__(f"Migration failed: {error}")
 
 
+class UnknownDatabaseRevision(Exception):  # noqa: N818
+    """
+    Exception raised when the database revision is unknown to this build.
+
+    Args:
+        revision: The database's Alembic revision.
+        required_app_version: Application version that understands it, or None
+            when it cannot be determined.
+
+    """
+
+    def __init__(self, revision: str, required_app_version: str | None):
+        """
+        Initialize the instance.
+
+        Args:
+            revision: The database's Alembic revision.
+            required_app_version: Application version that understands it, or
+                None when it cannot be determined.
+
+        """
+        #: The database's Alembic revision.
+        self.revision = revision
+        #: Application version that understands the revision, if known.
+        self.required_app_version = required_app_version
+        super().__init__(f"Unknown database revision: {revision}")
+
+
 class BackupFailed(Exception):  # noqa: N818
     """
     Exception raised when a backup fails.
