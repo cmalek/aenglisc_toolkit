@@ -184,6 +184,9 @@ class RestoreDialog:
             title="Restore Complete",
         )
         self.dialog.accept()
+        # close() runs MainWindow.closeEvent, which stops the backup timer and
+        # autosave (cancel only, no write) so nothing touches the restored file.
+        self.main_window.close()
         QApplication.quit()
 
     def _refuse_unknown_revision(self, metadata: dict[str, Any]) -> bool:
