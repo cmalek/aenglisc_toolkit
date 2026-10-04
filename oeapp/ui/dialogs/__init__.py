@@ -21,6 +21,7 @@ from .sentence_filters import (
     SentenceFilterDialog,
 )
 from .settings import SettingsDialog
+from .unknown_revision import UnknownRevisionDialog
 
 __all__ = [
     "AnnotationModal",
@@ -42,4 +43,5 @@ __all__ = [
     "RestoreDialog",
     "SentenceFilterDialog",
     "SettingsDialog",
+    "UnknownRevisionDialog",
 ]
