@@ -17,6 +17,22 @@ from oeapp.models.project import Project
 from tests.conftest import create_test_project
 
 
+def _make_sqlite(path: Path, value: str) -> None:
+    connection = sqlite3.connect(path)
+    connection.execute("create table t (v text)")
+    connection.execute("insert into t values (?)", (value,))
+    connection.commit()
+    connection.close()
+
+
+def _read_value(path: Path) -> str:
+    connection = sqlite3.connect(path)
+    try:
+        return connection.execute("select v from t").fetchone()[0]
+    finally:
+        connection.close()
+
+
 class TestBackupService:
     """Test cases for BackupService."""
 
@@ -256,15 +272,12 @@ class TestBackupService:
         """Test restore_backup() copies backup file over database."""
         # Create a backup file with content
         backup_file = temp_backup_dir / "backup.db"
-        backup_content = b"restored data"
-        backup_file.write_bytes(backup_content)
+        _make_sqlite(backup_file, "restored")
 
-        # Mock create_backup to avoid side effects
         with patch.object(backup_service, "create_backup"):
-            result = backup_service.restore_backup(backup_file)
+            backup_service.restore_backup(backup_file)
 
-        # Check that database was overwritten
-        assert mock_db_path.read_bytes() == backup_content
+        assert _read_value(mock_db_path) == "restored"
 
     def test_restore_backup_returns_metadata(self, backup_service, temp_backup_dir, mock_db_path):
         """Test restore_backup() returns metadata from JSON file."""
@@ -380,3 +393,48 @@ class TestBackupService:
                 backup_service.create_backup()
 
         assert list(backup_service.backup_dir.iterdir()) == []
+
+    def test_restore_never_prunes_before_the_copy(self, backup_service):
+        backup_service.settings.setValue("backup/num_backups", 1)
+        _make_sqlite(backup_service.db_path, "original")
+        backup_path = backup_service.create_backup()
+        connection = sqlite3.connect(backup_service.db_path)
+        connection.execute("update t set v='changed'")
+        connection.commit()
+        connection.close()
+
+        metadata = backup_service.restore_backup(backup_path)
+
+        assert metadata is not None
+        assert metadata["application_version"]  # sidecar read before pruning removed it
+        assert _read_value(backup_service.db_path) == "original"
+
+    def test_restore_proceeds_when_the_safety_copy_fails(self, backup_service, temp_backup_dir):
+        backup_file = temp_backup_dir / "backup.db"
+        _make_sqlite(backup_file, "restored")
+
+        with patch.object(
+            backup_service, "create_backup", side_effect=BackupFailed(OSError("disk full"), backup_file)
+        ):
+            metadata = backup_service.restore_backup(backup_file)
+
+        assert metadata is not None
+        assert _read_value(backup_service.db_path) == "restored"
+
+    def test_restore_of_a_corrupt_backup_fails_and_keeps_the_database(self, backup_service, temp_backup_dir):
+        _make_sqlite(backup_service.db_path, "original")
+        backup_file = temp_backup_dir / "bad.db"
+        backup_file.write_bytes(b"not a database" * 100)
+
+        with patch.object(backup_service, "create_backup"):
+            assert backup_service.restore_backup(backup_file) is None
+
+        assert _read_value(backup_service.db_path) == "original"
+
+    def test_read_backup_metadata_tolerates_a_missing_or_corrupt_sidecar(self, backup_service, temp_backup_dir):
+        backup_file = temp_backup_dir / "x.db"
+        backup_file.touch()
+        assert backup_service.read_backup_metadata(backup_file) == {}
+
+        backup_file.with_suffix(".json").write_text("{not json")
+        assert backup_service.read_backup_metadata(backup_file) == {}

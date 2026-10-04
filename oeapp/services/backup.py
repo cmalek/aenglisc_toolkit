@@ -1,7 +1,6 @@
 """Backup service for database backups."""
 
 import json
-import shutil
 import sqlite3
 from contextlib import closing
 from datetime import UTC, datetime
@@ -386,37 +385,60 @@ class BackupService(QObject):
 
     def restore_backup(self, backup_path: "Path") -> dict[str, Any] | None:
         """
-        Restore a backup file over the current database.
+        Restore a backup over the current database.
+
+        Retention is enforced only after the copy, so the safety copy of the
+        current database can never evict the backup being restored.
 
         Args:
             backup_path: Path to the backup file to restore
 
+        Side Effects:
+            Overwrites the live database and may prune old backups.
+
         Returns:
-            Dictionary containing backup metadata, or None if restore failed
+            The backup's sidecar metadata (empty when it has none), or None if
+            the file is missing or the restore failed
 
         """
         if not backup_path.exists():
             return None
-
-        # Create a backup of current database before restoring
-        _ = self.create_backup()
-
-        # Copy backup file over current database
         try:
-            shutil.copy2(backup_path, self.db_path)
-        except (OSError, PermissionError) as e:
-            print(f"Failed to restore backup file: {e}")  # noqa: T201
+            self.create_backup(prune=False)
+        except BackupFailed:
+            self.logger.warning("backup.restore.safety-copy.failed")
+        try:
+            self._snapshot(backup_path, self.db_path)
+        except (OSError, sqlite3.Error) as e:
+            self.logger.exception(
+                "backup.restore.failed", error=e, backup_path=str(backup_path)
+            )
             return None
-
-        # Load metadata from JSON file
-        json_file = backup_path.with_suffix(".json")
-        metadata: dict[str, Any] = {}
-        if json_file.exists():
-            try:
-                with json_file.open("r", encoding="utf-8") as f:
-                    metadata = json.load(f)
-            except (OSError, json.JSONDecodeError) as e:
-                print(f"Failed to load backup metadata: {e}")  # noqa: T201
-                # Continue - restore was successful even if metadata is missing
-
+        metadata = self.read_backup_metadata(
+            backup_path
+        )  # before pruning may delete it
+        self._prune_quietly()
         return metadata
+
+    def read_backup_metadata(self, backup_path: "Path") -> dict[str, Any]:
+        """
+        Read a backup's sidecar JSON.
+
+        Args:
+            backup_path: Path to the backup file
+
+        Returns:
+            The sidecar metadata, or an empty dict if it is missing or corrupt
+
+        """
+        json_file = backup_path.with_suffix(".json")
+        if not json_file.exists():
+            return {}
+        try:
+            with json_file.open("r", encoding="utf-8") as f:
+                return cast("dict[str, Any]", json.load(f))
+        except (OSError, json.JSONDecodeError) as e:
+            self.logger.warning(
+                "backup.metadata.load.failed", error=e, backup_path=str(backup_path)
+            )
+            return {}
