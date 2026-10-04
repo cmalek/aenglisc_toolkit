@@ -1,7 +1,7 @@
 from logging.config import fileConfig
 
 from alembic import context
-from sqlalchemy import engine_from_config, pool
+from sqlalchemy import Connection, engine_from_config, pool
 
 # Import Base and all models for autogenerate support
 from oeapp.db import Base, get_project_db_path
@@ -65,8 +65,17 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 
-def _run_with_connection(connection) -> None:
-    """Configure Alembic on ``connection`` and run the migrations."""
+def _run_with_connection(connection: Connection) -> None:
+    """
+    Configure Alembic on ``connection`` and run the migrations.
+
+    Args:
+        connection: The connection to migrate on
+
+    Side Effects:
+        Runs the pending migrations inside a transaction on ``connection``.
+
+    """
     context.configure(
         connection=connection,
         target_metadata=target_metadata,

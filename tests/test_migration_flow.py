@@ -123,6 +123,7 @@ class TestMigrate:
 
         remaining = _backups(flow)
         assert [b["migration_version"] for b in remaining] == [head]
+        assert remaining[0]["application_version"] == __version__
 
     def test_a_failed_post_migration_backup_does_not_fail_the_migration(self, flow):
         real = flow.backup_service.create_backup
@@ -212,6 +213,55 @@ class TestMigrate:
 
         assert service.backup_service.get_backup_list() == []
         assert result.migration_version == service.code_migration_version()
+        engine.dispose()
+
+    def test_empty_alembic_version_table_is_a_protected_pending_migration(self, tmp_path):
+        QSettings().clear()
+        db_path = tmp_path / "half.db"
+        engine = create_engine_with_path(db_path)
+        with engine.begin() as conn:  # first launch killed between CREATE and INSERT
+            conn.exec_driver_sql("create table t (v text)")
+            conn.exec_driver_sql("insert into t values ('original')")
+            conn.exec_driver_sql(
+                "create table alembic_version (version_num varchar(32) not null primary key)"
+            )
+        service = MigrationService(
+            backup_service=BackupService(db_path=db_path),
+            engine=engine,
+            migration_metadata_service=InMemoryMigrationMetadataService(),
+        )
+
+        result = service.migrate()
+
+        assert result.migration_version == service.code_migration_version()
+        assert service.db_migration_version() == service.code_migration_version()
+        assert _backups(service)[0]["migration_version"] is None  # pre-migration backup
+        assert _value(db_path) == "original"
+        engine.dispose()
+
+    def test_failure_on_an_empty_alembic_version_table_rolls_back(self, tmp_path):
+        QSettings().clear()
+        db_path = tmp_path / "half.db"
+        engine = create_engine_with_path(db_path)
+        with engine.begin() as conn:
+            conn.exec_driver_sql("create table t (v text)")
+            conn.exec_driver_sql("insert into t values ('original')")
+            conn.exec_driver_sql(
+                "create table alembic_version (version_num varchar(32) not null primary key)"
+            )
+        service = MigrationService(
+            backup_service=BackupService(db_path=db_path),
+            engine=engine,
+            migration_metadata_service=InMemoryMigrationMetadataService(),
+        )
+
+        with (
+            patch.object(service, "apply_migrations", side_effect=_failing_apply(service)),
+            pytest.raises(MigrationFailed),
+        ):
+            service.migrate()
+
+        assert _value(db_path) == "original"
         engine.dispose()
 
 

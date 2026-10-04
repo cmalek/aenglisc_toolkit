@@ -637,7 +637,7 @@ class MigrationService(ProjectFoldersMixin):
                 app_version=__version__,
                 migration_version=db_version or "",
             )
-        if self.db_migration_version() is None:
+        if not self._has_alembic_table():
             return self.apply_migrations()  # Fresh Database: nothing to protect
         backup_path = self._backup_before_migration()
         try:
@@ -646,6 +646,19 @@ class MigrationService(ProjectFoldersMixin):
             raise self._safe_roll_back(e, backup_path) from e
         self._backup_after_migration()
         return result
+
+    def _has_alembic_table(self) -> bool:
+        """
+        Check whether the database has an ``alembic_version`` table.
+
+        A Fresh Database has none; an existing but empty table (a first launch
+        interrupted before stamping) is an ordinary pending migration.
+
+        Returns:
+            True if the table exists, even when it is empty
+
+        """
+        return "alembic_version" in inspect(self.engine).get_table_names()
 
     def _backup_before_migration(self) -> Path:
         """
@@ -776,6 +789,13 @@ class MigrationService(ProjectFoldersMixin):
         rolled back first or the pooled connection keeps foreign keys OFF. A
         failure here is logged, never raised, so it cannot mask the original
         migration exception.
+
+        Args:
+            connection: The connection the upgrade ran on
+
+        Side Effects:
+            Rolls back an open transaction and resets ``PRAGMA foreign_keys``.
+
         """
         try:
             if connection.in_transaction():
@@ -783,6 +803,57 @@ class MigrationService(ProjectFoldersMixin):
             connection.exec_driver_sql("PRAGMA foreign_keys=ON")
         except Exception:
             self.logger.exception("migration.foreign_keys.restore_failed")
+
+    def _build_fresh_database(self) -> MigrationResult:
+        """
+        Create the ``alembic_version`` table, every model table, and stamp head.
+
+        Side Effects:
+            Creates the schema and the ``alembic_version`` table.
+
+        Returns:
+            The resulting migration state
+
+        """
+        with self.engine.connect() as conn:
+            conn.execute(
+                text(
+                    "CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL, PRIMARY KEY (version_num))"  # noqa: E501
+                )
+            )
+            conn.commit()
+        return self._stamp_unstamped_database()
+
+    def _stamp_unstamped_database(self) -> MigrationResult:
+        """
+        Complete the schema from the models and stamp the head revision.
+
+        Used for a database whose ``alembic_version`` table exists but holds no
+        revision (a first launch interrupted before stamping); ``create_all``
+        only adds what is missing.
+
+        Side Effects:
+            Creates missing tables and inserts the head revision.
+
+        Returns:
+            The resulting migration state
+
+        """
+        Base.metadata.create_all(self.engine)
+        initial_version = self.latest_migration_version()
+        with self.engine.connect() as conn:
+            conn.execute(
+                text("INSERT INTO alembic_version (version_num) VALUES (:version)"),
+                {"version": initial_version},
+            )
+            conn.commit()
+        self.logger.info(
+            "migration.alembic.table.created", initial_version=initial_version
+        )
+        return MigrationResult(
+            app_version=__version__,
+            migration_version=cast("str", initial_version),
+        )
 
     def apply_migrations(self) -> MigrationResult:
         """
@@ -799,34 +870,10 @@ class MigrationService(ProjectFoldersMixin):
             current application version
 
         """
-        # Check if database is fresh (no alembic_version table)
-        db_inspector = inspect(self.engine)
-        existing_tables = db_inspector.get_table_names()
-
-        if "alembic_version" not in existing_tables:
-            # Fresh database - create tables from models
-            Base.metadata.create_all(self.engine)
-            # Create alembic_version table and mark initial migration as applied
-            initial_version = self.latest_migration_version()
-            with self.engine.connect() as conn:
-                conn.execute(
-                    text(
-                        "CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL, PRIMARY KEY (version_num))"  # noqa: E501
-                    )
-                )
-                conn.execute(
-                    text("INSERT INTO alembic_version (version_num) VALUES (:version)"),
-                    {"version": initial_version},
-                )
-                conn.commit()
-                self.logger.info(
-                    "migration.alembic.table.created",
-                    initial_version=initial_version,
-                )
-            return MigrationResult(
-                app_version=__version__,
-                migration_version=cast("str", initial_version),
-            )
+        if not self._has_alembic_table():
+            return self._build_fresh_database()
+        if self.db_migration_version() is None:
+            return self._stamp_unstamped_database()
         # Existing database - apply migrations normally
         self._upgrade_to_head()
         # Migration succeeded - return current version

@@ -94,3 +94,24 @@ def test_unresolved_when_nothing_matches(flow):
     with pytest.raises(UnknownDatabaseRevision) as raised:
         flow.ensure_known_revision()
     assert raised.value.required_app_version is None
+
+
+def test_a_non_object_sidecar_does_not_crash_resolution(flow):
+    _set_revision(flow, UNKNOWN)
+    (flow.backup_service.backup_dir / "live_a.db").touch()
+    (flow.backup_service.backup_dir / "live_a.json").write_text("[1, 2]")
+
+    with pytest.raises(UnknownDatabaseRevision) as raised:
+        flow.ensure_known_revision()
+
+    assert raised.value.required_app_version is None
+
+
+def test_a_numeric_application_version_is_ignored(flow):
+    _set_revision(flow, UNKNOWN)
+    _write_sidecar(flow.backup_service.backup_dir, "a", UNKNOWN, 5)
+
+    with pytest.raises(UnknownDatabaseRevision) as raised:
+        flow.ensure_known_revision()
+
+    assert raised.value.required_app_version is None

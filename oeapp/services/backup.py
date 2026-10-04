@@ -2,7 +2,7 @@
 
 import json
 import sqlite3
-from contextlib import closing
+from contextlib import closing, suppress
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Final, cast
 
@@ -213,7 +213,8 @@ class BackupService(QObject):
             self.logger.exception(
                 "backup.failed", error=e, backup_path=str(backup_path)
             )
-            backup_path.unlink(missing_ok=True)
+            with suppress(OSError):  # cleanup must never mask BackupFailed
+                backup_path.unlink(missing_ok=True)
             raise BackupFailed(e, backup_path) from e
         metadata = self._collect_metadata(maintained_by)
         try:
@@ -225,8 +226,9 @@ class BackupService(QObject):
                 error=e,
                 backup_path=str(backup_path),
             )
-            backup_path.unlink(missing_ok=True)
-            metadata_path.unlink(missing_ok=True)
+            with suppress(OSError):  # cleanup must never mask BackupFailed
+                backup_path.unlink(missing_ok=True)
+                metadata_path.unlink(missing_ok=True)
             raise BackupFailed(e, metadata_path) from e
         self.set_last_backup_time(datetime.now(UTC))
         if prune:
@@ -254,20 +256,53 @@ class BackupService(QObject):
             attempt += 1
 
     @staticmethod
-    def _snapshot(source_path: "Path", target_path: "Path") -> None:
+    def _open_source(source_path: "Path") -> sqlite3.Connection:
+        """
+        Open an existing database for reading without ever creating it.
+
+        ``mode=rw`` fails on a missing file; ``mode=ro`` would break WAL readers.
+
+        Args:
+            source_path: Database to open
+
+        Returns:
+            An open connection the caller must close
+
+        """
+        return sqlite3.connect(f"{source_path.resolve().as_uri()}?mode=rw", uri=True)
+
+    @classmethod
+    def _snapshot(cls, source_path: "Path", target_path: "Path") -> None:
         """
         Copy a database with SQLite's backup API (WAL-safe).
 
         Args:
-            source_path: Database to read
+            source_path: Database to read (must already exist)
             target_path: File to write
 
         """
         with (
-            closing(sqlite3.connect(source_path)) as source,
+            closing(cls._open_source(source_path)) as source,
             closing(sqlite3.connect(target_path)) as target,
         ):
             source.backup(target)
+
+    @classmethod
+    def _require_pages(cls, source_path: "Path") -> None:
+        """
+        Refuse a database file that is missing or has no pages.
+
+        Args:
+            source_path: Database to check
+
+        Raises:
+            sqlite3.DatabaseError: If the database has no pages
+
+        """
+        with closing(cls._open_source(source_path)) as source:
+            if source.execute("pragma page_count").fetchone()[0] == 0:
+                msg = "backup source database is empty"
+                raise sqlite3.DatabaseError(msg)
 
     def _collect_metadata(self, maintained_by: str | None) -> dict[str, Any]:
         """
@@ -345,6 +380,8 @@ class BackupService(QObject):
                 except (OSError, json.JSONDecodeError):
                     # Metadata file is corrupted or unreadable - continue without it
                     pass
+                if not isinstance(metadata, dict):
+                    metadata = {}  # a valid JSON list or scalar is not metadata
 
             # Get file stats
             try:
@@ -404,8 +441,7 @@ class BackupService(QObject):
         return [
             backup["application_version"]
             for backup in self.get_backup_list()
-            if backup["migration_version"] == revision
-            and backup["application_version"]
+            if backup["migration_version"] == revision and backup["application_version"]
         ]
 
     def restore_backup(self, backup_path: "Path") -> dict[str, Any] | None:
@@ -429,9 +465,16 @@ class BackupService(QObject):
         if not backup_path.exists():
             return None
         try:
+            self._require_pages(backup_path)  # before anything touches the live db
+        except (OSError, sqlite3.Error) as e:
+            self.logger.exception(
+                "backup.restore.failed", error=e, backup_path=str(backup_path)
+            )
+            return None
+        try:
             self.create_backup(prune=False)
-        except BackupFailed:
-            self.logger.warning("backup.restore.safety-copy.failed")
+        except BackupFailed as e:
+            self.logger.warning("backup.restore.safety-copy.failed", error=e)
         try:
             self._snapshot(backup_path, self.db_path)
         except (OSError, sqlite3.Error) as e:
@@ -459,9 +502,10 @@ class BackupService(QObject):
             return {}
         try:
             with json_file.open("r", encoding="utf-8") as f:
-                return cast("dict[str, Any]", json.load(f))
+                metadata = json.load(f)
         except (OSError, json.JSONDecodeError) as e:
             self.logger.warning(
                 "backup.metadata.load.failed", error=e, backup_path=str(backup_path)
             )
             return {}
+        return cast("dict[str, Any]", metadata) if isinstance(metadata, dict) else {}
