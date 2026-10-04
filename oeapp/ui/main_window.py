@@ -27,7 +27,7 @@ from oeapp.commands import (
     AnnotateTokenCommand,
 )
 from oeapp.db import run_pragma_optimize
-from oeapp.exc import MigrationFailed
+from oeapp.exc import MigrationFailed, UnknownDatabaseRevision
 from oeapp.help.help_engine import HelpEngineError
 from oeapp.models.annotation_json import AnnotationJson
 from oeapp.models.project import Project
@@ -57,6 +57,7 @@ from oeapp.ui.dialogs import (
     RememberedAnnotationsDialog,
     RestoreDialog,
     SettingsDialog,
+    UnknownRevisionDialog,
 )
 from oeapp.ui.dialogs.help_center_dialog import HelpCenterDialog
 from oeapp.ui.menus import MainMenu
@@ -586,6 +587,9 @@ class MainWindow(QMainWindow):
         migration_service = MigrationService()
         try:
             result = migration_service.migrate()
+        except UnknownDatabaseRevision as e:
+            UnknownRevisionDialog(self, e).execute()
+            sys.exit(1)
         except MigrationFailed as e:
             dialog = MigrationFailureDialog(
                 self,
