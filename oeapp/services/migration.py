@@ -17,7 +17,6 @@ from alembic.config import Config
 from alembic.script import Script, ScriptDirectory
 from PySide6.QtCore import QSettings
 from sqlalchemy import inspect, text
-from sqlalchemy.exc import SQLAlchemyError
 
 from oeapp import __version__
 from oeapp.db import (
@@ -721,7 +720,7 @@ class MigrationService(ProjectFoldersMixin):
             return self._unrestored_failure(error, backup_path)
         try:
             migration_version = self.db_migration_version()
-        except (OSError, SQLAlchemyError) as version_error:
+        except Exception as version_error:  # noqa: BLE001
             self.logger.debug(
                 "migration.restore.version-unreadable", error=version_error
             )

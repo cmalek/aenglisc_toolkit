@@ -69,3 +69,33 @@ class TestHonestRestoreText:
         assert "please downgrade" not in text
         assert "restore also failed" in text
         assert "1.0.0" in text
+
+    def test_not_restored_steps_cover_wal_files_and_moving(
+        self, db_session, mock_main_window, qapp, tmp_path
+    ):
+        backup = tmp_path / "pre.db"
+        backup.write_text("x")
+        text = self._text(
+            mock_main_window,
+            restored=False,
+            backup_path=backup,
+            database_path=tmp_path / "live.db",
+        )
+        assert "-wal" in text
+        assert "-shm" in text
+        assert "Move" in text
+        assert ".broken" in text
+        assert "Restore dialog" not in text
+        assert "is safe" in text
+
+    def test_not_restored_missing_backup_is_not_called_safe(
+        self, db_session, mock_main_window, qapp, tmp_path
+    ):
+        text = self._text(
+            mock_main_window,
+            restored=False,
+            backup_path=tmp_path / "gone.db",
+            database_path=tmp_path / "live.db",
+        )
+        assert "is safe" not in text
+        assert "could not be found" in text

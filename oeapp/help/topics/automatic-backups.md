@@ -70,7 +70,7 @@ Each backup is named with a timestamp:
 
 If you need to restore your project from a backup:
 
-1. The application restores the pre-migration backup automatically if a database migration fails
+1. The application restores the pre-migration backup automatically if a database migration fails; if that restore also fails, the application names the backup file to restore by hand
 2. Use **Tools > Restore...** to pick a backup and restore it; the application exits afterwards and must be started again
 3. Backup files can be found in the `backups` folder if you need to access them directly
 

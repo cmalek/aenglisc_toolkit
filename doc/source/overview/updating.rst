@@ -43,7 +43,8 @@ What happens on startup
 5. **On failure**, the application:
 
    - Restores the database from the backup taken in step 2, so your data is
-     back exactly as it was before the update.
+     back exactly as it was before the update (if the automatic restore
+     fails, see below).
    - Shows a **Migration Failed** dialog with the full exception trace, and
      buttons to **Save Stack Trace** to a file or **Copy to Clipboard**.
      Please attach this trace when
@@ -58,8 +59,12 @@ What happens on startup
 A failed migration is rolled back automatically before you see the failure
 dialog, so you end up fully on the new version or fully back on the old one.
 If the automatic restore also fails, the dialog says so, shows the path of the
-pre-migration backup, and lists the steps to restore it by hand. Do not use the
-database until you have done that.
+pre-migration backup, and lists the steps to restore it by hand: close the
+application, rename the broken database aside (add ``.broken``), move or delete
+its ``-wal`` and ``-shm`` files if they exist, then move a copy of the backup
+into the database's folder under the database's original name. Leftover
+``-wal``/``-shm`` files would otherwise be replayed onto the backup. Do not use
+the database until you have done that.
 
 .. important::
 

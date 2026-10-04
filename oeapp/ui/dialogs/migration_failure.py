@@ -119,12 +119,18 @@ class MigrationFailureDialog:
             The message with the backup and database paths and recovery steps
 
         """
+        found = self.backup_path is not None and self.backup_path.exists()
+        status = (
+            "Your pre-migration backup is safe."
+            if found
+            else "Your pre-migration backup could not be found. Look in the "
+            "backups folder next to the database, or contact support."
+        )
         text = (
             "Database migration failed during startup, and the automatic "
             "restore also failed. Your database may be partly migrated: do not "
             "use or edit it.\n\n"
-            "Your pre-migration backup is safe. It is also listed in the "
-            "Restore dialog.\n"
+            f"{status}\n"
             f"Backup: {self.backup_path or 'unknown'}\n"
             f"Database: {self.database_path or 'unknown'}\n\n"
             "To recover:\n"
@@ -139,8 +145,11 @@ class MigrationFailureDialog:
             )
             step += 1
         text += (
-            f"{step}. Rename the copy to the database's file name, replacing "
-            "the database file, and start the application.\n\n"
+            f"{step}. In the database's folder, rename the database file to add "
+            "`.broken` and keep it for your bug report. Move or delete the "
+            "database's `-wal` and `-shm` files there too, if they exist.\n"
+            f"{step + 1}. Move the copy into that folder, rename it to the "
+            "database's original file name, and start the application.\n\n"
             "You can save or copy the stack trace below for a bug report."
         )
         return text

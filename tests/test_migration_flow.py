@@ -388,3 +388,42 @@ class TestHonestRestoreFlag:
         assert exc.backup_path is not None
         assert exc.backup_path.exists()
         assert exc.database_path == flow.db_path
+
+    def test_unreadable_sidecar_still_returns_not_restored(self, flow):
+        with (
+            self._break_restore(flow),
+            patch.object(
+                flow.backup_service,
+                "read_backup_metadata",
+                side_effect=UnicodeDecodeError("utf-8", b"", 0, 1, "bad"),
+            ),
+            patch.object(flow, "apply_migrations", side_effect=_failing_apply(flow)),
+            pytest.raises(MigrationFailed) as failure,
+        ):
+            flow.migrate()
+
+        assert failure.value.restored is False
+        assert failure.value.backup_app_version is None
+
+    def test_late_error_after_restore_still_reports_restored(self, flow):
+        failing = _failing_apply(flow)
+        real_version = flow.db_migration_version
+        failed = []
+
+        def apply() -> MigrationResult:
+            failed.append(True)
+            return failing()
+
+        def version():
+            if failed:
+                raise ValueError("x")
+            return real_version()
+
+        with (
+            patch.object(flow, "apply_migrations", side_effect=apply),
+            patch.object(flow, "db_migration_version", side_effect=version),
+            pytest.raises(MigrationFailed) as failure,
+        ):
+            flow.migrate()
+
+        assert failure.value.restored is True
