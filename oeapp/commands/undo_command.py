@@ -11,12 +11,15 @@ class UndoCommand(QUndoCommand):
 
     ``redo`` runs ``Command.execute`` and ``undo`` runs ``Command.undo``. When
     ``execute`` fails the command marks itself obsolete so the stack drops it.
+    When ``undo`` fails the next ``redo`` is skipped, so the caller can step the
+    stack index back without running ``execute`` again.
 
     Args:
         command: The command to wrap.
         outcome: Dict owned by the caller. ``redo`` stores the result of
-            ``execute`` under the ``"ok"`` key, so the caller can read it even
-            after Qt has deleted this object.
+            ``execute`` under the ``"ok"`` key and ``undo`` stores the result of
+            ``Command.undo`` under ``"undo_ok"``, so the caller can read them
+            even after Qt has deleted this object.
 
     """
 
@@ -34,8 +37,21 @@ class UndoCommand(QUndoCommand):
         self.command: Command = command
         #: Whether this command is part of an open run of mergeable commands.
         self._run_open: bool = False
-        #: Caller-owned dict that receives the result of ``execute``.
+        #: Caller-owned dict that receives the results of ``execute`` and ``undo``.
         self._outcome: dict[str, bool] = outcome
+        #: Whether the next ``redo`` only restores the index after a failed undo.
+        self._skip_next_redo: bool = False
+
+    @property
+    def outcome(self) -> dict[str, bool]:
+        """
+        Get the caller-owned outcome dict.
+
+        Returns:
+            The dict holding the latest ``"ok"`` and ``"undo_ok"`` results.
+
+        """
+        return self._outcome
 
     def redo(self) -> None:
         """
@@ -43,16 +59,29 @@ class UndoCommand(QUndoCommand):
 
         Side Effects:
             Marks this command obsolete when ``execute`` returns ``False``.
+            Does nothing when the previous ``undo`` failed.
 
         """
+        if self._skip_next_redo:
+            self._skip_next_redo = False
+            return
         ok = self.command.execute()
         self._outcome["ok"] = ok
         if not ok:
             self.setObsolete(True)
 
     def undo(self) -> None:
-        """Undo the wrapped command."""
-        self.command.undo()
+        """
+        Undo the wrapped command.
+
+        Side Effects:
+            Stores the result under ``"undo_ok"`` and, on failure, arms a skip of
+            the next ``redo``.
+
+        """
+        ok = self.command.undo()
+        self._outcome["undo_ok"] = ok
+        self._skip_next_redo = not ok
 
     def id(self) -> int:
         """

@@ -36,6 +36,88 @@ class OkCommand(Command):
         return self._needs_full_reload
 
 
+class FlakyCommand(Command):
+    """
+    Command with scripted ``execute`` and ``undo`` results.
+
+    Args:
+        execute_results: Results returned by successive ``execute`` calls.
+        undo_ok: Result returned by every ``undo`` call.
+
+    """
+
+    def __init__(self, execute_results: list[bool], undo_ok: bool = True) -> None:
+        """Store the scripted results."""
+        self.execute_results = execute_results
+        self.undo_ok = undo_ok
+        self.execute_calls = 0
+        self.undo_calls = 0
+
+    def execute(self) -> bool:
+        """Return the next scripted result."""
+        result = self.execute_results[self.execute_calls]
+        self.execute_calls += 1
+        return result
+
+    def undo(self) -> bool:
+        """Return the scripted undo result."""
+        self.undo_calls += 1
+        return self.undo_ok
+
+    def get_description(self) -> str:
+        """Describe the command."""
+        return "Flaky"
+
+
+@pytest.fixture
+def window_context(db_session):
+    """Build an AppContext with a mock main window."""
+    context = AppContext(session=db_session)
+    mock_window = MagicMock()
+    mock_window.app_context = context
+    context.set_main_window(mock_window)
+    return context, mock_window
+
+
+def test_failed_undo_keeps_command_undoable(window_context):
+    context, mock_window = window_context
+    command = FlakyCommand([True], undo_ok=False)
+    push_command(context.undo_stack, command)
+
+    context.undo()
+
+    assert context.undo_stack.index() == 1
+    assert context.undo_stack.count() == 1
+    assert context.undo_stack.canUndo() is True
+    assert command.execute_calls == 1
+    assert command.undo_calls == 1
+    mock_window.messages.show_message.assert_called_with(
+        "Undo failed", duration=2000
+    )
+    mock_window.refresh_project.assert_not_called()
+    mock_window.reload_project.assert_not_called()
+
+
+def test_failed_redo_drops_command(window_context):
+    context, mock_window = window_context
+    command = FlakyCommand([True, False])
+    push_command(context.undo_stack, command)
+    context.undo()
+    mock_window.reset_mock()
+
+    context.redo()
+
+    assert command.execute_calls == 2
+    assert context.undo_stack.count() == 0
+    assert context.undo_stack.canUndo() is False
+    assert context.undo_stack.canRedo() is False
+    mock_window.messages.show_message.assert_called_with(
+        "Redo failed", duration=2000
+    )
+    mock_window.refresh_project.assert_not_called()
+    mock_window.reload_project.assert_not_called()
+
+
 @pytest.fixture
 def context(db_session):
     """Build an AppContext on the test session."""

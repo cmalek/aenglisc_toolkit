@@ -353,7 +353,8 @@ class AppContext(QObject):
 
         Side Effects:
             Undoes the top of :attr:`undo_stack`, then reloads or refreshes the
-            main window.
+            main window. When the command's ``undo`` fails, puts the stack index
+            back and shows "Undo failed" without refreshing.
 
         """
         main_window = cast("MainWindow | None", self.main_window)
@@ -361,7 +362,12 @@ class AppContext(QObject):
         if not self.undo_stack.canUndo():
             return
         command = self.undo_stack.command(self.undo_stack.index() - 1)
+        outcome = command.outcome if isinstance(command, UndoCommand) else {}
         self.undo_stack.undo()
+        if not outcome.get("undo_ok", True):
+            self.undo_stack.redo()
+            self.show_message("Undo failed")
+            return
         self.show_message("Undone")
         self._refresh_after(command)
 
@@ -371,7 +377,8 @@ class AppContext(QObject):
 
         Side Effects:
             Redoes the next command on :attr:`undo_stack`, then reloads or
-            refreshes the main window.
+            refreshes the main window. When ``execute`` fails, the stack drops
+            the command and "Redo failed" is shown without refreshing.
 
         """
         main_window = cast("MainWindow | None", self.main_window)
@@ -379,7 +386,11 @@ class AppContext(QObject):
         if not self.undo_stack.canRedo():
             return
         command = self.undo_stack.command(self.undo_stack.index())
+        outcome = command.outcome if isinstance(command, UndoCommand) else {}
         self.undo_stack.redo()
+        if not outcome.get("ok", True):
+            self.show_message("Redo failed")
+            return
         self.show_message("Redone")
         self._refresh_after(command)
 
