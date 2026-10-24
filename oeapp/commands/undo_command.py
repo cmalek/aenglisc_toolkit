@@ -6,6 +6,7 @@ from PySide6.QtGui import QUndoCommand, QUndoStack
 
 from .abstract import Command
 from .sentence import EditSentenceCommand
+from .stack_maintenance import maintain_stack
 
 
 class UndoCommand(QUndoCommand):
@@ -186,7 +187,9 @@ def push_command(stack: QUndoStack, command: Command) -> bool:
         command: The command to run and record.
 
     Side Effects:
-        Runs ``command.execute`` and, on success, adds it to ``stack``.
+        Runs ``command.execute`` and, on success, adds it to ``stack`` and
+        then has :func:`maintain_stack` let the other entries follow what
+        ``command`` removed or moved.
 
     Returns:
         ``True`` if ``execute`` succeeded, ``False`` otherwise.
@@ -194,4 +197,70 @@ def push_command(stack: QUndoStack, command: Command) -> bool:
     """
     outcome: dict[str, bool] = {"ok": False}
     stack.push(UndoCommand(command, outcome))
+    if outcome["ok"]:
+        maintain_stack(stack, command)
     return outcome["ok"]
+
+
+def undo_step(stack: QUndoStack) -> bool:
+    """
+    Undo the top of ``stack`` and let the other entries follow.
+
+    Args:
+        stack: The stack to move.
+
+    Side Effects:
+        Calls ``stack.undo()``. When the command's ``undo`` fails, calls
+        ``stack.redo()`` to put the index back without running ``execute``
+        again. After a successful undo, has :func:`maintain_stack` walk the
+        stack. An entry already marked obsolete is skipped by Qt and dropped;
+        nothing is walked for it.
+
+    Returns:
+        ``True`` when the undo succeeded or the entry was dropped as obsolete.
+
+    """
+    entry = stack.command(stack.index() - 1)
+    if not isinstance(entry, UndoCommand):
+        stack.undo()
+        return True
+    command, outcome, dropped = entry.command, entry.outcome, entry.isObsolete()
+    stack.undo()
+    if dropped:
+        return True
+    if not outcome.get("undo_ok", True):
+        stack.redo()
+        return False
+    maintain_stack(stack, command)
+    return True
+
+
+def redo_step(stack: QUndoStack) -> bool:
+    """
+    Redo the next entry on ``stack`` and let the other entries follow.
+
+    Args:
+        stack: The stack to move.
+
+    Side Effects:
+        Calls ``stack.redo()``. When ``execute`` fails, Qt drops the entry.
+        After a successful redo, has :func:`maintain_stack` walk the stack. An
+        entry already marked obsolete is skipped by Qt and dropped; nothing is
+        walked for it.
+
+    Returns:
+        ``True`` when the redo succeeded or the entry was dropped as obsolete.
+
+    """
+    entry = stack.command(stack.index())
+    if not isinstance(entry, UndoCommand):
+        stack.redo()
+        return True
+    command, outcome, dropped = entry.command, entry.outcome, entry.isObsolete()
+    stack.redo()
+    if dropped:
+        return True
+    if not outcome.get("ok", True):
+        return False
+    maintain_stack(stack, command)
+    return True

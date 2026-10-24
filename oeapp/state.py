@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Final, cast
 from PySide6.QtCore import QObject, QSettings, Signal
 from PySide6.QtGui import QUndoStack
 
-from oeapp.commands import UndoCommand
+from oeapp.commands import redo_step, undo_step
 from oeapp.db import clear_runtime_session, get_runtime_session, set_runtime_session
 from oeapp.ui.typed_run import TypedRun
 from oeapp.ui.undo_presenter import UndoPresenter
@@ -382,18 +382,16 @@ class AppContext(QObject):
         Undo the top of :attr:`undo_stack`.
 
         Side Effects:
-            Moves the stack index back and shows "Undone". When the command's
-            ``undo`` fails, puts the index back and shows "Undo failed".
+            Moves the stack index back with :func:`undo_step`, which also lets
+            the other stack entries follow what the undo restored, and shows
+            "Undone". When the command's ``undo`` fails, the index is put back
+            and "Undo failed" is shown.
 
         Returns:
             ``True`` when the undo succeeded.
 
         """
-        command = self.undo_stack.command(self.undo_stack.index() - 1)
-        outcome = command.outcome if isinstance(command, UndoCommand) else {}
-        self.undo_stack.undo()
-        if not outcome.get("undo_ok", True):
-            self.undo_stack.redo()
+        if not undo_step(self.undo_stack):
             self.show_message("Undo failed")
             return False
         self.show_message("Undone")
@@ -423,17 +421,16 @@ class AppContext(QObject):
         Redo the next command on :attr:`undo_stack`.
 
         Side Effects:
-            Moves the stack index forward and shows "Redone". When ``execute``
-            fails, the stack drops the command and "Redo failed" is shown.
+            Moves the stack index forward with :func:`redo_step`, which also
+            lets the other stack entries follow what the redo removed or
+            moved, and shows "Redone". When ``execute`` fails, the stack drops
+            the command and "Redo failed" is shown.
 
         Returns:
             ``True`` when the redo succeeded.
 
         """
-        command = self.undo_stack.command(self.undo_stack.index())
-        outcome = command.outcome if isinstance(command, UndoCommand) else {}
-        self.undo_stack.redo()
-        if not outcome.get("ok", True):
+        if not redo_step(self.undo_stack):
             self.show_message("Redo failed")
             return False
         self.show_message("Redone")

@@ -13,7 +13,35 @@ from oeapp.models.note import Note
 from oeapp.models.sentence import Sentence
 from oeapp.models.token import Token
 
-from .abstract import Command
+from .abstract import Command, CommandLocators, StackAdjustment
+
+
+def _token_ids(sentence_id: int) -> set[int]:
+    """
+    Get the ids of a sentence's tokens as they are now.
+
+    Args:
+        sentence_id: The sentence.
+
+    Returns:
+        The token ids.
+
+    """
+    return {token.id for token in Token.list(sentence_id)}
+
+
+def _idiom_ids(sentence: Sentence) -> set[int]:
+    """
+    Get the ids of a sentence's idioms as they are now.
+
+    Args:
+        sentence: The sentence.
+
+    Returns:
+        The idiom ids.
+
+    """
+    return {idiom.id for idiom in sentence.idioms}
 
 
 @dataclass
@@ -48,7 +76,7 @@ class EditSentenceCommand(SessionMixin, Command):
             return False
 
         if self.field == "text_oe":
-            self.messages = sentence.update(self.after)
+            self.messages = self._retokenize(sentence, self.after)
         elif self.field == "text_modern":
             sentence.text_modern = self.after
             sentence.save()
@@ -67,11 +95,46 @@ class EditSentenceCommand(SessionMixin, Command):
             return False
 
         if self.field == "text_oe":
-            sentence.update(self.before)
+            self._retokenize(sentence, self.before)
         elif self.field == "text_modern":
             sentence.text_modern = self.before
             sentence.save()
         return True
+
+    def _retokenize(self, sentence: Sentence, text_oe: str) -> list[str]:
+        """
+        Write ``text_oe`` onto the sentence and record the rows that vanished.
+
+        Args:
+            sentence: The sentence to re-tokenize.
+            text_oe: The Old English text to write.
+
+        Side Effects:
+            Sets :attr:`last_adjustment` to the token and idiom ids that the
+            re-tokenization deleted.
+
+        Returns:
+            Messages from the update (e.g. deleted idioms).
+
+        """
+        token_ids = _token_ids(sentence.id)
+        idiom_ids = _idiom_ids(sentence)
+        messages = sentence.update(text_oe)
+        self.last_adjustment = StackAdjustment(
+            obsolete_token_ids=token_ids - _token_ids(sentence.id),
+            obsolete_idiom_ids=idiom_ids - _idiom_ids(sentence),
+        )
+        return messages
+
+    def locators(self) -> CommandLocators:
+        """
+        Get the sentence this edit acts on.
+
+        Returns:
+            Locators naming :attr:`sentence_id`.
+
+        """
+        return CommandLocators(sentence_ids={self.sentence_id})
 
     def menu_text(self) -> str:
         """
@@ -188,6 +251,9 @@ class MergeSentenceCommand(SessionMixin, Command):
 
         # Get current sentence token count
         current_token_count = len(current_sentence.tokens)
+        token_ids_before = _token_ids(current_sentence.id) | _token_ids(
+            next_sentence.id
+        )
 
         # Move all tokens from next sentence to current sentence
         # CRITICAL: Update sentence_id and order_index, but keep token IDs the same
@@ -240,6 +306,11 @@ class MergeSentenceCommand(SessionMixin, Command):
             sentence.save(commit=False)
 
         session.commit()
+        self.last_adjustment = StackAdjustment(
+            obsolete_sentence_ids={self.next_sentence_id},
+            token_sentence=self._moved_tokens(current_sentence.id),
+            obsolete_token_ids=token_ids_before - _token_ids(current_sentence.id),
+        )
 
         return True
 
@@ -250,6 +321,11 @@ class MergeSentenceCommand(SessionMixin, Command):
         CRITICAL: Uses two-phase approach to handle unique constraint on
         (project_id, display_order).
 
+        Side Effects:
+            The next sentence comes back under a new id, which is written onto
+            :attr:`next_sentence_id` and recorded in :attr:`last_adjustment`
+            for every token that moves back to it.
+
         Returns:
             True if successful, False otherwise
 
@@ -258,6 +334,7 @@ class MergeSentenceCommand(SessionMixin, Command):
         current_sentence = Sentence.get(self.current_sentence_id)
         if current_sentence is None:
             return False
+        token_ids_before = _token_ids(current_sentence.id)
 
         # CRITICAL: Restore display_order for subsequent sentences FIRST
         # This must happen before recreating the next sentence to avoid
@@ -306,7 +383,53 @@ class MergeSentenceCommand(SessionMixin, Command):
                 idiom.save()
 
         session.commit()
+        self.next_sentence_id = next_sentence.id
+        surviving = _token_ids(current_sentence.id) | _token_ids(next_sentence.id)
+        self.last_adjustment = StackAdjustment(
+            token_sentence=self._moved_tokens(next_sentence.id),
+            obsolete_token_ids=token_ids_before - surviving,
+        )
         return True
+
+    def _moved_tokens(self, sentence_id: int) -> dict[int, int]:
+        """
+        Map the next sentence's tokens to the sentence they were just moved to.
+
+        Args:
+            sentence_id: Sentence the tokens now belong to.
+
+        Returns:
+            ``token_id -> sentence_id`` for every token that came from the next
+            sentence.
+
+        """
+        return {token["id"]: sentence_id for token in self.next_sentence_tokens}
+
+    def locators(self) -> CommandLocators:
+        """
+        Get the two sentences this merge acts on.
+
+        Returns:
+            Locators naming :attr:`current_sentence_id` and
+            :attr:`next_sentence_id`.
+
+        """
+        return CommandLocators(
+            sentence_ids={self.current_sentence_id, self.next_sentence_id}
+        )
+
+    def is_removal_of(self, sentence_id: int) -> bool:
+        """
+        Whether this merge removes ``sentence_id``.
+
+        Args:
+            sentence_id: Sentence to check.
+
+        Returns:
+            ``True`` for the next sentence, which the merge folds away.
+
+        """
+        return sentence_id == self.next_sentence_id
 
     def menu_text(self) -> str:
         """
@@ -413,6 +536,7 @@ class AddSentenceCommand(SessionMixin, Command):
             paragraph_id=reference_sentence.paragraph_id,
         )
         self.new_sentence_id = new_sentence.id
+        self.last_adjustment = StackAdjustment()
 
         return True
 
@@ -422,6 +546,10 @@ class AddSentenceCommand(SessionMixin, Command):
 
         CRITICAL: Uses two-phase approach to handle unique constraint on
         (project_id, display_order).
+
+        Side Effects:
+            Records the removed sentence in :attr:`last_adjustment`, so steps
+            that edited it are dropped; a redo creates the sentence afresh.
 
         Returns:
             True if successful, False otherwise
@@ -437,8 +565,25 @@ class AddSentenceCommand(SessionMixin, Command):
 
         # Restore display_order using two-phase approach
         Sentence.restore_display_orders(self.display_order_changes)
+        self.last_adjustment = StackAdjustment(
+            obsolete_sentence_ids={self.new_sentence_id}
+        )
 
         return True
+
+    def locators(self) -> CommandLocators:
+        """
+        Get the sentences this insert acts on.
+
+        Returns:
+            Locators naming the reference sentence and, once created, the new
+            sentence. ``display_order_changes`` is a snapshot, not a locator.
+
+        """
+        sentence_ids = {self.reference_sentence_id}
+        if self.new_sentence_id is not None:
+            sentence_ids.add(self.new_sentence_id)
+        return CommandLocators(sentence_ids=sentence_ids)
 
     def menu_text(self) -> str:
         """
@@ -550,6 +695,11 @@ class DeleteSentenceCommand(SessionMixin, Command):
         # Store sentence's display_order before deletion
         deleted_display_order = sentence.display_order
         project_id = sentence.project_id
+        self.last_adjustment = StackAdjustment(
+            obsolete_sentence_ids={self.sentence_id},
+            obsolete_token_ids={token.id for token in sentence_tokens},
+            obsolete_idiom_ids=_idiom_ids(sentence),
+        )
 
         # Delete sentence (cascade will delete tokens and notes)
         sentence.delete()
@@ -576,6 +726,10 @@ class DeleteSentenceCommand(SessionMixin, Command):
 
         CRITICAL: Uses two-phase approach to handle unique constraint on
         (project_id, display_order).
+
+        Side Effects:
+            The sentence comes back under a new id, which is written onto
+            :attr:`sentence_id` so a redo deletes the restored row.
 
         Returns:
             True if successful, False otherwise
@@ -666,7 +820,32 @@ class DeleteSentenceCommand(SessionMixin, Command):
                         None, idiom_data["annotation"], idiom_id=restored_idiom.id
                     )
 
+        self.sentence_id = restored_sentence.id
+        self.last_adjustment = StackAdjustment()
         return True
+
+    def locators(self) -> CommandLocators:
+        """
+        Get the sentence this command removes or restores.
+
+        Returns:
+            Locators naming :attr:`sentence_id`.
+
+        """
+        return CommandLocators(sentence_ids={self.sentence_id})
+
+    def is_removal_of(self, sentence_id: int) -> bool:
+        """
+        Whether this command removes ``sentence_id``.
+
+        Args:
+            sentence_id: Sentence to check.
+
+        Returns:
+            ``True`` for the deleted sentence.
+
+        """
+        return sentence_id == self.sentence_id
 
     def menu_text(self) -> str:
         """

@@ -10,8 +10,76 @@ from oeapp.models.annotation import Annotation
 from oeapp.models.idiom import Idiom
 from oeapp.models.mixins import SessionMixin
 from oeapp.models.sentence import Sentence
+from oeapp.models.token import Token
 
-from .abstract import Command
+from .abstract import Command, CommandLocators, StackAdjustment
+
+
+class TokenBatchLocators(Command):
+    """
+    Locators for a command that writes one annotation payload per token.
+
+    The command keeps its target tokens in ``token_ids`` and, from the first
+    ``execute`` on, the sentence of each in ``token_sentence``. ``before`` and
+    ``after`` are keyed by token id and are undo snapshots; a dropped token's
+    entries stay there untouched.
+    """
+
+    #: Token IDs this command writes to.
+    token_ids: list[int]
+    #: Sentence of each target token, filled on the first ``execute``.
+    token_sentence: dict[int, int]
+
+    def record_sentences(self) -> None:
+        """
+        Note which sentence each target token belongs to.
+
+        Side Effects:
+            Fills :attr:`token_sentence` for the tokens not yet recorded.
+
+        """
+        for token_id in self.token_ids:
+            if token_id in self.token_sentence:
+                continue
+            token = Token.get(token_id)
+            if token is not None:
+                self.token_sentence[token_id] = token.sentence_id
+
+    def locators(self) -> CommandLocators:
+        """
+        Get the tokens and sentences this batch acts on.
+
+        Returns:
+            Locators naming every target token and its sentence.
+
+        """
+        return CommandLocators(
+            sentence_ids=set(self.token_sentence.values()),
+            token_ids=set(self.token_ids),
+        )
+
+    def relocate(self, adjustment: StackAdjustment) -> None:
+        """
+        Drop target tokens that are gone and follow the ones that moved.
+
+        Args:
+            adjustment: What another command removed or moved.
+
+        Side Effects:
+            Removes dead ids from :attr:`token_ids` and :attr:`token_sentence`
+            and updates the sentence of each moved token.
+
+        """
+        self.token_ids = [
+            token_id
+            for token_id in self.token_ids
+            if token_id not in adjustment.obsolete_token_ids
+        ]
+        for token_id in adjustment.obsolete_token_ids:
+            self.token_sentence.pop(token_id, None)
+        for token_id, sentence_id in adjustment.token_sentence.items():
+            if token_id in self.token_sentence:
+                self.token_sentence[token_id] = sentence_id
 
 
 @dataclass
@@ -119,8 +187,56 @@ class AnnotateTokenCommand(SessionMixin, Command):
             sentence = Sentence.get(self.sentence_id)
             if sentence is not None:
                 session.refresh(sentence, ["tokens", "idioms"])
+        if self.sentence_id is None:
+            self.sentence_id = self._target_sentence_id()
 
         return True
+
+    def _target_sentence_id(self) -> int | None:
+        """
+        Look up the sentence that holds the annotated token or idiom.
+
+        Returns:
+            The sentence id, or ``None`` when neither target exists.
+
+        """
+        if self.token_id is not None:
+            token = Token.get(self.token_id)
+            return token.sentence_id if token is not None else None
+        if self.idiom_id is not None:
+            idiom = Idiom.get(self.idiom_id)
+            return idiom.sentence_id if idiom is not None else None
+        return None
+
+    def locators(self) -> CommandLocators:
+        """
+        Get the sentence, token, and idiom this annotation targets.
+
+        Returns:
+            Locators with whichever of :attr:`sentence_id`, :attr:`token_id`,
+            and :attr:`idiom_id` are set.
+
+        """
+        return CommandLocators(
+            sentence_ids=set() if self.sentence_id is None else {self.sentence_id},
+            token_ids=set() if self.token_id is None else {self.token_id},
+            idiom_ids=set() if self.idiom_id is None else {self.idiom_id},
+        )
+
+    def relocate(self, adjustment: StackAdjustment) -> None:
+        """
+        Follow the annotated token to the sentence it was moved to.
+
+        Args:
+            adjustment: What another command removed or moved.
+
+        Side Effects:
+            Updates :attr:`sentence_id` when :attr:`token_id` moved. The token
+            id itself is never changed.
+
+        """
+        if self.token_id in adjustment.token_sentence:
+            self.sentence_id = adjustment.token_sentence[self.token_id]
 
     def undo(self) -> bool:
         """
@@ -161,7 +277,7 @@ class AnnotateTokenCommand(SessionMixin, Command):
 
 
 @dataclass
-class ApplyRememberedAnnotationsCommand(SessionMixin, Command):
+class ApplyRememberedAnnotationsCommand(SessionMixin, TokenBatchLocators):
     """Command for batch-applying remembered annotations to tokens."""
 
     #: Token IDs updated by this apply pass.
@@ -170,6 +286,8 @@ class ApplyRememberedAnnotationsCommand(SessionMixin, Command):
     before: dict[int, dict[str, Any]] = field(default_factory=dict)
     #: Per-token annotation state after apply.
     after: dict[int, dict[str, Any]] = field(default_factory=dict)
+    #: Sentence of each target token, filled on the first ``execute``.
+    token_sentence: dict[int, int] = field(default_factory=dict)
 
     def execute(self) -> bool:
         """
@@ -183,6 +301,7 @@ class ApplyRememberedAnnotationsCommand(SessionMixin, Command):
 
         """
         session = self._get_session()
+        self.record_sentences()
         try:
             for token_id in self.token_ids:
                 Annotation.from_json(token_id, self.after[token_id], commit=False)
@@ -225,7 +344,7 @@ class ApplyRememberedAnnotationsCommand(SessionMixin, Command):
 
 
 @dataclass
-class ApplyAnnotationPropagationCommand(SessionMixin, Command):
+class ApplyAnnotationPropagationCommand(SessionMixin, TokenBatchLocators):
     """Command for batch-propagating annotation payloads to tokens."""
 
     #: Token IDs updated by one propagation action.
@@ -234,6 +353,8 @@ class ApplyAnnotationPropagationCommand(SessionMixin, Command):
     before: dict[int, dict[str, Any]] = field(default_factory=dict)
     #: Per-token annotation state after propagation.
     after: dict[int, dict[str, Any]] = field(default_factory=dict)
+    #: Sentence of each target token, filled on the first ``execute``.
+    token_sentence: dict[int, int] = field(default_factory=dict)
 
     def execute(self) -> bool:
         """
@@ -244,6 +365,7 @@ class ApplyAnnotationPropagationCommand(SessionMixin, Command):
 
         """
         session = self._get_session()
+        self.record_sentences()
         try:
             for token_id in self.token_ids:
                 Annotation.from_json(token_id, self.after[token_id], commit=False)

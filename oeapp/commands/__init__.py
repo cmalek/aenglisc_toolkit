@@ -12,7 +12,8 @@ from .sentence import (
     EditSentenceCommand,
     MergeSentenceCommand,
 )
-from .undo_command import UndoCommand, push_command
+from .stack_maintenance import maintain_stack
+from .undo_command import UndoCommand, push_command, redo_step, undo_step
 
 __all__ = [
     "AddNoteCommand",
@@ -29,5 +30,8 @@ __all__ = [
     "SplitParagraphCommand",
     "UndoCommand",
     "UpdateNoteCommand",
+    "maintain_stack",
     "push_command",
+    "redo_step",
+    "undo_step",
 ]
