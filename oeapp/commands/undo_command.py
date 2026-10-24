@@ -6,7 +6,7 @@ from PySide6.QtGui import QUndoCommand, QUndoStack
 
 from .abstract import Command
 from .sentence import EditSentenceCommand
-from .stack_maintenance import maintain_stack
+from .stack_maintenance import maintain_stack, settle
 
 
 class UndoCommand(QUndoCommand):
@@ -214,10 +214,12 @@ def undo_step(stack: QUndoStack) -> bool:
         ``stack.redo()`` to put the index back without running ``execute``
         again. After a successful undo, has :func:`maintain_stack` walk the
         stack. An entry already marked obsolete is skipped by Qt and dropped;
-        nothing is walked for it.
+        nothing is walked for it. Every path ends by settling the stack, so
+        no obsolete entry is left next to the index.
 
     Returns:
-        ``True`` when the undo succeeded or the entry was dropped as obsolete.
+        ``True`` only when a command was undone; ``False`` when its ``undo``
+        failed or the entry was merely dropped as obsolete.
 
     """
     entry = stack.command(stack.index() - 1)
@@ -227,9 +229,11 @@ def undo_step(stack: QUndoStack) -> bool:
     command, outcome, dropped = entry.command, entry.outcome, entry.isObsolete()
     stack.undo()
     if dropped:
-        return True
+        settle(stack)
+        return False
     if not outcome.get("undo_ok", True):
         stack.redo()
+        settle(stack)
         return False
     maintain_stack(stack, command)
     return True
@@ -246,10 +250,12 @@ def redo_step(stack: QUndoStack) -> bool:
         Calls ``stack.redo()``. When ``execute`` fails, Qt drops the entry.
         After a successful redo, has :func:`maintain_stack` walk the stack. An
         entry already marked obsolete is skipped by Qt and dropped; nothing is
-        walked for it.
+        walked for it. Every path ends by settling the stack, so no obsolete
+        entry is left next to the index.
 
     Returns:
-        ``True`` when the redo succeeded or the entry was dropped as obsolete.
+        ``True`` only when a command was redone; ``False`` when ``execute``
+        failed or the entry was merely dropped as obsolete.
 
     """
     entry = stack.command(stack.index())
@@ -258,9 +264,8 @@ def redo_step(stack: QUndoStack) -> bool:
         return True
     command, outcome, dropped = entry.command, entry.outcome, entry.isObsolete()
     stack.redo()
-    if dropped:
-        return True
-    if not outcome.get("ok", True):
+    if dropped or not outcome.get("ok", True):
+        settle(stack)
         return False
     maintain_stack(stack, command)
     return True

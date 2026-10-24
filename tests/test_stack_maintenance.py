@@ -4,18 +4,21 @@ from dataclasses import dataclass
 
 import pytest
 from oeapp.commands import (
+    AddNoteCommand,
     AddSentenceCommand,
     AnnotateTokenCommand,
     ApplyRememberedAnnotationsCommand,
     DeleteSentenceCommand,
     EditSentenceCommand,
     MergeSentenceCommand,
+    UpdateNoteCommand,
     push_command,
 )
-from oeapp.commands.abstract import CommandLocators, StackAdjustment
+from oeapp.commands.abstract import Command, CommandLocators, StackAdjustment
 from oeapp.commands.stack_maintenance import maintain_stack
-from oeapp.commands.undo_command import redo_step, undo_step
+from oeapp.commands.undo_command import UndoCommand, redo_step, undo_step
 from oeapp.models.annotation import Annotation
+from oeapp.models.note import Note
 from oeapp.models.project import Project
 from oeapp.models.sentence import Sentence
 from oeapp.models.token import Token
@@ -285,3 +288,92 @@ def test_maintain_stack_marks_only_orphaned_entries(setup):
     # Walking again with the same adjustment changes nothing.
     maintain_stack(stack, delete)
     assert [entry.isObsolete() for entry in entries(stack)] == [False, True, False]
+
+
+# --- note steps follow their sentence ----------------------------------------
+
+
+def add_note(sentence_id: int, text: str = "a note") -> AddNoteCommand:
+    tokens = Token.list(sentence_id)
+    return AddNoteCommand(
+        sentence_id=sentence_id,
+        start_token_id=tokens[0].id,
+        end_token_id=tokens[-1].id,
+        note_text=text,
+    )
+
+
+def test_note_step_under_a_deleted_sentence_does_not_jam_undo(setup):
+    stack = setup.undo_stack
+    push_command(stack, edit_translation(setup.next_sentence_id, "", "kept"))
+    push_command(stack, add_note(setup.sentence_id))
+    push_command(stack, delete_sentence(setup.sentence_id))
+    assert stack.command(1).isObsolete() is True
+    assert undo_step(stack) is True  # undo the delete; the note step is dropped
+    assert stack.count() == 2  # noqa: PLR2004
+    assert stack.command(stack.index() - 1).text() == "Edit translation"
+    assert undo_step(stack) is True
+    assert Sentence.get(setup.next_sentence_id).text_modern == ""
+
+
+def test_update_note_records_its_sentence_and_tokens(setup):
+    add = add_note(setup.sentence_id)
+    push_command(setup.undo_stack, add)
+    note = Note.get(add.note_id)
+    update = UpdateNoteCommand(
+        note_id=note.id,
+        before_text="a note",
+        after_text="b note",
+        before_start_token=note.start_token,
+        before_end_token=note.end_token,
+        after_start_token=note.start_token,
+        after_end_token=note.end_token,
+    )
+    push_command(setup.undo_stack, update)
+    assert update.locators() == CommandLocators(
+        sentence_ids={setup.sentence_id},
+        token_ids={note.start_token, note.end_token},
+    )
+
+
+# --- failed and dropped steps settle the stack -------------------------------
+
+
+@dataclass
+class FlakyCommand(Command):
+    """A command whose ``execute`` succeeds once, then fails."""
+
+    runs: int = 0
+
+    def execute(self) -> bool:
+        self.runs += 1
+        return self.runs == 1
+
+    def undo(self) -> bool:
+        return True
+
+    def menu_text(self) -> str:
+        return "Flaky"
+
+
+def test_redo_of_a_failing_entry_drops_the_obsolete_one_behind_it(setup):
+    stack = setup.undo_stack
+    push_command(stack, FlakyCommand())
+    push_command(stack, FlakyCommand())
+    assert undo_step(stack) is True
+    assert undo_step(stack) is True
+    stack.command(1).setObsolete(True)
+    assert redo_step(stack) is False
+    assert stack.canRedo() is False
+    assert stack.count() == 0
+
+
+def test_a_dropped_obsolete_entry_is_not_reported_as_undone(setup):
+    stack = setup.undo_stack
+    push_command(stack, FlakyCommand())
+    push_command(stack, FlakyCommand())
+    stack.command(1).setObsolete(True)
+    assert isinstance(stack.command(1), UndoCommand)
+    assert undo_step(stack) is False
+    assert stack.count() == 1
+    assert stack.canUndo() is True

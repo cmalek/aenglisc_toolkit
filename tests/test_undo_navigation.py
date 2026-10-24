@@ -110,6 +110,7 @@ def test_undo_after_section_change_returns_to_sentence(main_window, qtbot, qapp)
     assert card.translation_edit.toPlainText() == "a"
     assert _in_view(main_window, card, qapp)
     blink.assert_called_once_with(card.translation_edit)
+    assert main_window.focusWidget() is card.oe_text_edit
     focus_start.assert_not_called()
     assert main_window.app_context.typed_run.open_command is None
     assert main_window.app_context.undo_stack.count() == 2  # noqa: PLR2004

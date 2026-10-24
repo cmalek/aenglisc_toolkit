@@ -6,7 +6,48 @@ from oeapp.models.mixins import SessionMixin
 from oeapp.models.note import Note
 from oeapp.models.sentence import Sentence
 
-from .abstract import Command
+from .abstract import Command, CommandLocators, StackAdjustment
+
+
+def _note_locators(sentence_id: int | None, *token_ids: int | None) -> CommandLocators:
+    """
+    Get the locators of a note command.
+
+    Args:
+        sentence_id: The note's sentence, or ``None`` when not yet known.
+        token_ids: The note's start and end tokens; ``None`` entries are skipped.
+
+    Returns:
+        Locators naming the sentence and every known token, so a sentence
+        delete drops the step while a merge that moves the tokens keeps it.
+
+    """
+    return CommandLocators(
+        sentence_ids=set() if sentence_id is None else {sentence_id},
+        token_ids={token_id for token_id in token_ids if token_id is not None},
+    )
+
+
+def _moved_sentence(
+    sentence_id: int | None, adjustment: StackAdjustment, *token_ids: int | None
+) -> int | None:
+    """
+    Get the sentence a note's tokens were moved to.
+
+    Args:
+        sentence_id: The note's current sentence.
+        adjustment: What another command removed or moved.
+        token_ids: The note's start and end tokens.
+
+    Returns:
+        The sentence the first moved token now belongs to, or ``sentence_id``
+        when none of the tokens moved.
+
+    """
+    for token_id in token_ids:
+        if token_id is not None and token_id in adjustment.token_sentence:
+            return adjustment.token_sentence[token_id]
+    return sentence_id
 
 
 @dataclass
@@ -81,6 +122,33 @@ class AddNoteCommand(SessionMixin, Command):
 
         """
         return "Add note"
+
+    def locators(self) -> CommandLocators:
+        """
+        Get the sentence and tokens this note is attached to.
+
+        Returns:
+            Locators naming :attr:`sentence_id` and the note's tokens.
+
+        """
+        return _note_locators(self.sentence_id, self.start_token_id, self.end_token_id)
+
+    def relocate(self, adjustment: StackAdjustment) -> None:
+        """
+        Follow the note's tokens to the sentence they were moved to.
+
+        Args:
+            adjustment: What another command removed or moved.
+
+        Side Effects:
+            Updates :attr:`sentence_id` when one of the note's tokens moved.
+
+        """
+        moved = _moved_sentence(
+            self.sentence_id, adjustment, self.start_token_id, self.end_token_id
+        )
+        if moved is not None:
+            self.sentence_id = moved
 
     def _get_next_note_number(self) -> int:
         """
@@ -188,10 +256,15 @@ class UpdateNoteCommand(SessionMixin, Command):
     after_start_token: int | None
     #: The after end token ID.
     after_end_token: int | None
+    #: The note's sentence ID (set on execution).
+    sentence_id: int | None = None
 
     def execute(self) -> bool:
         """
         Execute note update.
+
+        Side Effects:
+            Records the note's sentence in :attr:`sentence_id`.
 
         Returns:
             True if successful, False otherwise
@@ -201,6 +274,7 @@ class UpdateNoteCommand(SessionMixin, Command):
         if note is None:
             return False
 
+        self.sentence_id = note.sentence_id
         note.note_text_md = self.after_text
         # Ensure None instead of False or 0 for nullable foreign keys
         note.start_token = (
@@ -244,6 +318,43 @@ class UpdateNoteCommand(SessionMixin, Command):
 
         """
         return "Update note"
+
+    def locators(self) -> CommandLocators:
+        """
+        Get the sentence and tokens this note is attached to.
+
+        Returns:
+            Locators naming :attr:`sentence_id` and the note's tokens before
+            and after the update.
+
+        """
+        return _note_locators(
+            self.sentence_id,
+            self.before_start_token,
+            self.before_end_token,
+            self.after_start_token,
+            self.after_end_token,
+        )
+
+    def relocate(self, adjustment: StackAdjustment) -> None:
+        """
+        Follow the note's tokens to the sentence they were moved to.
+
+        Args:
+            adjustment: What another command removed or moved.
+
+        Side Effects:
+            Updates :attr:`sentence_id` when one of the note's tokens moved.
+
+        """
+        self.sentence_id = _moved_sentence(
+            self.sentence_id,
+            adjustment,
+            self.after_start_token,
+            self.after_end_token,
+            self.before_start_token,
+            self.before_end_token,
+        )
 
 
 @dataclass
@@ -330,3 +441,30 @@ class DeleteNoteCommand(SessionMixin, Command):
 
         """
         return "Delete note"
+
+    def locators(self) -> CommandLocators:
+        """
+        Get the sentence and tokens this note is attached to.
+
+        Returns:
+            Locators naming :attr:`sentence_id` and the note's tokens.
+
+        """
+        return _note_locators(self.sentence_id, self.start_token_id, self.end_token_id)
+
+    def relocate(self, adjustment: StackAdjustment) -> None:
+        """
+        Follow the note's tokens to the sentence they were moved to.
+
+        Args:
+            adjustment: What another command removed or moved.
+
+        Side Effects:
+            Updates :attr:`sentence_id` when one of the note's tokens moved.
+
+        """
+        moved = _moved_sentence(
+            self.sentence_id, adjustment, self.start_token_id, self.end_token_id
+        )
+        if moved is not None:
+            self.sentence_id = moved

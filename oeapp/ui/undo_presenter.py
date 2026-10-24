@@ -2,7 +2,7 @@
 
 from typing import TYPE_CHECKING, Final
 
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QPalette
 
 from oeapp.commands import EditSentenceCommand, UndoCommand
@@ -100,8 +100,9 @@ class UndoPresenter:
         Side Effects:
             When the sentence's card is not loaded, loads its section and
             scrolls the card into view before calling ``step``. After a
-            successful step, writes the translation into the card, blinking
-            it when the section was just loaded.
+            successful step, writes the translation into the card. When the
+            section was just loaded, blinks the translation and focuses the
+            card's Old English editor.
 
         """
         if self._card_for(sentence_id) is not None:
@@ -121,6 +122,8 @@ class UndoPresenter:
         QTimer.singleShot(0, card, lambda: self.main_window.ensure_visible(card))
         if step():
             self.apply_translation(sentence_id, blink=True)
+            # Loading the section destroyed the editor that had focus.
+            card.oe_text_edit.setFocus(Qt.FocusReason.OtherFocusReason)
 
     def show_step(self, command: "QUndoCommand | None") -> None:
         """
