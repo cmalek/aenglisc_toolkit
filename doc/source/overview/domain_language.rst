@@ -68,8 +68,11 @@ Words and annotation
    speech, add grammatical detail later — rather than all at once.
 
 **Remembered Annotation**
-   A saved annotation template keyed to an exact Old English spelling, so
-   you don't have to re-enter the same analysis every time a word recurs.
+   A saved annotation template for one partially normalized Old English
+   spelling, so you don't have to re-enter the same analysis every time
+   that spelling recurs. Capitalization, eth and thorn, hyphens, and
+   consonant dots count as the same spelling. Length marks still count,
+   so ``gē`` and ``ge`` are different.
 
 Notes and translation
 -----------------------

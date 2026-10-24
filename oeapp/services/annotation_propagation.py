@@ -10,6 +10,7 @@ from sqlalchemy import select
 from oeapp.commands import ApplyAnnotationPropagationCommand
 from oeapp.models import Annotation
 from oeapp.ui.token_details_sidebar import BaseTokenDetailsSidebar
+from oeapp.utils import partially_normalize_old_english
 
 
 @dataclass
@@ -35,7 +36,7 @@ class AnnotationPropagationService:
         self, project_id: int, source_token
     ) -> AnnotationPropagationPlan:
         """
-        Build plan for normalized-surface propagation.
+        Build plan for partially normalized surface propagation.
 
         Args:
             project_id: Project to search.
@@ -48,12 +49,11 @@ class AnnotationPropagationService:
         source_annotation = source_token.annotation or Annotation.get_by_token(
             source_token.id
         )
-        summary = self._build_summary_html(source_token)
-        if (
-            source_token.id is None
-            or not source_token.surface_normalized
-            or source_annotation is None
-        ):
+        source_key = partially_normalize_old_english(source_token.surface)
+        summary = self._build_summary_html(
+            source_token, source_key or source_token.surface
+        )
+        if source_token.id is None or not source_key or source_annotation is None:
             return self._empty_plan(summary)
 
         source_payload = {
@@ -61,7 +61,7 @@ class AnnotationPropagationService:
             for key, value in source_annotation.to_json().items()
             if key != "sense"
         }
-        targets = self._surface_targets(project_id, source_token.surface_normalized)
+        targets = self._surface_targets(project_id, source_key)
         return self._build_plan(
             source_token=source_token,
             targets=targets,
@@ -77,7 +77,7 @@ class AnnotationPropagationService:
         self, project_id: int, source_token
     ) -> AnnotationPropagationPlan:
         """
-        Build plan for root-normalized meaning propagation.
+        Build plan for partially normalized root meaning propagation.
 
         Args:
             project_id: Project to search.
@@ -90,16 +90,18 @@ class AnnotationPropagationService:
         source_annotation = source_token.annotation or Annotation.get_by_token(
             source_token.id
         )
-        summary = self._build_summary_html(source_token)
-        if (
-            source_token.id is None
-            or source_annotation is None
-            or not source_annotation.root_normalized
-            or not source_annotation.modern_english_meaning
-        ):
+        if source_token.id is None or source_annotation is None:
+            return self._empty_plan(
+                self._build_summary_html(source_token, source_token.surface or "")
+            )
+        root_key = partially_normalize_old_english(source_annotation.root)
+        summary = self._build_summary_html(
+            source_token, root_key or source_token.surface or ""
+        )
+        if not root_key or not source_annotation.modern_english_meaning:
             return self._empty_plan(summary)
 
-        targets = self._meaning_targets(project_id, source_annotation.root_normalized)
+        targets = self._meaning_targets(project_id, root_key)
         return self._build_plan(
             source_token=source_token,
             targets=targets,
@@ -165,40 +167,31 @@ class AnnotationPropagationService:
             rich_text_summary=summary,
         )
 
-    def _surface_targets(self, project_id: int, normalized_surface: str) -> list:
+    def _surface_targets(self, project_id: int, partial_spelling: str) -> list:
         """
-        Return project tokens matching one normalized surface.
+        Return project tokens matching one partially normalized spelling.
 
         Args:
             project_id: Project to search.
-            normalized_surface: Normalized surface to match.
+            partial_spelling: Partially normalized surface to match.
 
         Returns:
             Matching tokens in display order.
 
         """
-        from oeapp.models.sentence import Sentence  # noqa: PLC0415
-        from oeapp.models.token import Token  # noqa: PLC0415
+        return [
+            token
+            for token in self._project_tokens(project_id)
+            if partially_normalize_old_english(token.surface) == partial_spelling
+        ]
 
-        session = Annotation._get_session()
-        stmt = (
-            select(Token)
-            .join(Sentence)
-            .where(
-                Sentence.project_id == project_id,
-                Token.surface_normalized == normalized_surface,
-            )
-            .order_by(Sentence.display_order, Token.order_index)
-        )
-        return list(session.scalars(stmt).all())
-
-    def _meaning_targets(self, project_id: int, root_normalized: str) -> list:
+    def _meaning_targets(self, project_id: int, partial_root: str) -> list:
         """
-        Return project tokens matching one normalized root.
+        Return project tokens whose root has one partially normalized spelling.
 
         Args:
             project_id: Project to search.
-            root_normalized: Normalized root to match.
+            partial_root: Partially normalized root to match.
 
         Returns:
             Matching tokens in display order.
@@ -212,10 +205,35 @@ class AnnotationPropagationService:
             select(Token)
             .join(Sentence)
             .join(Annotation, Annotation.token_id == Token.id)
-            .where(
-                Sentence.project_id == project_id,
-                Annotation.root_normalized == root_normalized,
-            )
+            .where(Sentence.project_id == project_id)
+            .order_by(Sentence.display_order, Token.order_index)
+        )
+        return [
+            token
+            for token in session.scalars(stmt).all()
+            if token.annotation is not None
+            and partially_normalize_old_english(token.annotation.root) == partial_root
+        ]
+
+    def _project_tokens(self, project_id: int) -> list:
+        """
+        Return project tokens in display order.
+
+        Args:
+            project_id: Project to search.
+
+        Returns:
+            Tokens in display order.
+
+        """
+        from oeapp.models.sentence import Sentence  # noqa: PLC0415
+        from oeapp.models.token import Token  # noqa: PLC0415
+
+        session = Annotation._get_session()
+        stmt = (
+            select(Token)
+            .join(Sentence)
+            .where(Sentence.project_id == project_id)
             .order_by(Sentence.display_order, Token.order_index)
         )
         return list(session.scalars(stmt).all())
@@ -239,12 +257,16 @@ class AnnotationPropagationService:
             rich_text_summary=summary,
         )
 
-    def _build_summary_html(self, source_token) -> str:
+    def _build_summary_html(self, source_token, spelling: str) -> str:
         """
-        Build rich-text token summary matching sidebar title formatting.
+        Build rich-text token summary for a propagation dialog.
+
+        Grammatical marks follow the sidebar. The word is the partially
+        normalized spelling that was matched, so length marks stay visible.
 
         Args:
             source_token: Token to summarize.
+            spelling: Spelling to show for the matched word.
 
         Returns:
             HTML summary string for dialogs.
@@ -272,7 +294,7 @@ class AnnotationPropagationService:
                 f"<sub style='{BaseTokenDetailsSidebar.SUB_STYLE}'>"
                 f"{escape(gender_str)}</sub>"
             )
-        summary += escape(source_token.surface_normalized or source_token.surface)
+        summary += escape(spelling)
         if context_str:
             summary += (
                 f"<sub style='{BaseTokenDetailsSidebar.SUB_STYLE}'>"

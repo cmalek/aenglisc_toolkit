@@ -77,7 +77,15 @@ _Avoid_: Lemma, stem (unless discussing morphology theory), base form
 A derived comparison key for a surface or root used for grouping and search:
 lowercased, diacritics stripped, hyphens removed, `ð` folded to `þ`, with OE
 letters such as `æ` and `þ` kept.
-_Avoid_: Normalized surface (when you mean the general rule), slug, key
+_Avoid_: Normalized surface (when you mean the general rule), slug, key,
+partially normalized spelling
+
+**Partially Normalized Spelling**:
+A Normalized Form that keeps length marks. Lowercased, hyphens removed, eth
+folded to thorn, and diacritics other than macrons removed, including the dots
+on `ċ` and `ġ`. `gē` and `ge` differ; `Hē` and `hē` do not, nor do `ðæt` and
+`þæt`, nor `ġe-wāt` and `gewāt`.
+_Avoid_: Normalized form, normalized spelling, slug
 
 **Idiom**:
 A contiguous multi-token span the translator treats as one annotation unit
@@ -149,9 +157,35 @@ and the token details view all present the same catalog.
 _Avoid_: Field list, form schema, field specs (per-surface copies)
 
 **Remembered Annotation**:
-A token-only annotation template keyed by exact surface text, scoped globally
-or to one project, used to batch-apply the same analysis to matching tokens.
-_Avoid_: Annotation preset, cached annotation, autocomplete, memory
+A token-only annotation template for one Partially Normalized Spelling, scoped
+globally or to one project and batch-applied to every token with that
+spelling. A scope holds only one entry for that spelling, so `hē` and `Hē`
+are the same entry, as are `ðæt` and `þæt`, and `ġe-wāt` and `gewāt`. `gē`
+and `ge` are different entries. Remembering a spelling that matches the one
+existing entry updates that entry. Remembering does not choose when that
+spelling is already an Ambiguous Remembered Annotation. An entry that is
+part of an Ambiguous Remembered Annotation is not applied.
+_Avoid_: Annotation preset, cached annotation, autocomplete, memory, normalized
+form
+
+**Annotation Propagation**:
+Copying one token's annotation onto the other tokens in the project that
+share its Partially Normalized Spelling. It does not consult a Remembered
+Annotation.
+_Avoid_: Apply remembered annotations, meaning propagation
+
+**Meaning Propagation**:
+Giving one annotation's Meaning to every other annotation in the project
+whose Root has the same Partially Normalized Spelling.
+_Avoid_: Annotation propagation, remembered annotation, normalized form
+
+**Ambiguous Remembered Annotation**:
+Two remembered annotations in one scope whose Partially Normalized Spellings
+are identical, whether or not the rest of the annotation agrees. Neither is
+applied: choosing between them would mean translating. A project entry and a
+global entry for the same Partially Normalized Spelling are not ambiguous; the
+project entry wins.
+_Avoid_: Conflict, duplicate, case variant, normalized form
 
 **Global Scope**:
 Availability of a remembered annotation across all projects.
@@ -159,7 +193,7 @@ _Avoid_: System-wide, app-wide (unless talking about settings)
 
 **Project Scope**:
 Availability of a remembered annotation only inside one project; wins over a
-global entry for the same exact surface.
+global entry for the same Partially Normalized Spelling.
 _Avoid_: Local scope (ambiguous), private
 
 **Requires Infinitive**:
@@ -197,9 +231,18 @@ _Avoid_: Meaning (token/annotation level), gloss, ModE (UI abbreviation only)
 ### Reading and export concepts
 
 **Glossary**:
-An exported inventory of annotated forms and roots (especially in PDF),
-grouped for reading — not the live annotation store itself.
+The inventory of annotated forms and roots, grouped for reading, scoped to one
+project or to all projects. It is viewed live in a window or exported (especially
+in PDF); it is not the annotation store itself.
 _Avoid_: Dictionary, lexicon, vocabulary list (unless marketing copy)
+
+**Meaning Conflict**:
+Two or more annotations of the same Root, part of speech, and (for nouns)
+gender whose Meaning text differs. The whole Meaning field is compared, so
+"war" and "war; battle" conflict. Inflectional differences (case, number,
+person, tense) are never a Meaning Conflict, and same-spelling words of
+different part of speech or gender are different entries, not conflicts.
+_Avoid_: Inconsistency (unscoped), duplicate, mismatch
 
 **Full Translation**:
 The side-by-side reading of an entire project's Old English text and Modern

@@ -190,7 +190,7 @@ class RememberedAnnotationJson(BaseModel):
     #: Model config.
     model_config = ConfigDict(extra="forbid")
 
-    #: The exact token surface used for remembered matching.
+    #: Saved spelling. Matching uses its partially normalized spelling.
     token_text: str
     #: The part of speech.
     pos: str | None = None

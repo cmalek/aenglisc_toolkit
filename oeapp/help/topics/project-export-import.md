@@ -164,6 +164,7 @@ Database **Backup** (whole-database recovery) is separate from Project Export. T
 - **File Size**: Exports are compact by default and can be compressed further using `.json.gz`
 - **No Data Loss**: All annotations, notes, and metadata are preserved in the export
 - **One Project Per File**: Each JSON file contains exactly one project
+- **Conflicting remembered spellings**: If the file contains two remembered annotations that match (for example `ðæt` and `þæt`), both are imported. The import dialog names them. Delete one of them. **Apply Remembered Annotations** will not use that spelling until you do.
 - **Readable Format**: JSON remains text-based and language-agnostic; use `.json` for readability and `.json.gz` for the smallest Project Export files
 - **Reading-text exports**: Old English and Translation `.txt` files from Project → Export are for sharing plain text only; they cannot be imported back into the Toolkit
 

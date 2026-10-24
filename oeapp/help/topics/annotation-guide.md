@@ -122,6 +122,19 @@ You don't need to fill in all fields at once! You can:
 
 The system remembers your last-used values for each POS type, making it faster to annotate similar tokens.
 
+## Copying an Annotation to Matching Words
+
+Right-click a word that already has an annotation:
+
+- **Propagate annotation** copies that annotation onto other words in the project with the same partially normalized spelling, when those words do not already have an annotation.
+- **Force propagate meaning** copies only the Modern English meaning onto other annotations whose root has the same partially normalized spelling.
+
+Partially normalized spelling ignores case, eth and thorn, hyphens, and the dots on `ċ` and `ġ`. Length marks still count, so `gē` does not match `ge`, and `gōd` does not match `god`.
+
+The confirmation is a count. It includes the one source spelling, with its length marks kept, as in `3 words updated to match gōd`. **Force propagate meaning** puts the root's spelling in that same sentence. The dialog does not list the words that changed.
+
+See [Remembered Annotations](remembered-annotations.html) to save a spelling and apply it later.
+
 ## Undo Support
 
 > **Undo support:** Many in-editor operations are undoable with `Ctrl+Z` (and redo with `Ctrl+R` / `Ctrl+Shift+R`), but project-level destructive actions are not always undoable. When in doubt, create a backup or JSON export first.

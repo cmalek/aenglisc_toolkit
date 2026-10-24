@@ -57,21 +57,23 @@
 <li>root</li>
 </ul>
 <p>They do <strong>not</strong> remember idiom annotations, and they do not store per-instance sense information.</p>
-<h2>Exact Matching</h2>
-<p>Remembered annotations match by the token's exact Old English surface text.</p>
+<h2>Matching</h2>
+<p>Remembered annotations match by partially normalized spelling.</p>
 <ul>
-<li>Matching is case-sensitive and diacritic-sensitive.</li>
-<li>A remembered entry for <code>sæ</code> matches <code>sæ</code>.</li>
-<li>It does <strong>not</strong> match <code>sae</code> or a different token spelling.</li>
+<li>Capitalization is ignored, so <code>Hē</code> matches <code>hē</code>.</li>
+<li>Eth and thorn match, so <code>ðæt</code> matches <code>þæt</code>.</li>
+<li>Hyphens are ignored, and the dots on <code>ċ</code> and <code>ġ</code> are ignored, so <code>ġe-wāt</code> matches <code>gewāt</code>.</li>
+<li>Length marks still count, so <code>gē</code> does not match <code>ge</code>, and <code>gōd</code> does not match <code>god</code>.</li>
 </ul>
-<p>Use the exact token text you want to reuse.</p>
+<p>The spelling shown in the remembered-annotation list stays as it was first saved. Remembering another casing updates that entry instead of adding a second one.</p>
+<p>If one scope already has two entries with the same partially normalized spelling, neither is applied. Remember refuses to pick one, and names both spellings so you can delete one.</p>
 <h2>Scopes</h2>
 <p>There are two remembered-annotation scopes:</p>
 <ul>
 <li><strong>Global</strong>: available across all projects</li>
 <li><strong>Project</strong>: available only inside the current project</li>
 </ul>
-<p>If both a global and project remembered annotation exist for the same exact token text, the <strong>project</strong> one wins inside that project.</p>
+<p>If both a global and project remembered annotation exist for the same partially normalized spelling, the <strong>project</strong> one wins inside that project. Those two are not a conflict.</p>
 <h2>Remembering an Annotation From Text</h2>
 <p>To save a token's current annotation as a remembered annotation:</p>
 <ol>
@@ -88,17 +90,18 @@
 </ul>
 <p>In the management dialog you can:</p>
 <ul>
-<li>create a new remembered annotation for an exact token text</li>
+<li>create a new remembered annotation for a token spelling</li>
 <li>edit an existing remembered annotation</li>
 <li>delete a remembered annotation you no longer want</li>
 </ul>
-<p>When creating a new entry manually, you must enter the exact token text it should match.</p>
+<p>When creating a new entry manually, enter the token spelling it should match. The prompt asks for that spelling, not an exact copy of one token. Capitalization, eth and thorn, hyphens, and the dots on <code>ċ</code> and <code>ġ</code> count as the same spelling. Length marks do not. If that spelling is already remembered in the scope, the existing entry opens for editing and keeps the spelling already saved. If two entries already share that spelling, the dialog names both and does not save a third.</p>
 <h2>Applying Remembered Annotations</h2>
 <p>To apply remembered annotations across the current project:</p>
 <ol>
 <li>Open <strong>Tools -&gt; Apply Remembered Annotations</strong></li>
-<li>The app finds tokens whose exact surface text matches remembered entries visible to the project</li>
+<li>The app finds tokens whose partially normalized spelling matches a remembered entry visible to the project</li>
 <li>Matching tokens that are safe to auto-fill are updated in one batch</li>
+<li>When the run finishes, a summary dialog titled <strong>Apply Remembered Annotations</strong> appears. It reports how many tokens were updated. When some tokens already had an annotation, it says how many were skipped. When remembered spellings conflict, it names those saved spellings and does not apply those entries. When nothing matched, it says so. The dialog reports counts. It does not list each token.</li>
 </ol>
 <p>The app does not blindly overwrite existing filled-in annotations. Tokens that already contain meaningful annotation data are skipped.</p>
 <h2>Undo Support</h2>
@@ -111,7 +114,7 @@
 <h2>Good Uses</h2>
 <p>Remembered annotations work best when:</p>
 <ul>
-<li>the same exact token spelling repeats often</li>
+<li>the same token spelling repeats often, including differences of case, eth/thorn, hyphenation, or consonant dots</li>
 <li>you want a project-specific override for one text</li>
 <li>you have established a stable annotation for a common form</li>
 </ul>

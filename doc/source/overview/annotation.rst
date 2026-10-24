@@ -154,28 +154,32 @@ project**:
 
 - **Propagate annotation** — copies this token's whole annotation (every
   grammatical field and root, but not its per-instance sense) onto every
-  *other* token in the project with the same normalized surface form —
-  but only into tokens that don't already have a meaningful annotation. It
-  never overwrites existing work.
+  *other* token in the project with the same partially normalized spelling
+  — but only into tokens that don't already have a meaningful annotation.
+  It never overwrites existing work.
 - **Force propagate meaning** — copies just this token's **Modern English
-  meaning** onto every token in the project that shares the same
-  normalized root, *even if those tokens already have a meaning set*. Use
-  this when you've corrected or refined a root's meaning and want that
-  correction to apply everywhere at once. It's disabled until the token has
-  both a root and a Modern English meaning filled in.
+  meaning** onto every other annotation in the project whose root has the
+  same partially normalized spelling, *even if those tokens already have a
+  meaning set*. Use this when you've corrected or refined a root's meaning
+  and want that correction to apply everywhere at once. It's disabled until
+  the token has both a root and a Modern English meaning filled in.
 
-Both actions show a confirmation dialog reporting how many words were
-updated (or that no matching words were found), and both are undoable in
-one step with **Ctrl+Z**.
+Both actions show a confirmation dialog with the count of words updated,
+or a line that no matching words were found. That count sentence includes
+the one source spelling, with its length marks kept. Propagating ``gōd``
+reads ``3 words updated to match gōd``. **Force propagate meaning** puts
+the root's spelling in that same sentence. The dialog does not list the
+words that changed. Both actions are undoable in one step with **Ctrl+Z**.
 
-Propagation differs from :doc:`/overview/remembered_annotations` in two
-ways: it acts immediately on tokens already in the current project instead
-of saving a template for future use, and it matches by *normalized*
-surface/root rather than exact spelling — so, unlike remembered
-annotations, it isn't sensitive to case or diacritics. Because "Force
-propagate meaning" can overwrite existing meanings, use it deliberately,
-and prefer plain **Propagate annotation** when you only want to fill in
-tokens that are still blank.
+Propagation differs from :doc:`/overview/remembered_annotations` in one
+way: it acts immediately on tokens already in the current project instead
+of saving a template for future use. Both use partially normalized
+spelling. That ignores case, eth and thorn, hyphens, and the dots on
+``ċ`` and ``ġ``, and it keeps length marks, so ``gē`` does not match
+``ge`` and ``gōd`` does not match ``god``. Because "Force propagate
+meaning" can overwrite existing meanings, use it deliberately, and prefer
+plain **Propagate annotation** when you only want to fill in tokens that
+are still blank.
 
 Undo
 ====

@@ -20,3 +20,4 @@ writing instructions.
    adr_0005_pos_field_catalog
    adr_0006_copied_annotation
    adr_0007_migration_backup_consolidation
+   adr_0008_partially_normalized_spelling

@@ -8,7 +8,7 @@ English word appears many times with the same analysis and you don't want
 to re-enter it repeatedly. (This is a companion to
 :doc:`/overview/presets`, which reuses grammatical fields for a *part of
 speech*; remembered annotations instead reuse a whole annotation for one
-exact *spelling*.)
+partially normalized *spelling*.)
 
 .. note::
 
@@ -23,13 +23,25 @@ of speech, inflectional details, Modern English meaning, and root. They do
 **not** remember idiom annotations, and they don't store per-instance
 sense information, since sense is specific to one occurrence in context.
 
-Exact matching
-=================
+Matching
+========
 
-Remembered annotations match by the token's exact Old English surface
-text — case-sensitive and diacritic-sensitive. A remembered entry for
-``sæ`` matches ``sæ``, not ``sae`` or any other spelling. Enter the exact
-token text you want to reuse when creating an entry manually.
+Remembered annotations match by partially normalized spelling.
+
+- Capitalization is ignored, so ``Hē`` matches ``hē``.
+- Eth and thorn match, so ``ðæt`` matches ``þæt``.
+- Hyphens are ignored, and the dots on ``ċ`` and ``ġ`` are ignored, so
+  ``ġe-wāt`` matches ``gewāt``.
+- Length marks still count, so ``gē`` does not match ``ge``, and ``gōd``
+  does not match ``god``.
+
+The spelling shown in the list stays as it was first saved. Remembering
+another casing updates that entry instead of adding a second one.
+
+If one scope already has two entries with the same partially normalized
+spelling, neither is applied. Remember refuses to pick one, and names both
+spellings so you can delete one. See
+:ref:`adr_0008_partially_normalized_spelling`.
 
 Scopes
 ========
@@ -40,7 +52,8 @@ There are two remembered-annotation scopes:
 - **Project** — available only inside the current project.
 
 If both a global and a project remembered annotation exist for the same
-exact token text, the **project** one wins inside that project.
+partially normalized spelling, the **project** one wins inside that
+project. Those two are not a conflict.
 
 Remembering an annotation from the text
 ==========================================
@@ -80,10 +93,13 @@ Each opens a table of that scope's entries (token text, part of speech, a
 short grammatical summary, root, and Modern English meaning). From there
 you can:
 
-- **New** — create an entry by typing the exact token text it should
-  match, then filling in its annotation in the same modal used for regular
-  token annotation. If an entry for that text already exists in the scope,
-  the dialog opens it for editing instead of creating a duplicate.
+- **New** — create an entry by typing the token spelling it should match.
+  The prompt asks for that spelling, not an exact copy of one token.
+  Then fill in its annotation in the same modal used for regular token
+  annotation. If that spelling is already remembered in the scope, the
+  existing entry opens for editing and keeps the spelling already saved.
+  If two entries already share that spelling, the dialog names both and
+  does not save a third.
 - **Edit** (or double-click a row) — reopen an entry's annotation for
   changes.
 - **Delete** — remove an entry you no longer want, with confirmation.
@@ -98,11 +114,18 @@ Applying remembered annotations
 To apply remembered annotations across the current project:
 
 1. Choose **Tools → Apply Remembered Annotations**.
-2. The app finds every token in the project whose exact surface text
-   matches a remembered entry visible to that project (global entries, plus
-   any project-scoped entries, with project entries taking precedence).
+2. The app finds every token in the project whose partially normalized
+   spelling matches a remembered entry visible to that project (global
+   entries, plus any project-scoped entries, with project entries taking
+   precedence).
 3. Matching tokens that are safe to auto-fill are updated in a single
    batch.
+4. When the run finishes, a summary dialog titled **Apply Remembered
+   Annotations** appears. It reports how many tokens were updated. When
+   some tokens already had an annotation, it says how many were skipped.
+   When remembered spellings conflict, it names those saved spellings and
+   does not apply those entries. When nothing matched, it says so. The
+   dialog reports counts. It does not list each token.
 
 The app never blindly overwrites an existing annotation — tokens that
 already contain meaningful annotation data are skipped, so it's safe to run
@@ -121,7 +144,8 @@ When to use remembered annotations
 
 Remembered annotations work best when:
 
-- the same exact token spelling repeats often with a stable reading,
+- the same spelling repeats often with a stable reading, including
+  differences of case, eth and thorn, hyphenation, or consonant dots,
 - you want a project-specific override for one spelling, or
 - you've settled on a stable annotation for a common form.
 

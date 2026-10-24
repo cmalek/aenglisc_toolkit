@@ -31,6 +31,10 @@ from oeapp.exc import MigrationFailed, UnknownDatabaseRevision
 from oeapp.help.help_engine import HelpEngineError
 from oeapp.models.annotation_json import AnnotationJson
 from oeapp.models.project import Project
+from oeapp.models.remembered_annotation import (
+    AmbiguousRememberedSpellingError,
+    RememberedAnnotation,
+)
 from oeapp.models.search_result import SearchResult
 from oeapp.services import (
     AnnotationPropagationService,
@@ -1216,7 +1220,17 @@ class MainWindowActions:
         if annotation is None or annotation.is_safe_to_auto_fill():
             self.messages.show_warning("Token has no annotation to remember")
             return
-        RememberedAnnotationService().remember_token_annotation(token, project_id)
+        try:
+            RememberedAnnotationService().remember_token_annotation(token, project_id)
+        except AmbiguousRememberedSpellingError as exc:
+            scope_text = "globally" if project_id is None else "for this project"
+            self.messages.show_information(
+                "These remembered annotations "
+                f"{scope_text} conflict, so nothing was saved:\n{exc}\n\n"
+                "Delete one of them before remembering this spelling again.",
+                title="Ambiguous Remembered Annotation",
+            )
+            return
         scope_text = "globally" if project_id is None else "for project"
         self.messages.show_message(f"Remembered '{token.surface}' {scope_text}")
 
@@ -1231,20 +1245,18 @@ class MainWindowActions:
             return
 
         plan = RememberedAnnotationService().plan_apply(project_id)
-        if plan.applied_count == 0:
-            self.messages.show_message(plan.message, duration=3000)
-            return
-
-        if not self.command_manager.execute(plan.command):
+        if plan.applied_count and not self.command_manager.execute(plan.command):
             self.messages.show_error("Failed to apply remembered annotations")
             return
-
-        self.main_window.refresh_project()
-        self.messages.show_message(plan.message, duration=3000)
+        if plan.applied_count:
+            self.main_window.refresh_project()
+        self.messages.show_information(
+            plan.message, title="Apply Remembered Annotations"
+        )
 
     def propagate_token_annotation(self, token: "Token") -> None:
         """
-        Propagate one token annotation to safe empty same-surface matches.
+        Propagate one token annotation onto the same partial spelling.
 
         Args:
             token: Source token for propagation.
@@ -1267,7 +1279,7 @@ class MainWindowActions:
 
     def force_propagate_token_meaning(self, token: "Token") -> None:
         """
-        Propagate one token meaning to same-root matches across project.
+        Propagate one token meaning onto the same partial root spelling.
 
         Args:
             token: Source token for propagation.
@@ -1345,10 +1357,19 @@ class MainWindowActions:
             imported_project, was_renamed = ProjectImporter().import_project_json(
                 file_path
             )
+            ambiguous_spellings = [
+                " / ".join(entry.token_text for entry in group)
+                for group in RememberedAnnotation.ambiguous_groups_for_scope(
+                    imported_project.id
+                )
+            ]
 
             # Show confirmation dialog
             dialog = ImportProjectDialog(
-                self.main_window, imported_project, was_renamed
+                self.main_window,
+                imported_project,
+                was_renamed,
+                ambiguous_spellings=ambiguous_spellings,
             )
             if dialog.execute():
                 # User chose to open the project

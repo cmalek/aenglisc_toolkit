@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 
 from oeapp.commands import ApplyRememberedAnnotationsCommand
 from oeapp.models import Annotation, RememberedAnnotation
+from oeapp.utils import partially_normalize_old_english
 
 
 @dataclass
@@ -80,31 +81,10 @@ class RememberedAnnotationService:
             The computed value.
 
         """
-        remembered_by_token = RememberedAnnotation.effective_for_project(project_id)
-        if not remembered_by_token:
-            return RememberedAnnotationApplyPlan(
-                command=ApplyRememberedAnnotationsCommand(),
-                applied_count=0,
-                skipped_count=0,
-                matched_count=0,
-                message="0 applied: no remembered annotations matched this text",
-            )
-
-        tokens = RememberedAnnotation.matching_tokens(
-            project_id, list(remembered_by_token.keys())
-        )
-        if not tokens:
-            return RememberedAnnotationApplyPlan(
-                command=ApplyRememberedAnnotationsCommand(),
-                applied_count=0,
-                skipped_count=0,
-                matched_count=0,
-                message="0 applied: no remembered annotations matched this text",
-            )
-
+        applicable, ambiguous = RememberedAnnotation.resolve_for_project(project_id)
+        tokens = RememberedAnnotation.matching_tokens(project_id, list(applicable))
         before: dict[int, dict] = {}
         after: dict[int, dict] = {}
-        matched_count = len(tokens)
         skipped_count = 0
         affected_token_ids: list[int] = []
 
@@ -117,18 +97,12 @@ class RememberedAnnotationService:
             if not annotation.is_safe_to_auto_fill():
                 skipped_count += 1
                 continue
+            partial_key = partially_normalize_old_english(token.surface) or ""
             before[token.id] = annotation.to_json()
-            after[token.id] = remembered_by_token[token.surface].annotation_payload()
+            after[token.id] = applicable[partial_key].annotation_payload()
             affected_token_ids.append(token.id)
 
         applied_count = len(affected_token_ids)
-        if applied_count == 0:
-            message = "0 applied: all matched tokens already had annotations"
-        elif skipped_count == 0:
-            message = f"{applied_count} applied, 0 skipped"
-        else:
-            message = f"{applied_count} applied, {skipped_count} skipped"
-
         return RememberedAnnotationApplyPlan(
             command=ApplyRememberedAnnotationsCommand(
                 token_ids=affected_token_ids,
@@ -137,7 +111,75 @@ class RememberedAnnotationService:
             ),
             applied_count=applied_count,
             skipped_count=skipped_count,
-            matched_count=matched_count,
-            message=message,
+            matched_count=len(tokens),
+            message=_apply_message(
+                applied_count, skipped_count, len(tokens), ambiguous
+            ),
             affected_token_ids=affected_token_ids,
         )
+
+
+def _count_line(count: int, verb: str) -> str:
+    """
+    Format a token count sentence.
+
+    Args:
+        count: Token count.
+        verb: Past-tense verb for the sentence.
+
+    Returns:
+        A one-line summary.
+
+    """
+    noun = "token" if count == 1 else "tokens"
+    return f"{count} {noun} {verb}."
+
+
+def _skipped_line(count: int) -> str:
+    """
+    Format the skipped-token sentence.
+
+    Args:
+        count: Number of tokens that already had annotations.
+
+    Returns:
+        A one-line summary.
+
+    """
+    if count == 1:
+        return "1 token skipped because it already had an annotation."
+    return f"{count} tokens skipped because they already had an annotation."
+
+
+def _apply_message(
+    applied: int,
+    skipped: int,
+    matched: int,
+    ambiguous: list,
+) -> str:
+    """
+    Build the apply summary dialog text.
+
+    Args:
+        applied: Tokens that will be updated.
+        skipped: Tokens skipped because they already had annotations.
+        matched: Tokens that matched an applicable remembered entry.
+        ambiguous: Same-scope partial-spelling conflicts.
+
+    Returns:
+        Dialog text.
+
+    """
+    lines = [_count_line(applied, "updated")]
+    if skipped:
+        lines.append(_skipped_line(skipped))
+    if ambiguous:
+        lines.append("")
+        lines.append("Ambiguous remembered annotations were not applied:")
+        for group in ambiguous:
+            scope = "global" if group[0].project_id is None else "project"
+            spellings = " / ".join(entry.token_text for entry in group)
+            lines.append(f"- {spellings} ({scope})")
+    elif applied == 0 and matched == 0:
+        lines.append("No remembered annotations matched this text.")
+    return "\n".join(lines)

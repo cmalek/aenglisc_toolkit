@@ -992,7 +992,7 @@ class OldEnglishTextEdit(QTextEdit):
 
         self.resize_to_fit_text()
 
-    def render_token(  # noqa: PLR0913
+    def render_token(  # noqa: PLR0913, PLR0917
         self,
         cursor: QTextCursor,
         token: "Token",
@@ -1129,9 +1129,9 @@ class OldEnglishTextEdit(QTextEdit):
         """
         Find the token index that contains the given character position.
 
-        Uses the custom :attr:`TOKEN_INDEX_PROPERTY` stored in the
-        :class:`QTextCharFormat`.  Checks both the character after and before
-        the cursor to handle edge clicks.
+        Uses the rendered token spans. A position one character before a token
+        also matches, so the first word on a line is found when the hit lands
+        on the preceding line break.
 
         Args:
             position: Character position in the document
@@ -1142,31 +1142,51 @@ class OldEnglishTextEdit(QTextEdit):
         """
         if not self.tokens:
             return None
+        if not self._position_is_line_break(position):
+            found = self._order_index_at_document_position(position)
+            if found is not None:
+                return found
+        return self._order_index_at_document_position(position + 1)
 
-        # Get the cursor at the position
-        doc = self.document()
-        cursor = QTextCursor(doc)
-        cursor.setPosition(position)
+    def _position_is_line_break(self, position: int) -> bool:
+        """
+        Return whether a document position is a line break.
 
-        # 1. Try character AFTER the cursor (preferred for clicks on left half of char)
-        if position < doc.characterCount() - 1:
-            test_cursor = QTextCursor(doc)
-            test_cursor.setPosition(position)
-            test_cursor.movePosition(
-                QTextCursor.MoveOperation.Right, QTextCursor.MoveMode.KeepAnchor
-            )
-            fmt = test_cursor.charFormat()
-            val = fmt.property(self.TOKEN_INDEX_PROPERTY)
-            if val is not None:
-                return cast("int", val)
+        Args:
+            position: Character position in the document.
 
-        # 2. Try character BEFORE the cursor (for clicks on right half of char)
-        fmt = cursor.charFormat()
-        val = fmt.property(self.TOKEN_INDEX_PROPERTY)
-        if val is not None:
-            return cast("int", val)
+        Returns:
+            True when that character is a newline.
 
-        return None
+        """
+        text = self.toPlainText()
+        return 0 <= position < len(text) and text[position] == "\n"
+
+    def _order_index_at_document_position(self, position: int) -> int | None:
+        """
+        Return the token whose rendered span covers a document position.
+
+        A position just after the token still counts, so a click on the right
+        edge of a word selects it. The following token starts later.
+
+        Args:
+            position: Character position in the document.
+
+        Returns:
+            Token order index, or ``None`` when the position is not in a token.
+
+        """
+        edge_match: int | None = None
+        for token_id, (start, end) in self.token_to_position.items():
+            if start <= position < end:
+                token = self.tokens_by_id.get(token_id)
+                if token is not None:
+                    return token.order_index
+            elif position == end:
+                token = self.tokens_by_id.get(token_id)
+                if token is not None:
+                    edge_match = token.order_index
+        return edge_match
 
     def find_idiom(
         self, start_index: int, end_index: int | None = None
@@ -1361,6 +1381,8 @@ class OldEnglishTextEdit(QTextEdit):
 
         """
         super().mousePressEvent(event)
+        if event.button() != Qt.MouseButton.LeftButton:
+            return
         self.clicked.emit(event.position().toPoint(), event.modifiers())
 
     def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:  # noqa: N802
@@ -1387,7 +1409,11 @@ class OldEnglishTextEdit(QTextEdit):
             menu.exec(event.globalPos())
             return
 
-        token = self.get_token(self.find_token_at_position(self.cursorForPosition(event.pos()).position()) or -1)  # noqa: E501
+        self.stop_deselect_timer()
+        order_index = self.find_token_at_position(
+            self.cursorForPosition(event.pos()).position()
+        )
+        token = self.get_token(order_index) if order_index is not None else None
         current_range = self.current_range()
         single_range = (
             current_range is not None and current_range[0] == current_range[1]

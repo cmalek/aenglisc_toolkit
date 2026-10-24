@@ -76,4 +76,7 @@ migration version it was exported from, so importing into a newer version
 of the application can transform older data forward automatically. If a
 project with the same name already exists, the import gives the new
 project a distinguishing name (e.g. ``Project (1)``) rather than
-overwriting it.
+overwriting it. If the file contains two remembered annotations with the
+same partially normalized spelling, both are imported and the import
+dialog names them. Delete one of them. Apply Remembered Annotations will
+not use that spelling until you do.

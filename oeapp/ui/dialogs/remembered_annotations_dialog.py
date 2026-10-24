@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 )
 
 from oeapp.models import RememberedAnnotation
+from oeapp.models.remembered_annotation import AmbiguousRememberedSpellingError
 from oeapp.services.remembered_annotation_service import RememberedAnnotationService
 from oeapp.ui.dialogs.annotation_modal import AnnotationModal
 
@@ -163,7 +164,7 @@ class RememberedAnnotationsDialog(QDialog):
         token_text, accepted = QInputDialog.getText(
             self,
             "Remembered Token",
-            "Exact token text:",
+            "Token spelling:",
             text="",
         )
         if not accepted:
@@ -172,14 +173,24 @@ class RememberedAnnotationsDialog(QDialog):
         if not token_text:
             QMessageBox.warning(self, "Invalid Token", "Token text cannot be empty.")
             return
-        existing = RememberedAnnotation.get_for_scope(token_text, self.project_id)
-        if existing is not None:
+        matches = RememberedAnnotation.matches_in_scope(token_text, self.project_id)
+        if len(matches) > 1:
+            spellings = " / ".join(entry.token_text for entry in matches)
+            QMessageBox.warning(
+                self,
+                "Ambiguous Remembered Annotation",
+                "These remembered annotations conflict, so a new one was not created:\n"
+                f"{spellings}\n\nDelete one of them first.",
+            )
+            return
+        if len(matches) == 1:
             QMessageBox.information(
                 self,
-                "Duplicate Token",
-                "A remembered annotation for this token already exists in this scope. Opening it for editing.",  # noqa: E501
+                "Remembered Annotation",
+                "A remembered annotation for this spelling already exists in this "
+                "scope. Opening it for editing. The saved spelling stays as it is.",
             )
-            self._open_editor(existing)
+            self._open_editor(matches[0])
             return
         self._open_editor(RememberedAnnotation(token_text=token_text))
 
@@ -200,11 +211,23 @@ class RememberedAnnotationsDialog(QDialog):
         """
         modal = AnnotationModal(remembered_annotation=entry, parent=self)
         if modal.exec():
-            self.service.save_entry(
-                token_text=entry.token_text,
-                project_id=self.project_id,
-                field_data=entry.annotation_payload(),
-            )
+            try:
+                self.service.save_entry(
+                    token_text=entry.token_text,
+                    project_id=self.project_id,
+                    field_data=entry.annotation_payload(),
+                )
+            except AmbiguousRememberedSpellingError as exc:
+                QMessageBox.warning(
+                    self,
+                    "Ambiguous Remembered Annotation",
+                    (
+                        "These remembered annotations conflict, "
+                        "so this one was not saved:\n"
+                        f"{exc}\n\nDelete one of them first."
+                    ),
+                )
+                return
             self._reload_entries()
 
     def _delete_selected(self) -> None:

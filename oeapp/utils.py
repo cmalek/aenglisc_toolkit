@@ -207,6 +207,40 @@ def clear_layout(layout: "QLayout") -> None:
             child_layout.deleteLater()
 
 
+#: Combining macron. Partially normalized spellings keep this mark.
+_COMBINING_MACRON = "\u0304"
+
+
+def _old_english_comparison_key(text: str, *, keep_macrons: bool) -> str:
+    """
+    Build a lowercase Old English comparison key.
+
+    Args:
+        text: Source spelling.
+
+    Keyword Args:
+        keep_macrons: When true, length marks stay in the key.
+
+    Returns:
+        Comparison key.
+
+    """
+    lowered = text.strip().lower().replace("ð", "þ")
+    decomposed = unicodedata.normalize("NFD", lowered)
+    without_marks = "".join(
+        ch
+        for ch in decomposed
+        if unicodedata.category(ch) != "Mn"
+        or (keep_macrons and ch == _COMBINING_MACRON)
+    )
+    stripped_internal_hyphen = re.sub(
+        r"(?<=\S)[-\u2013\u2014](?=\S)",
+        "",
+        without_marks,
+    )
+    return unicodedata.normalize("NFC", stripped_internal_hyphen)
+
+
 def normalize_old_english(text: str | None) -> str | None:
     """
     Normalize Old English token/root text for stable grouping/search.
@@ -227,8 +261,23 @@ def normalize_old_english(text: str | None) -> str | None:
     """
     if text is None:
         return None
-    lowered = text.strip().lower().replace("ð", "þ")
-    decomposed = unicodedata.normalize("NFD", lowered)
-    without_marks = "".join(ch for ch in decomposed if unicodedata.category(ch) != "Mn")
-    stripped_internal_hyphen = re.sub(r"(?<=\S)[-–—](?=\S)", "", without_marks)
-    return unicodedata.normalize("NFC", stripped_internal_hyphen)
+    return _old_english_comparison_key(text, keep_macrons=False)
+
+
+def partially_normalize_old_english(text: str | None) -> str | None:
+    """
+    Build a partially normalized Old English spelling.
+
+    This is a normalized form that keeps length marks. It lowercases, folds
+    eth to thorn, removes hyphens, and removes diacritics other than macrons.
+
+    Args:
+        text: The source text.
+
+    Returns:
+        Partially normalized spelling, or ``None`` when input is ``None``.
+
+    """
+    if text is None:
+        return None
+    return _old_english_comparison_key(text, keep_macrons=True)

@@ -162,6 +162,15 @@ features, and metadata.</p>
 <li>Refine annotations as you work through the text</li>
 </ol>
 <p>The system remembers your last-used values for each POS type, making it faster to annotate similar tokens.</p>
+<h2>Copying an Annotation to Matching Words</h2>
+<p>Right-click a word that already has an annotation:</p>
+<ul>
+<li><strong>Propagate annotation</strong> copies that annotation onto other words in the project with the same partially normalized spelling, when those words do not already have an annotation.</li>
+<li><strong>Force propagate meaning</strong> copies only the Modern English meaning onto other annotations whose root has the same partially normalized spelling.</li>
+</ul>
+<p>Partially normalized spelling ignores case, eth and thorn, hyphens, and the dots on <code>ċ</code> and <code>ġ</code>. Length marks still count, so <code>gē</code> does not match <code>ge</code>, and <code>gōd</code> does not match <code>god</code>.</p>
+<p>The confirmation is a count. It includes the one source spelling, with its length marks kept, as in <code>3 words updated to match gōd</code>. <strong>Force propagate meaning</strong> puts the root's spelling in that same sentence. The dialog does not list the words that changed.</p>
+<p>See <a href="remembered-annotations.html">Remembered Annotations</a> to save a spelling and apply it later.</p>
 <h2>Undo Support</h2>
 <blockquote>
 <p><strong>Undo support:</strong> Many in-editor operations are undoable with <code>Ctrl+Z</code> (and redo with <code>Ctrl+R</code> / <code>Ctrl+Shift+R</code>), but project-level destructive actions are not always undoable. When in doubt, create a backup or JSON export first.</p>

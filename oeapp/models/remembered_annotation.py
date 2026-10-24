@@ -14,7 +14,6 @@ from sqlalchemy import (
     Index,
     Integer,
     String,
-    or_,
     select,
     text,
 )
@@ -22,7 +21,11 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
 from oeapp.db import Base
 from oeapp.mixins import AnnotationTextualMixin
-from oeapp.utils import normalize_old_english, to_utc_iso
+from oeapp.utils import (
+    normalize_old_english,
+    partially_normalize_old_english,
+    to_utc_iso,
+)
 
 from .mixins import SaveDeleteMixin
 
@@ -31,8 +34,31 @@ if TYPE_CHECKING:
     from oeapp.models.token import Token
 
 
+class AmbiguousRememberedSpellingError(ValueError):
+    """
+    A scope already has two remembered entries for one partial spelling.
+
+    Args:
+        entries: Remembered entries that share one partial spelling.
+
+    """
+
+    def __init__(self, entries: builtins.list[RememberedAnnotation]) -> None:
+        """
+        Store the conflicting entries.
+
+        Args:
+            entries: Remembered entries that share one partial spelling.
+
+        """
+        #: Remembered entries the caller must choose between.
+        self.entries = entries
+        spellings = " / ".join(entry.token_text for entry in entries)
+        super().__init__(spellings)
+
+
 class RememberedAnnotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
-    """Stored token-only annotation template keyed by exact token surface."""
+    """Stored token-only annotation template for one partially normalized spelling."""
 
     #: Tablename  .
     __tablename__ = "remembered_annotations"
@@ -141,7 +167,7 @@ class RememberedAnnotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
     project_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=True
     )
-    #: The exact token surface this remembered entry matches.
+    #: Saved surface spelling. Matching uses its partially normalized spelling.
     token_text: Mapped[str] = mapped_column(String, nullable=False)
     #: The remembered part of speech.
     pos: Mapped[str | None] = mapped_column(String, nullable=True)
@@ -282,29 +308,82 @@ class RememberedAnnotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
         return builtins.list(session.scalars(stmt.order_by(cls.token_text)).all())
 
     @classmethod
-    def effective_for_project(
-        cls, project_id: int
-    ) -> dict[str, RememberedAnnotation]:
+    def matches_in_scope(
+        cls, token_text: str, project_id: int | None
+    ) -> builtins.list[RememberedAnnotation]:
         """
-        Resolve project-visible remembered entries with project scope winning.
+        Return entries in one scope with this partially normalized spelling.
+
+        Args:
+            token_text: Surface spelling to compare.
+            project_id: Project id, or ``None`` for global scope.
+
+        Returns:
+            Matching remembered entries, ordered by saved spelling.
+
+        """
+        key = partially_normalize_old_english(token_text) or ""
+        if not key:
+            return []
+        matches = [
+            entry
+            for entry in cls.list_for_scope(project_id)
+            if (partially_normalize_old_english(entry.token_text) or "") == key
+        ]
+        matches.sort(key=lambda entry: (entry.token_text, entry.id or 0))
+        return matches
+
+    @classmethod
+    def ambiguous_groups_for_scope(
+        cls, project_id: int | None
+    ) -> builtins.list[builtins.list[RememberedAnnotation]]:
+        """
+        Return same-scope groups that share one partially normalized spelling.
+
+        Args:
+            project_id: Project id, or ``None`` for global scope.
+
+        Returns:
+            Conflicting groups, each ordered by saved spelling.
+
+        """
+        groups = cls._group_by_partial_spelling(cls.list_for_scope(project_id))
+        return [group for group in groups.values() if len(group) > 1]
+
+    @classmethod
+    def resolve_for_project(
+        cls, project_id: int
+    ) -> tuple[
+        dict[str, RememberedAnnotation],
+        builtins.list[builtins.list[RememberedAnnotation]],
+    ]:
+        """
+        Resolve applicable entries and same-scope partial-spelling conflicts.
+
+        A project entry wins over a global entry for the same partial spelling.
+        A scope with two entries for that spelling contributes neither.
 
         Args:
             project_id: Project id.
 
         Returns:
-            The computed value.
+            Applicable entries keyed by partial spelling, and conflicting groups.
 
         """
-        session = cls._get_session()
-        stmt = (
-            select(cls)
-            .where(or_(cls.project_id == project_id, cls.project_id.is_(None)))
-            .order_by(cls.project_id.is_(None), cls.token_text, cls.id)
-        )
-        resolved: dict[str, RememberedAnnotation] = {}
-        for entry in session.scalars(stmt):
-            resolved.setdefault(entry.token_text, entry)
-        return resolved
+        project_groups = cls._group_by_partial_spelling(cls.list_for_scope(project_id))
+        global_groups = cls._group_by_partial_spelling(cls.list_for_scope(None))
+        applicable: dict[str, RememberedAnnotation] = {}
+        ambiguous: builtins.list[builtins.list[RememberedAnnotation]] = []
+        cls._collect_scope_group(project_groups, applicable, ambiguous)
+        for key in sorted(global_groups):
+            if key in project_groups:
+                continue
+            group = global_groups[key]
+            if len(group) > 1:
+                ambiguous.append(group)
+            else:
+                applicable[key] = group[0]
+        return applicable, ambiguous
 
     @classmethod
     def upsert_from_token_annotation(
@@ -318,12 +397,20 @@ class RememberedAnnotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
             project_id: Project id.
 
         Returns:
-            The computed value.
+            The saved remembered entry.
+
+        Raises:
+            ValueError: The token has no annotation.
+            AmbiguousRememberedSpellingError: The scope has two entries
+                for this spelling.
 
         """
         if token.annotation is None:
             msg = "Cannot remember a token without an annotation"
             raise ValueError(msg)
+        matches = cls.matches_in_scope(token.surface, project_id)
+        if len(matches) > 1:
+            raise AmbiguousRememberedSpellingError(matches)
         return cls.upsert_fields(
             token_text=token.surface,
             project_id=project_id,
@@ -346,12 +433,23 @@ class RememberedAnnotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
             field_data: Field data.
 
         Returns:
-            The computed value.
+            The saved remembered entry.
+
+        Raises:
+            AmbiguousRememberedSpellingError: No exact row exists and several partial
+                matches do.
 
         """
         remembered = cls.get_for_scope(token_text, project_id)
         if remembered is None:
-            remembered = cls(token_text=token_text, project_id=project_id)
+            matches = cls.matches_in_scope(token_text, project_id)
+            if len(matches) > 1:
+                raise AmbiguousRememberedSpellingError(matches)
+            remembered = (
+                matches[0]
+                if len(matches) == 1
+                else cls(token_text=token_text, project_id=project_id)
+            )
         for key, value in cls._sanitize_annotation_data(field_data).items():
             setattr(remembered, key, value)
         remembered.save()
@@ -386,20 +484,21 @@ class RememberedAnnotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
 
     @classmethod
     def matching_tokens(
-        cls, project_id: int, token_texts: builtins.list[str]
+        cls, project_id: int, partial_keys: builtins.list[str]
     ) -> builtins.list[Token]:
         """
-        Return project tokens whose exact surface matches remembered keys.
+        Return project tokens whose partial spelling is one of the keys.
 
         Args:
             project_id: Project id.
-            token_texts: Token texts.
+            partial_keys: Partially normalized spellings to match.
 
         Returns:
-            The computed value.
+            Matching tokens in display order.
 
         """
-        if not token_texts:
+        keys = {key for key in partial_keys if key}
+        if not keys:
             return []
         from oeapp.models.sentence import Sentence  # noqa: PLC0415
         from oeapp.models.token import Token  # noqa: PLC0415
@@ -408,10 +507,61 @@ class RememberedAnnotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
         stmt = (
             select(Token)
             .join(Sentence)
-            .where(Sentence.project_id == project_id, Token.surface.in_(token_texts))
+            .where(Sentence.project_id == project_id)
             .order_by(Sentence.display_order, Token.order_index)
         )
-        return builtins.list(session.scalars(stmt).all())
+        return [
+            token
+            for token in session.scalars(stmt).all()
+            if (partially_normalize_old_english(token.surface) or "") in keys
+        ]
+
+    @classmethod
+    def _group_by_partial_spelling(
+        cls, entries: builtins.list[RememberedAnnotation]
+    ) -> dict[str, builtins.list[RememberedAnnotation]]:
+        """
+        Group entries by partially normalized spelling.
+
+        Args:
+            entries: Entries from one scope.
+
+        Returns:
+            Groups ordered by saved spelling within each key.
+
+        """
+        groups: dict[str, builtins.list[RememberedAnnotation]] = {}
+        for entry in entries:
+            key = partially_normalize_old_english(entry.token_text) or ""
+            if not key:
+                continue
+            groups.setdefault(key, []).append(entry)
+        for group in groups.values():
+            group.sort(key=lambda item: (item.token_text, item.id or 0))
+        return groups
+
+    @classmethod
+    def _collect_scope_group(
+        cls,
+        groups: dict[str, builtins.list[RememberedAnnotation]],
+        applicable: dict[str, RememberedAnnotation],
+        ambiguous: builtins.list[builtins.list[RememberedAnnotation]],
+    ) -> None:
+        """
+        Record a single entry as applicable and several as ambiguous.
+
+        Args:
+            groups: Partial-spelling groups for one scope.
+            applicable: Applicable entries keyed by partial spelling.
+            ambiguous: Conflicting groups collected for the caller.
+
+        """
+        for key in sorted(groups):
+            group = groups[key]
+            if len(group) > 1:
+                ambiguous.append(group)
+            else:
+                applicable[key] = group[0]
 
     def annotation_payload(self) -> dict[str, Any]:
         """

@@ -16,6 +16,10 @@ class ImportProjectDialog:
         project: The imported project
         was_renamed: Whether the project name was changed due to collision
 
+    Keyword Args:
+        ambiguous_spellings: Saved spellings that share one partial spelling.
+            Each item is already joined, for example ``ðæt / þæt``.
+
     """
 
     #: Dialog width
@@ -28,6 +32,8 @@ class ImportProjectDialog:
         main_window: "MainWindow",
         project: "Project",
         was_renamed: bool,
+        *,
+        ambiguous_spellings: list[str] | None = None,
     ) -> None:
         """
         Initialize import project dialog.
@@ -37,6 +43,9 @@ class ImportProjectDialog:
             project: The imported project
             was_renamed: Whether the project name was changed
 
+        Keyword Args:
+            ambiguous_spellings: Saved spellings that share one partial spelling.
+
         """
         #: Main window.
         self.main_window = main_window
@@ -44,6 +53,8 @@ class ImportProjectDialog:
         self.project = project
         #: Was renamed.
         self.was_renamed = was_renamed
+        #: Spellings imported together that Apply will not use.
+        self.ambiguous_spellings = list(ambiguous_spellings or [])
         #: Should open.
         self.should_open = False
 
@@ -56,14 +67,7 @@ class ImportProjectDialog:
         self.dialog.setMinimumSize(self.DIALOG_WIDTH, self.DIALOG_HEIGHT)
         self.layout = QVBoxLayout(self.dialog)
 
-        # Success message
-        message = f"Project '{self.project.name}' imported successfully."
-        if self.was_renamed:
-            message += (
-                "\n\nThe project name was changed to avoid a collision with an "
-                "existing project."
-            )
-        message_label = QLabel(message)
+        message_label = QLabel(self._message())
         message_label.setWordWrap(True)
         self.layout.addWidget(message_label)
 
@@ -76,6 +80,31 @@ class ImportProjectDialog:
         open_button.clicked.connect(self._open_project)
         close_button.clicked.connect(self.dialog.reject)
         self.layout.addWidget(self.button_box)
+
+    def _message(self) -> str:
+        """
+        Build the import result text.
+
+        Returns:
+            Dialog body.
+
+        """
+        message = f"Project '{self.project.name}' imported successfully."
+        if self.was_renamed:
+            message += (
+                "\n\nThe project name was changed to avoid a collision with an "
+                "existing project."
+            )
+        if not self.ambiguous_spellings:
+            return message
+        named = "\n".join(f"- {spelling}" for spelling in self.ambiguous_spellings)
+        return (
+            f"{message}\n\n"
+            "These remembered annotations share a spelling and were kept as "
+            f"separate entries:\n{named}\n\n"
+            "Delete one of each pair. Apply Remembered Annotations will not "
+            "use that spelling until you do."
+        )
 
     def _open_project(self) -> None:
         """Handle open project button click."""
