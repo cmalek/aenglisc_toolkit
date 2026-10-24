@@ -12,6 +12,7 @@ from .sentence import (
     EditSentenceCommand,
     MergeSentenceCommand,
 )
+from .undo_command import UndoCommand, push_command
 
 __all__ = [
     "AddNoteCommand",
@@ -27,5 +28,7 @@ __all__ = [
     "MergeParagraphCommand",
     "MergeSentenceCommand",
     "SplitParagraphCommand",
+    "UndoCommand",
     "UpdateNoteCommand",
+    "push_command",
 ]
