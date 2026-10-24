@@ -13,6 +13,7 @@ from oeapp.ui.sentence_card import SentenceCard
 
 if TYPE_CHECKING:
     from oeapp.models.annotation import Annotation
+    from oeapp.models.chapter import Chapter
     from oeapp.models.idiom import Idiom
     from oeapp.models.sentence import Sentence
     from oeapp.models.token import Token
@@ -138,11 +139,7 @@ class ProjectUI:
         if not chapter:
             return
 
-        self.main_window.section_combo.blockSignals(True)  # noqa: FBT003
-        self.main_window.section_combo.clear()
-        for section in chapter.sections:
-            self.main_window.section_combo.addItem(section.display_title, section.id)
-        self.main_window.section_combo.blockSignals(False)  # noqa: FBT003
+        self._fill_section_combo(chapter)
 
         if chapter.sections:
             self.main_window.section_combo.setCurrentIndex(0)
@@ -151,6 +148,78 @@ class ProjectUI:
             self.load_section(section_id)
         else:
             self._clear_content()
+
+    def _fill_section_combo(self, chapter: Chapter) -> None:
+        """
+        List a chapter's sections in the section combo without loading one.
+
+        Args:
+            chapter: Chapter whose sections should populate the combo.
+
+        """
+        self.main_window.section_combo.blockSignals(True)  # noqa: FBT003
+        self.main_window.section_combo.clear()
+        for section in chapter.sections:
+            self.main_window.section_combo.addItem(section.display_title, section.id)
+        self.main_window.section_combo.blockSignals(False)  # noqa: FBT003
+
+    def show_section_of(self, sentence: Sentence) -> SentenceCard | None:
+        """
+        Load the section that contains a sentence and return its card.
+
+        The chapter and section combos are moved to that section with their
+        signals blocked, so the change neither ends a Typed Run nor moves
+        focus the way a user's chapter or section change does.
+
+        Args:
+            sentence: Sentence whose section should be shown.
+
+        Side Effects:
+            Sets the current chapter and section ids, updates both combos, and
+            replaces the loaded sentence cards.
+
+        Returns:
+            The sentence's card, or ``None`` when its section cannot be found.
+
+        """
+        section = sentence.paragraph.section if sentence.paragraph else None
+        if section is None or not self._show_section(section.chapter, section.id):
+            return None
+        return self.find_sentence_card(cast("int", sentence.id))
+
+    def _show_section(self, chapter: Chapter, section_id: int) -> bool:
+        """
+        Load a section without going through the combo change handlers.
+
+        Args:
+            chapter: Chapter that contains the section.
+            section_id: Section to load.
+
+        Side Effects:
+            Moves both combos with their signals blocked, sets the current
+            chapter and section ids, and replaces the loaded sentence cards.
+
+        Returns:
+            ``False`` when the chapter or section is not in its combo.
+
+        """
+        combo = self.main_window.chapter_combo
+        combo.blockSignals(True)  # noqa: FBT003
+        found = self._set_combo_to_data(combo, chapter.id)
+        combo.blockSignals(False)  # noqa: FBT003
+        if not found:
+            return False
+        self._fill_section_combo(chapter)
+        combo = self.main_window.section_combo
+        combo.blockSignals(True)  # noqa: FBT003
+        found = self._set_combo_to_data(combo, section_id)
+        combo.blockSignals(False)  # noqa: FBT003
+        if not found:
+            return False
+        self.app_context.current_chapter_id = chapter.id
+        self.app_context.current_section_id = section_id
+        self.load_section(section_id)
+        return True
 
     def load_section(self, section_id: int) -> None:
         """
@@ -257,14 +326,24 @@ class ProjectUI:
             section_id: Target section id.
             sentence_id: Target sentence id.
 
+        Side Effects:
+            When the section is not the one shown, ends the open Typed Run and
+            loads the section without moving focus.
+
         Returns:
             Loaded sentence card when found, else ``None``.
 
         """
-        if not self._set_combo_to_data(self.main_window.chapter_combo, chapter_id):
-            return None
-        if not self._set_combo_to_data(self.main_window.section_combo, section_id):
-            return None
+        # Import here to avoid circular import
+        from oeapp.models.chapter import Chapter  # noqa: PLC0415
+
+        if self.main_window.section_combo.currentData() != section_id:
+            chapter = Chapter.get(chapter_id)
+            if chapter is None:
+                return None
+            self.app_context.typed_run.end()
+            if not self._show_section(chapter, section_id):
+                return None
         return self.find_sentence_card(sentence_id)
 
     def _clear_content(self) -> None:

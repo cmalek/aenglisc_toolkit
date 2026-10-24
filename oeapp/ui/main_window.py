@@ -418,7 +418,8 @@ class MainWindow(QMainWindow):
             index: Index.
 
         Side Effects:
-            Ends the open Typed Run.
+            Ends the open Typed Run, shows the chapter's first section, and
+            focuses its first Old English editor.
 
         """
         self.app_context.typed_run.end()
@@ -427,6 +428,7 @@ class MainWindow(QMainWindow):
         chapter_id = self.chapter_combo.itemData(index)
         self.app_context.current_chapter_id = chapter_id
         self.project_ui.update_sections_for_chapter(chapter_id)
+        self.focus_section_start()
 
     def _on_prev_section_clicked(self) -> None:
         """
@@ -462,7 +464,8 @@ class MainWindow(QMainWindow):
             index: Index.
 
         Side Effects:
-            Ends the open Typed Run.
+            Ends the open Typed Run, shows the section, and focuses its first
+            Old English editor.
 
         """
         self.app_context.typed_run.end()
@@ -471,6 +474,18 @@ class MainWindow(QMainWindow):
         section_id = self.section_combo.itemData(index)
         self.app_context.current_section_id = section_id
         self.project_ui.load_section(section_id)
+        self.focus_section_start()
+
+    def focus_section_start(self) -> None:
+        """
+        Focus the Old English editor of the first sentence card shown.
+
+        Side Effects:
+            On the next event-loop turn, once the new cards are shown, scrolls
+            to the first card and moves keyboard focus to it.
+
+        """
+        QTimer.singleShot(0, self, self.action_service.scroll_to_start)
 
     def keyPressEvent(self, event: "QKeyEvent") -> None:  # noqa: N802
         """

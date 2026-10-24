@@ -6,7 +6,7 @@ import sys
 from typing import TYPE_CHECKING, Final, cast
 
 from PySide6.QtCore import QObject, QSettings, Signal
-from PySide6.QtGui import QUndoCommand, QUndoStack
+from PySide6.QtGui import QUndoStack
 
 from oeapp.commands import UndoCommand
 from oeapp.db import clear_runtime_session, get_runtime_session, set_runtime_session
@@ -362,10 +362,11 @@ class AppContext(QObject):
         Undo the most recent command.
 
         Side Effects:
-            Ends :attr:`typed_run`, undoes the top of :attr:`undo_stack`, then
-            reloads or refreshes the main window. When the command's ``undo``
-            fails, puts the stack index back and shows "Undo failed" without
-            refreshing.
+            Ends :attr:`typed_run`, then has :class:`UndoPresenter` undo the
+            top of :attr:`undo_stack` and show the result, first loading the
+            changed sentence's section for a translation edit. When the
+            command's ``undo`` fails, puts the stack index back and shows
+            "Undo failed" without refreshing.
 
         """
         main_window = cast("MainWindow | None", self.main_window)
@@ -374,24 +375,39 @@ class AppContext(QObject):
             return
         self.typed_run.end()
         command = self.undo_stack.command(self.undo_stack.index() - 1)
+        UndoPresenter(main_window).run_step(command, self._undo_step)
+
+    def _undo_step(self) -> bool:
+        """
+        Undo the top of :attr:`undo_stack`.
+
+        Side Effects:
+            Moves the stack index back and shows "Undone". When the command's
+            ``undo`` fails, puts the index back and shows "Undo failed".
+
+        Returns:
+            ``True`` when the undo succeeded.
+
+        """
+        command = self.undo_stack.command(self.undo_stack.index() - 1)
         outcome = command.outcome if isinstance(command, UndoCommand) else {}
         self.undo_stack.undo()
         if not outcome.get("undo_ok", True):
             self.undo_stack.redo()
             self.show_message("Undo failed")
-            return
+            return False
         self.show_message("Undone")
-        self._refresh_after(command)
+        return True
 
     def redo(self) -> None:
         """
         Redo the most recently undone command.
 
         Side Effects:
-            Ends :attr:`typed_run`, redoes the next command on
-            :attr:`undo_stack`, then reloads or
-            refreshes the main window. When ``execute`` fails, the stack drops
-            the command and "Redo failed" is shown without refreshing.
+            Ends :attr:`typed_run`, then has :class:`UndoPresenter` redo the
+            next command on :attr:`undo_stack` and show the result, the same
+            way :meth:`undo` does. When ``execute`` fails, the stack drops the
+            command and "Redo failed" is shown without refreshing.
 
         """
         main_window = cast("MainWindow | None", self.main_window)
@@ -400,28 +416,28 @@ class AppContext(QObject):
             return
         self.typed_run.end()
         command = self.undo_stack.command(self.undo_stack.index())
+        UndoPresenter(main_window).run_step(command, self._redo_step)
+
+    def _redo_step(self) -> bool:
+        """
+        Redo the next command on :attr:`undo_stack`.
+
+        Side Effects:
+            Moves the stack index forward and shows "Redone". When ``execute``
+            fails, the stack drops the command and "Redo failed" is shown.
+
+        Returns:
+            ``True`` when the redo succeeded.
+
+        """
+        command = self.undo_stack.command(self.undo_stack.index())
         outcome = command.outcome if isinstance(command, UndoCommand) else {}
         self.undo_stack.redo()
         if not outcome.get("ok", True):
             self.show_message("Redo failed")
-            return
+            return False
         self.show_message("Redone")
-        self._refresh_after(command)
-
-    def _refresh_after(self, command: QUndoCommand | None) -> None:
-        """
-        Reload or refresh the main window after an undo or redo.
-
-        Args:
-            command: The stack entry that was just undone or redone.
-
-        Side Effects:
-            Writes a visible card's translation in place for a translation
-            edit; otherwise calls ``reload_project`` when the command needs a
-            full reload, and ``refresh_project`` otherwise.
-
-        """
-        UndoPresenter(cast("MainWindow", self.main_window)).show_step(command)
+        return True
 
 
 #: Default settings storage organization.
