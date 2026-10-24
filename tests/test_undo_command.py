@@ -99,7 +99,7 @@ def test_id_and_merge_defaults(qapp):
     wrapper = UndoCommand(LogCommand([]), {})
     assert wrapper.id() == -1
     wrapper._run_open = True
-    assert wrapper.id() == 1
+    assert wrapper.id() == -1
     assert wrapper.mergeWith(UndoCommand(LogCommand([]), {})) is False
 
 

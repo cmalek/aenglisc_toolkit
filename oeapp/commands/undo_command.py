@@ -1,8 +1,11 @@
 """Adapter that lets a :class:`Command` live on a ``QUndoStack``."""
 
+from typing import cast
+
 from PySide6.QtGui import QUndoCommand, QUndoStack
 
 from .abstract import Command
+from .sentence import EditSentenceCommand
 
 
 class UndoCommand(QUndoCommand):
@@ -83,28 +86,86 @@ class UndoCommand(QUndoCommand):
         self._outcome["undo_ok"] = ok
         self._skip_next_redo = not ok
 
+    @property
+    def run_open(self) -> bool:
+        """
+        Get whether this command is the open command of a Typed Run.
+
+        Returns:
+            ``True`` while later translation edits may merge into this command.
+
+        """
+        return self._run_open
+
+    @run_open.setter
+    def run_open(self, value: bool) -> None:
+        """
+        Open or close this command's Typed Run.
+
+        Args:
+            value: ``True`` to accept merges, ``False`` to refuse them.
+
+        """
+        self._run_open = value
+
     def id(self) -> int:
         """
         Get the merge id.
 
+        Qt only calls :meth:`mergeWith` when both commands share an id other
+        than ``-1``, so every translation edit shares one id whether or not
+        its run is open.
+
         Returns:
-            ``1`` while a run is open, otherwise ``-1`` (never merge).
+            ``1`` for a Modern English translation edit, otherwise ``-1``.
 
         """
-        return 1 if self._run_open else -1
+        return 1 if _translation_sentence_id(self.command) is not None else -1
 
-    def mergeWith(self, other: QUndoCommand) -> bool:  # noqa: N802, ARG002
+    def mergeWith(self, other: QUndoCommand) -> bool:  # noqa: N802
         """
-        Decline to merge with another command.
+        Absorb a later translation edit of the same sentence into an open run.
 
         Args:
-            other: The command that would be merged in.
+            other: The command just pushed onto the stack.
+
+        Side Effects:
+            On merge, sets this command's ``after`` to ``other``'s ``after``.
+            ``before`` is kept.
 
         Returns:
-            Always ``False``.
+            ``True`` when this command's run is open and both commands edit the
+            translation of the same sentence.
 
         """
-        return False
+        if not self._run_open or not isinstance(other, UndoCommand):
+            return False
+        sentence_id = _translation_sentence_id(self.command)
+        if sentence_id is None or sentence_id != _translation_sentence_id(
+            other.command
+        ):
+            return False
+        cast("EditSentenceCommand", self.command).after = cast(
+            "EditSentenceCommand", other.command
+        ).after
+        return True
+
+
+def _translation_sentence_id(command: Command) -> int | None:
+    """
+    Get the sentence id of a Modern English translation edit.
+
+    Args:
+        command: Any wrapped command.
+
+    Returns:
+        The edited sentence's id, or ``None`` when ``command`` is not a
+        ``text_modern`` :class:`EditSentenceCommand`.
+
+    """
+    if isinstance(command, EditSentenceCommand) and command.field == "text_modern":
+        return command.sentence_id
+    return None
 
 
 def push_command(stack: QUndoStack, command: Command) -> bool:

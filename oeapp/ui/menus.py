@@ -167,7 +167,12 @@ class WindowMenu:
     def _show_log_viewer(self) -> None:
         """
         Event handler for log viewer menu item: Show the log viewer dialog.
+
+        Side Effects:
+            Ends the open Typed Run.
+
         """
+        self.main_window.app_context.typed_run.end()
         if not hasattr(self, "_log_viewer") or not self._log_viewer.isVisible():
             self._log_viewer = LogViewerDialog(self.main_window)
             self._log_viewer.show()
@@ -227,16 +232,12 @@ class FileMenu:
 
         new_action = QAction("&New Project...", self.file_menu)
         new_action.setShortcut(QKeySequence("Ctrl+N"))
-        new_action.triggered.connect(
-            lambda: NewProjectDialog(self.main_window).execute()
-        )
+        new_action.triggered.connect(self._show_new_project_dialog)
         self.file_menu.addAction(new_action)
 
         open_action = QAction("&Open Project...", self.file_menu)
         open_action.setShortcut(QKeySequence("Ctrl+O"))
-        open_action.triggered.connect(
-            lambda: OpenProjectDialog(self.main_window).execute()
-        )
+        open_action.triggered.connect(self._show_open_project_dialog)
         self.file_menu.addAction(open_action)
 
         delete_action = QAction("&Delete Project...", self.file_menu)
@@ -256,6 +257,28 @@ class FileMenu:
             self.main_window.action_service.export_project_docx
         )
         self.file_menu.addAction(export_action)
+
+    def _show_new_project_dialog(self) -> None:
+        """
+        Event handler for New Project: show the new project dialog.
+
+        Side Effects:
+            Ends the open Typed Run.
+
+        """
+        self.main_window.app_context.typed_run.end()
+        NewProjectDialog(self.main_window).execute()
+
+    def _show_open_project_dialog(self) -> None:
+        """
+        Event handler for Open Project: show the open project dialog.
+
+        Side Effects:
+            Ends the open Typed Run.
+
+        """
+        self.main_window.app_context.typed_run.end()
+        OpenProjectDialog(self.main_window).execute()
 
 
 class ToolsMenu:
@@ -358,17 +381,36 @@ class ToolsMenu:
         """
         Event handler for POS presets management menu item: Show the POS presets
         management dialog.
+
+        Side Effects:
+            Ends the open Typed Run.
+
         """
+        self.main_window.app_context.typed_run.end()
         dialog = AnnotationPresetManagementDialog()
         dialog.exec()
 
     def _show_global_remembered_annotations_dialog(self) -> None:
-        """Open the global remembered annotation management dialog."""
+        """
+        Open the global remembered annotation management dialog.
+
+        Side Effects:
+            Ends the open Typed Run.
+
+        """
+        self.main_window.app_context.typed_run.end()
         dialog = RememberedAnnotationsDialog(None, parent=self.main_window)
         dialog.exec()
 
     def _show_project_remembered_annotations_dialog(self) -> None:
-        """Open the project-scoped remembered annotation management dialog."""
+        """
+        Open the project-scoped remembered annotation management dialog.
+
+        Side Effects:
+            Ends the open Typed Run.
+
+        """
+        self.main_window.app_context.typed_run.end()
         self.main_window.action_service.show_project_remembered_annotations_dialog()
 
 
@@ -476,9 +518,7 @@ class ProjectMenu:
         self.project_menu.addAction(edit_action)
 
         append_action = QAction("Append &OE text...", self.project_menu)
-        append_action.triggered.connect(
-            lambda: AppendTextDialog(self.main_window).execute()
-        )
+        append_action.triggered.connect(self._show_append_text_dialog)
         self.project_menu.addAction(append_action)
 
         self.project_menu.addSeparator()
@@ -490,6 +530,17 @@ class ProjectMenu:
             self.main_window.action_service.import_project_json
         )
         self.project_menu.addAction(import_action)
+
+    def _show_append_text_dialog(self) -> None:
+        """
+        Event handler for Append OE text: show the append text dialog.
+
+        Side Effects:
+            Ends the open Typed Run.
+
+        """
+        self.main_window.app_context.typed_run.end()
+        AppendTextDialog(self.main_window).execute()
 
     def _add_export_submenu(self) -> None:
         """

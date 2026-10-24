@@ -302,7 +302,11 @@ class MainWindow(QMainWindow):
         Args:
             index: Index.
 
+        Side Effects:
+            Ends the open Typed Run.
+
         """
+        self.app_context.typed_run.end()
         self.action_service.perform_search(
             self.search_input.text(), self.search_scope_combo.currentText()
         )
@@ -381,13 +385,27 @@ class MainWindow(QMainWindow):
         return toolbar
 
     def _on_prev_chapter_clicked(self) -> None:
-        """Handle previous chapter button click."""
+        """
+        Handle previous chapter button click.
+
+        Side Effects:
+            Ends the open Typed Run.
+
+        """
+        self.app_context.typed_run.end()
         idx = self.chapter_combo.currentIndex()
         if idx > 0:
             self.chapter_combo.setCurrentIndex(idx - 1)
 
     def _on_next_chapter_clicked(self) -> None:
-        """Handle next chapter button click."""
+        """
+        Handle next chapter button click.
+
+        Side Effects:
+            Ends the open Typed Run.
+
+        """
+        self.app_context.typed_run.end()
         idx = self.chapter_combo.currentIndex()
         if idx < self.chapter_combo.count() - 1:
             self.chapter_combo.setCurrentIndex(idx + 1)
@@ -399,7 +417,11 @@ class MainWindow(QMainWindow):
         Args:
             index: Index.
 
+        Side Effects:
+            Ends the open Typed Run.
+
         """
+        self.app_context.typed_run.end()
         if index < 0:
             return
         chapter_id = self.chapter_combo.itemData(index)
@@ -407,13 +429,27 @@ class MainWindow(QMainWindow):
         self.project_ui.update_sections_for_chapter(chapter_id)
 
     def _on_prev_section_clicked(self) -> None:
-        """Handle previous section button click."""
+        """
+        Handle previous section button click.
+
+        Side Effects:
+            Ends the open Typed Run.
+
+        """
+        self.app_context.typed_run.end()
         idx = self.section_combo.currentIndex()
         if idx > 0:
             self.section_combo.setCurrentIndex(idx - 1)
 
     def _on_next_section_clicked(self) -> None:
-        """Handle next section button click."""
+        """
+        Handle next section button click.
+
+        Side Effects:
+            Ends the open Typed Run.
+
+        """
+        self.app_context.typed_run.end()
         idx = self.section_combo.currentIndex()
         if idx < self.section_combo.count() - 1:
             self.section_combo.setCurrentIndex(idx + 1)
@@ -425,7 +461,11 @@ class MainWindow(QMainWindow):
         Args:
             index: Index.
 
+        Side Effects:
+            Ends the open Typed Run.
+
         """
+        self.app_context.typed_run.end()
         if index < 0:
             return
         section_id = self.section_combo.itemData(index)
@@ -913,7 +953,14 @@ class MainWindowActions:
         self._search_controller.prev_match()
 
     def focus_search_input(self) -> None:
-        """Focus the search input."""
+        """
+        Focus the search input.
+
+        Side Effects:
+            Ends the open Typed Run.
+
+        """
+        self.app_context.typed_run.end()
         self.main_window.search_input.setFocus()
         self.main_window.search_input.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.main_window.search_input.setFocus(Qt.FocusReason.OtherFocusReason)

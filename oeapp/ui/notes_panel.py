@@ -350,12 +350,14 @@ class NotesPanel(QWidget):
         """
         Handle note double-clicked.
 
+        - End the open Typed Run
         - Open the note edit dialog
 
         Args:
             note: Note.
 
         """
+        self.card.end_typed_run()
         if not note.start_token or not note.end_token:
             return
 

@@ -10,6 +10,7 @@ from PySide6.QtGui import QUndoCommand, QUndoStack
 
 from oeapp.commands import UndoCommand
 from oeapp.db import clear_runtime_session, get_runtime_session, set_runtime_session
+from oeapp.ui.typed_run import TypedRun
 from oeapp.ui.undo_presenter import UndoPresenter
 
 if TYPE_CHECKING:
@@ -80,6 +81,8 @@ class AppContext(QObject):
         self._copied_annotation: AnnotationJson | None = None
         #: Project-scoped undo history for app actions.
         self.undo_stack: QUndoStack = self._new_undo_stack()
+        #: Open run of Modern English typing that merges into one undo step.
+        self.typed_run: TypedRun = TypedRun()
 
     def _new_undo_stack(self) -> QUndoStack:
         """
@@ -162,6 +165,7 @@ class AppContext(QObject):
         if self._current_project_id == project_id:
             return
         if self._current_project_id is not None:
+            self.typed_run.end()
             self.undo_stack.clear()
         self._current_project_id = project_id
         self.current_project_id_changed.emit(project_id)
@@ -274,6 +278,7 @@ class AppContext(QObject):
 
         """
         self.close_session()
+        self.typed_run.end()
         self.undo_stack.deleteLater()
         self.undo_stack = self._new_undo_stack()
         self.undo_stack_replaced.emit(self.undo_stack)
@@ -357,15 +362,17 @@ class AppContext(QObject):
         Undo the most recent command.
 
         Side Effects:
-            Undoes the top of :attr:`undo_stack`, then reloads or refreshes the
-            main window. When the command's ``undo`` fails, puts the stack index
-            back and shows "Undo failed" without refreshing.
+            Ends :attr:`typed_run`, undoes the top of :attr:`undo_stack`, then
+            reloads or refreshes the main window. When the command's ``undo``
+            fails, puts the stack index back and shows "Undo failed" without
+            refreshing.
 
         """
         main_window = cast("MainWindow | None", self.main_window)
         assert main_window is not None, "Main window not set"  # noqa: S101
         if not self.undo_stack.canUndo():
             return
+        self.typed_run.end()
         command = self.undo_stack.command(self.undo_stack.index() - 1)
         outcome = command.outcome if isinstance(command, UndoCommand) else {}
         self.undo_stack.undo()
@@ -381,7 +388,8 @@ class AppContext(QObject):
         Redo the most recently undone command.
 
         Side Effects:
-            Redoes the next command on :attr:`undo_stack`, then reloads or
+            Ends :attr:`typed_run`, redoes the next command on
+            :attr:`undo_stack`, then reloads or
             refreshes the main window. When ``execute`` fails, the stack drops
             the command and "Redo failed" is shown without refreshing.
 
@@ -390,6 +398,7 @@ class AppContext(QObject):
         assert main_window is not None, "Main window is not set"  # noqa: S101
         if not self.undo_stack.canRedo():
             return
+        self.typed_run.end()
         command = self.undo_stack.command(self.undo_stack.index())
         outcome = command.outcome if isinstance(command, UndoCommand) else {}
         self.undo_stack.redo()

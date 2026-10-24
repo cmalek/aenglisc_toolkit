@@ -101,19 +101,20 @@ def test_undo_key_in_translation_editor_is_application_undo(main_window, card, q
     edit = card.translation_edit
     _type(edit, "ab", qapp)
     assert edit.toPlainText() == "ab"
-    assert stack.index() == 2
+    assert stack.index() == 1
     reload_patch, refresh_patch = _no_reload(main_window)
     with reload_patch as reload, refresh_patch as refresh:
         _press(edit, QKeySequence.StandardKey.Undo, qapp)
-        assert edit.toPlainText() == "a"
-        assert stack.index() == 1
-        assert stack.undoText() == "Edit translation"
+        assert edit.toPlainText() == ""
+        assert stack.index() == 0
+        assert stack.redoText() == "Edit translation"
         _press(edit, QKeySequence.StandardKey.Redo, qapp)
         assert edit.toPlainText() == "ab"
-        assert stack.index() == 2
+        assert stack.index() == 1
+        assert stack.undoText() == "Edit translation"
     reload.assert_not_called()
     refresh.assert_not_called()
-    assert stack.count() == 2
+    assert stack.count() == 1
     assert card.sentence.text_modern == "ab"
 
 

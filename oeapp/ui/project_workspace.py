@@ -567,7 +567,11 @@ class ProjectUI:
             sentence: Sentence containing the token
             sentence_card: Sentence card containing the token
 
+        Side Effects:
+            Ends a Typed Run open on any other sentence.
+
         """
+        self.app_context.typed_run.end_unless(sentence.id)
         # Clear selection on all other sentence cards to ensure only one selection
         # exists across the entire project view
         for other_card in self.sentence_cards:
@@ -597,7 +601,11 @@ class ProjectUI:
             sentence: Sentence containing the idiom
             sentence_card: Sentence card containing the idiom
 
+        Side Effects:
+            Ends a Typed Run open on any other sentence.
+
         """
+        self.app_context.typed_run.end_unless(sentence.id)
         # Clear selection on all other sentence cards
         for other_card in self.sentence_cards:
             if other_card != sentence_card:

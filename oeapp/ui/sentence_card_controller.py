@@ -12,6 +12,7 @@ from oeapp.commands import (
     DeleteSentenceCommand,
     EditSentenceCommand,
     MergeSentenceCommand,
+    UndoCommand,
     push_command,
 )
 from oeapp.commands.hierarchy import (
@@ -129,6 +130,9 @@ class SentenceCardController:
     def on_translation_changed(self) -> None:
         """
         Save Modern English translation changes through the undo stack.
+
+        The first edit of a closed Typed Run opens a run on the pushed
+        command; later edits while that run is open merge into it.
         """
         card = self.card
         if not card.sentence.id:
@@ -136,16 +140,29 @@ class SentenceCardController:
 
         new_text = card.translation_edit.toPlainText()
         old_text = card.sentence.text_modern or ""
+        if new_text == old_text:
+            return
 
-        if new_text != old_text:
-            command = EditSentenceCommand(
-                sentence_id=card.sentence.id,
-                field="text_modern",
-                before=old_text,
-                after=new_text,
-            )
-            if push_command(card.undo_stack, command):
-                card.sentence.text_modern = new_text
+        stack = card.undo_stack
+        typed_run = card.typed_run
+        continuing = typed_run is not None and typed_run.continues(
+            card.sentence.id, stack.command(stack.index() - 1)
+        )
+        if typed_run is not None and not continuing:
+            typed_run.end()
+        command = EditSentenceCommand(
+            sentence_id=card.sentence.id,
+            field="text_modern",
+            before=old_text,
+            after=new_text,
+        )
+        if not push_command(stack, command):
+            return
+        card.sentence.text_modern = new_text
+        if typed_run is not None and not continuing:
+            pushed = stack.command(stack.index() - 1)
+            if isinstance(pushed, UndoCommand):
+                typed_run.open_for(pushed)
 
     def on_merge_clicked(self) -> None:
         """

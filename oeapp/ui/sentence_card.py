@@ -1,5 +1,6 @@
 """Sentence card UI component."""
 
+from collections.abc import Callable
 from typing import TYPE_CHECKING, cast
 
 from PySide6.QtCore import (
@@ -38,6 +39,7 @@ from oeapp.ui.search_controller import normalized_oe_query
 from oeapp.ui.sentence_card_controller import HierarchyPosition, SentenceCardController
 from oeapp.ui.token_table import TokenTable
 from oeapp.ui.translation_undo_filter import TranslationUndoFilter
+from oeapp.ui.typed_run import TypedRun
 
 if TYPE_CHECKING:
     from oeapp.models.token import Token
@@ -140,6 +142,30 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, QWidget):
         # :meth:`set_tokens()` is called to set up all the lookups
         # and mappings for the tokens on OldEnglishTextEdit.
         self.sentence_highlighter.sentence_card = self
+
+    @property
+    def typed_run(self) -> TypedRun | None:
+        """
+        Get the application Typed Run.
+
+        Returns:
+            The main window's Typed Run, or ``None`` without a main window.
+
+        """
+        if self.main_window is None:
+            return None
+        return self.main_window.app_context.typed_run
+
+    def end_typed_run(self) -> None:
+        """
+        Close the open Typed Run, if any.
+
+        Side Effects:
+            Later translation edits start a new undo step.
+
+        """
+        if self.typed_run is not None:
+            self.typed_run.end()
 
     @property
     def has_focus(self) -> bool:
@@ -585,6 +611,10 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, QWidget):
         edit.setUndoRedoEnabled(False)
         edit.installEventFilter(TranslationUndoFilter(edit))
         edit.textChanged.connect(self._on_translation_changed)
+        typed_run = self.typed_run
+        sentence_id = self.sentence.id
+        if typed_run is not None and sentence_id is not None:
+            edit.destroyed.connect(lambda *_: typed_run.end_for(sentence_id))
         return layout, edit
 
     def set_translation_text(self, text: str) -> None:
@@ -754,7 +784,12 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, QWidget):
 
         Delegates routing to
         :class:`~oeapp.ui.sentence_card_controller.SentenceCardController`.
+
+        Side Effects:
+            Ends the open Typed Run.
+
         """
+        self.end_typed_run()
         self.controller.open_annotation_modal()
 
     def _open_idiom_modal(self, idiom: Idiom) -> None:
@@ -941,7 +976,11 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, QWidget):
         """
         Handle Add Note button click - open note dialog.
 
+        Side Effects:
+            Ends the open Typed Run.
+
         """
+        self.end_typed_run()
         if not self.sentence.id:
             return
 
@@ -1072,27 +1111,42 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, QWidget):
 
     def _on_split_paragraph_clicked(self) -> None:
         """Handle Split Paragraph action."""
-        self._finish_hierarchy_action(self.controller.on_split_paragraph_clicked())
+        self._run_hierarchy_action(self.controller.on_split_paragraph_clicked)
 
     def _on_merge_paragraph_clicked(self) -> None:
         """Handle Merge Paragraph action."""
-        self._finish_hierarchy_action(self.controller.on_merge_paragraph_clicked())
+        self._run_hierarchy_action(self.controller.on_merge_paragraph_clicked)
 
     def _on_split_section_clicked(self) -> None:
         """Handle Split Section action."""
-        self._finish_hierarchy_action(self.controller.on_split_section_clicked())
+        self._run_hierarchy_action(self.controller.on_split_section_clicked)
 
     def _on_merge_section_clicked(self) -> None:
         """Handle Merge Section action."""
-        self._finish_hierarchy_action(self.controller.on_merge_section_clicked())
+        self._run_hierarchy_action(self.controller.on_merge_section_clicked)
 
     def _on_split_chapter_clicked(self) -> None:
         """Handle Split Chapter action."""
-        self._finish_hierarchy_action(self.controller.on_split_chapter_clicked())
+        self._run_hierarchy_action(self.controller.on_split_chapter_clicked)
 
     def _on_merge_chapter_clicked(self) -> None:
         """Handle Merge Chapter action."""
-        self._finish_hierarchy_action(self.controller.on_merge_chapter_clicked())
+        self._run_hierarchy_action(self.controller.on_merge_chapter_clicked)
+
+    def _run_hierarchy_action(self, action: Callable[[], bool]) -> None:
+        """
+        End the Typed Run, run a controller hierarchy action, and update the UI.
+
+        Args:
+            action: Controller method that pushes the hierarchy command and
+                reports whether it succeeded.
+
+        Side Effects:
+            Ends the open Typed Run before ``action`` runs.
+
+        """
+        self.end_typed_run()
+        self._finish_hierarchy_action(action())
 
     def _finish_hierarchy_action(self, executed: bool) -> None:
         """
@@ -1157,7 +1211,12 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, QWidget):
     def _on_edit_oe_clicked(self) -> None:
         """
         Handle Edit OE button click - enter edit mode.
+
+        Side Effects:
+            Ends the open Typed Run.
+
         """
+        self.end_typed_run()
         self.controller.on_edit_oe_clicked()
 
     def _on_save_oe_clicked(self) -> None:
@@ -1191,23 +1250,43 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, QWidget):
     def _on_merge_clicked(self) -> None:
         """
         Handle merge button click.
+
+        Side Effects:
+            Ends the open Typed Run.
+
         """
+        self.end_typed_run()
         self.controller.on_merge_clicked()
 
     def _on_add_sentence_before_clicked(self) -> None:
         """
         Handle "Add Sentence: Before" button click.
+
+        Side Effects:
+            Ends the open Typed Run.
+
         """
+        self.end_typed_run()
         self.controller.on_add_sentence_before_clicked()
 
     def _on_add_sentence_after_clicked(self) -> None:
         """
         Handle "Add Sentence: After" button click.
+
+        Side Effects:
+            Ends the open Typed Run.
+
         """
+        self.end_typed_run()
         self.controller.on_add_sentence_after_clicked()
 
     def _on_delete_clicked(self) -> None:
         """
         Handle Delete button click.
+
+        Side Effects:
+            Ends the open Typed Run.
+
         """
+        self.end_typed_run()
         self.controller.on_delete_clicked()
