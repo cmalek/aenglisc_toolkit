@@ -1,6 +1,6 @@
 import pytest
 from PySide6.QtCore import Qt
-from oeapp.commands import CommandManager
+from PySide6.QtGui import QUndoStack
 from oeapp.models import Annotation
 from oeapp.ui.sentence_card import SentenceCard
 from oeapp.ui.dialogs.annotation_modal import AnnotationModal
@@ -13,7 +13,7 @@ def sentence_card(db_session, qapp, mock_main_window):
     sentence = project.sentences[0]
     card = SentenceCard(
         sentence,
-        command_manager=CommandManager(db_session),
+        undo_stack=QUndoStack(),
         main_window=mock_main_window,
         parent=None,
     )

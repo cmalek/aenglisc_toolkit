@@ -2,7 +2,7 @@
 
 import pytest
 from PySide6.QtWidgets import QPushButton
-from oeapp.commands import CommandManager
+from PySide6.QtGui import QUndoStack
 from oeapp.models.idiom import Idiom
 from oeapp.models.annotation import Annotation
 from oeapp.ui.sentence_card import SentenceCard
@@ -165,7 +165,7 @@ def test_idiom_selection_ui(qtbot, db_session, sentence, mock_main_window):
 
     card = SentenceCard(
         sentence,
-        command_manager=CommandManager(db_session),
+        undo_stack=QUndoStack(),
         main_window=mock_main_window,
     )
     qtbot.addWidget(card)
@@ -196,7 +196,7 @@ def test_idiom_modal_navigation(qtbot, db_session, sentence, mock_main_window):
 
     card = SentenceCard(
         sentence,
-        command_manager=CommandManager(db_session),
+        undo_stack=QUndoStack(),
         main_window=mock_main_window,
     )
     qtbot.addWidget(card)

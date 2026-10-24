@@ -9,11 +9,28 @@ from PySide6.QtCore import QPoint
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import QLabel, QSplitter, QStatusBar, QWidget
 
+from oeapp.commands import Command, push_command
 from oeapp.models import AnnotationJson
 from oeapp.models.note import Note
 from oeapp.state import AppContext
 from oeapp.ui.main_window import MainWindow, Messages
 from tests.conftest import create_test_project, create_test_sentence
+
+
+class _OkCommand(Command):
+    """Command whose ``execute`` and ``undo`` always succeed."""
+
+    def execute(self) -> bool:
+        """Succeed."""
+        return True
+
+    def undo(self) -> bool:
+        """Succeed."""
+        return True
+
+    def get_description(self) -> str:
+        """Describe the command."""
+        return "Ok"
 
 
 @pytest.fixture
@@ -384,8 +401,9 @@ class TestMainWindowActions:
             == "king"
         )
 
+    @patch("oeapp.ui.main_window.push_command", return_value=True)
     @patch("oeapp.ui.main_window.AnnotateTokenCommand")
-    def test_paste_annotation_state(self, mock_command, main_window):
+    def test_paste_annotation_state(self, mock_command, mock_push, main_window):
         """Test that paste_annotation uses copied app-context state."""
         actions = main_window.action_service
         copied_data = AnnotationJson(pos="V", root="gangan")
@@ -403,14 +421,15 @@ class TestMainWindowActions:
         mock_card.sentence = MagicMock()
 
         main_window.project_ui.set_selected_sentence_card(mock_card)
-        main_window.app_context.command_manager = MagicMock()
-        main_window.app_context.command_manager.execute.return_value = True
         main_window.app_context.session = MagicMock()
 
         with patch.object(main_window.token_details_sidebar, "render_token"):
             assert actions.paste_annotation() is True
 
         mock_command.assert_called_once()
+        mock_push.assert_called_once_with(
+            main_window.app_context.undo_stack, mock_command.return_value
+        )
         assert mock_command.call_args.kwargs["after"] == copied_data.model_dump(
             exclude={"created_at", "updated_at"}
         )
@@ -523,13 +542,14 @@ class TestMainWindowActions:
             target_card.enter_edit_mode.assert_not_called()
             target_card.flash_added.assert_not_called()
 
-    def test_reload_after_structure_change_preserves_command_manager(
+    def test_reload_after_structure_change_preserves_undo_history(
         self, main_window
     ):
-        """Structural reload should keep the same command manager instance."""
+        """Structural reload keeps the same undo stack and its history."""
         project_ui = main_window.project_ui
-        manager = main_window.app_context.command_manager
         main_window.app_context.current_project_id = 1
+        stack = main_window.app_context.undo_stack
+        push_command(stack, _OkCommand())
 
         project = MagicMock()
 
@@ -543,8 +563,8 @@ class TestMainWindowActions:
                 message="Sentences merged",
             )
 
-        assert main_window.app_context.command_manager is manager
-        assert project_ui.command_manager is manager
+        assert main_window.app_context.undo_stack is stack
+        assert stack.canUndo() is True
 
     def test_project_ui_selected_card_is_local_to_workspace(self, main_window):
         """Selected sentence card should be workspace-local, not app context."""

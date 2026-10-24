@@ -4,7 +4,7 @@ import pytest
 from PySide6.QtCore import QPoint, Qt
 from PySide6.QtGui import QKeyEvent, QMouseEvent
 
-from oeapp.commands import CommandManager
+from PySide6.QtGui import QUndoStack
 from oeapp.ui.sentence_card import SentenceCard
 from tests.conftest import create_test_project
 
@@ -15,7 +15,7 @@ class TestTokenSelector:
         sentence = project.sentences[0]
         card = SentenceCard(
             sentence,
-            command_manager=CommandManager(db_session),
+            undo_stack=QUndoStack(),
             main_window=mock_main_window,
         )
         return card.oe_text_edit
@@ -92,7 +92,7 @@ class TestOldEnglishTextEdit:
         sentence = project.sentences[0]
         card = SentenceCard(
             sentence,
-            command_manager=CommandManager(db_session),
+            undo_stack=QUndoStack(),
             main_window=mock_main_window,
         )
         return card
@@ -181,7 +181,7 @@ class TestOldEnglishTextEdit:
         sentence = project.sentences[0]
         card = SentenceCard(
             sentence,
-            command_manager=CommandManager(db_session),
+            undo_stack=QUndoStack(),
             main_window=mock_main_window,
         )
         text_edit = card.oe_text_edit

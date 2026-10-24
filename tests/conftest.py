@@ -41,8 +41,8 @@ configure_logging()
 
 from oeapp.models import *
 
-from oeapp.commands import CommandManager
 
+from PySide6.QtGui import QUndoStack
 from PySide6.QtWidgets import QMenuBar, QWidget
 import pytest
 
@@ -232,14 +232,15 @@ def command_setup(db_session):
     tokens = Token.list(sentence.id)
     token_id = tokens[0].id
 
-    # Use a command manager with small limit for tests
-    command_manager = CommandManager(db_session, max_commands=10)
+    # Use an undo stack with a small limit for tests
+    undo_stack = QUndoStack()
+    undo_stack.setUndoLimit(10)
     return {
         "session": db_session,
         "project_id": project_id,
         "sentence_id": sentence.id,
         "token_id": token_id,
-        "command_manager": command_manager,
+        "undo_stack": undo_stack,
     }
 
 

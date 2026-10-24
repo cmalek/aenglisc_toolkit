@@ -7,6 +7,7 @@ import json
 from unittest.mock import MagicMock
 
 import pytest
+from oeapp.commands import push_command
 from oeapp.models import Annotation, RememberedAnnotation
 from oeapp.models.remembered_annotation import AmbiguousRememberedSpellingError
 from oeapp.services.import_export import ProjectExporter, ProjectImporter
@@ -105,7 +106,7 @@ def test_apply_remembered_annotations_exact_match_precedence_and_undo(db_session
     assert tokens[0].id not in plan.affected_token_ids
 
     state = AppContext(session=db_session)
-    assert state.command_manager.execute(plan.command)
+    assert push_command(state.undo_stack, plan.command)
 
     db_session.refresh(tokens[3])
     db_session.refresh(tokens[1])
@@ -118,13 +119,13 @@ def test_apply_remembered_annotations_exact_match_precedence_and_undo(db_session
     assert tokens[2].annotation is not None
     assert tokens[2].annotation.root == "blocked"
 
-    assert state.command_manager.undo()
+    state.undo_stack.undo()
     db_session.refresh(tokens[3])
     assert tokens[3].annotation is not None
     assert tokens[3].annotation.pos is None
     assert tokens[3].annotation.root is None
 
-    assert state.command_manager.redo()
+    state.undo_stack.redo()
     db_session.refresh(tokens[3])
     assert tokens[3].annotation is not None
     assert tokens[3].annotation.modern_english_meaning == "project sea"

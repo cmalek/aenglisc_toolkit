@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from oeapp.commands import CommandManager
+from PySide6.QtGui import QUndoStack
 from oeapp.models import Annotation, AnnotationJson
 from oeapp.models.project import Project
 from oeapp.ui.main_window import MainWindowActions
@@ -22,7 +22,7 @@ def _select_card(db_session, mock_main_window, sentence, token_index: int) -> Se
     """Create and select a real sentence card for token interaction tests."""
     card = SentenceCard(
         sentence,
-        command_manager=CommandManager(db_session),
+        undo_stack=QUndoStack(),
         main_window=mock_main_window,
     )
     card.oe_text_edit.set_selected_token_index(token_index)
@@ -216,16 +216,16 @@ class TestPasteAnnotation:
             sense="ruler in this line",
             root="cyning",
         )
-        command_manager = mock_main_window.app_context.command_manager
+        undo_stack = mock_main_window.app_context.undo_stack
 
         _select_card(db_session, mock_main_window, sentence, 1)
 
         assert _actions(mock_main_window).paste_annotation() is True
         db_session.refresh(token)
         assert token.annotation.pos == "N"
-        assert command_manager.can_undo()
+        assert undo_stack.canUndo()
 
-        assert command_manager.undo() is True
+        undo_stack.undo()
         db_session.refresh(token)
         assert token.annotation.pos is None
 
@@ -239,15 +239,15 @@ class TestPasteAnnotation:
         mock_main_window.app_context.copied_annotation = AnnotationJson(
             pos="N", gender="m", number="s"
         )
-        command_manager = mock_main_window.app_context.command_manager
+        undo_stack = mock_main_window.app_context.undo_stack
 
         _select_card(db_session, mock_main_window, sentence, 1)
 
         _actions(mock_main_window).paste_annotation()
-        command_manager.undo()
+        undo_stack.undo()
 
-        assert command_manager.can_redo()
-        assert command_manager.redo() is True
+        assert undo_stack.canRedo()
+        undo_stack.redo()
 
         db_session.refresh(token)
         assert token.annotation.pos == "N"

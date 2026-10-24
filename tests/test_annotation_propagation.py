@@ -4,9 +4,9 @@
 from unittest.mock import MagicMock, patch
 
 from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
-from PySide6.QtGui import QMouseEvent
+from PySide6.QtGui import QMouseEvent, QUndoStack
 
-from oeapp.commands import CommandManager
+from oeapp.commands import push_command
 from oeapp.models import Project
 from oeapp.services.annotation_propagation import AnnotationPropagationService
 from oeapp.ui.main_window import MainWindowActions
@@ -26,7 +26,7 @@ def _select_card(
     """Create and select real sentence card for token interaction tests."""
     card = SentenceCard(
         sentence,
-        command_manager=CommandManager(db_session),
+        undo_stack=QUndoStack(),
         main_window=mock_main_window,
     )
     card.oe_text_edit.set_selected_token_index(token_index)
@@ -213,17 +213,17 @@ class TestAnnotationPropagationService:
         plan = AnnotationPropagationService().plan_surface_propagation(
             project.id, source_token
         )
-        command_manager = CommandManager(db_session)
+        undo_stack = QUndoStack()
 
-        assert command_manager.execute(plan.command) is True
+        assert push_command(undo_stack, plan.command) is True
         db_session.refresh(target_token)
         assert target_token.annotation.pos == "D"
 
-        assert command_manager.undo() is True
+        undo_stack.undo()
         db_session.refresh(target_token)
         assert target_token.annotation.pos is None
 
-        assert command_manager.redo() is True
+        undo_stack.redo()
         db_session.refresh(target_token)
         assert target_token.annotation.pos == "D"
 
@@ -298,7 +298,7 @@ class TestAnnotationPropagationMenu:
         mock_main_window.app_context.current_project_id = project.id
         card = SentenceCard(
             project.sentences[0],
-            command_manager=CommandManager(db_session),
+            undo_stack=QUndoStack(),
             main_window=mock_main_window,
         )
         text_edit = card.oe_text_edit
@@ -362,7 +362,7 @@ class TestAnnotationPropagationMenu:
         mock_main_window.app_context.current_project_id = project.id
         card = SentenceCard(
             project.sentences[0],
-            command_manager=CommandManager(db_session),
+            undo_stack=QUndoStack(),
             main_window=mock_main_window,
         )
         text_edit = card.oe_text_edit
@@ -461,7 +461,7 @@ class TestAnnotationPropagationMenu:
         for sentence in project.sentences:
             card = SentenceCard(
                 sentence,
-                command_manager=CommandManager(db_session),
+                undo_stack=QUndoStack(),
                 main_window=mock_main_window,
             )
             card.show()

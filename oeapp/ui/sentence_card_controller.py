@@ -12,6 +12,7 @@ from oeapp.commands import (
     DeleteSentenceCommand,
     EditSentenceCommand,
     MergeSentenceCommand,
+    push_command,
 )
 from oeapp.commands.hierarchy import (
     MergeChapterCommand,
@@ -20,6 +21,7 @@ from oeapp.commands.hierarchy import (
     SplitSectionCommand,
 )
 from oeapp.commands.paragraph import MergeParagraphCommand, SplitParagraphCommand
+from oeapp.db import get_runtime_session
 from oeapp.models import Annotation, Idiom
 from oeapp.models.sentence import Sentence
 from oeapp.ui.dialogs import AnnotationModal
@@ -76,10 +78,10 @@ class SentenceCardController:
 
     def on_save_oe_clicked(self) -> None:
         """
-        Save Old English edits through the command manager and exit edit mode.
+        Save Old English edits through the undo stack and exit edit mode.
         """
         card = self.card
-        if not card.command_manager or not card.sentence.id:
+        if not card.sentence.id:
             card.oe_text_edit.render_readonly_text()
             return
 
@@ -93,14 +95,14 @@ class SentenceCardController:
                 before=old_text,
                 after=new_text,
             )
-            if card.command_manager.execute(command):
+            if push_command(card.undo_stack, command):
                 card.sentence.text_oe = new_text
                 if hasattr(command, "messages") and command.messages:
                     for msg in command.messages:
                         if card.main_window:
                             card.main_window.messages.show_message(msg, duration=5000)
 
-                card.command_manager.session.refresh(card.sentence)
+                get_runtime_session().refresh(card.sentence)
                 card.set_tokens()
                 card.notes_panel.update_notes()
 
@@ -126,10 +128,10 @@ class SentenceCardController:
 
     def on_translation_changed(self) -> None:
         """
-        Save Modern English translation changes through the command manager.
+        Save Modern English translation changes through the undo stack.
         """
         card = self.card
-        if not card.command_manager or not card.sentence.id:
+        if not card.sentence.id:
             return
 
         new_text = card.translation_edit.toPlainText()
@@ -142,7 +144,7 @@ class SentenceCardController:
                 before=old_text,
                 after=new_text,
             )
-            if card.command_manager.execute(command):
+            if push_command(card.undo_stack, command):
                 card.sentence.text_modern = new_text
 
     def on_merge_clicked(self) -> None:
@@ -186,14 +188,6 @@ class SentenceCardController:
         if reply != QMessageBox.StandardButton.Yes:
             return
 
-        if not card.command_manager:
-            QMessageBox.warning(
-                card,
-                "Error",
-                "Command manager not available. Cannot perform merge.",
-            )
-            return
-
         before_text_oe = card.sentence.text_oe
         before_text_modern = card.sentence.text_modern
 
@@ -204,7 +198,7 @@ class SentenceCardController:
             before_text_modern=before_text_modern,
         )
 
-        if card.command_manager.execute(command):
+        if push_command(card.undo_stack, command):
             if card.sentence.id:
                 card.sentence_merged.emit(card.sentence.id)
         else:
@@ -235,7 +229,7 @@ class SentenceCardController:
 
         """
         card = self.card
-        if not card.sentence.id or not card.command_manager:
+        if not card.sentence.id:
             return
 
         command = AddSentenceCommand(
@@ -244,7 +238,7 @@ class SentenceCardController:
             position=position,
         )
 
-        if card.command_manager.execute(command):
+        if push_command(card.undo_stack, command):
             if command.new_sentence_id:
                 card.sentence_added.emit(command.new_sentence_id)
         else:
@@ -259,7 +253,7 @@ class SentenceCardController:
         Delete the current sentence after confirmation.
         """
         card = self.card
-        if not card.sentence.id or not card.command_manager:
+        if not card.sentence.id:
             return
 
         message = (
@@ -288,7 +282,7 @@ class SentenceCardController:
             sentence_id=card.sentence.id,
         )
 
-        if card.command_manager.execute(command):
+        if push_command(card.undo_stack, command):
             if card.sentence.id:
                 card.sentence_deleted.emit(card.sentence.id)
         else:
@@ -355,10 +349,11 @@ class SentenceCardController:
 
         """
         card = self.card
-        if not card.command_manager or not card.sentence.id:
+        if not card.sentence.id:
             return False
-        return card.command_manager.execute(
-            SplitParagraphCommand(sentence_id=card.sentence.id)
+        return push_command(
+            card.undo_stack,
+            SplitParagraphCommand(sentence_id=card.sentence.id),
         )
 
     def on_merge_paragraph_clicked(self) -> bool:
@@ -370,10 +365,11 @@ class SentenceCardController:
 
         """
         card = self.card
-        if not card.command_manager or not card.sentence.id:
+        if not card.sentence.id:
             return False
-        return card.command_manager.execute(
-            MergeParagraphCommand(sentence_id=card.sentence.id)
+        return push_command(
+            card.undo_stack,
+            MergeParagraphCommand(sentence_id=card.sentence.id),
         )
 
     def on_split_section_clicked(self) -> bool:
@@ -385,10 +381,11 @@ class SentenceCardController:
 
         """
         card = self.card
-        if not card.command_manager or not card.sentence.paragraph:
+        if not card.sentence.paragraph:
             return False
-        return card.command_manager.execute(
-            SplitSectionCommand(paragraph_id=card.sentence.paragraph.id)
+        return push_command(
+            card.undo_stack,
+            SplitSectionCommand(paragraph_id=card.sentence.paragraph.id),
         )
 
     def on_merge_section_clicked(self) -> bool:
@@ -400,10 +397,11 @@ class SentenceCardController:
 
         """
         card = self.card
-        if not card.command_manager or not card.sentence.paragraph:
+        if not card.sentence.paragraph:
             return False
-        return card.command_manager.execute(
-            MergeSectionCommand(paragraph_id=card.sentence.paragraph.id)
+        return push_command(
+            card.undo_stack,
+            MergeSectionCommand(paragraph_id=card.sentence.paragraph.id),
         )
 
     def on_split_chapter_clicked(self) -> bool:
@@ -415,14 +413,11 @@ class SentenceCardController:
 
         """
         card = self.card
-        if (
-            not card.command_manager
-            or not card.sentence.paragraph
-            or not card.sentence.paragraph.section
-        ):
+        if not card.sentence.paragraph or not card.sentence.paragraph.section:
             return False
-        return card.command_manager.execute(
-            SplitChapterCommand(section_id=card.sentence.paragraph.section.id)
+        return push_command(
+            card.undo_stack,
+            SplitChapterCommand(section_id=card.sentence.paragraph.section.id),
         )
 
     def on_merge_chapter_clicked(self) -> bool:
@@ -434,14 +429,11 @@ class SentenceCardController:
 
         """
         card = self.card
-        if (
-            not card.command_manager
-            or not card.sentence.paragraph
-            or not card.sentence.paragraph.section
-        ):
+        if not card.sentence.paragraph or not card.sentence.paragraph.section:
             return False
-        return card.command_manager.execute(
-            MergeChapterCommand(section_id=card.sentence.paragraph.section.id)
+        return push_command(
+            card.undo_stack,
+            MergeChapterCommand(section_id=card.sentence.paragraph.section.id),
         )
 
     def open_annotation_modal(self) -> None:

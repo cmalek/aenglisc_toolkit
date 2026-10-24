@@ -1,4 +1,4 @@
-from .abstract import Command, CommandManager
+from .abstract import Command
 from .annotation import (
     AnnotateTokenCommand,
     ApplyAnnotationPropagationCommand,
@@ -21,7 +21,6 @@ __all__ = [
     "ApplyAnnotationPropagationCommand",
     "ApplyRememberedAnnotationsCommand",
     "Command",
-    "CommandManager",
     "DeleteNoteCommand",
     "DeleteSentenceCommand",
     "EditSentenceCommand",

@@ -7,7 +7,7 @@ from oeapp.models.section import Section
 from oeapp.models.paragraph import Paragraph
 from oeapp.models.sentence import Sentence
 from oeapp.ui.sentence_card import SentenceCard
-from oeapp.commands import CommandManager
+from PySide6.QtGui import QUndoStack
 from oeapp.ui.sentence_card_controller import HierarchyPosition
 from unittest.mock import MagicMock
 
@@ -50,8 +50,8 @@ def test_sentence_card_dropdown_middle_of_paragraph(qtbot, db_session, hierarchy
     s3.display_order = 3
     db_session.commit()
 
-    cmd_manager = CommandManager(db_session)
-    card = SentenceCard(s2, command_manager=cmd_manager, main_window=mock_main_window)
+    undo_stack = QUndoStack()
+    card = SentenceCard(s2, undo_stack=undo_stack, main_window=mock_main_window)
     card.show() # Ensure visibility logic works
     qtbot.addWidget(card)
 
@@ -73,8 +73,8 @@ def test_sentence_card_dropdown_paragraph_start(qtbot, db_session, hierarchy_pro
     s3.paragraph_id = p2.id
     db_session.commit()
 
-    cmd_manager = CommandManager(db_session)
-    card = SentenceCard(s2, command_manager=cmd_manager, main_window=mock_main_window)
+    undo_stack = QUndoStack()
+    card = SentenceCard(s2, undo_stack=undo_stack, main_window=mock_main_window)
     qtbot.addWidget(card)
 
     # s2 is now paragraph start, but not section start
@@ -97,8 +97,8 @@ def test_sentence_card_dropdown_section_start(qtbot, db_session, hierarchy_proje
     s2.paragraph_id = p2.id
     db_session.commit()
 
-    cmd_manager = CommandManager(db_session)
-    card = SentenceCard(s2, command_manager=cmd_manager, main_window=mock_main_window)
+    undo_stack = QUndoStack()
+    card = SentenceCard(s2, undo_stack=undo_stack, main_window=mock_main_window)
     qtbot.addWidget(card)
 
     # s2 is now section start, but not chapter start
@@ -123,8 +123,8 @@ def test_sentence_card_dropdown_chapter_start(qtbot, db_session, hierarchy_proje
     s2.paragraph_id = p2.id
     db_session.commit()
 
-    cmd_manager = CommandManager(db_session)
-    card = SentenceCard(s2, command_manager=cmd_manager, main_window=mock_main_window)
+    undo_stack = QUndoStack()
+    card = SentenceCard(s2, undo_stack=undo_stack, main_window=mock_main_window)
     qtbot.addWidget(card)
 
     # s2 is now chapter start
@@ -143,8 +143,8 @@ def test_get_hierarchy_position_middle_of_paragraph(
     s3.display_order = 3
     db_session.commit()
 
-    cmd_manager = CommandManager(db_session)
-    card = SentenceCard(s2, command_manager=cmd_manager, main_window=mock_main_window)
+    undo_stack = QUndoStack()
+    card = SentenceCard(s2, undo_stack=undo_stack, main_window=mock_main_window)
 
     position = card.controller.get_hierarchy_position(s2)
 
@@ -170,8 +170,8 @@ def test_get_hierarchy_position_chapter_start(
     s2.paragraph_id = p2.id
     db_session.commit()
 
-    cmd_manager = CommandManager(db_session)
-    card = SentenceCard(s2, command_manager=cmd_manager, main_window=mock_main_window)
+    undo_stack = QUndoStack()
+    card = SentenceCard(s2, undo_stack=undo_stack, main_window=mock_main_window)
 
     position = card.controller.get_hierarchy_position(s2)
 
@@ -185,21 +185,21 @@ def test_on_split_paragraph_clicked_executes_command_via_controller(
 ):
     project, s1, s2, s3 = hierarchy_project
 
-    cmd_manager = CommandManager(db_session)
-    card = SentenceCard(s2, command_manager=cmd_manager, main_window=mock_main_window)
+    undo_stack = QUndoStack()
+    card = SentenceCard(s2, undo_stack=undo_stack, main_window=mock_main_window)
 
     assert card.controller.on_split_paragraph_clicked() is True
     db_session.refresh(s2)
     assert s2.paragraph_id != s1.paragraph_id
 
 
-def test_on_merge_paragraph_clicked_returns_false_when_command_manager_missing(
-    db_session, hierarchy_project, mock_main_window, monkeypatch
+def test_on_merge_paragraph_clicked_failure_leaves_stack_empty(
+    hierarchy_project, mock_main_window
 ):
     project, s1, s2, s3 = hierarchy_project
 
-    cmd_manager = CommandManager(db_session)
-    card = SentenceCard(s2, command_manager=cmd_manager, main_window=mock_main_window)
-    monkeypatch.setattr(card, "command_manager", None)
+    undo_stack = QUndoStack()
+    card = SentenceCard(s1, undo_stack=undo_stack, main_window=mock_main_window)
 
     assert card.controller.on_merge_paragraph_clicked() is False
+    assert undo_stack.count() == 0

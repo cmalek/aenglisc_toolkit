@@ -3,7 +3,7 @@
 import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QDialog
-from oeapp.commands import CommandManager
+from PySide6.QtGui import QUndoStack
 from oeapp.ui.notes_panel import NotesPanel, ClickableNoteLabel
 from oeapp.ui.sentence_card import SentenceCard
 from tests.conftest import create_test_project
@@ -33,7 +33,7 @@ class TestNotesPanel:
         sentence = project.sentences[0]
         card = SentenceCard(
             sentence=sentence,
-            command_manager=CommandManager(db_session),
+            undo_stack=QUndoStack(),
             main_window=mock_main_window,
             parent=None,
         )
@@ -67,7 +67,7 @@ class TestNotesPanel:
 
         card = SentenceCard(
             sentence=sentence,
-            command_manager=CommandManager(db_session),
+            undo_stack=QUndoStack(),
             main_window=mock_main_window,
             parent=None,
         )
@@ -83,7 +83,7 @@ class TestNotesPanel:
         sentence = project.sentences[0]
         card = SentenceCard(
             sentence=sentence,
-            command_manager=CommandManager(db_session),
+            undo_stack=QUndoStack(),
             main_window=mock_main_window,
             parent=None,
         )
@@ -111,7 +111,7 @@ class TestNotesPanel:
 
         card = SentenceCard(
             sentence=sentence,
-            command_manager=CommandManager(db_session),
+            undo_stack=QUndoStack(),
             main_window=mock_main_window,
             parent=None,
         )
@@ -155,7 +155,7 @@ class TestNotesPanel:
 
         card = SentenceCard(
             sentence=sentence,
-            command_manager=CommandManager(db_session),
+            undo_stack=QUndoStack(),
             main_window=mock_main_window,
             parent=None,
         )
@@ -197,7 +197,7 @@ class TestNotesPanel:
 
         card = SentenceCard(
             sentence=sentence1,
-            command_manager=CommandManager(db_session),
+            undo_stack=QUndoStack(),
             main_window=mock_main_window,
             parent=None,
         )

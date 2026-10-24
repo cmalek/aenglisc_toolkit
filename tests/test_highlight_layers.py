@@ -1,5 +1,4 @@
 import pytest
-from oeapp.commands import CommandManager
 from oeapp.models.annotation import Annotation
 from oeapp.models.idiom import Idiom
 from oeapp.ui.dialogs.sentence_filters import SentenceFilterDialog
@@ -16,7 +15,7 @@ from oeapp.ui.mixins import AnnotationLookupsMixin, ThemeMixin
 from oeapp.ui.oe_text_edit import OldEnglishTextEdit
 from oeapp.ui.search_controller import normalized_oe_query
 from oeapp.ui.sentence_card import SentenceCard
-from PySide6.QtGui import QTextFormat
+from PySide6.QtGui import QTextFormat, QUndoStack
 from PySide6.QtWidgets import QComboBox, QLineEdit
 from PySide6.QtWidgets import QTextEdit as PlainTextEdit
 
@@ -34,7 +33,7 @@ def card(db_session, qapp, qtbot, mock_main_window):
     project = create_test_project(db_session, name="Layers", text="Se cyning fēoll.")
     card = SentenceCard(
         project.sentences[0],
-        command_manager=CommandManager(db_session),
+        undo_stack=QUndoStack(),
         main_window=mock_main_window,
         parent=None,
     )
@@ -496,7 +495,7 @@ class TestSearchBeforeFirstRender:
         project = create_test_project(db_session, name="Fresh", text="Se cyning fēoll.")
         card = SentenceCard(
             project.sentences[0],
-            command_manager=CommandManager(db_session),
+            undo_stack=QUndoStack(),
             main_window=mock_main_window,
             parent=None,
         )

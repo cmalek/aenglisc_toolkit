@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, Final
 
 from pydantic import ValidationError
 from PySide6.QtCore import QPoint, QSettings, Qt, QTimer
+from PySide6.QtGui import QUndoStack
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -25,6 +26,7 @@ from PySide6.QtWidgets import (
 
 from oeapp.commands import (
     AnnotateTokenCommand,
+    push_command,
 )
 from oeapp.db import run_pragma_optimize
 from oeapp.exc import MigrationFailed, UnknownDatabaseRevision
@@ -974,15 +976,15 @@ class MainWindowActions:
             card.oe_text_edit.setFocus(Qt.FocusReason.OtherFocusReason)
 
     @property
-    def command_manager(self):
+    def undo_stack(self) -> QUndoStack:
         """
-        Get the current command manager from main window.
+        Get the project-scoped undo stack.
 
         Returns:
-            The computed value.
+            The application undo stack.
 
         """
-        return self.app_context.command_manager
+        return self.app_context.undo_stack
 
     @property
     def autosave_service(self):
@@ -1180,18 +1182,13 @@ class MainWindowActions:
             annotation = token.annotation
             before_state = annotation.to_json()
 
-        # Create and execute the command
-        if not self.command_manager:
-            self.messages.show_message("Command manager not available")
-            return True
-
         command = AnnotateTokenCommand(
             token_id=token.id,
             before=before_state,
             after=copied_annotation.model_dump(exclude={"created_at", "updated_at"}),
         )
 
-        if self.command_manager.execute(command):
+        if push_command(self.undo_stack, command):
             # Refresh the token from database to update relationships
             self.app_context.session.refresh(token)
 
@@ -1245,7 +1242,7 @@ class MainWindowActions:
             return
 
         plan = RememberedAnnotationService().plan_apply(project_id)
-        if plan.applied_count and not self.command_manager.execute(plan.command):
+        if plan.applied_count and not push_command(self.undo_stack, plan.command):
             self.messages.show_error("Failed to apply remembered annotations")
             return
         if plan.applied_count:
@@ -1270,7 +1267,7 @@ class MainWindowActions:
         plan = AnnotationPropagationService().plan_surface_propagation(
             project_id, token
         )
-        if plan.updated_count > 0 and not self.command_manager.execute(plan.command):
+        if plan.updated_count > 0 and not push_command(self.undo_stack, plan.command):
             self.messages.show_error("Failed to propagate annotation")
             return
         if plan.updated_count > 0:
@@ -1293,7 +1290,7 @@ class MainWindowActions:
         plan = AnnotationPropagationService().plan_meaning_propagation(
             project_id, token
         )
-        if plan.updated_count > 0 and not self.command_manager.execute(plan.command):
+        if plan.updated_count > 0 and not push_command(self.undo_stack, plan.command):
             self.messages.show_error("Failed to propagate meaning")
             return
         if plan.updated_count > 0:

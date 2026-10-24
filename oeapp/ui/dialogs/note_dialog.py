@@ -3,7 +3,7 @@
 from typing import TYPE_CHECKING, cast
 
 from PySide6.QtCore import Signal
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QUndoStack
 from PySide6.QtWidgets import (
     QDialog,
     QHBoxLayout,
@@ -14,7 +14,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from oeapp.commands import AddNoteCommand, DeleteNoteCommand, UpdateNoteCommand
+from oeapp.commands import (
+    AddNoteCommand,
+    DeleteNoteCommand,
+    UpdateNoteCommand,
+    push_command,
+)
 from oeapp.models.note import Note
 
 if TYPE_CHECKING:
@@ -35,7 +40,6 @@ class NoteDialog(QDialog):
     Keyword Args:
         note: Existing note (if editing), None if creating new
         session: SQLAlchemy session (optional, will create if not provided)
-        command_manager: Command manager for undo/redo (optional)
 
     """
 
@@ -82,9 +86,9 @@ class NoteDialog(QDialog):
             if parent is not None and hasattr(parent, "main_window")
             else None
         )
-        #: Command manager.
-        self.command_manager = (
-            self.app_context.command_manager if self.app_context is not None else None
+        #: Project-scoped undo stack, or ``None`` when there is no app context.
+        self.undo_stack: QUndoStack | None = (
+            self.app_context.undo_stack if self.app_context is not None else None
         )
         self.build()
 
@@ -215,7 +219,7 @@ class NoteDialog(QDialog):
                 )
                 after_end = self.end_token_id if self.end_token_id is not None else None
 
-                if self.command_manager:
+                if self.undo_stack is not None:
                     command = UpdateNoteCommand(
                         note_id=self.note.id,
                         before_text=before_text or "",
@@ -225,12 +229,12 @@ class NoteDialog(QDialog):
                         after_start_token=after_start,
                         after_end_token=after_end,
                     )
-                    if self.command_manager.execute(command):
+                    if push_command(self.undo_stack, command):
                         self.note_saved.emit(self.note.id)
                         self.accept()
                         return
                 else:
-                    # Direct update without command manager
+                    # Direct update without an undo stack
                     self.note.note_text_md = note_text
                     # Ensure None instead of False or 0 for nullable foreign keys
                     self.note.start_token = (
@@ -248,20 +252,20 @@ class NoteDialog(QDialog):
                 if not self.sentence.id:
                     return
 
-                if self.command_manager:
+                if self.undo_stack is not None:
                     command = AddNoteCommand(
                         sentence_id=self.sentence.id,
                         start_token_id=self.start_token_id,
                         end_token_id=self.end_token_id,
                         note_text=note_text,
                     )
-                    if self.command_manager.execute(command):
+                    if push_command(self.undo_stack, command):
                         if command.note_id:
                             self.note_saved.emit(command.note_id)
                         self.accept()
                         return
                 else:
-                    # Direct creation without command manager
+                    # Direct creation without an undo stack
                     # Ensure None instead of False or 0 for nullable foreign keys
                     start_token_id = (
                         self.start_token_id if self.start_token_id is not None else None
@@ -295,15 +299,15 @@ class NoteDialog(QDialog):
         try:
             note_id = self.note.id
 
-            if self.command_manager:
+            if self.undo_stack is not None:
                 command = DeleteNoteCommand(note_id=note_id)
-                if self.command_manager.execute(command):
+                if push_command(self.undo_stack, command):
                     # Emit signal with note_id for cleanup (even though deleted)
                     self.note_saved.emit(note_id)
                     self.accept()
                     return
             else:
-                # Direct deletion without command manager
+                # Direct deletion without an undo stack
                 self.note.delete()
                 # Emit signal with note_id for cleanup (even though deleted)
                 self.note_saved.emit(note_id)

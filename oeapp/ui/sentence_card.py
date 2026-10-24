@@ -11,6 +11,7 @@ from PySide6.QtCore import (
 from PySide6.QtGui import (
     QFont,
     QPalette,
+    QUndoStack,
 )
 from PySide6.QtWidgets import (
     QHBoxLayout,
@@ -23,10 +24,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from oeapp.commands import (
-    AnnotateTokenCommand,
-    CommandManager,
-)
+from oeapp.commands import AnnotateTokenCommand, push_command
 from oeapp.mixins import TokenOccurrenceMixin
 from oeapp.models import Annotation, Idiom
 from oeapp.models.sentence import Sentence
@@ -55,7 +53,7 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, QWidget):
         sentence: Sentence model instance
 
     Keyword Args:
-        command_manager: Command manager for undo/redo
+        undo_stack: Project-scoped undo stack for undoable edits
         main_window: Main window this card belongs to
         parent: Parent widget
 
@@ -91,7 +89,7 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, QWidget):
     def __init__(
         self,
         sentence: Sentence,
-        command_manager: CommandManager,
+        undo_stack: QUndoStack,
         main_window: "MainWindow | None" = None,
         parent: QWidget | None = None,
     ):
@@ -100,8 +98,8 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, QWidget):
 
         Args:
             sentence: Sentence.
-            command_manager: Command manager. Required — SentenceCard has no
-                ORM-direct fallback for persistence.
+            undo_stack: Project-scoped undo stack. Required — SentenceCard has
+                no ORM-direct fallback for persistence.
             main_window: Main window.
             parent: Parent.
 
@@ -109,8 +107,8 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, QWidget):
         super().__init__(parent)
         #: The sentence this card represents
         self.sentence = sentence
-        #: The command manager for this card
-        self.command_manager = command_manager
+        #: The project-scoped undo stack this card pushes commands onto
+        self.undo_stack = undo_stack
         #: The main window this card belongs to
         self.main_window = main_window
         #: The token table for this card
@@ -833,7 +831,7 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, QWidget):
             new_idiom=new_idiom,
             sentence_id=self.sentence.id,
         )
-        if self.command_manager.execute(command):
+        if push_command(self.undo_stack, command):
             if new_idiom is not None:
                 annotation.idiom_id = command.idiom_id
 

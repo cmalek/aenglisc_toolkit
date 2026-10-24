@@ -1,12 +1,68 @@
 # ruff: noqa: ARG002, E501, PLR2004, S101
 from unittest.mock import MagicMock, patch
 
-from oeapp.commands import CommandManager
+import pytest
+from oeapp.commands import Command, push_command
 from oeapp.db import clear_runtime_session, set_runtime_session
 from oeapp.models import AnnotationJson
 from oeapp.state import AppContext
 from PySide6.QtCore import QSettings
+from PySide6.QtGui import QUndoStack
 from sqlalchemy.orm import Session
+
+
+class OkCommand(Command):
+    """Command whose ``execute`` and ``undo`` always succeed."""
+
+    def __init__(self, needs_full_reload: bool = False) -> None:
+        """Store whether the command needs a full reload."""
+        self._needs_full_reload = needs_full_reload
+
+    def execute(self) -> bool:
+        """Succeed."""
+        return True
+
+    def undo(self) -> bool:
+        """Succeed."""
+        return True
+
+    def get_description(self) -> str:
+        """Describe the command."""
+        return "Ok"
+
+    @property
+    def needs_full_reload(self) -> bool:
+        """Report the configured reload flag."""
+        return self._needs_full_reload
+
+
+@pytest.fixture
+def context(db_session):
+    """Build an AppContext on the test session."""
+    return AppContext(session=db_session)
+
+
+def test_same_project_id_keeps_history(context):
+    push_command(context.undo_stack, OkCommand())
+    context.current_project_id = 7
+    context.current_project_id = 7
+    assert context.undo_stack.canUndo() is True
+
+
+def test_project_change_and_close_clear_history(context):
+    context.current_project_id = 7
+    push_command(context.undo_stack, OkCommand())
+    context.current_project_id = 8
+    assert context.undo_stack.canUndo() is False
+    push_command(context.undo_stack, OkCommand())
+    context.current_project_id = None
+    assert context.undo_stack.canUndo() is False
+
+
+def test_undo_limit_is_50(context):
+    for _ in range(51):
+        push_command(context.undo_stack, OkCommand())
+    assert context.undo_stack.count() == 50
 
 
 class TestAppContext:
@@ -17,7 +73,8 @@ class TestAppContext:
         context = AppContext(session=db_session)
 
         assert isinstance(context.session, Session)
-        assert isinstance(context.command_manager, CommandManager)
+        assert isinstance(context.undo_stack, QUndoStack)
+        assert context.undo_stack.undoLimit() == 50
         assert context.main_window is None
         assert isinstance(context.settings, QSettings)
         assert context.current_project_id is None
@@ -33,7 +90,6 @@ class TestAppContext:
         context.session = new_session
 
         assert context.session is new_session
-        assert context.command_manager.session is new_session
 
     def test_reset(self, db_session):
         """Test reset functionality."""
@@ -44,6 +100,8 @@ class TestAppContext:
         context.copied_annotation = AnnotationJson(pos="N")
         mock_window = MagicMock()
         context.set_main_window(mock_window)
+        old_stack = context.undo_stack
+        push_command(old_stack, OkCommand())
 
         context.reset()
 
@@ -52,7 +110,9 @@ class TestAppContext:
         assert context.current_chapter_id is None
         assert context.current_section_id is None
         assert context.copied_annotation is None
-        assert isinstance(context.command_manager, CommandManager)
+        assert context.undo_stack is not old_stack
+        assert context.undo_stack.count() == 0
+        assert context.undo_stack.undoLimit() == 50
         assert context.session is not None
 
     def test_close_session(self, db_session):
@@ -155,39 +215,32 @@ class TestAppContext:
             context.show_message("Error message")
             mock_stderr.assert_called_once_with("Error message\n")
 
-    def test_undo_can_undo_false(self, db_session):
-        """Test undo when can_undo is False."""
+    def _context_with_window(self, db_session):
+        """Build a context with a mock main window."""
         context = AppContext(session=db_session)
         mock_window = MagicMock()
         mock_window.app_context = context
         context.set_main_window(mock_window)
+        return context, mock_window
 
-        context.command_manager = MagicMock()
-        context.command_manager.can_undo.return_value = False
+    def test_undo_with_empty_stack_does_nothing(self, db_session):
+        """Undo with nothing to undo leaves the window alone."""
+        context, mock_window = self._context_with_window(db_session)
 
         context.undo()
-        context.command_manager.undo.assert_not_called()
+
+        mock_window.refresh_project.assert_not_called()
+        mock_window.reload_project.assert_not_called()
 
     def test_undo_success_no_reload(self, db_session):
-        """Test successful undo without structural reload."""
-        context = AppContext(session=db_session)
-        mock_window = MagicMock()
-        mock_window.app_context = context
-        mock_window.messages = MagicMock()
-        mock_window.messages.show_message = MagicMock()
-        context.set_main_window(mock_window)
-
-        mock_command = MagicMock()
-        mock_command.needs_full_reload = False
-
-        context.command_manager = MagicMock()
-        context.command_manager.can_undo.return_value = True
-        context.command_manager.undo_stack = [mock_command]
-        context.command_manager.undo.return_value = True
-        context.command_manager.redo_stack = [mock_command]
+        """Undo of a non-structural command refreshes the window."""
+        context, mock_window = self._context_with_window(db_session)
+        push_command(context.undo_stack, OkCommand(needs_full_reload=False))
 
         context.undo()
 
+        assert context.undo_stack.canUndo() is False
+        assert context.undo_stack.canRedo() is True
         mock_window.refresh_project.assert_called_once()
         mock_window.reload_project.assert_not_called()
         mock_window.messages.show_message.assert_called_with(
@@ -195,105 +248,35 @@ class TestAppContext:
         )
 
     def test_undo_success_with_reload(self, db_session):
-        """Test successful undo with structural reload."""
-        context = AppContext(session=db_session)
-        mock_window = MagicMock()
-        mock_window.app_context = context
-        mock_window.messages = MagicMock()
-        mock_window.messages.show_message = MagicMock()
-        context.set_main_window(mock_window)
-
-        mock_command = MagicMock()
-        mock_command.needs_full_reload = True
-
-        context.command_manager = MagicMock()
-        context.command_manager.can_undo.return_value = True
-        context.command_manager.undo_stack = [mock_command]
-        context.command_manager.undo.return_value = True
-        context.command_manager.redo_stack = [mock_command]
+        """Undo of a structural command reloads the window."""
+        context, mock_window = self._context_with_window(db_session)
+        push_command(context.undo_stack, OkCommand(needs_full_reload=False))
+        push_command(context.undo_stack, OkCommand(needs_full_reload=True))
 
         context.undo()
 
         mock_window.reload_project.assert_called_once()
-        mock_window.messages.show_message.assert_called_with(
-            "Undone", duration=2000
-        )
+        mock_window.refresh_project.assert_not_called()
 
-    def test_undo_success_reload_from_redo_stack(self, db_session):
-        """Test undo where reload is determined by the command now in redo stack."""
-        context = AppContext(session=db_session)
-        mock_window = MagicMock()
-        mock_window.app_context = context
-        context.set_main_window(mock_window)
-
-        mock_command = MagicMock()
-        mock_command.needs_full_reload = False
-        mock_undone_command = MagicMock()
-        mock_undone_command.needs_full_reload = True
-
-        context.command_manager = MagicMock()
-        context.command_manager.can_undo.return_value = True
-        context.command_manager.undo_stack = [mock_command]
-        context.command_manager.undo.return_value = True
-        context.command_manager.redo_stack = [mock_undone_command]
-
-        context.undo()
-
-        mock_window.reload_project.assert_called_once()
-
-    def test_undo_failed(self, db_session):
-        """Test failed undo."""
-        context = AppContext(session=db_session)
-        mock_window = MagicMock()
-        mock_window.app_context = context
-        mock_window.messages = MagicMock()
-        mock_window.messages.show_message = MagicMock()
-        context.set_main_window(mock_window)
-
-        context.command_manager = MagicMock()
-        context.command_manager.can_undo.return_value = True
-        context.command_manager.undo_stack = [MagicMock()]
-        context.command_manager.undo.return_value = False
-
-        context.undo()
-
-        mock_window.messages.show_message.assert_called_with(
-            "Undo failed", duration=2000
-        )
-
-    def test_redo_can_redo_false(self, db_session):
-        """Test redo when can_redo is False."""
-        context = AppContext(session=db_session)
-        mock_window = MagicMock()
-        mock_window.app_context = context
-        context.set_main_window(mock_window)
-
-        context.command_manager = MagicMock()
-        context.command_manager.can_redo.return_value = False
+    def test_redo_with_empty_stack_does_nothing(self, db_session):
+        """Redo with nothing to redo leaves the window alone."""
+        context, mock_window = self._context_with_window(db_session)
+        push_command(context.undo_stack, OkCommand())
 
         context.redo()
-        context.command_manager.redo.assert_not_called()
+
+        mock_window.refresh_project.assert_not_called()
+        mock_window.reload_project.assert_not_called()
 
     def test_redo_success_no_reload(self, db_session):
-        """Test successful redo without structural reload."""
-        context = AppContext(session=db_session)
-        mock_window = MagicMock()
-        mock_window.app_context = context
-        mock_window.messages = MagicMock()
-        mock_window.messages.show_message = MagicMock()
-        context.set_main_window(mock_window)
-
-        mock_command = MagicMock()
-        mock_command.needs_full_reload = False
-
-        context.command_manager = MagicMock()
-        context.command_manager.can_redo.return_value = True
-        context.command_manager.redo_stack = [mock_command]
-        context.command_manager.redo.return_value = True
-        context.command_manager.undo_stack = [mock_command]
+        """Redo of a non-structural command refreshes the window."""
+        context, mock_window = self._context_with_window(db_session)
+        push_command(context.undo_stack, OkCommand(needs_full_reload=False))
+        context.undo_stack.undo()
 
         context.redo()
 
+        assert context.undo_stack.canUndo() is True
         mock_window.refresh_project.assert_called_once()
         mock_window.reload_project.assert_not_called()
         mock_window.messages.show_message.assert_called_with(
@@ -301,68 +284,14 @@ class TestAppContext:
         )
 
     def test_redo_success_with_reload(self, db_session):
-        """Test successful redo with structural reload."""
-        context = AppContext(session=db_session)
-        mock_window = MagicMock()
-        mock_window.app_context = context
-        mock_window.messages = MagicMock()
-        mock_window.messages.show_message = MagicMock()
-        context.set_main_window(mock_window)
-
-        mock_command = MagicMock()
-        mock_command.needs_full_reload = True
-
-        context.command_manager = MagicMock()
-        context.command_manager.can_redo.return_value = True
-        context.command_manager.redo_stack = [mock_command]
-        context.command_manager.redo.return_value = True
-        context.command_manager.undo_stack = [mock_command]
+        """Redo of a structural command reloads the window."""
+        context, mock_window = self._context_with_window(db_session)
+        push_command(context.undo_stack, OkCommand(needs_full_reload=True))
+        push_command(context.undo_stack, OkCommand(needs_full_reload=False))
+        context.undo_stack.undo()
+        context.undo_stack.undo()
 
         context.redo()
 
         mock_window.reload_project.assert_called_once()
-        mock_window.messages.show_message.assert_called_with(
-            "Redone", duration=2000
-        )
-
-    def test_redo_success_reload_from_undo_stack(self, db_session):
-        """Test redo where reload is determined by the command now in undo stack."""
-        context = AppContext(session=db_session)
-        mock_window = MagicMock()
-        mock_window.app_context = context
-        context.set_main_window(mock_window)
-
-        mock_command = MagicMock()
-        mock_command.needs_full_reload = False
-        mock_redone_command = MagicMock()
-        mock_redone_command.needs_full_reload = True
-
-        context.command_manager = MagicMock()
-        context.command_manager.can_redo.return_value = True
-        context.command_manager.redo_stack = [mock_command]
-        context.command_manager.redo.return_value = True
-        context.command_manager.undo_stack = [mock_redone_command]
-
-        context.redo()
-
-        mock_window.reload_project.assert_called_once()
-
-    def test_redo_failed(self, db_session):
-        """Test failed redo."""
-        context = AppContext(session=db_session)
-        mock_window = MagicMock()
-        mock_window.app_context = context
-        mock_window.messages = MagicMock()
-        mock_window.messages.show_message = MagicMock()
-        context.set_main_window(mock_window)
-
-        context.command_manager = MagicMock()
-        context.command_manager.can_redo.return_value = True
-        context.command_manager.redo_stack = [MagicMock()]
-        context.command_manager.redo.return_value = False
-
-        context.redo()
-
-        mock_window.messages.show_message.assert_called_with(
-            "Redo failed", duration=2000
-        )
+        mock_window.refresh_project.assert_not_called()

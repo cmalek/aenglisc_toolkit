@@ -91,6 +91,11 @@ class AppendTextDialog(TextInputMixin):
     def append_text(self) -> None:
         """
         Append text to the current project.
+
+        Side Effects:
+            Appends the ingested text to the project, clears the undo stack,
+            and reloads the project.
+
         """
         # Check that a project is open
         project_id = self.app_context.current_project_id
@@ -120,6 +125,8 @@ class AppendTextDialog(TextInputMixin):
             text=text,
             source_path=source_path,
         )
+        # Undo history refers to the pre-append structure, so drop it.
+        self.app_context.undo_stack.clear()
 
         # Refresh the UI by reloading the project
         self.main_window.reload_project()

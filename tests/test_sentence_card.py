@@ -4,7 +4,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from oeapp.commands import CommandManager
+from oeapp.commands import push_command
+from PySide6.QtGui import QUndoStack
 from oeapp.models import Annotation
 from oeapp.models.idiom import Idiom
 from oeapp.models.token import Token
@@ -27,13 +28,13 @@ class TestSentenceCard:
         sentence = project.sentences[0]
         card = SentenceCard(
             sentence,
-            command_manager=CommandManager(db_session),
+            undo_stack=QUndoStack(),
             main_window=mock_main_window,
             parent=None,
         )
 
         assert card.sentence == sentence
-        assert card.command_manager is not None
+        assert card.undo_stack is not None
         assert card.token_table is not None
 
     def test_sentence_card_has_color_maps(self, db_session, qapp, mock_main_window):
@@ -43,7 +44,7 @@ class TestSentenceCard:
         sentence = project.sentences[0]
         card = SentenceCard(
             sentence,
-            command_manager=CommandManager(db_session),
+            undo_stack=QUndoStack(),
             main_window=mock_main_window,
             parent=None,
         )
@@ -60,7 +61,7 @@ class TestSentenceCard:
         token = sentence.tokens[0]
         card = SentenceCard(
             sentence,
-            command_manager=CommandManager(db_session),
+            undo_stack=QUndoStack(),
             main_window=mock_main_window,
             parent=None,
         )
@@ -91,7 +92,7 @@ class TestSentenceCard:
 
         card = SentenceCard(
             sentence,
-            command_manager=CommandManager(db_session),
+            undo_stack=QUndoStack(),
             main_window=mock_main_window,
             parent=None,
         )
@@ -107,7 +108,7 @@ class TestSentenceCard:
         sentence = project.sentences[0]
         card = SentenceCard(
             sentence,
-            command_manager=CommandManager(db_session),
+            undo_stack=QUndoStack(),
             main_window=mock_main_window,
             parent=None,
         )
@@ -166,7 +167,7 @@ class TestSentenceCard:
         sentence = project.sentences[0]
         card = SentenceCard(
             sentence,
-            command_manager=CommandManager(db_session),
+            undo_stack=QUndoStack(),
             main_window=mock_main_window,
             parent=None,
         )
@@ -204,7 +205,7 @@ class TestSentenceCard:
         sentence = project.sentences[0]
         card = SentenceCard(
             sentence,
-            command_manager=CommandManager(db_session),
+            undo_stack=QUndoStack(),
             main_window=mock_main_window,
             parent=None,
         )
@@ -239,7 +240,7 @@ class TestSentenceCard:
         sentence = project.sentences[0]
         card = SentenceCard(
             sentence,
-            command_manager=CommandManager(db_session),
+            undo_stack=QUndoStack(),
             main_window=mock_main_window,
             parent=None,
         )
@@ -265,7 +266,7 @@ class TestSentenceCard:
         sentence = project.sentences[0]
         card = SentenceCard(
             sentence,
-            command_manager=CommandManager(db_session),
+            undo_stack=QUndoStack(),
             main_window=mock_main_window,
             parent=None,
         )
@@ -331,7 +332,7 @@ class TestSentenceCard:
         sentence = project.sentences[0]
         card = SentenceCard(
             sentence,
-            command_manager=CommandManager(db_session),
+            undo_stack=QUndoStack(),
             main_window=mock_main_window,
             parent=None,
         )
@@ -351,7 +352,7 @@ class TestSentenceCard:
         sentence = project.sentences[0]
         card = SentenceCard(
             sentence,
-            command_manager=CommandManager(db_session),
+            undo_stack=QUndoStack(),
             main_window=mock_main_window,
             parent=None,
         )
@@ -388,7 +389,7 @@ class TestSentenceCard:
         sentence = project.sentences[0]
         card = SentenceCard(
             sentence,
-            command_manager=CommandManager(db_session),
+            undo_stack=QUndoStack(),
             main_window=mock_main_window,
             parent=None,
         )
@@ -437,7 +438,7 @@ class TestSentenceCard:
         sentence = project.sentences[0]
         card = SentenceCard(
             sentence,
-            command_manager=CommandManager(db_session),
+            undo_stack=QUndoStack(),
             main_window=mock_main_window,
             parent=None,
         )
@@ -468,7 +469,7 @@ class TestSentenceCard:
         sentence = project.sentences[0]
         card = SentenceCard(
             sentence,
-            command_manager=CommandManager(db_session),
+            undo_stack=QUndoStack(),
             main_window=mock_main_window,
             parent=None,
         )
@@ -489,7 +490,7 @@ class TestSentenceCard:
         sentence = project.sentences[0]
         card = SentenceCard(
             sentence,
-            command_manager=CommandManager(db_session),
+            undo_stack=QUndoStack(),
             main_window=mock_main_window,
             parent=None,
         )
@@ -502,7 +503,7 @@ class TestSentenceCard:
         sentence = project.sentences[0]
         card = SentenceCard(
             sentence,
-            command_manager=CommandManager(db_session),
+            undo_stack=QUndoStack(),
             main_window=mock_main_window,
             parent=None,
         )
@@ -537,7 +538,7 @@ class TestSentenceCard:
 
         card = SentenceCard(
             sentence,
-            command_manager=CommandManager(db_session),
+            undo_stack=QUndoStack(),
             main_window=mock_main_window,
             parent=None,
         )
@@ -567,7 +568,7 @@ class TestSentenceCard:
 
         card = SentenceCard(
             sentence,
-            command_manager=CommandManager(db_session),
+            undo_stack=QUndoStack(),
             main_window=mock_main_window,
             parent=None,
         )
@@ -589,7 +590,7 @@ class TestSentenceCard:
 
         card = SentenceCard(
             sentence,
-            command_manager=CommandManager(db_session),
+            undo_stack=QUndoStack(),
             main_window=mock_main_window,
             parent=None,
         )
@@ -609,10 +610,10 @@ class TestSentenceCard:
         assert saved is not None
         assert saved.pos == "N"
 
-    def test_sentence_card_requires_command_manager(
+    def test_sentence_card_requires_undo_stack(
         self, db_session, qapp, mock_main_window
     ):
-        """SentenceCard cannot be constructed without a command_manager."""
+        """SentenceCard cannot be constructed without an undo_stack."""
         project = create_test_project(db_session, name="Test", text="Se cyning")
         sentence = project.sentences[0]
 
@@ -627,7 +628,7 @@ class TestSentenceCard:
         sentence = project.sentences[0]
         card = SentenceCard(
             sentence,
-            command_manager=CommandManager(db_session),
+            undo_stack=QUndoStack(),
             main_window=mock_main_window,
             parent=None,
         )
@@ -644,17 +645,17 @@ class TestSentenceCard:
         # position by adding a second sentence to the same paragraph.
         from oeapp.commands import AddSentenceCommand
 
-        command_manager = CommandManager(db_session)
+        undo_stack = QUndoStack()
         add_command = AddSentenceCommand(
             project_id=project.id, reference_sentence_id=sentence.id, position="after"
         )
-        command_manager.execute(add_command)
+        push_command(undo_stack, add_command)
         db_session.refresh(sentence)
         second = sentence.paragraph.sentences[-1]
 
         card = SentenceCard(
             second,
-            command_manager=command_manager,
+            undo_stack=undo_stack,
             main_window=mock_main_window,
             parent=None,
         )
@@ -677,7 +678,7 @@ class TestSentenceCard:
         sentence = project.sentences[0]
         card = SentenceCard(
             sentence,
-            command_manager=CommandManager(db_session),
+            undo_stack=QUndoStack(),
             main_window=mock_main_window,
             parent=None,
         )

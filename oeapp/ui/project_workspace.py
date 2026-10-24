@@ -12,7 +12,6 @@ from oeapp.models.project import Project
 from oeapp.ui.sentence_card import SentenceCard
 
 if TYPE_CHECKING:
-    from oeapp.commands import CommandManager
     from oeapp.models.annotation import Annotation
     from oeapp.models.idiom import Idiom
     from oeapp.models.sentence import Sentence
@@ -45,12 +44,10 @@ class ProjectUI:
         """
         #: Main window hosting navigation combos and sentence cards.
         self.main_window = main_window
-        #: Shared app context for current ids and command manager.
+        #: Shared app context for current ids and the undo stack.
         self.app_context = main_window.app_context
-        #: Main window actions used for command manager access.
+        #: Main window actions for token-level workflows.
         self.action_service = main_window.action_service
-        #: Command manager for sentence-level undoable edits.
-        self.command_manager = self.action_service.command_manager
         #: Sentence cards currently loaded for the active section.
         self.sentence_cards: list[SentenceCard] = []
         #: Paragraph separator widgets currently loaded for the active
@@ -183,7 +180,7 @@ class ProjectUI:
             for sentence in paragraph.sentences:
                 card = SentenceCard(
                     sentence,
-                    command_manager=self.app_context.command_manager,
+                    undo_stack=self.app_context.undo_stack,
                     main_window=self.main_window,
                 )
                 self.sentence_cards.append(card)
@@ -355,22 +352,6 @@ class ProjectUI:
             bool(self.app_context.session) and self.app_context.has_current_project()
         )
 
-    def _restore_command_manager_on_cards(
-        self, command_manager: CommandManager | None,
-    ) -> None:
-        """
-        Restore command manager identity on workspace and sentence cards.
-
-        Args:
-            command_manager: Command manager instance to preserve across reload.
-
-        """
-        if command_manager:
-            self.command_manager = command_manager  # type: ignore[assignment]
-
-        for card in self.sentence_cards:
-            card.command_manager = self.command_manager
-
     def _reload_after_structure_change(
         self,
         *,
@@ -399,11 +380,7 @@ class ProjectUI:
         if project is None:
             return False
 
-        existing_command_manager = self.app_context.command_manager
-
         self.load(project, clear_search=clear_search)
-
-        self._restore_command_manager_on_cards(existing_command_manager)
 
         self.main_window.reload_main_window()
 

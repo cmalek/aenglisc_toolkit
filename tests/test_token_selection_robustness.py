@@ -1,6 +1,6 @@
 import pytest
 from PySide6.QtCore import QPoint, Qt
-from oeapp.commands import CommandManager
+from PySide6.QtGui import QUndoStack
 from oeapp.ui.sentence_card import SentenceCard
 from oeapp.models.token import Token
 from oeapp.models.note import Note
@@ -38,7 +38,7 @@ class TestTokenSelectionRobustness:
 
         card = SentenceCard(
             sentence,
-            command_manager=CommandManager(db_session),
+            undo_stack=QUndoStack(),
             main_window=mock_main_window,
             parent=None,
         )

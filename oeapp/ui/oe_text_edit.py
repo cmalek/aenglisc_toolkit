@@ -11,6 +11,7 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import QTextEdit, QWidget
 
+from oeapp.db import get_runtime_session
 from oeapp.models import Idiom
 from oeapp.ui.highlight_layers import HighlightEntry, HighlightLayer, HighlightLayers
 from oeapp.ui.highlighting import (
@@ -947,7 +948,7 @@ class OldEnglishTextEdit(QTextEdit):
         # Ensure relationships are loaded
         try:
             if sentence.id:
-                self.sentence_card.command_manager.session.refresh(
+                get_runtime_session().refresh(
                     self.sentence, ["notes", "idioms", "tokens"]
                 )
         except Exception:  # noqa: BLE001

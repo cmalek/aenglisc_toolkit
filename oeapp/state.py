@@ -6,8 +6,9 @@ import sys
 from typing import TYPE_CHECKING, Final, cast
 
 from PySide6.QtCore import QObject, QSettings, Signal
+from PySide6.QtGui import QUndoCommand, QUndoStack
 
-from oeapp.commands import CommandManager
+from oeapp.commands import UndoCommand
 from oeapp.db import clear_runtime_session, get_runtime_session, set_runtime_session
 
 if TYPE_CHECKING:
@@ -15,6 +16,9 @@ if TYPE_CHECKING:
 
     from oeapp.models import AnnotationJson
     from oeapp.ui.main_window import MainWindow
+
+#: Maximum number of commands kept on the application undo stack.
+UNDO_LIMIT: Final[int] = 50
 
 
 class AppContext(QObject):
@@ -71,8 +75,20 @@ class AppContext(QObject):
         self._current_section_id: int | None = None
         #: Backing store for the Copied Annotation (validated payload).
         self._copied_annotation: AnnotationJson | None = None
-        #: Command manager for undoable app actions.
-        self.command_manager = CommandManager(self.session)
+        #: Project-scoped undo history for app actions.
+        self.undo_stack: QUndoStack = self._new_undo_stack()
+
+    def _new_undo_stack(self) -> QUndoStack:
+        """
+        Build an empty undo stack with the application undo limit.
+
+        Returns:
+            New stack parented to this context.
+
+        """
+        stack = QUndoStack(self)
+        stack.setUndoLimit(UNDO_LIMIT)
+        return stack
 
     @property
     def session(self) -> Session:
@@ -93,12 +109,8 @@ class AppContext(QObject):
         Args:
             session: Session to register as the runtime session.
 
-        Side Effects:
-            Updates the command manager session.
-
         """
         set_runtime_session(session)
-        self.command_manager.session = session
 
     def close_session(self) -> None:
         """
@@ -140,11 +152,14 @@ class AppContext(QObject):
             project_id: Active project id, or ``None`` to clear it.
 
         Side Effects:
-            Emits :attr:`current_project_id_changed` when value changes.
+            Clears :attr:`undo_stack` when leaving an open project and emits
+            :attr:`current_project_id_changed` when value changes.
 
         """
         if self._current_project_id == project_id:
             return
+        if self._current_project_id is not None:
+            self.undo_stack.clear()
         self._current_project_id = project_id
         self.current_project_id_changed.emit(project_id)
 
@@ -251,11 +266,12 @@ class AppContext(QObject):
 
         Side Effects:
             Closes and recreates the runtime session, resets context state, and
-            reinitializes the command manager.
+            replaces the undo stack with a new empty one.
 
         """
         self.close_session()
-        self.command_manager = CommandManager(self.session)
+        self.undo_stack.deleteLater()
+        self.undo_stack = self._new_undo_stack()
         self.main_window = None
         self.current_project_id = None
         self.current_chapter_id = None
@@ -336,57 +352,54 @@ class AppContext(QObject):
         Undo the most recent command.
 
         Side Effects:
-            Refreshes or reloads the main window when an undo succeeds.
+            Undoes the top of :attr:`undo_stack`, then reloads or refreshes the
+            main window.
 
         """
         main_window = cast("MainWindow | None", self.main_window)
         assert main_window is not None, "Main window not set"  # noqa: S101
-        if self.command_manager and self.command_manager.can_undo():
-            needs_full_reload = False
-            if self.command_manager.undo_stack:
-                last_command = self.command_manager.undo_stack[-1]
-                needs_full_reload = last_command.needs_full_reload
-            if self.command_manager.undo():
-                self.show_message("Undone")
-                if not needs_full_reload and self.command_manager.redo_stack:
-                    last_undone = self.command_manager.redo_stack[-1]
-                    needs_full_reload = last_undone.needs_full_reload
-
-                if needs_full_reload:
-                    main_window.reload_project()
-                else:
-                    main_window.refresh_project()
-            else:
-                self.show_message("Undo failed")
+        if not self.undo_stack.canUndo():
+            return
+        command = self.undo_stack.command(self.undo_stack.index() - 1)
+        self.undo_stack.undo()
+        self.show_message("Undone")
+        self._refresh_after(command)
 
     def redo(self) -> None:
         """
         Redo the most recently undone command.
 
         Side Effects:
-            Refreshes or reloads the main window when a redo succeeds.
+            Redoes the next command on :attr:`undo_stack`, then reloads or
+            refreshes the main window.
 
         """
         main_window = cast("MainWindow | None", self.main_window)
         assert main_window is not None, "Main window is not set"  # noqa: S101
-        if self.command_manager and self.command_manager.can_redo():
-            needs_full_reload = False
-            if self.command_manager.redo_stack:
-                last_command = self.command_manager.redo_stack[-1]
-                needs_full_reload = last_command.needs_full_reload
+        if not self.undo_stack.canRedo():
+            return
+        command = self.undo_stack.command(self.undo_stack.index())
+        self.undo_stack.redo()
+        self.show_message("Redone")
+        self._refresh_after(command)
 
-            if self.command_manager.redo():
-                self.show_message("Redone")
-                if not needs_full_reload and self.command_manager.undo_stack:
-                    last_redone = self.command_manager.undo_stack[-1]
-                    needs_full_reload = last_redone.needs_full_reload
+    def _refresh_after(self, command: QUndoCommand | None) -> None:
+        """
+        Reload or refresh the main window after an undo or redo.
 
-                if needs_full_reload:
-                    main_window.reload_project()
-                else:
-                    main_window.refresh_project()
-            else:
-                self.show_message("Redo failed")
+        Args:
+            command: The stack entry that was just undone or redone.
+
+        Side Effects:
+            Calls ``reload_project`` when the command needs a full reload, and
+            ``refresh_project`` otherwise.
+
+        """
+        main_window = cast("MainWindow", self.main_window)
+        if isinstance(command, UndoCommand) and command.command.needs_full_reload:
+            main_window.reload_project()
+        else:
+            main_window.refresh_project()
 
 
 #: Default settings storage organization.

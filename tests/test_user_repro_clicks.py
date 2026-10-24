@@ -1,5 +1,5 @@
 import pytest
-from oeapp.commands import CommandManager
+from PySide6.QtGui import QUndoStack
 from oeapp.ui.sentence_card import SentenceCard
 from oeapp.models.token import Token
 from tests.conftest import create_test_project
@@ -10,7 +10,7 @@ def test_user_problematic_sentence_clicks(db_session, qapp, mock_main_window):
     sentence = project.sentences[0]
     card = SentenceCard(
         sentence,
-        command_manager=CommandManager(db_session),
+        undo_stack=QUndoStack(),
         main_window=mock_main_window,
         parent=None,
     )

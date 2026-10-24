@@ -1,6 +1,6 @@
 """Unit tests for NoteDialog."""
 
-from unittest.mock import MagicMock
+from PySide6.QtGui import QUndoStack
 
 from oeapp.ui.dialogs.note_dialog import NoteDialog
 from tests.conftest import create_test_project
@@ -96,15 +96,14 @@ class TestNoteDialog:
 
         dialog.note_text_edit.setPlainText("New note text")
 
-        # Mock command manager to avoid actual command execution
-        mock_command_manager = MagicMock()
-        dialog.command_manager = mock_command_manager
+        undo_stack = QUndoStack()
+        dialog.undo_stack = undo_stack
 
         # Simulate save button click
         dialog._on_save_clicked()
 
         # Check that command was created
-        assert mock_command_manager.execute.called
+        assert undo_stack.count() == 1
 
     def test_note_dialog_updates_existing_note(self, db_session, qapp):
         """Test NoteDialog updates an existing note."""
@@ -134,15 +133,14 @@ class TestNoteDialog:
 
         dialog.note_text_edit.setPlainText("Updated text")
 
-        # Mock command manager
-        mock_command_manager = MagicMock()
-        dialog.command_manager = mock_command_manager
+        undo_stack = QUndoStack()
+        dialog.undo_stack = undo_stack
 
         # Simulate save button click
         dialog._on_save_clicked()
 
         # Check that update command was created
-        assert mock_command_manager.execute.called
+        assert undo_stack.count() == 1
 
     def test_note_dialog_deletes_note(self, db_session, qapp):
         """Test NoteDialog deletes a note when delete button is clicked."""
@@ -171,13 +169,12 @@ class TestNoteDialog:
             session=db_session
         )
 
-        # Mock command manager
-        mock_command_manager = MagicMock()
-        dialog.command_manager = mock_command_manager
+        undo_stack = QUndoStack()
+        dialog.undo_stack = undo_stack
 
         # Simulate delete button click
         dialog._on_delete_clicked()
 
         # Check that delete command was created
-        assert mock_command_manager.execute.called
+        assert undo_stack.count() == 1
 

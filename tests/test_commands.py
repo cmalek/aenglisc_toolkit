@@ -1,4 +1,4 @@
-"""Unit tests for CommandManager and AnnotateTokenCommand."""
+"""Unit tests for commands pushed onto a QUndoStack."""
 
 import pytest
 
@@ -9,6 +9,7 @@ from oeapp.commands import (
     DeleteNoteCommand,
     SplitParagraphCommand,
     MergeParagraphCommand,
+    push_command,
 )
 from oeapp.models.annotation import Annotation
 from oeapp.models.idiom import Idiom
@@ -17,14 +18,14 @@ from oeapp.models.sentence import Sentence
 from oeapp.models.token import Token
 
 
-class TestCommandManager:
-    """Test cases for CommandManager."""
+class TestUndoStackCommands:
+    """Test cases for commands run through the undo stack."""
 
     def test_execute_and_undo_new_annotation(self, command_setup):
         """Test executing and undoing a new annotation."""
         setup = command_setup
         token_id = setup["token_id"]
-        command_manager = setup["command_manager"]
+        undo_stack = setup["undo_stack"]
         session = setup["session"]
 
         before = {
@@ -73,7 +74,7 @@ class TestCommandManager:
         command = AnnotateTokenCommand(token_id=token_id, before=before, after=after)
 
         # Execute command
-        assert command_manager.execute(command)
+        assert push_command(undo_stack, command)
 
         # Verify annotation was created
         annotation = session.get(Annotation, token_id)
@@ -86,7 +87,7 @@ class TestCommandManager:
         assert annotation.confidence == 95
 
         # Undo command
-        assert command_manager.undo()
+        undo_stack.undo()
 
         # Verify annotation was reset to before state (empty values)
         annotation = session.get(Annotation, token_id)
@@ -102,7 +103,7 @@ class TestCommandManager:
         """Test executing and undoing an annotation update."""
         setup = command_setup
         token_id = setup["token_id"]
-        command_manager = setup["command_manager"]
+        undo_stack = setup["undo_stack"]
         session = setup["session"]
 
         # Get or create initial annotation
@@ -153,7 +154,7 @@ class TestCommandManager:
         command = AnnotateTokenCommand(token_id=token_id, before=before, after=after)
 
         # Execute command
-        assert command_manager.execute(command)
+        assert push_command(undo_stack, command)
 
         # Verify annotation was updated
         annotation = session.get(Annotation, token_id)
@@ -161,7 +162,7 @@ class TestCommandManager:
         assert annotation.confidence == 60
 
         # Undo command
-        assert command_manager.undo()
+        undo_stack.undo()
 
         # Verify annotation was restored
         annotation = session.get(Annotation, token_id)
@@ -172,7 +173,7 @@ class TestCommandManager:
         """Test redo functionality after undo."""
         setup = command_setup
         token_id = setup["token_id"]
-        command_manager = setup["command_manager"]
+        undo_stack = setup["undo_stack"]
         session = setup["session"]
 
         before = {
@@ -218,15 +219,15 @@ class TestCommandManager:
         )
 
         command = AnnotateTokenCommand(token_id, before, after)
-        command_manager.execute(command)
+        push_command(undo_stack, command)
 
         # Undo
-        command_manager.undo()
+        undo_stack.undo()
         annotation = session.get(Annotation, token_id)
         assert annotation.pos is None
 
         # Redo
-        assert command_manager.redo()
+        undo_stack.redo()
 
         # Verify annotation is back
         annotation = session.get(Annotation, token_id)
@@ -238,7 +239,7 @@ class TestCommandManager:
         setup = command_setup
         token_id = setup["token_id"]
         sentence_id = setup["sentence_id"]
-        command_manager = setup["command_manager"]
+        undo_stack = setup["undo_stack"]
         session = setup["session"]
 
         tokens = Token.list(sentence_id)
@@ -307,28 +308,28 @@ class TestCommandManager:
         command1 = AnnotateTokenCommand(token_id, before, after1)
         command2 = AnnotateTokenCommand(token_id_2, before, after2)
 
-        command_manager.execute(command1)
-        command_manager.execute(command2)
+        push_command(undo_stack, command1)
+        push_command(undo_stack, command2)
 
         # Undo once - should undo second command
-        command_manager.undo()
+        undo_stack.undo()
         annotation2 = session.get(Annotation, token_id_2)
         assert annotation2.pos is None
         annotation1 = session.get(Annotation, token_id)
         assert annotation1.pos == "R"
 
         # Undo again - should undo first command
-        command_manager.undo()
+        undo_stack.undo()
         annotation1 = session.get(Annotation, token_id)
         assert annotation1.pos is None
 
     def test_can_undo_can_redo(self, command_setup):
-        """Test can_undo and can_redo state tracking."""
-        command_manager = command_setup["command_manager"]
+        """Test canUndo and canRedo state tracking."""
+        undo_stack = command_setup["undo_stack"]
         token_id = command_setup["token_id"]
 
-        assert not command_manager.can_undo()
-        assert not command_manager.can_redo()
+        assert not undo_stack.canUndo()
+        assert not undo_stack.canRedo()
 
         before = {
             k: None
@@ -366,18 +367,18 @@ class TestCommandManager:
         )
 
         command = AnnotateTokenCommand(token_id, before, after)
-        command_manager.execute(command)
+        push_command(undo_stack, command)
 
-        assert command_manager.can_undo()
-        assert not command_manager.can_redo()
+        assert undo_stack.canUndo()
+        assert not undo_stack.canRedo()
 
-        command_manager.undo()
-        assert not command_manager.can_undo()
-        assert command_manager.can_redo()
+        undo_stack.undo()
+        assert not undo_stack.canUndo()
+        assert undo_stack.canRedo()
 
-        command_manager.redo()
-        assert command_manager.can_undo()
-        assert not command_manager.can_redo()
+        undo_stack.redo()
+        assert undo_stack.canUndo()
+        assert not undo_stack.canRedo()
 
     def test_execute_creates_new_idiom_and_annotation(self, command_setup):
         """A new_idiom is persisted, linked, and refreshes the sentence collections."""
@@ -386,7 +387,7 @@ class TestCommandManager:
         from oeapp.models.token import Token
 
         setup = command_setup
-        command_manager = setup["command_manager"]
+        undo_stack = setup["undo_stack"]
         session = setup["session"]
         sentence_id = setup["sentence_id"]
 
@@ -410,7 +411,7 @@ class TestCommandManager:
             sentence_id=sentence_id,
         )
 
-        assert command_manager.execute(command)
+        assert push_command(undo_stack, command)
 
         # The idiom was persisted and given a real id.
         assert new_idiom.id is not None
@@ -432,7 +433,7 @@ class TestCommandManager:
         from oeapp.models.token import Token
 
         setup = command_setup
-        command_manager = setup["command_manager"]
+        undo_stack = setup["undo_stack"]
         sentence_id = setup["sentence_id"]
 
         tokens = Token.list(sentence_id)
@@ -451,10 +452,10 @@ class TestCommandManager:
             sentence_id=sentence_id,
         )
 
-        assert command_manager.execute(command)
+        assert push_command(undo_stack, command)
         created_idiom_id = command.idiom_id
 
-        assert command_manager.undo()
+        undo_stack.undo()
 
         assert Idiom.get(created_idiom_id) is None
         assert Annotation.get_by_idiom(created_idiom_id) is None
@@ -474,7 +475,7 @@ class TestCommandManager:
         from oeapp.models.token import Token
 
         setup = command_setup
-        command_manager = setup["command_manager"]
+        undo_stack = setup["undo_stack"]
         sentence_id = setup["sentence_id"]
 
         tokens = Token.list(sentence_id)
@@ -493,13 +494,13 @@ class TestCommandManager:
             sentence_id=sentence_id,
         )
 
-        assert command_manager.execute(command)
+        assert push_command(undo_stack, command)
         first_idiom_id = command.idiom_id
 
-        assert command_manager.undo()
+        undo_stack.undo()
         assert Idiom.get(first_idiom_id) is None
 
-        assert command_manager.redo()
+        undo_stack.redo()
 
         # Redo must have created a *new* idiom row (old id is gone for good).
         assert command.idiom_id is not None

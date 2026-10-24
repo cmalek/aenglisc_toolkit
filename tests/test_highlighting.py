@@ -3,7 +3,7 @@ from PySide6.QtGui import QColor, QTextCursor
 from PySide6.QtWidgets import QComboBox, QTextEdit
 from unittest.mock import patch
 
-from oeapp.commands import CommandManager
+from PySide6.QtGui import QUndoStack
 from oeapp.models.annotation import Annotation
 from oeapp.ui.highlighting import (
     SearchHighlighter,
@@ -30,7 +30,7 @@ class TestHighlighting:
         sentence = project.sentences[0]
         card = SentenceCard(
             sentence,
-            command_manager=CommandManager(db_session),
+            undo_stack=QUndoStack(),
             main_window=mock_main_window,
             parent=None,
         )
@@ -292,7 +292,7 @@ class TestSingleInstanceHighlighter:
         sentence = project.sentences[0]
         card = SentenceCard(
             sentence,
-            command_manager=CommandManager(db_session),
+            undo_stack=QUndoStack(),
             main_window=mock_main_window,
             parent=None,
         )
@@ -424,7 +424,7 @@ class TestSearchHighlighterClear:
         project = create_test_project(db_session, name="Clear", text="Se cyning fēoll.")
         card = SentenceCard(
             project.sentences[0],
-            command_manager=CommandManager(db_session),
+            undo_stack=QUndoStack(),
             main_window=mock_main_window,
             parent=None,
         )
