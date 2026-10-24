@@ -53,6 +53,31 @@ Download the ``.dmg`` from the
 See :doc:`installation` for the full walkthrough, including the source
 install path for contributors.
 
+Why does macOS say it cannot verify that the app is free of malware?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+macOS displays this warning because the maintainers do not yet have an Apple
+Developer Program membership, so the downloaded app is not signed with an
+Apple Developer ID certificate or notarized by Apple. The warning does not
+mean that macOS found malware; it means that Gatekeeper cannot verify the
+developer and notarization status of the app.
+
+After attempting to open the app, open **System Settings**, select **Privacy &
+Security**, and click **Open Anyway** for ``Ænglisc Toolkit``. Authenticate when
+prompted, then confirm that you want to open the app.
+
+If **Open Anyway** is unavailable, and you downloaded the app from the
+official GitHub Releases page linked above, remove the quarantine attribute in
+Terminal and open the app again:
+
+.. code-block:: bash
+
+   sudo xattr -dr com.apple.quarantine "/Applications/Ænglisc Toolkit.app"
+   open "/Applications/Ænglisc Toolkit.app"
+
+Do not disable Gatekeeper globally, and do not use this workaround for a copy
+obtained from another source.
+
 Is there a Windows or Linux build?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

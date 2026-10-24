@@ -24,11 +24,12 @@ Installing the packaged app (macOS)
 
 .. note::
 
-   The first time you open the app, macOS Gatekeeper may warn that it's
-   from an unidentified developer, since the app isn't notarized through
-   the Mac App Store. Right-click (or Control-click) the app and choose
-   **Open**, then confirm in the dialog that appears. You only need to do
-   this once.
+   The first time you open the app, macOS Gatekeeper may warn that it
+   cannot verify the app, since it isn't signed with an Apple Developer ID
+   or notarized by Apple. Try to open the app once, then open **System
+   Settings**, select **Privacy & Security**, and click **Open Anyway**
+   for **Ænglisc Toolkit**. You only need to do this once. See
+   :doc:`/overview/faq` if **Open Anyway** is unavailable.
 
 That's it — no Python, ``git``, or command line required for this path. See
 :doc:`/overview/quickstart` to start your first project.

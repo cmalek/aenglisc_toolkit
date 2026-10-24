@@ -149,3 +149,5 @@ oeapp/help/assets/.topics-*
 .worktrees/
 default.db-shm
 default.db-wal
+.claude/worktrees
+doc/_build
