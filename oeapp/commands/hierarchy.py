@@ -163,15 +163,15 @@ class SplitSectionCommand(SessionMixin, Command):
         session.expire_all()
         return True
 
-    def get_description(self) -> str:
+    def menu_text(self) -> str:
         """
-        Get description.
+        Get the plain-language name shown in the Edit menu.
 
         Returns:
-            The computed value.
+            Short action name with no database ids.
 
         """
-        return f"Split section at paragraph {self.paragraph_id}"
+        return "Split section"
 
 
 @dataclass
@@ -323,15 +323,15 @@ class MergeSectionCommand(SessionMixin, Command):
         session.expire_all()
         return True
 
-    def get_description(self) -> str:
+    def menu_text(self) -> str:
         """
-        Get description.
+        Get the plain-language name shown in the Edit menu.
 
         Returns:
-            The computed value.
+            Short action name with no database ids.
 
         """
-        return f"Merge section at paragraph {self.paragraph_id} with previous"
+        return "Merge sections"
 
 
 @dataclass
@@ -481,15 +481,15 @@ class SplitChapterCommand(SessionMixin, Command):
         session.expire_all()
         return True
 
-    def get_description(self) -> str:
+    def menu_text(self) -> str:
         """
-        Get description.
+        Get the plain-language name shown in the Edit menu.
 
         Returns:
-            The computed value.
+            Short action name with no database ids.
 
         """
-        return f"Split chapter at section {self.section_id}"
+        return "Split chapter"
 
 
 @dataclass
@@ -634,12 +634,12 @@ class MergeChapterCommand(SessionMixin, Command):
         session.expire_all()
         return True
 
-    def get_description(self) -> str:
+    def menu_text(self) -> str:
         """
-        Get description.
+        Get the plain-language name shown in the Edit menu.
 
         Returns:
-            The computed value.
+            Short action name with no database ids.
 
         """
-        return f"Merge chapter at section {self.section_id} with previous"
+        return "Merge chapters"

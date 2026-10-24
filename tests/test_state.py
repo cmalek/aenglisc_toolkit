@@ -26,7 +26,7 @@ class OkCommand(Command):
         """Succeed."""
         return True
 
-    def get_description(self) -> str:
+    def menu_text(self) -> str:
         """Describe the command."""
         return "Ok"
 
@@ -64,7 +64,7 @@ class FlakyCommand(Command):
         self.undo_calls += 1
         return self.undo_ok
 
-    def get_description(self) -> str:
+    def menu_text(self) -> str:
         """Describe the command."""
         return "Flaky"
 

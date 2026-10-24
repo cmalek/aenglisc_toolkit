@@ -72,15 +72,15 @@ class AddNoteCommand(SessionMixin, Command):
         note.delete()
         return True
 
-    def get_description(self) -> str:
+    def menu_text(self) -> str:
         """
-        Get command description.
+        Get the plain-language name shown in the Edit menu.
 
         Returns:
-            Description string
+            Short action name with no database ids.
 
         """
-        return f"Add note {self.note_number} to sentence {self.sentence_id}"
+        return "Add note"
 
     def _get_next_note_number(self) -> int:
         """
@@ -235,15 +235,15 @@ class UpdateNoteCommand(SessionMixin, Command):
         note.save()
         return True
 
-    def get_description(self) -> str:
+    def menu_text(self) -> str:
         """
-        Get command description.
+        Get the plain-language name shown in the Edit menu.
 
         Returns:
-            Description string
+            Short action name with no database ids.
 
         """
-        return f"Update note {self.note_id}"
+        return "Update note"
 
 
 @dataclass
@@ -321,12 +321,12 @@ class DeleteNoteCommand(SessionMixin, Command):
         self.note_id = note.id
         return True
 
-    def get_description(self) -> str:
+    def menu_text(self) -> str:
         """
-        Get command description.
+        Get the plain-language name shown in the Edit menu.
 
         Returns:
-            Description string
+            Short action name with no database ids.
 
         """
-        return f"Delete note {self.note_id}"
+        return "Delete note"

@@ -27,14 +27,24 @@ class Command(ABC):
         """
 
     @abstractmethod
-    def get_description(self) -> str:
+    def menu_text(self) -> str:
         """
-        Get human-readable description of the command.
+        Get the plain-language name of the command.
 
         Returns:
-            Description string
+            Short action name with no database ids, such as ``Add note``
 
         """
+
+    def get_description(self) -> str:
+        """
+        Get human-readable description of the command, for logs.
+
+        Returns:
+            The same text as :meth:`menu_text`
+
+        """
+        return self.menu_text()
 
     @property
     def needs_full_reload(self) -> bool:

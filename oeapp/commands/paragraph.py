@@ -141,15 +141,15 @@ class SplitParagraphCommand(SessionMixin, Command):
         session.commit()
         return True
 
-    def get_description(self) -> str:
+    def menu_text(self) -> str:
         """
-        Get description.
+        Get the plain-language name shown in the Edit menu.
 
         Returns:
-            The computed value.
+            Short action name with no database ids.
 
         """
-        return f"Split paragraph at sentence {self.sentence_id}"
+        return "Split paragraph"
 
 
 @dataclass
@@ -291,12 +291,12 @@ class MergeParagraphCommand(SessionMixin, Command):
         session.commit()
         return True
 
-    def get_description(self) -> str:
+    def menu_text(self) -> str:
         """
-        Get description.
+        Get the plain-language name shown in the Edit menu.
 
         Returns:
-            The computed value.
+            Short action name with no database ids.
 
         """
-        return f"Merge paragraph at sentence {self.sentence_id} with previous"
+        return "Merge paragraphs"

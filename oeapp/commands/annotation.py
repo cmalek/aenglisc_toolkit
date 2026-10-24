@@ -149,16 +149,15 @@ class AnnotateTokenCommand(SessionMixin, Command):
         annotation.from_json(annotation.token_id, self.before, annotation.idiom_id)
         return True
 
-    def get_description(self) -> str:
+    def menu_text(self) -> str:
         """
-        Get command description.
+        Get the plain-language name shown in the Edit menu.
 
         Returns:
-            The computed value.
+            Short action name with no database ids.
 
         """
-        target = f"token {self.token_id}" if self.token_id else f"idiom {self.idiom_id}"
-        return f"Annotate {target}"
+        return "Annotate"
 
 
 @dataclass
@@ -214,16 +213,15 @@ class ApplyRememberedAnnotationsCommand(SessionMixin, Command):
             return False
         return True
 
-    def get_description(self) -> str:
+    def menu_text(self) -> str:
         """
-        Get command description.
+        Get the plain-language name shown in the Edit menu.
 
         Returns:
-            Human-readable undo-stack label.
+            Short action name with no database ids.
 
         """
-        token_count = len(self.token_ids)
-        return f"Apply remembered annotations to {token_count} token(s)"
+        return "Apply remembered annotations"
 
 
 @dataclass
@@ -273,13 +271,12 @@ class ApplyAnnotationPropagationCommand(SessionMixin, Command):
             return False
         return True
 
-    def get_description(self) -> str:
+    def menu_text(self) -> str:
         """
-        Get command description.
+        Get the plain-language name shown in the Edit menu.
 
         Returns:
-            Human-readable undo-stack label.
+            Short action name with no database ids.
 
         """
-        token_count = len(self.token_ids)
-        return f"Propagate annotation to {token_count} token(s)"
+        return "Propagate annotation"

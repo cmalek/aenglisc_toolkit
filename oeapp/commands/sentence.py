@@ -73,15 +73,15 @@ class EditSentenceCommand(SessionMixin, Command):
             sentence.save()
         return True
 
-    def get_description(self) -> str:
+    def menu_text(self) -> str:
         """
-        Get command description.
+        Get the plain-language name shown in the Edit menu.
 
         Returns:
-            Description string
+            Short action name with no database ids.
 
         """
-        return f"Edit sentence {self.sentence_id} {self.field}"
+        return "Edit translation" if self.field == "text_modern" else "Edit Old English"
 
     @property
     def needs_full_reload(self) -> bool:
@@ -307,15 +307,15 @@ class MergeSentenceCommand(SessionMixin, Command):
         session.commit()
         return True
 
-    def get_description(self) -> str:
+    def menu_text(self) -> str:
         """
-        Get command description.
+        Get the plain-language name shown in the Edit menu.
 
         Returns:
-            Description string
+            Short action name with no database ids.
 
         """
-        return f"Merge sentence {self.current_sentence_id} with {self.next_sentence_id}"
+        return "Merge sentences"
 
     @property
     def needs_full_reload(self) -> bool:
@@ -439,16 +439,15 @@ class AddSentenceCommand(SessionMixin, Command):
 
         return True
 
-    def get_description(self) -> str:
+    def menu_text(self) -> str:
         """
-        Get command description.
+        Get the plain-language name shown in the Edit menu.
 
         Returns:
-            Description string
+            Short action name with no database ids.
 
         """
-        position_str = "before" if self.position == "before" else "after"
-        return f"Add sentence {position_str} sentence {self.reference_sentence_id}"
+        return "Add sentence"
 
 
 @dataclass
@@ -668,12 +667,12 @@ class DeleteSentenceCommand(SessionMixin, Command):
 
         return True
 
-    def get_description(self) -> str:
+    def menu_text(self) -> str:
         """
-        Get command description.
+        Get the plain-language name shown in the Edit menu.
 
         Returns:
-            Description string
+            Short action name with no database ids.
 
         """
-        return f"Delete sentence {self.sentence_id}"
+        return "Delete sentence"

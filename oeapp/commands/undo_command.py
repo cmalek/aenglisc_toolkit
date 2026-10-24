@@ -32,7 +32,7 @@ class UndoCommand(QUndoCommand):
             outcome: Caller-owned dict that receives the result of ``execute``.
 
         """
-        super().__init__(command.get_description())
+        super().__init__(command.menu_text())
         #: The wrapped command.
         self.command: Command = command
         #: Whether this command is part of an open run of mergeable commands.

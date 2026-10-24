@@ -28,7 +28,7 @@ class _OkCommand(Command):
         """Succeed."""
         return True
 
-    def get_description(self) -> str:
+    def menu_text(self) -> str:
         """Describe the command."""
         return "Ok"
 
