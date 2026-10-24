@@ -44,6 +44,8 @@ class AppContext(QObject):
     current_section_id_changed = Signal(object)
     #: Emitted when copied annotation payload changes.
     copied_annotation_changed = Signal(object)
+    #: Emitted with the new stack when :attr:`undo_stack` is replaced.
+    undo_stack_replaced = Signal(object)
 
     def __init__(
         self,
@@ -266,12 +268,14 @@ class AppContext(QObject):
 
         Side Effects:
             Closes and recreates the runtime session, resets context state, and
-            replaces the undo stack with a new empty one.
+            replaces the undo stack with a new empty one and emits
+            :attr:`undo_stack_replaced`.
 
         """
         self.close_session()
         self.undo_stack.deleteLater()
         self.undo_stack = self._new_undo_stack()
+        self.undo_stack_replaced.emit(self.undo_stack)
         self.main_window = None
         self.current_project_id = None
         self.current_chapter_id = None

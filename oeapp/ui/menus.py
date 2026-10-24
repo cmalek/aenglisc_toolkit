@@ -14,6 +14,7 @@ from oeapp.ui.dialogs import (
     RememberedAnnotationsDialog,
 )
 from oeapp.ui.dialogs.log_viewer import LogViewerDialog
+from oeapp.ui.edit_menu import EditMenu
 from oeapp.ui.full_translation_window import FullTranslationWindow
 
 # Import AnnotationPresetManagementDialog lazily when needed to avoid import-time issues
@@ -81,6 +82,7 @@ class MainMenu:
         # if needed.
         self.file_menu_obj = FileMenu(self, self.main_window)
         self.file_menu = self.file_menu_obj.file_menu
+        self.edit_menu = EditMenu(self, self.main_window)
         self.project_menu = ProjectMenu(self, self.main_window)
         self.tools_menu = ToolsMenu(self, self.main_window)
         self.window_menu_obj = WindowMenu(self, self.main_window)

@@ -50,7 +50,6 @@ class GlobalShortcuts(ShortcutsMixin):
 
     The following shortcuts are set up here:
 
-    - Focus search input: Ctrl+F
     - Focus first match: Ctrl+G
     - Next search match: N (Works in search mode only)
     - Previous search match: Shift+N (Works in search mode only)
@@ -59,8 +58,6 @@ class GlobalShortcuts(ShortcutsMixin):
         - If in search mode: Clear search
         - If not in search mode: Undo all highlighting and selection
 
-    - Undo: Ctrl+Z
-    - Redo: Ctrl+R or Ctrl+Shift+R
     - Scroll to last sentence: Shift+Down
     - Scroll to first sentence: Shift+Up
 
@@ -88,10 +85,6 @@ class GlobalShortcuts(ShortcutsMixin):
         self.add_shortcut("N", self.main_window.action_service.next_match)
         self.add_shortcut("Shift+N", self.main_window.action_service.prev_match)
         self.add_shortcut("Escape", self.main_window.action_service.on_escape_pressed)
-        self.add_shortcut("Ctrl+Z", self.main_window.app_context.undo)
-        self.add_shortcut("Ctrl+R", self.main_window.app_context.redo)
-        self.add_shortcut("Ctrl+Shift+R", self.main_window.app_context.redo)
-        self.add_shortcut("Ctrl+F", self.main_window.action_service.focus_search_input)
         self.add_shortcut("Ctrl+G", self.main_window.action_service.focus_first_match)
         self.add_shortcut("Shift+Down", self.main_window.action_service.scroll_to_end)
         self.add_shortcut("Shift+Up", self.main_window.action_service.scroll_to_start)
