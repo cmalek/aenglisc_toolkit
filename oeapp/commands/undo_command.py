@@ -134,11 +134,16 @@ class UndoCommand(QUndoCommand):
             ``before`` is kept.
 
         Returns:
-            ``True`` when this command's run is open and both commands edit the
-            translation of the same sentence.
+            ``True`` when this command's run is open, ``other`` succeeded (is
+            not obsolete), and both commands edit the translation of the same
+            sentence.
 
         """
-        if not self._run_open or not isinstance(other, UndoCommand):
+        if (
+            not self._run_open
+            or not isinstance(other, UndoCommand)
+            or other.isObsolete()
+        ):
             return False
         sentence_id = _translation_sentence_id(self.command)
         if sentence_id is None or sentence_id != _translation_sentence_id(

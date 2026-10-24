@@ -3,12 +3,13 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
-from oeapp.commands import EditSentenceCommand, UndoCommand
+from oeapp.commands import EditSentenceCommand, UndoCommand, push_command
 from oeapp.models.project import Project
 from oeapp.state import AppContext
 from oeapp.ui.main_window import MainWindow
 from oeapp.ui.typed_run import TypedRun
 from PySide6.QtCore import QPoint, Qt
+from PySide6.QtGui import QUndoStack
 from PySide6.QtTest import QTest
 
 
@@ -118,6 +119,29 @@ def test_merge_requires_open_receiver_and_same_sentence():
     assert receiver.mergeWith(other) is True
     assert receiver.command.before == ""
     assert receiver.command.after == "ab"
+
+
+def test_failed_translation_write_does_not_merge_into_open_run(qapp):
+    stack = QUndoStack()
+    with patch.object(EditSentenceCommand, "execute", return_value=True):
+        push_command(
+            stack,
+            EditSentenceCommand(
+                sentence_id=1, field="text_modern", before="", after="a"
+            ),
+        )
+    receiver = stack.command(0)
+    TypedRun().open_for(receiver)
+    with patch.object(EditSentenceCommand, "execute", return_value=False):
+        ok = push_command(
+            stack,
+            EditSentenceCommand(
+                sentence_id=1, field="text_modern", before="a", after="ab"
+            ),
+        )
+    assert ok is False
+    assert stack.count() == 1
+    assert receiver.command.after == "a"
 
 
 def test_end_closes_the_open_command_and_clears_fields():
