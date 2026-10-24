@@ -21,3 +21,5 @@ writing instructions.
    adr_0006_copied_annotation
    adr_0007_migration_backup_consolidation
    adr_0008_partially_normalized_spelling
+   adr_0009_project_scoped_qundostack
+   adr_0010_typed_run_undo

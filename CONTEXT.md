@@ -19,6 +19,14 @@ A named body of work: one Old English source text plus the translator's
 structure, annotations, notes, and Modern English translation.
 _Avoid_: Document, file, corpus, workspace
 
+**Undo History**:
+The reversible actions available while one project is open. It starts fresh
+when a different project is opened, when the open project is closed or
+deleted, or when Old English text is appended to it. Opening the project
+that is already open does not. Moving within the project does not. It is
+not saved with the project.
+_Avoid_: Backup, command stack, session log
+
 **Source**:
 The bibliographic origin of the Old English text in a project (edition,
 manuscript, anthology, etc.).
@@ -227,6 +235,19 @@ _Avoid_: OE string, original, source text (prefer Source for bibliography)
 The translator's target-language rendering of a sentence (or the concatenated
 project translation).
 _Avoid_: Meaning (token/annotation level), gloss, ModE (UI abbreviation only)
+
+**Typed Run**:
+The Modern English changes on one sentence while the translator is still
+working there. One Undo reverts the whole run and leaves them on that
+sentence, returning to it when it is not on screen. Redo restores it in
+place. A click on that sentence's Old English text, a token on it, its
+highlighting, Show Token Table, a single click on one of its notes, or a
+menu with no choice keeps the run open. Edit OE, Add Note, a double-click
+on a note, opening the annotation modal, a chapter or section choice, or
+an Add Sentence or Mark as action ends it, as does leaving the sentence.
+Coming back starts a new run. An Old English edit and a note become one
+Undo Step on save, and are not a Typed Run.
+_Avoid_: keystroke, edit session, merge
 
 ### Reading and export concepts
 
