@@ -11,6 +11,7 @@ from PySide6.QtCore import (
 from PySide6.QtGui import (
     QFont,
     QPalette,
+    QTextCursor,
     QUndoStack,
 )
 from PySide6.QtWidgets import (
@@ -36,6 +37,7 @@ from oeapp.ui.oe_text_edit import OldEnglishTextEdit
 from oeapp.ui.search_controller import normalized_oe_query
 from oeapp.ui.sentence_card_controller import HierarchyPosition, SentenceCardController
 from oeapp.ui.token_table import TokenTable
+from oeapp.ui.translation_undo_filter import TranslationUndoFilter
 
 if TYPE_CHECKING:
     from oeapp.models.token import Token
@@ -121,6 +123,8 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, QWidget):
         self._flash_restore_timer = QTimer(self)
         self._flash_restore_timer.setSingleShot(True)
         self._flash_restore_timer.timeout.connect(self._clear_added_flash)
+        #: True while :meth:`set_translation_text` writes the editor.
+        self._writing_translation = False
         self.setObjectName("sentence-card")
         #: Controller for command execution and annotation modal routing.
         self.controller = SentenceCardController(self)
@@ -578,8 +582,31 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, QWidget):
         edit.setFont(QFont("Helvetica", 16))
         edit.setPlaceholderText("Enter Modern English translation...")
         edit.setMaximumHeight(100)
+        edit.setUndoRedoEnabled(False)
+        edit.installEventFilter(TranslationUndoFilter(edit))
         edit.textChanged.connect(self._on_translation_changed)
         return layout, edit
+
+    def set_translation_text(self, text: str) -> None:
+        """
+        Show ``text`` in the Modern English editor without pushing an edit.
+
+        Args:
+            text: Translation text to show.
+
+        Side Effects:
+            Replaces the editor text, moves the cursor to the end, and sets
+            ``sentence.text_modern`` to ``text``. ``textChanged`` fires but
+            pushes no command.
+
+        """
+        self.sentence.text_modern = text
+        self._writing_translation = True
+        try:
+            self.translation_edit.setPlainText(text)
+        finally:
+            self._writing_translation = False
+        self.translation_edit.moveCursor(QTextCursor.MoveOperation.End)
 
     def build_notes_panel(self) -> tuple[QLabel, NotesPanel]:
         """
@@ -1153,6 +1180,8 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, QWidget):
         """
         Handle translation text change.
         """
+        if self._writing_translation:
+            return
         self.controller.on_translation_changed()
 
     # -------------------------------------------------------------------------

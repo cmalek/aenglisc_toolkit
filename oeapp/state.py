@@ -10,6 +10,7 @@ from PySide6.QtGui import QUndoCommand, QUndoStack
 
 from oeapp.commands import UndoCommand
 from oeapp.db import clear_runtime_session, get_runtime_session, set_runtime_session
+from oeapp.ui.undo_presenter import UndoPresenter
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -406,15 +407,12 @@ class AppContext(QObject):
             command: The stack entry that was just undone or redone.
 
         Side Effects:
-            Calls ``reload_project`` when the command needs a full reload, and
-            ``refresh_project`` otherwise.
+            Writes a visible card's translation in place for a translation
+            edit; otherwise calls ``reload_project`` when the command needs a
+            full reload, and ``refresh_project`` otherwise.
 
         """
-        main_window = cast("MainWindow", self.main_window)
-        if isinstance(command, UndoCommand) and command.command.needs_full_reload:
-            main_window.reload_project()
-        else:
-            main_window.refresh_project()
+        UndoPresenter(cast("MainWindow", self.main_window)).show_step(command)
 
 
 #: Default settings storage organization.

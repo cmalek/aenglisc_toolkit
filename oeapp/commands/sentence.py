@@ -90,10 +90,11 @@ class EditSentenceCommand(SessionMixin, Command):
         execution.
 
         Returns:
-            True if the command needs a full reload, False otherwise
+            False for a translation edit, which the sentence card shows in
+            place; True for an Old English edit, which re-tokenizes.
 
         """
-        return True
+        return self.field != "text_modern"
 
 
 @dataclass
