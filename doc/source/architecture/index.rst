@@ -23,3 +23,4 @@ writing instructions.
    adr_0008_partially_normalized_spelling
    adr_0009_project_scoped_qundostack
    adr_0010_typed_run_undo
+   adr_0011_runtime_session_freeze
