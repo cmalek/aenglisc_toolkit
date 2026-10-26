@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+from pathlib import Path
 
 LOOKUP_CALLS = frozenset(
     {
@@ -92,3 +93,68 @@ def f(self, app_context):
     assert count_runtime_session_lookups(source) == {
         "app_context.session": 3,
     }
+
+
+ALLOWLIST: dict[str, dict[str, int]] = {
+    "oeapp/commands/annotation.py": {"_get_session": 6},
+    "oeapp/commands/hierarchy.py": {"_get_session": 8},
+    "oeapp/commands/note.py": {"get_runtime_session": 1},
+    "oeapp/commands/paragraph.py": {"_get_session": 4},
+    "oeapp/commands/sentence.py": {"_get_session": 4},
+    "oeapp/db.py": {"SessionLocal": 2},
+    "oeapp/models/annotation.py": {"_get_session": 4},
+    "oeapp/models/annotation_preset.py": {"_get_session": 5},
+    "oeapp/models/chapter.py": {"_get_session": 7},
+    "oeapp/models/idiom.py": {"_get_session": 3},
+    "oeapp/models/mixins.py": {
+        "_get_session": 2,
+        "get_runtime_session": 1,
+    },
+    "oeapp/models/note.py": {"_get_session": 2},
+    "oeapp/models/paragraph.py": {"_get_session": 7},
+    "oeapp/models/project.py": {"_get_session": 8},
+    "oeapp/models/remembered_annotation.py": {"_get_session": 4},
+    "oeapp/models/section.py": {"_get_session": 8},
+    "oeapp/models/sentence.py": {"_get_session": 12},
+    "oeapp/models/token.py": {"_get_session": 7},
+    "oeapp/services/annotation_propagation.py": {"_get_session": 2},
+    "oeapp/services/export_docx.py": {"_get_session": 1},
+    "oeapp/services/import_export.py": {"_get_session": 2},
+    "oeapp/services/wyrdcraeft_ingest.py": {"_get_session": 1},
+    "oeapp/state.py": {
+        "clear_runtime_session": 1,
+        "get_runtime_session": 1,
+        "set_runtime_session": 2,
+    },
+    "oeapp/ui/dialogs/annotation_preset_management.py": {
+        "_get_session": 1,
+    },
+    "oeapp/ui/dialogs/note_dialog.py": {"app_context.session": 2},
+    "oeapp/ui/main_window.py": {"app_context.session": 6},
+    "oeapp/ui/notes_panel.py": {"app_context.session": 2},
+    "oeapp/ui/oe_text_edit.py": {"get_runtime_session": 1},
+    "oeapp/ui/project_workspace.py": {"app_context.session": 3},
+    "oeapp/ui/sentence_card_controller.py": {"get_runtime_session": 1},
+}
+
+
+def scan_runtime_session_lookups(
+    oeapp: Path,
+) -> dict[str, dict[str, int]]:
+    """Count lookup kinds in every Python file under oeapp."""
+    found: dict[str, dict[str, int]] = {}
+    for path in sorted(oeapp.rglob("*.py")):
+        counts = count_runtime_session_lookups(
+            path.read_text(encoding="utf-8")
+        )
+        if not counts:
+            continue
+        relative = Path("oeapp") / path.relative_to(oeapp)
+        found[relative.as_posix()] = counts
+    return found
+
+
+def test_oeapp_lookups_match_the_allowlist() -> None:
+    root = Path(__file__).resolve().parents[1]
+    found = scan_runtime_session_lookups(root / "oeapp")
+    assert found == ALLOWLIST
