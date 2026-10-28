@@ -619,10 +619,11 @@ class Sentence(SaveDeleteMixin, Base):
         for idiom_data in sentence_data.get("idioms", []):
             Idiom.from_json(sentence.id, idiom_data, token_map, commit=False)
 
+        session = cls._get_session()
         if commit:
-            cls._get_session().commit()
+            session.commit()
         else:
-            cls._get_session().flush()
+            session.flush()
 
         logger.info(
             "sentence.from_json",

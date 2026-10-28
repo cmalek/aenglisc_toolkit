@@ -721,6 +721,7 @@ class ProjectUI:
             # Refresh sidebar with updated annotation
             # Refresh token from database to ensure annotation relationship
             # is up-to-date
-            if self.app_context.session:
-                self.app_context.session.refresh(token)
+            session = self.app_context.session
+            if session:
+                session.refresh(token)
             self.token_details_sidebar.render_token(token, card.sentence)
