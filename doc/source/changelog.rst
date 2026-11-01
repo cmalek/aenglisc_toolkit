@@ -61,6 +61,8 @@ Fixes
 Changed
 ^^^^^^^
 
+- Switch to direnv from autoenv for environment management.
+- Added the `make backup` and `make restore` commands to the Makefile, which backup your entire application data to a tar.gz file in the current directory and restore it respectively.
 - A migration now takes a backup before and after it runs; both appear in the
   Restore dialog. Restoring a backup exits the application.
 - Removed the unused ``migration/skip_until_version`` setting.
