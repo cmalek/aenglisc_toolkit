@@ -151,3 +151,6 @@ default.db-shm
 default.db-wal
 .claude/worktrees
 doc/_build
+
+# backups
+backup.tar.gz

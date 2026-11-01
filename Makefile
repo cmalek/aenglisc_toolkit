@@ -125,8 +125,11 @@ dev:: help-assets
 show-db::
 	ls -la ~/Library/Application\ Support/Ænglisc Toolkit/projects/*.db
 
-backup-db::
-	cp ~/Library/Application\ Support/Ænglisc\ Toolkit/projects/default.db .
+backup::
+	tar -czf ./backup.tar.gz ~/Library/Application\ Support/Ænglisc\ Toolkit
+
+restore::
+	tar -xzf backup.tar.gz -C ~/Library/Application\ Support/Ænglisc\ Toolkit
 
 compile:: sync  ## Run sync to update uv.lock, then rebuild requirements.txt (delete first to ensure all updates are applied).
 	rm requirements.txt
