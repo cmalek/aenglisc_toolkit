@@ -1,4 +1,0 @@
-if [ -f .venv/bin/activate ]; then
-    echo "Using directory virtual environment"
-    source .venv/bin/activate
-fi

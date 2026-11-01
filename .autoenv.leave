@@ -1,5 +1,0 @@
-CWD=$(pwd)
-if [[ ! "$CWD" == *"$VIRTUAL_ENV_PROMPT"* ]]; then
-    echo "Deactivating $VIRTUAL_ENV_PROMPT virtual environment"
-    deactivate
-fi
