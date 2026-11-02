@@ -181,11 +181,11 @@ The freeze was implemented before F1 and F7. The audit order listed F1 at
 lookup in code those cards add fails the allowlist test until the dict
 matches. The test does not reject the matching edit. After this freeze,
 the order is F1, then F7. F1 has landed under that order and added no
-lookup kind. F7 has landed and added no counted lookup. A lookup moved from one function to
-another changes the allowlist, including a move into a new function in
-``main_window.py`` and a move into a new file. The new collaborator
-receives the session from the function that already read it, which keeps
-the read.
+lookup kind. F7 has landed and added no counted lookup. A lookup moved
+from one function to another changes the allowlist, including a move into
+a new function in ``main_window.py`` and a move into a new file. The new
+collaborator receives the session from the function that already read it,
+which keeps the read.
 
 D7 — Delete ``get_session``
 ---------------------------
@@ -195,7 +195,7 @@ D7 — Delete ``get_session``
 and ``get_runtime_session`` holds the only product ``SessionLocal()``
 call. The same change dropped ``get_session`` from the ``oeapp/db.py``
 allowlist entry. The scanner keeps ``get_session`` as a kind name, so a
-later function of that name still counts.
+later call to a function of that name still counts.
 
 Consequences
 ============

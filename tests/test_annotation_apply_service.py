@@ -53,6 +53,32 @@ def test_undo_restores_an_edited_token_annotation(db_session, qapp) -> None:
     assert Annotation.get_by_token(token.id).pos == "N"
 
 
+def test_undo_of_a_first_token_annotation_blanks_its_fields(
+    db_session, qapp
+) -> None:
+    project = create_test_project(db_session, name="First", text="Se cyning")
+    sentence = project.sentences[0]
+    token = sentence.tokens[0]
+    existing = Annotation.get_by_token(token.id)
+    if existing is not None:
+        db_session.delete(existing)
+        db_session.commit()
+    assert Annotation.get_by_token(token.id) is None
+
+    service = AnnotationApplyService()
+    edit = service.begin(None)
+    applied = Annotation(token_id=token.id, pos="N")
+    stack = QUndoStack()
+    assert push_command(stack, service.command_for(edit, applied, sentence.id))
+    assert Annotation.get_by_token(token.id).pos == "N"
+
+    stack.undo()
+    db_session.expire_all()
+    restored = Annotation.get_by_token(token.id)
+    assert restored is not None
+    assert restored.pos is None
+
+
 def test_undo_restores_an_edited_idiom_annotation(db_session, qapp) -> None:
     project = create_test_project(db_session, name="Idiom", text="Se cyning")
     sentence = project.sentences[0]

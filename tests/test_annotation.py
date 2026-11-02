@@ -822,4 +822,7 @@ def test_undo_snapshot_keeps_grammatical_and_lexical_fields_only() -> None:
     assert snapshot["confidence"] == 80
     assert "last_inferred_json" not in snapshot
     assert "updated_at" not in snapshot
-    assert len(snapshot) == 28
+    assert set(snapshot) == set(annotation.to_json()) - {
+        "last_inferred_json",
+        "updated_at",
+    }

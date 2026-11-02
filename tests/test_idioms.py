@@ -213,7 +213,7 @@ def test_idiom_modal_navigation(qtbot, db_session, sentence, mock_main_window):
 
     assert token_btn is not None
 
-    # Mock _open_token_modal to avoid blocking on exec()
+    # Mock controller.open_token_modal to avoid blocking on exec()
     opened_token = None
     def mock_open_token_modal(token):
         nonlocal opened_token
