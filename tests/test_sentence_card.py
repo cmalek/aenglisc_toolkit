@@ -1,6 +1,6 @@
 """Unit tests for SentenceCard."""
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -9,6 +9,7 @@ from PySide6.QtGui import QUndoStack
 from oeapp.models import Annotation
 from oeapp.models.idiom import Idiom
 from oeapp.models.token import Token
+from oeapp.services.annotation_apply import AnnotationApplyService
 from oeapp.ui.oe_text_edit import OldEnglishTextEdit
 from oeapp.ui.sentence_card import SentenceCard
 from PySide6.QtCore import QPoint, Qt
@@ -16,6 +17,33 @@ from PySide6.QtGui import QKeyEvent
 from PySide6.QtWidgets import QComboBox
 
 from tests.conftest import create_test_project, create_test_sentence
+
+
+class _Signal:
+    """Minimal stand-in for a Qt signal."""
+
+    def __init__(self) -> None:
+        self._slots: list = []
+
+    def connect(self, slot) -> None:
+        self._slots.append(slot)
+
+    def emit(self, value) -> None:
+        for slot in self._slots:
+            slot(value)
+
+
+class _InPlaceModal:
+    """Stand-in modal that edits the given annotation in place, as save() does."""
+
+    def __init__(self, *, annotation, **_kwargs) -> None:
+        self.annotation = annotation
+        self.annotation_applied = _Signal()
+
+    def exec(self) -> int:
+        self.annotation.pos = "N"
+        self.annotation_applied.emit(self.annotation)
+        return 1
 
 
 class TestSentenceCard:
@@ -308,8 +336,12 @@ class TestSentenceCard:
 
         idiom_calls = []
         token_calls = []
-        monkeypatch.setattr(card, "_open_idiom_modal", lambda i: idiom_calls.append(i))
-        monkeypatch.setattr(card, "_open_token_modal", lambda t: token_calls.append(t))
+        monkeypatch.setattr(
+            card.controller, "open_idiom_modal", lambda i: idiom_calls.append(i)
+        )
+        monkeypatch.setattr(
+            card.controller, "open_token_modal", lambda t: token_calls.append(t)
+        )
         monkeypatch.setattr(card.oe_text_edit, "find_token_at_position", lambda _: tokens[0].order_index)
 
         from PySide6.QtGui import QMouseEvent
@@ -451,8 +483,10 @@ class TestSentenceCard:
         card.token_table.table.clearSelection()
 
         opened_tokens = []
-        monkeypatch.setattr(card, "_open_idiom_modal", lambda idiom: None)
-        monkeypatch.setattr(card, "_open_token_modal", lambda token: opened_tokens.append(token))
+        monkeypatch.setattr(card.controller, "open_idiom_modal", lambda idiom: None)
+        monkeypatch.setattr(
+            card.controller, "open_token_modal", lambda token: opened_tokens.append(token)
+        )
 
         card._open_annotation_modal()
 
@@ -544,7 +578,8 @@ class TestSentenceCard:
         )
 
         new_ann = Annotation(token_id=token.id, pos="N")
-        card._on_annotation_applied(new_ann)
+        edit = AnnotationApplyService().begin(existing)
+        card.controller.apply_annotation(edit, new_ann)
 
         updated = Annotation.get_by_token(token.id)
         assert updated.pos == "N"
@@ -574,7 +609,8 @@ class TestSentenceCard:
         )
 
         new_ann = Annotation(idiom_id=idiom.id, pos="N")
-        card._on_annotation_applied(new_ann)
+        edit = AnnotationApplyService().begin(existing)
+        card.controller.apply_annotation(edit, new_ann)
 
         updated = Annotation.get_by_idiom(idiom.id)
         assert updated.pos == "N"
@@ -603,12 +639,101 @@ class TestSentenceCard:
         annotation = Annotation(pos="N")
         annotation.idiom = new_idiom
 
-        card._on_idiom_annotation_applied(annotation)
+        card.controller.apply_annotation(
+            AnnotationApplyService().begin(None), annotation
+        )
 
         assert new_idiom.id is not None
         saved = Annotation.get_by_idiom(new_idiom.id)
         assert saved is not None
         assert saved.pos == "N"
+
+    def test_failed_annotation_push_does_not_paint(
+        self, db_session, qapp, mock_main_window
+    ):
+        """A failed push leaves the card unpainted and emits nothing."""
+        project = create_test_project(db_session, name="Test", text="Se cyning")
+        sentence = project.sentences[0]
+        token = sentence.tokens[0]
+        card = SentenceCard(
+            sentence,
+            undo_stack=QUndoStack(),
+            main_window=mock_main_window,
+            parent=None,
+        )
+        emitted: list[Annotation] = []
+        card.annotation_applied.connect(emitted.append)
+        before = card.oe_text_edit.annotations.get(token.id)
+
+        with patch(
+            "oeapp.ui.sentence_card_controller.push_command", return_value=False
+        ):
+            card.controller.apply_annotation(
+                AnnotationApplyService().begin(None),
+                Annotation(token_id=token.id, pos="N"),
+            )
+
+        assert emitted == []
+        assert card.oe_text_edit.annotations.get(token.id) is before
+
+    def test_undo_after_editing_a_token_annotation_in_the_modal(
+        self, db_session, qapp, mock_main_window, monkeypatch
+    ):
+        """Undo restores the value the token had before the modal edited it."""
+        project = create_test_project(db_session, name="Test", text="Se cyning")
+        sentence = project.sentences[0]
+        token = sentence.tokens[0]
+        existing = Annotation.get_by_token(token.id) or Annotation(token_id=token.id)
+        existing.pos = "V"
+        existing.save()
+        db_session.refresh(token)
+        card = SentenceCard(
+            sentence,
+            undo_stack=QUndoStack(),
+            main_window=mock_main_window,
+            parent=None,
+        )
+        monkeypatch.setattr(
+            "oeapp.ui.sentence_card_controller.AnnotationModal", _InPlaceModal
+        )
+
+        card.controller.open_token_modal(token)
+        assert Annotation.get_by_token(token.id).pos == "N"
+
+        card.undo_stack.undo()
+        db_session.expire_all()
+        assert Annotation.get_by_token(token.id).pos == "V"
+
+    def test_undo_after_editing_an_idiom_annotation_in_the_modal(
+        self, db_session, qapp, mock_main_window, monkeypatch
+    ):
+        """Undo restores the value the idiom had before the modal edited it."""
+        project = create_test_project(db_session, name="Test", text="Se cyning")
+        sentence = project.sentences[0]
+        token1 = sentence.tokens[0]
+        token2 = sentence.tokens[1]
+        idiom = Idiom(
+            sentence_id=sentence.id, start_token_id=token1.id, end_token_id=token2.id
+        )
+        idiom.save()
+        Annotation(idiom_id=idiom.id, pos="V").save()
+        db_session.refresh(idiom)
+        card = SentenceCard(
+            sentence,
+            undo_stack=QUndoStack(),
+            main_window=mock_main_window,
+            parent=None,
+        )
+        monkeypatch.setattr(
+            "oeapp.ui.sentence_card_controller.AnnotationModal", _InPlaceModal
+        )
+
+        card.controller.open_idiom_modal(idiom)
+        assert Annotation.get_by_idiom(idiom.id).pos == "N"
+
+        card.undo_stack.undo()
+        db_session.expire_all()
+        assert Annotation.get_by_idiom(idiom.id).pos == "V"
 
     def test_sentence_card_requires_undo_stack(
         self, db_session, qapp, mock_main_window

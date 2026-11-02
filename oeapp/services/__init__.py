@@ -1,5 +1,6 @@
 """Services package initialization."""
 
+from oeapp.services.annotation_apply import AnnotationApplyService
 from oeapp.services.annotation_preset_service import AnnotationPresetService
 from oeapp.services.annotation_propagation import AnnotationPropagationService
 from oeapp.services.autosave import AutosaveService
@@ -16,6 +17,7 @@ from oeapp.services.migration import (
 from oeapp.services.wyrdcraeft_ingest import WyrdcraeftIngestService
 
 __all__ = [
+    "AnnotationApplyService",
     "AnnotationPresetService",
     "AnnotationPropagationService",
     "AutosaveService",

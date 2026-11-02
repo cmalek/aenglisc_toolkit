@@ -219,7 +219,7 @@ def test_idiom_modal_navigation(qtbot, db_session, sentence, mock_main_window):
         nonlocal opened_token
         opened_token = token
 
-    card._open_token_modal = mock_open_token_modal
+    card.controller.open_token_modal = mock_open_token_modal
 
     # Click it (we use the internal handler to avoid blocking on exec())
     modal._on_token_link_clicked(tokens[0])

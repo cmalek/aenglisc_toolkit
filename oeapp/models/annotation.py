@@ -322,6 +322,46 @@ class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
         data["updated_at"] = to_utc_iso(self.updated_at)
         return data
 
+    def undo_snapshot(self) -> dict:
+        """
+        Copy the grammatical and lexical fields an annotation Undo restores.
+
+        Returns:
+            Field values for :class:`~oeapp.commands.AnnotateTokenCommand`.
+            Excludes ``last_inferred_json`` and ``updated_at``.
+
+        """
+        return {
+            "pos": self.pos,
+            "gender": self.gender,
+            "number": self.number,
+            "case": self.case,
+            "declension": self.declension,
+            "article_type": self.article_type,
+            "pronoun_type": self.pronoun_type,
+            "pronoun_number": self.pronoun_number,
+            "verb_class": self.verb_class,
+            "verb_tense": self.verb_tense,
+            "verb_person": self.verb_person,
+            "verb_mood": self.verb_mood,
+            "verb_aspect": self.verb_aspect,
+            "verb_form": self.verb_form,
+            "verb_direct_object_case": self.verb_direct_object_case,
+            "verb_requires_infinitive": self.verb_requires_infinitive,
+            "verb_impersonal": self.verb_impersonal,
+            "verb_transitivity": self.verb_transitivity,
+            "prep_case": self.prep_case,
+            "adverb_degree": self.adverb_degree,
+            "adjective_inflection": self.adjective_inflection,
+            "adjective_degree": self.adjective_degree,
+            "conjunction_type": self.conjunction_type,
+            "confidence": self.confidence,
+            "modern_english_meaning": self.modern_english_meaning,
+            "sense": self.sense,
+            "root": self.root,
+            "root_normalized": self.root_normalized,
+        }
+
     def is_effectively_empty(self) -> bool:
         """
         Determine whether annotation contains only untouched default values.

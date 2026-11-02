@@ -1,6 +1,7 @@
 """Data models for Ænglisc Toolkit."""
 
 from oeapp.models.annotation import Annotation
+from oeapp.models.annotation_edit import AnnotationEdit
 from oeapp.models.annotation_json import AnnotationJson
 from oeapp.models.annotation_preset import AnnotationPreset
 from oeapp.models.chapter import Chapter
@@ -15,6 +16,7 @@ from oeapp.models.token import Token
 
 __all__ = [
     "Annotation",
+    "AnnotationEdit",
     "AnnotationJson",
     "AnnotationPreset",
     "Chapter",

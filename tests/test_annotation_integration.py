@@ -1,3 +1,5 @@
+from functools import partial
+
 import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QUndoStack
@@ -41,7 +43,10 @@ def test_all_pos_fields_save_via_modal(qtbot, sentence_card, db_session, pos_nam
 
     # 1. Open the modal
     modal = AnnotationModal(token=token, parent=sentence_card)
-    modal.annotation_applied.connect(sentence_card._on_annotation_applied)
+    edit = sentence_card.controller.annotation_apply.begin(token.annotation)
+    modal.annotation_applied.connect(
+        partial(sentence_card.controller.apply_annotation, edit)
+    )
     qtbot.addWidget(modal)
     modal.show()
 

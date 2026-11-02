@@ -26,9 +26,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from oeapp.commands import AnnotateTokenCommand, push_command
 from oeapp.mixins import TokenOccurrenceMixin
-from oeapp.models import Annotation, Idiom
+from oeapp.models import Annotation
 from oeapp.models.sentence import Sentence
 from oeapp.ui.dialogs import NoteDialog
 from oeapp.ui.highlighting import SearchHighlighter, WholeSentenceHighlighter
@@ -792,117 +791,16 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, QWidget):
         self.end_typed_run()
         self.controller.open_annotation_modal()
 
-    def _open_idiom_modal(self, idiom: Idiom) -> None:
+    def show_applied_annotation(self, annotation: Annotation) -> None:
         """
-        Open annotation modal for an existing idiom.
+        Paint an annotation that has already been saved.
 
         Args:
-            idiom: Idiom to open the annotation modal for
+            annotation: Annotation to show.
 
-        """
-        self.controller.open_idiom_modal(idiom)
-
-    def _open_new_idiom_modal(self, start_order: int, end_order: int) -> None:
-        """
-        Open annotation modal for a new idiom.
-
-        Args:
-            start_order: Start token order index
-            end_order: End token order index
-
-        """
-        self.controller.open_new_idiom_modal(start_order, end_order)
-
-    def _open_token_modal(self, token: "Token") -> None:
-        """
-        Open annotation modal for a single token.
-
-        Args:
-            token: "Token" to open the annotation modal for
-
-        """
-        self.controller.open_token_modal(token)
-
-    def _extract_annotation_state(self, annotation: Annotation) -> dict:
-        """
-        Extract morphological state from an annotation object.
-
-        Args:
-            annotation: Annotation to extract the state from
-
-        Returns:
-            State of the annotation
-
-        """
-        # TODO: can't we just use annotation.to_json() here?
-        return {
-            "pos": annotation.pos,
-            "gender": annotation.gender,
-            "number": annotation.number,
-            "case": annotation.case,
-            "declension": annotation.declension,
-            "article_type": annotation.article_type,
-            "pronoun_type": annotation.pronoun_type,
-            "pronoun_number": annotation.pronoun_number,
-            "verb_class": annotation.verb_class,
-            "verb_tense": annotation.verb_tense,
-            "verb_person": annotation.verb_person,
-            "verb_mood": annotation.verb_mood,
-            "verb_aspect": annotation.verb_aspect,
-            "verb_form": annotation.verb_form,
-            "verb_direct_object_case": annotation.verb_direct_object_case,
-            "verb_requires_infinitive": annotation.verb_requires_infinitive,
-            "verb_impersonal": annotation.verb_impersonal,
-            "verb_transitivity": annotation.verb_transitivity,
-            "prep_case": annotation.prep_case,
-            "adverb_degree": annotation.adverb_degree,
-            "adjective_inflection": annotation.adjective_inflection,
-            "adjective_degree": annotation.adjective_degree,
-            "conjunction_type": annotation.conjunction_type,
-            "confidence": annotation.confidence,
-            "modern_english_meaning": annotation.modern_english_meaning,
-            "sense": annotation.sense,
-            "root": annotation.root,
-            "root_normalized": annotation.root_normalized,
-        }
-
-    def _execute_annotate_command(
-        self, annotation: Annotation, before: dict, after: dict
-    ) -> None:
-        """
-        Execute the annotate command via command manager.  This will handle the
-        actual save or update of the annotation and also handle the undo/redo
-        operations, creating the idiom first if this annotation is for a
-        brand-new (not-yet-persisted) idiom.
-
-        Args:
-            annotation: Annotation to execute the command for
-            before: Before state of the annotation
-            after: After state of the annotation
-
-        """
-        new_idiom = None
-        if annotation.idiom_id is None and annotation.idiom is not None:
-            new_idiom = annotation.idiom
-
-        command = AnnotateTokenCommand(
-            token_id=annotation.token_id,
-            idiom_id=annotation.idiom_id,
-            before=before,
-            after=after,
-            new_idiom=new_idiom,
-            sentence_id=self.sentence.id,
-        )
-        if push_command(self.undo_stack, command):
-            if new_idiom is not None:
-                annotation.idiom_id = command.idiom_id
-
-    def _finalize_annotation_update(self, annotation: Annotation) -> None:
-        """
-        Update local caches and UI after annotation is applied.
-
-        Args:
-            annotation: Annotation that was applied
+        Side Effects:
+            Updates the token cache and token table, or re-renders the idiom.
+            Emits ``annotation_applied`` and refreshes sentence highlighting.
 
         """
         if annotation.token_id:
@@ -911,62 +809,8 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, QWidget):
         elif annotation.idiom_id:
             self.oe_text_edit.set_tokens()
             self.oe_text_edit.render_readonly_text()
-
         self.annotation_applied.emit(annotation)
         self.sentence_highlighter.highlight()
-
-    def _get_annotation_state(self, annotation: Annotation) -> dict:
-        """
-        Get the current state of an annotation before updates.
-
-        Args:
-            annotation: Annotation to get the state of
-
-        Returns:
-            State of the annotation
-
-        """
-        token_id = annotation.token_id
-        idiom_id = annotation.idiom_id
-
-        existing = None
-        if token_id:
-            existing = self.oe_text_edit.annotations.get(token_id)
-        elif idiom_id:
-            existing = Annotation.get_by_idiom(idiom_id)
-
-        return self._extract_annotation_state(existing) if existing else {}
-
-    # -------------------------------------------------------------------------
-    # Annotation related event handlers
-    # -------------------------------------------------------------------------
-
-    def _on_idiom_annotation_applied(self, annotation: Annotation) -> None:
-        """
-        Handle annotation applied for a new idiom (needs creation).
-
-        The idiom is created by the same command that applies the
-        annotation — see :meth:`_execute_annotate_command` and ADR 0002.
-
-        Args:
-            annotation: Annotation applied for the new idiom
-
-        """
-        self._on_annotation_applied(annotation)
-
-    def _on_annotation_applied(self, annotation: Annotation) -> None:
-        """
-        Handle annotation applied signal.
-
-        Args:
-            annotation: Annotation applied
-
-        """
-        before_state = self._get_annotation_state(annotation)
-        after_state = self._extract_annotation_state(annotation)
-
-        self._execute_annotate_command(annotation, before_state, after_state)
-        self._finalize_annotation_update(annotation)
 
     # -------------------------------------------------------------------------
     # Note related event handlers

@@ -800,3 +800,26 @@ class TestAnnotationFromAnnotation:
         retrieved = Annotation.get_by_token(token.id)
         assert retrieved is not None
         assert retrieved.pos == "N"
+
+
+def test_undo_snapshot_keeps_grammatical_and_lexical_fields_only() -> None:
+    """The undo snapshot excludes inference and timestamp fields."""
+    annotation = Annotation(
+        pos="N",
+        root="cyning",
+        root_normalized="cyning",
+        modern_english_meaning="king",
+        sense="the king",
+        confidence=80,
+        last_inferred_json='{"pos": "N"}',
+    )
+    snapshot = annotation.undo_snapshot()
+    assert snapshot["pos"] == "N"
+    assert snapshot["root"] == "cyning"
+    assert snapshot["root_normalized"] == "cyning"
+    assert snapshot["modern_english_meaning"] == "king"
+    assert snapshot["sense"] == "the king"
+    assert snapshot["confidence"] == 80
+    assert "last_inferred_json" not in snapshot
+    assert "updated_at" not in snapshot
+    assert len(snapshot) == 28

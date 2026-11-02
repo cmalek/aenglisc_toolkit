@@ -55,12 +55,13 @@ Fat ORM stays. SQLAlchemy stays. A second writer is outside the finding.
 Passing an explicit session through every model classmethod is a larger
 migration. F1 (resolve order 8) landed on 2026-11-01 in ``fd4e11e``. That
 change left the export reads on ``MainWindowActions`` as
-``app_context.session`` and added no lookup kind. F7 (resolve order 9) is
-unfinished. F8's audit note said collaborators from those cards should take
-an injected session. D4 does not require that injection. F7 forbids new
-``_get_session`` call sites in the UI. A call from the UI into a model
-classmethod is not one of those call sites: ``Annotation.get_by_idiom``
-keeps its ``_get_session`` inside ``Annotation.get_by_idiom``.
+``app_context.session`` and added no lookup kind. F7 (resolve order 9)
+landed on 2026-11-01. Annotation apply moved to
+``AnnotationApplyService`` and ``Annotation.undo_snapshot``. The controller
+opens the modal and pushes the command. F8's audit note said collaborators
+from those cards should take an injected session. D4 does not require that
+injection. F7 added no ``_get_session`` call site in the UI. The card's
+``Annotation.get_by_idiom`` call was removed, and no counted lookup moved.
 
 Decision
 ========
@@ -140,8 +141,8 @@ spellings is invisible. The test stays green without an allowlist edit.
 
 A call from UI code into a model classmethod is not a counted lookup.
 The ``_get_session`` call stays inside the classmethod, at that
-classmethod's existing count. Moving ``Annotation.get_by_idiom`` from
-``SentenceCard`` onto ``SentenceCardController`` does not change the
+classmethod's existing count. A UI call into a model classmethod, such as
+the controller's ``Annotation.get_by_token``, does not change the
 allowlist. A session already stored on ``self.session`` is not a lookup
 either.
 
@@ -180,7 +181,7 @@ The freeze was implemented before F1 and F7. The audit order listed F1 at
 lookup in code those cards add fails the allowlist test until the dict
 matches. The test does not reject the matching edit. After this freeze,
 the order is F1, then F7. F1 has landed under that order and added no
-lookup kind. F7 is still ahead. A lookup moved from one function to
+lookup kind. F7 has landed and added no counted lookup. A lookup moved from one function to
 another changes the allowlist, including a move into a new function in
 ``main_window.py`` and a move into a new file. The new collaborator
 receives the session from the function that already read it, which keeps
@@ -231,11 +232,8 @@ Consequences
   likely symptom, is unchanged. The census stops unnoticed drift in the
   spellings it counts. Each command still uses the one runtime session,
   because model classmethods still look it up.
-- F1 landed under the freeze and added no lookup kind. F7 proceeds under
-  the freeze. A new ``app_context.session`` read in code it adds fails
-  the test until the dict matches, including a read moved into another
-  function or out of ``main_window.py``. Moving ``Annotation.get_by_idiom``
-  onto ``SentenceCardController`` does not.
+- F1 and F7 landed under the freeze and added no lookup kind. A new
+  ``app_context.session`` read fails the test until the dict matches.
 - No help text changes. The runtime session is not a term in ``CONTEXT.md``.
 - D5 is the later exception for a raised count, and only where a caller
   has to obtain the runtime session in order to pass it on and the same
@@ -299,7 +297,7 @@ Related
   https://trello.com/c/dNaoAIwU
 - F1 landed under this freeze. The audit had listed it earlier, at
   resolve order 8: https://trello.com/c/TavvhWiE
-- F7 follows this freeze. The audit had listed it earlier, at resolve
+- F7 landed under this freeze. The audit had listed it earlier, at resolve
   order 9, and it already forbids new UI ``_get_session`` call sites:
   https://trello.com/c/rdFyWWxq
 - D7, delete ``get_session``, is done.

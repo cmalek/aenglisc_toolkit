@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import partial
 from typing import TYPE_CHECKING, Literal
 
 from PySide6.QtWidgets import QMessageBox
@@ -25,10 +26,12 @@ from oeapp.commands.paragraph import MergeParagraphCommand, SplitParagraphComman
 from oeapp.db import get_runtime_session
 from oeapp.models import Annotation, Idiom
 from oeapp.models.sentence import Sentence
+from oeapp.services.annotation_apply import AnnotationApplyService
 from oeapp.ui.dialogs import AnnotationModal
 from oeapp.utils import get_logo_pixmap
 
 if TYPE_CHECKING:
+    from oeapp.models import AnnotationEdit
     from oeapp.models.token import Token
     from oeapp.ui.sentence_card import SentenceCard
 
@@ -52,18 +55,32 @@ class SentenceCardController:
     Args:
         card: Sentence card widget whose user actions are handled.
 
+    Keyword Args:
+        annotation_apply: Builds annotation commands. A new service is
+            created when none is given.
+
     """
 
-    def __init__(self, card: SentenceCard) -> None:
+    def __init__(
+        self,
+        card: SentenceCard,
+        *,
+        annotation_apply: AnnotationApplyService | None = None,
+    ) -> None:
         """
         Initialize controller for a sentence card.
 
         Args:
             card: Sentence card widget whose user actions are handled.
 
+        Keyword Args:
+            annotation_apply: Builds annotation commands.
+
         """
         #: Sentence card widget whose user actions are handled.
         self.card = card
+        #: Builds the undoable command for an annotation modal result.
+        self.annotation_apply = annotation_apply or AnnotationApplyService()
 
     def on_edit_oe_clicked(self) -> None:
         """
@@ -463,10 +480,10 @@ class SentenceCardController:
             start_order, end_order = current_range
             idiom = card.oe_text_edit.find_idiom(start_order, end_order)
             if idiom:
-                card._open_idiom_modal(idiom)
+                self.open_idiom_modal(idiom)
                 return
 
-            card._open_new_idiom_modal(start_order, end_order)
+            self.open_new_idiom_modal(start_order, end_order)
             return
 
         token: Token | None = card.oe_text_edit.get_selected_token()
@@ -483,10 +500,32 @@ class SentenceCardController:
 
         idiom = card.oe_text_edit.find_idiom(token.order_index)
         if idiom:
-            card._open_idiom_modal(idiom)
+            self.open_idiom_modal(idiom)
             return
 
-        card._open_token_modal(token)
+        self.open_token_modal(token)
+
+    def apply_annotation(self, edit: AnnotationEdit, annotation: Annotation) -> None:
+        """
+        Save one annotation modal result and paint it on the card.
+
+        Args:
+            edit: Edit started before the modal opened.
+            annotation: Annotation the modal emitted.
+
+        Side Effects:
+            Pushes one undo command. On success, records a created idiom's
+            id on ``annotation`` and has the card paint it.
+
+        """
+        card = self.card
+        command = self.annotation_apply.command_for(
+            edit, annotation, card.sentence.id
+        )
+        if not push_command(card.undo_stack, command):
+            return
+        self.annotation_apply.finish(annotation, command)
+        card.show_applied_annotation(annotation)
 
     def open_idiom_modal(self, idiom: Idiom) -> None:
         """
@@ -497,6 +536,7 @@ class SentenceCardController:
 
         """
         card = self.card
+        edit = self.annotation_apply.begin(idiom.annotation)
         annotation = idiom.annotation
         if annotation is None:
             annotation = Annotation(idiom_id=idiom.id)
@@ -507,7 +547,7 @@ class SentenceCardController:
             parent=card,
             main_window=card.main_window,
         )
-        modal.annotation_applied.connect(card._on_annotation_applied)
+        modal.annotation_applied.connect(partial(self.apply_annotation, edit))
         modal.exec()
 
     def open_new_idiom_modal(self, start_order: int, end_order: int) -> None:
@@ -524,6 +564,7 @@ class SentenceCardController:
         end_token = card.oe_text_edit.get_token(end_order)
         if not start_token or not end_token:
             return
+        edit = self.annotation_apply.begin(None)
 
         idiom = Idiom(
             sentence_id=card.sentence.id,
@@ -541,7 +582,7 @@ class SentenceCardController:
             parent=card,
             main_window=card.main_window,
         )
-        modal.annotation_applied.connect(card._on_idiom_annotation_applied)
+        modal.annotation_applied.connect(partial(self.apply_annotation, edit))
         modal.exec()
 
     def open_token_modal(self, token: Token) -> None:
@@ -556,6 +597,7 @@ class SentenceCardController:
         annotation = token.annotation
         if annotation is None and token.id:
             annotation = Annotation.get_by_token(token.id)
+        edit = self.annotation_apply.begin(annotation)
 
         modal = AnnotationModal(
             token=token,
@@ -563,5 +605,5 @@ class SentenceCardController:
             parent=card,
             main_window=card.main_window,
         )
-        modal.annotation_applied.connect(card._on_annotation_applied)
+        modal.annotation_applied.connect(partial(self.apply_annotation, edit))
         modal.exec()

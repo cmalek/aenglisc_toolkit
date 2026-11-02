@@ -813,9 +813,9 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         """
         # Close current modal and open a new one for the token
         self.accept()
-        parent = cast("QObject", self.parent())
-        if hasattr(parent, "_open_token_modal"):
-            parent._open_token_modal(token)
+        controller = getattr(self.parent(), "controller", None)
+        if controller is not None:
+            controller.open_token_modal(token)
 
     def _select_pos_by_key(self, pos_key: str):
         """
