@@ -334,13 +334,13 @@ def test_sentence_actions_end_run(card, qtbot, slot, delegate):
 
 def test_find_ends_run(main_window, card, qtbot):
     _type(card, "ab", qtbot)
-    main_window.action_service.focus_search_input()
+    main_window.focus_search_input()
     _assert_new_step_after(card, qtbot)
 
 
 def test_search_scope_change_ends_run(main_window, card, qtbot):
     _type(card, "ab", qtbot)
-    with patch.object(main_window.action_service, "perform_search"):
+    with patch.object(main_window.search_controller, "perform_search"):
         main_window._on_search_scope_changed(0)
     _assert_new_step_after(card, qtbot)
 

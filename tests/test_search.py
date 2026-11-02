@@ -182,7 +182,7 @@ def test_search_navigation_loads_other_chapter_and_focuses_mode_field(
     window.search_input.setText("Helm showed")
     qtbot.waitUntil(lambda: window.search_counter_label.text() != "0 / 0")
 
-    window.action_service.focus_first_match()
+    window.search_controller.focus_first_match()
     qtbot.waitUntil(
         lambda: window.chapter_combo.currentData() == search_project.chapters[1].id
     )
@@ -203,7 +203,7 @@ def test_clear_restores_origin_mode_focus(qtbot, window, search_project):
     window.search_scope_combo.setCurrentText("ModE text")
     window.search_input.setText("Helm showed")
     qtbot.waitUntil(lambda: window.search_counter_label.text() != "0 / 0")
-    window.action_service.focus_first_match()
+    window.search_controller.focus_first_match()
     qtbot.waitUntil(
         lambda: window.chapter_combo.currentData() == search_project.chapters[1].id
     )
@@ -229,7 +229,7 @@ def test_escape_clears_search_and_restores_origin_mode_focus(qtbot, window, sear
     window.search_scope_combo.setCurrentText("ModE text")
     window.search_input.setText("Helm showed")
     qtbot.waitUntil(lambda: window.search_counter_label.text() != "0 / 0")
-    window.action_service.focus_first_match()
+    window.search_controller.focus_first_match()
     qtbot.waitUntil(
         lambda: window.chapter_combo.currentData() == search_project.chapters[1].id
     )

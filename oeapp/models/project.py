@@ -674,6 +674,31 @@ class Project(SaveDeleteMixin, Base):
 
         return False
 
+    def has_sentences(self) -> bool:
+        """
+        Return whether the project has a sentence.
+
+        A sentence with blank Old English text still counts.
+
+        Returns:
+            True when ``sentences`` is non-empty.
+
+        """
+        return bool(self.sentences)
+
+    def has_modern_english_translation(self) -> bool:
+        """
+        Return whether a sentence has a Modern English Translation.
+
+        Returns:
+            True when a sentence's translation is non-blank after stripping
+            whitespace.
+
+        """
+        return any(
+            (sentence.text_modern or "").strip() for sentence in self.sentences
+        )
+
     def total_token_count(self) -> int:
         """
         Get the total number of tokens in the project.

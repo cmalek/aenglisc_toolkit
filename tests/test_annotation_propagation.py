@@ -17,7 +17,11 @@ from tests.conftest import create_test_project, create_test_sentence
 
 def _actions(mock_main_window) -> MainWindowActions:
     """Build action service for mock main window."""
-    return MainWindowActions(mock_main_window, mock_main_window.app_context)
+    return MainWindowActions(
+        mock_main_window,
+        mock_main_window.app_context,
+        mock_main_window.backup_service,
+    )
 
 
 def _select_card(

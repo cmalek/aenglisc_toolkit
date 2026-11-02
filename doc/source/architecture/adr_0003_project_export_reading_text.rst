@@ -96,8 +96,12 @@ Do not treat either ``.txt`` as importable Project Export. Project Import
 must reject non-JSON and name the three export kinds so a collaborator who
 picked a reading-text file is not told the project is corrupt.
 
-Empty project / blank translation: do not write an empty file; the menu
-items are disabled instead.
+Empty project / blank translation: do not write an empty file. The menu
+and the export actions both ask the project. Old English Text Export needs
+a sentence, including one whose Old English text is blank. Translation
+Export needs a sentence whose Modern English Translation is non-blank
+after stripping whitespace. The export action does not consult whether
+the menu item is enabled.
 
 Alternatives considered
 =======================

@@ -68,7 +68,7 @@ class EditMenu:
         self.redo_action = self._redo_action(stack)
         self.find_action = QAction("Find", self.edit_menu)
         self.find_action.triggered.connect(
-            self.main_window.action_service.focus_search_input
+            self.main_window.focus_search_input
         )
         self._configure(self.find_action, QKeySequence.StandardKey.Find)
         for action in (self.undo_action, self.redo_action, self.find_action):

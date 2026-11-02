@@ -42,8 +42,8 @@ The application offers three main export paths: File-menu DOCX, Full Translation
 - **Location**: Project → Export
 - **Items**:
   - **Project file...** — JSON (optionally `.json.gz`). Complete project data for sharing between Toolkit installations or archiving that project. This is a Project Export; it can be imported. Default name: `my_project.json`.
-  - **Old English...** — UTF-8 `.txt` reading copy of the Old English text (official titles, verse indent, a line number every five verse lines). No notes or annotations. Default name: `my_project-oe.txt`. Disabled if the project has no sentences.
-  - **Translation...** — UTF-8 `.txt` reading copy of the Modern English translation (same layout rules; empty sentences stay empty). Default name: `my_project-translation.txt`. Disabled if there is no translation yet.
+  - **Old English...** — UTF-8 `.txt` reading copy of the Old English text (official titles, verse indent, a line number every five verse lines). No notes or annotations. Default name: `my_project-oe.txt`. Disabled when the project has no sentences. A sentence whose Old English text is blank still counts.
+  - **Translation...** — UTF-8 `.txt` reading copy of the Modern English translation (same layout rules; empty sentences stay empty). Default name: `my_project-translation.txt`. Disabled when no sentence has a Modern English translation. A translation that is only spaces does not count.
 - **Not for**: side-by-side reading (use File → DOCX Export or Full Translation → Export PDF).
 - **Import**: only Project file JSON / `.json.gz`. Old English and Translation `.txt` files cannot recreate a project.
 

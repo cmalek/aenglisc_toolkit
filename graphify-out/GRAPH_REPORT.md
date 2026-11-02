@@ -1,174 +1,173 @@
-# Graph Report - aenglisc_toolkit  (2026-10-28)
+# Graph Report - aenglisc_toolkit  (2026-11-01)
 
 ## Corpus Check
-- 284 files · ~1,461,484 words
+- 284 files · ~1,461,253 words
 - Verdict: corpus is large enough that graph structure adds value.
-- Unclassified: 32 file(s) not represented in the graph (top: (none) 10, .ttf 5, .leave 1)
+- Unclassified: 30 file(s) not represented in the graph (top: (none) 9, .ttf 5, .cfg 1)
 
 ## Summary
-- 7079 nodes · 15863 edges · 339 communities (124 shown, 215 thin omitted)
-- Extraction: 88% EXTRACTED · 12% INFERRED · 0% AMBIGUOUS · INFERRED: 1897 edges (avg confidence: 0.91)
+- 7059 nodes · 15835 edges · 305 communities (124 shown, 181 thin omitted)
+- Extraction: 88% EXTRACTED · 12% INFERRED · 0% AMBIGUOUS · INFERRED: 1894 edges (avg confidence: 0.91)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `28bb65e9`
+- Built from commit: `2f98ac81`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
-- Project
-- CanonicalRun
+- Sentence
+- WyrdcraeftIngestService
 - .save
-- AnnotationModal
+- TestAnnotationModal
 - export_pdf.py
 - Annotation
 - PosFieldCatalog
 - test_typed_run.py
-- TestProject
+- Project
 - TestToken
-- Messages
-- AnnotationPresetService
-- SentenceCardController
+- .select
+- AnnotationPreset
+- SessionMixin
 - test_remembered_annotations.py
-- test_edit_menu.py
-- UndoCommand
+- re
+- Command
 - NewProjectDialog
 - Start Here
 - AutosaveService
 - test_runtime_session_freeze.py
 - .create
-- annotation_modal.py
+- ProjectExporter
+- BackupsViewDialog
 - TestBackupService
 - OpenProjectDialog
 - .split_sentences
 - TestTokenize
-- get_runtime_session
+- conftest.py
 - TokenTableModel
-- .export_side_by_side_pdf
+- TestSingleInstanceHighlighter
 - SearchController
 - check_napoleon_gate.py
 - TokenTable
 - OldEnglishTextSelector
-- AnnotationPropagationService
-- test_migration_flow.py
-- test_highlight_layers.py
+- MainWindowActions
+- _failing_apply
+- OldEnglishTextEdit
 - NoteDialog
 - .create_from_sentence
 - import_export_schema.py
-- .save
+- .from_annotation
 - LogTableModel
-- File Structure
-- LogViewerDialog
+- pytest
+- test_log_viewer.py
 - MigrationService
+- TestFullTranslationWindow
 - AbstractPartOfSpeechRenderer
 - HelpCenterDialog
 - FullProjectModernEnglishTextEdit
 - MigrationFailureDialog
-- CommandLocators
+- DOCXExporter
+- commands/__init__.py
 - HelpEngine
 - ProjectImporter
-- UnknownDatabaseRevision
+- TestSentenceFilters
 - TextInputMixin
-- OldEnglishTextEdit
 - BackupService
 - .test_export_pdf_failure_shows_detailed_error
-- ThemeMixin
+- UndoPresenter
 - DeleteProjectDialog
-- .select
+- StackAdjustment
 - TokenOccurrenceMixin
 - RememberedAnnotationsDialog
 - RestoreDialog
 - Idiom
 - TestAnnotationPresetManagementDialog
-- TestFullTranslationPDFExporter
-- MainWindowActions
-- pdf_engine.py
-- get_project_db_path
-- BaseTokenDetailsSidebar
-- AnnotationModalShortcuts
-- ImportProjectDialog
-- Note
-- HelpTextBrowser
 - FullTranslationPDFExporter
-- _actions
+- .get
+- pdf_engine.py
+- ProjectUI
+- get_project_db_path
+- AnnotationModalShortcuts
+- .build
+- normalize_old_english
+- 6fcbc2da5f17_backfill_annotation_root_normalized_data.py
+- HelpTextBrowser
+- get_logger
+- test_annotation_copy_paste.py
 - build_help.py
 - TestOldEnglishTextEdit
 - 7cd945e38aff_repair_declension_and_verb_class_codes.py
 - EditProjectDialog
+- Messages
 - Task 3: Migrate the three writers to layers (atomic)
 - Token
 - create_test_project
 - apply_theme
 - AppContext
-- create_engine_with_path
+- test_db.py
 - .test_line_initial_token_can_be_remembered_from_context_menu
 - test_migration_pos_codes.py
-- TypedRun
+- EditSentenceCommand
+- .upsert_fields
 - help_paths.py
 - TokenDetailsSidebar
-- MigrationCreationFailed
+- test_annotation_modal.py
+- merge_hyphenated_words.py
 - EditMenu
 - ADR NNNN: <short, decision-oriented title>
 - test_annotation.py
-- WholeSentenceHighlighter
 - test_undo_navigation.py
-- SingleInstanceHighlighter
-- FlakyCommand
+- TestResolveThemeName
 - d6d8b613bc53_annotation_verb_metadata_and_normalized_.py
-- ._latex_escape
-- temp_log_dir
-- TestEditModeAndRerender
+- TestFromUtcIso
 - AnnotationJson
 - .get
 - MainMenu
 - PresetPartOfSpeechFieldsBase
 - read_text
-- OkCommand
+- test_state.py
+- .render_idiom
+- HorizontalSeparatorWidget
 - TestMainWindowOptimizeHooks
 - ProjectMenu
-- TestAnnotationModalLifecycle
+- AnnotationModal
 - prepare_tectonic_assets.py
-- project.py
+- .load_project
 - MockSentenceCard
 - Sentence Notes
 - TestMainWindowActions
 - TestPartOfSpeechFormManager
-- help_center_dialog.py
 - FullProjectTextSelector
-- ProjectUI
+- .from_json
 - Start Here
 - Morphological Annotation
 - sqlalchemy
 - AnnotationPresetManagementDialog
 - verify_tectonic_assets.py
-- _fetch_indexes
-- TestTokenize
+- .__init__
 - Annotation
 - 71b9d6456d8b_add_sqlite_performance_indexes.py
-- MigrationMetadataService
-- test_undo_command.py
+- migration.py
 - _apply_message
 - AnnotationLookupsMixin
 - Bundled Tectonic PDF Payload
-- test_migration_baseline.py
+- db.py
 - MainWindow
-- _MockProjectUI
+- .set_main_window
 - FileMenu
 - TestToUtcIso
 - TestHasPendingMigrations
-- ._reload_after_structure_change
 - NotesPanel
 - Annotation Modal
 - Ænglisc Toolkit
 - TestGetLogoPixmap
-- ._load_json_payload
-- AnnotationPreset
+- TestPartOfSpeechFieldsBase
 - apply_theme Helper
-- WyrdcraeftIngestService
+- TestGetResourcePath
 - Scheduled Project Database Backup
 - DOCX Export
 - schema_1_0_0.sql
-- HorizontalSeparatorWidget
+- AmbiguousRememberedSpellingError
 - test_menus.py
 - TestNotesPanel
 - table_to_model_name
@@ -178,32 +177,32 @@
 - Aenglisc Toolkit 512px icon
 - Circular Library Reading Logo
 - Aenglisc Toolkit circular logo
+- .on_export_clicked
 - _actions
 - JSON Project Export
 - Aenglisc Toolkit
-- DOCXExporter
 - json
-- test_idiom_modal_navigation
-- menus.py
+- ApplyAnnotationPropagationCommand
+- ._add_topic_actions
 - build_macos_helpbook.py
-- test_wyrdcraeft_ingest.py
 - Circular App Icon
 - Circular Earth-Tone Emblem
 - Circular Logo Illustration
 - Circular App Logo Icon 32x32@2x
 - 32x32 Circular App Icon
 - Elderly Scholar in Glasses and Suit
-- test_log_table_model
 - Sentence Word-Range Notes
 - DOCX Export
 - Start Here
 - Annotation Metadata Fields
 - FullProjectNoteWidget
-- BackupFailed
+- pathlib
 - FullTranslationWindow
 - SettingsDialog
 - AppendTextDialog
-- .clear_sidebar
+- set_runtime_session
+- test_log_table_model
+- LogViewerDialog
 - .create
 - Morphological Annotation
 - Reusable Token Annotation Template
@@ -213,42 +212,27 @@
 - PDF Export
 - TestModalBuildsFromCatalog
 - 9c0e5c213b71_verse_spans_and_auto_titles.py
-- filter_projects_table
+- load_projects_into_table
 - _make_sqlite
 - patch
-- File Structure
-- .build
-- TestMainMenu
-- _import_fixture_project
-- .update_logs
+- ._apply_field_mappings
+- WindowMenu
 - TestSidebarResizing
-- test_token_details_sidebar.py
+- TestSidebarRendersFromCatalog
 - test_all_pos_fields_save_via_modal
-- TestSessionLocal
-- TestBase
 - .test_clickable_note_label_emits_clicked_signal
 - TestSettingsDialog
-- get_logger
-- .root
-- .__init__
-- _sqlite_pragma_settings
+- ClickableNoteLabel
+- logs.py
 - POS Field Catalog (F2) Implementation Plan
-- NoAnnotationAvailable
 - check_help_rebuild.sh
 - Chris Malek
 - Contributor Covenant 3.0
-- .part_of_speech
-- .build_toolbar
-- Setup
 - Narrow Qt App Context
 - Usability Overhaul Ready Slices Plan
 - TestEmptyStateStyling
 - TestNavigationButtonAffordances
-- main_window
-- full_window
 - Application Theme
-- sentence
-- log_file
 - SentenceCard
 - .test_unlink_failure_during_failed_snapshot_still_raises_backup_failed
 - TestThemeRefreshReachesStaleSites
@@ -257,13 +241,13 @@
 
 ## God Nodes (most connected - your core abstractions)
 1. `create_test_project()` - 344 edges
-2. `SentenceCard` - 195 edges
-3. `Project` - 191 edges
+2. `Project` - 194 edges
+3. `SentenceCard` - 194 edges
 4. `Annotation` - 186 edges
 5. `Sentence` - 172 edges
 6. `Token` - 159 edges
 7. `create_test_sentence()` - 131 edges
-8. `MainWindow` - 112 edges
+8. `MainWindow` - 116 edges
 9. `Note` - 101 edges
 10. `push_command()` - 94 edges
 
@@ -274,8 +258,8 @@
   docs/superpowers/plans/2026-09-04-f4-sentence-card-controller-split.md → oeapp/commands/abstract.py
 - `Global Constraints` --references--> `Command`  [INFERRED]
   docs/superpowers/plans/2026-09-04-f4-sentence-card-controller-split.md → oeapp/commands/abstract.py
-- `File Structure` --references--> `Command`  [INFERRED]
-  docs/superpowers/plans/2026-10-24-undo-history.md → oeapp/commands/abstract.py
+- `F4: Finish SentenceCard Controller Split; Stop Widget ORM Writes — Implementation Plan` --references--> `AnnotateTokenCommand`  [INFERRED]
+  docs/superpowers/plans/2026-09-04-f4-sentence-card-controller-split.md → oeapp/commands/annotation.py
 - `Task 8: Stack entries follow the sentence and the token` --references--> `AnnotateTokenCommand`  [INFERRED]
   docs/superpowers/plans/2026-10-24-undo-history.md → oeapp/commands/annotation.py
 
@@ -294,47 +278,55 @@
 - **Annotation workflow across token, idiom, incremental, and remembered templates** — oeapp_help_assets_annotation_guide_morphological_annotation, oeapp_help_assets_idioms_guide_idiom_annotation, oeapp_help_assets_incremental_annotation_philosophy, oeapp_help_assets_remembered_annotations_templates [INFERRED 0.85]
 - **Annotation Workflow** — oeapp_help_macos_aenglisctoolkit_help_contents_resources_en_lproj_annotation_guide_morphological_annotation, oeapp_help_macos_aenglisctoolkit_help_contents_resources_en_lproj_idioms_guide_idiom, oeapp_help_macos_aenglisctoolkit_help_contents_resources_en_lproj_incremental_annotation_iterative_refinement, oeapp_help_macos_aenglisctoolkit_help_contents_resources_en_lproj_morphological_reference_tag_codes [INFERRED 0.85]
 
-## Communities (339 total, 215 thin omitted)
+## Communities (305 total, 181 thin omitted)
 
-### Community 0 - "Project"
-Cohesion: 0.03
-Nodes (42): Base, Chapter, SaveDeleteMixin, Paragraph, Project, Section, Sentence, command_setup() (+34 more)
+### Community 0 - "Sentence"
+Cohesion: 0.04
+Nodes (39): Base, run_migrations_offline(), Chapter, SaveDeleteMixin, Note, Paragraph, RememberedAnnotation, Section (+31 more)
 
-### Community 4 - "AnnotationModal"
-Cohesion: 0.07
-Nodes (3): AnnotationModal, TestAnnotationModal, __init__()
+### Community 1 - "WyrdcraeftIngestService"
+Cohesion: 0.05
+Nodes (8): AlreadyExists, CanonicalRun, VerseStanza, WyrdcraeftIngestService, TestAlreadyExists, _canonical_mixed(), test_ingest_mixed_creates_poem_chapter_and_prose_auto_titles(), test_ingest_pure_verse_chunks_sections_by_20_stanzas()
 
 ### Community 5 - "export_pdf.py"
-Cohesion: 0.10
-Nodes (5): is_paragraph_start(), latex_separator(), plain_text_separator(), sentence_separator_kind(), SentenceSeparatorKind
+Cohesion: 0.06
+Nodes (12): Global Constraints, Project Export Reading-Text Implementation Plan, Spec coverage (self-review), Task 1: `ReadingTextExporter` (strings only), is_paragraph_start(), latex_separator(), plain_text_separator(), sentence_separator_kind() (+4 more)
 
 ### Community 6 - "Annotation"
 Cohesion: 0.04
 Nodes (7): Task 4b: Display helpers tolerate unrecognised codes, AnnotationTextualMixin, Annotation, create_test_sentence(), TestAnnotation, TestAnnotationTextualMixin, TestAnnotationTextualMixinUnknownCodes
 
 ### Community 7 - "PosFieldCatalog"
-Cohesion: 0.19
-Nodes (12): PosFieldCatalog, _check_codes(), test_check_parser_finds_known_columns(), test_declension_and_verb_class_opt_out_of_clear(), test_every_attr_is_an_annotation_column(), test_field_less_and_unknown_pos_have_no_fields(), test_lookup_map_codes_match_check_constraints(), test_noun_fields_in_canonical_order() (+4 more)
+Cohesion: 0.21
+Nodes (11): PosFieldCatalog, _check_codes(), test_check_parser_finds_known_columns(), test_declension_and_verb_class_opt_out_of_clear(), test_every_attr_is_an_annotation_column(), test_field_less_and_unknown_pos_have_no_fields(), test_lookup_map_codes_match_check_constraints(), test_noun_fields_in_canonical_order() (+3 more)
 
 ### Community 8 - "test_typed_run.py"
-Cohesion: 0.06
-Nodes (46): TranslationUndoFilter, card(), mock_services(), _no_reload(), _press(), test_apply_translation_does_not_push(), test_filter_claims_undo_and_redo_shortcut_override(), test_filter_only_on_modern_english_editor() (+38 more)
+Cohesion: 0.05
+Nodes (48): TranslationUndoFilter, card(), main_window(), mock_services(), _no_reload(), _press(), test_apply_translation_does_not_push(), test_filter_claims_undo_and_redo_shortcut_override() (+40 more)
 
-### Community 13 - "SentenceCardController"
+### Community 11 - ".select"
+Cohesion: 0.05
+Nodes (5): test_merge_section_command_execute_and_undo(), test_split_and_merge_chapter_commands_execute_and_undo(), test_split_section_command_execute_and_undo(), test_chapter_methods_cover_ordering_and_navigation(), test_section_methods_cover_ordering_and_navigation()
+
+### Community 12 - "AnnotationPreset"
+Cohesion: 0.10
+Nodes (3): AnnotationPreset, AnnotationPresetService, TestAnnotationPresetService
+
+### Community 13 - "SessionMixin"
 Cohesion: 0.04
-Nodes (14): Task 2: Move hierarchy dispatch and position query into `SentenceCardController`, MergeChapterCommand, MergeSectionCommand, SplitChapterCommand, SplitSectionCommand, HierarchyPosition, SentenceCardController, _build_section_with_paragraphs() (+6 more)
+Nodes (9): Global Constraints, Task 2: Move hierarchy dispatch and position query into `SentenceCardController`, MergeChapterCommand, MergeSectionCommand, SplitChapterCommand, SplitSectionCommand, MergeParagraphCommand, SessionMixin (+1 more)
 
 ### Community 14 - "test_remembered_annotations.py"
 Cohesion: 0.06
 Nodes (19): RememberedAnnotationApplyPlan, RememberedAnnotationService, _run_apply_dialog(), _sorted_tokens(), test_annotation_modal_remembered_mode_disables_sense_and_blanks_on_save(), test_apply_blocks_global_when_the_project_group_is_ambiguous(), test_apply_folds_eth_dots_and_hyphens(), test_apply_lets_a_clean_project_entry_hide_a_global_conflict() (+11 more)
 
-### Community 15 - "test_edit_menu.py"
-Cohesion: 0.10
-Nodes (17): _edit_menu(), _editing_section(), main_window(), mock_services(), _OkCommand, _runtime_bindings(), test_actions_follow_the_new_stack_after_reset(), test_edit_menu_roles_and_standard_keys() (+9 more)
+### Community 15 - "re"
+Cohesion: 0.08
+Nodes (20): downgrade(), upgrade(), _edit_menu(), _editing_section(), main_window(), mock_services(), _OkCommand, _runtime_bindings() (+12 more)
 
-### Community 16 - "UndoCommand"
+### Community 16 - "Command"
 Cohesion: 0.04
-Nodes (14): File Structure, Global Constraints, Review Focus, Spec coverage, Task 1: UndoCommand wrapper, Task 3: Plain undo names, Task 5: Translation undo is the application undo, Task 6: Typed Run (+6 more)
+Nodes (15): File Structure, Global Constraints, Task 1: UndoCommand wrapper, Task 3: Plain undo names, Task 5: Translation undo is the application undo, Command, _translation_sentence_id(), UndoCommand (+7 more)
 
 ### Community 18 - "Start Here"
 Cohesion: 0.06
@@ -342,19 +334,23 @@ Nodes (39): Annotation Guide, Annotation metadata fields, Morphological annotati
 
 ### Community 19 - "AutosaveService"
 Cohesion: 0.07
-Nodes (5): AutosaveService, disable_autosave_by_default(), test_autosave_can_be_enabled_per_test(), test_autosave_disabled_by_default(), TestAutosaveService
+Nodes (4): AutosaveService, test_autosave_can_be_enabled_per_test(), test_autosave_disabled_by_default(), TestAutosaveService
 
 ### Community 20 - "test_runtime_session_freeze.py"
-Cohesion: 0.08
-Nodes (22): File Structure, Review Focus, Runtime Session Freeze Implementation Plan, Task 1: Count the six call names, Task 2: Count app_context.session loads, Task 3: Allowlist the oeapp tree, Task 4: Point ADR 0011 at the test, get_session() (+14 more)
-
-### Community 23 - "annotation_modal.py"
-Cohesion: 0.08
-Nodes (13): Task 2: Annotation modal builds from the catalog, AdjectiveFields, AdverbFields, ArticleFields, ConjunctionFields, InterjectionFields, NoneFields, NounFields (+5 more)
-
-### Community 28 - "get_runtime_session"
 Cohesion: 0.09
-Nodes (12): Global Constraints, clear_runtime_session(), get_runtime_session(), set_runtime_session(), db_session(), isolate_qsettings(), isolated_qsettings(), mock_main_window() (+4 more)
+Nodes (19): File Structure, Task 1: Count the six call names, Task 2: Count app_context.session loads, Task 3: Allowlist the oeapp tree, Task 4: Point ADR 0011 at the test, _accumulate(), _accumulate_definition(), _call_kind() (+11 more)
+
+### Community 22 - "ProjectExporter"
+Cohesion: 0.09
+Nodes (4): ProjectExporter, _assert_no_row_ids(), TestProjectExporter, test_import_keeps_and_names_ambiguous_remembered_spellings()
+
+### Community 23 - "BackupsViewDialog"
+Cohesion: 0.09
+Nodes (3): BackupsViewDialog, DateTimeTableWidgetItem, TestBackupsViewDialog
+
+### Community 28 - "conftest.py"
+Cohesion: 0.04
+Nodes (18): command_setup(), create_test_token(), db_session(), disable_autosave_by_default(), isolate_qsettings(), isolated_qsettings(), mock_main_window(), mock_migration_services() (+10 more)
 
 ### Community 32 - "check_napoleon_gate.py"
 Cohesion: 0.08
@@ -364,87 +360,95 @@ Nodes (18): _check_file(), _check_function_doc(), _constructor_has_args(), _firs
 Cohesion: 0.03
 Nodes (5): AnnotationTableWidget, TokenTable, _prep_obj_case_cell_text(), TestAnnotationTableWidget, TestTokenTable
 
-### Community 35 - "AnnotationPropagationService"
-Cohesion: 0.06
-Nodes (4): ApplyAnnotationPropagationCommand, AnnotationPropagationPlan, AnnotationPropagationService, TestAnnotationPropagationService
+### Community 36 - "_failing_apply"
+Cohesion: 0.08
+Nodes (11): InMemoryMigrationMetadataService, _backups(), _failing_apply(), flow(), TestHonestRestoreFlag, TestMigrate, flaky(), TestRetentionAndRollbackEdges (+3 more)
 
-### Community 36 - "test_migration_flow.py"
-Cohesion: 0.06
-Nodes (18): MigrationResult, InMemoryMigrationMetadataService, migration_service_with_temp_db(), temp_db_path(), _backups(), _failing_apply(), apply(), flow() (+10 more)
-
-### Community 37 - "test_highlight_layers.py"
-Cohesion: 0.07
-Nodes (13): File Structure, Task 1: `HighlightLayers` core (types, resolution, compose), Task 2: Editor owns the layers (API + capability flag), Task 5: Theme switching recomposes all layers, FullProjectOldEnglishTextEdit, HighlightEntry, HighlightLayer, HighlightLayers (+5 more)
+### Community 37 - "OldEnglishTextEdit"
+Cohesion: 0.02
+Nodes (24): F3 Highlight Layers Implementation Plan, File Structure, Global Constraints, Review Focus, Self-Review, Task 1: `HighlightLayers` core (types, resolution, compose), Task 2: Editor owns the layers (API + capability flag), Task 4: Edit mode, re-render and `reapply_search` (+16 more)
 
 ### Community 40 - "import_export_schema.py"
 Cohesion: 0.11
 Nodes (11): Task 1: Move `AnnotationJson` to `oeapp.models`, ChapterJson, IdiomJson, NoteJson, ParagraphJson, ParagraphRefJson, ProjectJson, RememberedAnnotationJson (+3 more)
 
-### Community 41 - ".save"
+### Community 43 - "pytest"
 Cohesion: 0.07
-Nodes (5): TestAnnotationFromAnnotation, test_idiom_creation(), test_idiom_deletion_on_token_removal(), test_idiom_preservation_on_insertion_in_middle(), test_idiom_preservation_on_token_modification()
+Nodes (27): File Structure, Global Constraints, Migration and Backup Consolidation Implementation Plan, Review Focus, Task 0: Branch and baseline, Task 10: Startup handles `UnknownDatabaseRevision` (D6), Task 11: User-facing documentation (D6b), Task 12: Full verification and close-out (+19 more)
 
-### Community 43 - "File Structure"
-Cohesion: 0.10
-Nodes (14): File Structure, Global Constraints, Migration and Backup Consolidation Implementation Plan, Review Focus, Task 0: Branch and baseline, Task 10: Startup handles `UnknownDatabaseRevision` (D6), Task 11: User-facing documentation (D6b), Task 12: Full verification and close-out (+6 more)
-
-### Community 44 - "LogViewerDialog"
-Cohesion: 0.15
-Nodes (5): LogViewerDialog, test_log_viewer_dialog_filtering(), test_log_viewer_dialog_initial_load(), test_log_viewer_export(), test_log_viewer_local_time()
+### Community 44 - "test_log_viewer.py"
+Cohesion: 0.18
+Nodes (4): log_file(), test_log_viewer_dialog_filtering(), test_log_viewer_dialog_initial_load(), test_log_viewer_local_time()
 
 ### Community 45 - "MigrationService"
-Cohesion: 0.05
-Nodes (7): Task 7: New `migrate()` flow (D1, D2a stamping, D4, D5), Task 8: Unknown database revision and version resolution (D6), Task 9: Unknown-revision dialog and Restore refusal (D6, D6a), MigrationFailed, MigrationService, TestMigrationFailed, TestFreshDatabaseStamp
+Cohesion: 0.04
+Nodes (11): Task 7: New `migrate()` flow (D1, D2a stamping, D4, D5), Task 8: Unknown database revision and version resolution (D6), MigrationFailed, MigrationResult, MigrationService, TestMigrationFailed, TestFreshDatabaseStamp, apply() (+3 more)
 
 ### Community 47 - "AbstractPartOfSpeechRenderer"
-Cohesion: 0.11
-Nodes (12): Task 4: Sidebar renders from the catalog, AbstractPartOfSpeechRenderer, AdjectiveRenderer, AdverbRenderer, ArticleRenderer, ConjunctionRenderer, InterjectionRenderer, NounRenderer (+4 more)
+Cohesion: 0.08
+Nodes (15): File Structure, Task 1: The catalog module and its parity tests, Task 4: Sidebar renders from the catalog, Task 7: Docs, help, ADR status and final verification, AbstractPartOfSpeechRenderer, AdjectiveRenderer, AdverbRenderer, ArticleRenderer (+7 more)
 
 ### Community 50 - "MigrationFailureDialog"
-Cohesion: 0.09
+Cohesion: 0.08
 Nodes (3): MigrationFailureDialog, TestHonestRestoreText, TestMigrationFailureDialog
 
-### Community 52 - "CommandLocators"
-Cohesion: 0.03
-Nodes (11): CommandLocators, AddNoteCommand, DeleteNoteCommand, _moved_sentence(), _note_locators(), UpdateNoteCommand, TestAddNoteCommand, TestDeleteNoteCommand (+3 more)
+### Community 52 - "commands/__init__.py"
+Cohesion: 0.04
+Nodes (9): CommandLocators, AddNoteCommand, DeleteNoteCommand, _note_locators(), UpdateNoteCommand, get_runtime_session(), TestAddNoteCommand, TestDeleteNoteCommand (+1 more)
 
 ### Community 54 - "ProjectImporter"
+Cohesion: 0.06
+Nodes (4): Task 2: Import rejects reading-text files, ProjectImporter, _build_full_project(), TestProjectImporter
+
+### Community 59 - "BackupService"
+Cohesion: 0.06
+Nodes (3): Task 2: Single `alembic_version` reader (D10), Task 3: `create_backup` contract (D2, D2a, D2b), BackupService
+
+### Community 63 - "StackAdjustment"
 Cohesion: 0.04
-Nodes (8): ProjectExporter, ProjectImporter, ProjectExportPayload, _assert_no_row_ids(), _build_full_project(), TestProjectExporter, TestProjectImporter, test_import_keeps_and_names_ambiguous_remembered_spellings()
-
-### Community 55 - "UnknownDatabaseRevision"
-Cohesion: 0.25
-Nodes (10): UnknownDatabaseRevision, _set_revision(), test_a_non_object_sidecar_does_not_crash_resolution(), test_a_numeric_application_version_is_ignored(), test_migrate_raises_before_any_backup_or_upgrade(), test_resolution_ignores_unparseable_versions(), test_resolution_prefers_the_catalog(), test_resolution_uses_the_minimum_matching_sidecar_version() (+2 more)
-
-### Community 63 - ".select"
-Cohesion: 0.04
-Nodes (11): Task 8: Stack entries follow the sentence and the token, StackAdjustment, AddSentenceCommand, DeleteSentenceCommand, _idiom_ids(), MergeSentenceCommand, _token_ids(), test_add_sentence_after_first_sentence_succeeds() (+3 more)
-
-### Community 65 - "RememberedAnnotationsDialog"
-Cohesion: 0.05
-Nodes (3): AmbiguousRememberedSpellingError, RememberedAnnotationsDialog, test_editor_can_correct_one_row_of_an_ambiguous_pair()
+Nodes (12): Task 8: Stack entries follow the sentence and the token, StackAdjustment, _moved_sentence(), AddSentenceCommand, DeleteSentenceCommand, _idiom_ids(), MergeSentenceCommand, _token_ids() (+4 more)
 
 ### Community 66 - "RestoreDialog"
-Cohesion: 0.05
-Nodes (7): BackupsViewDialog, RestoreDialog, DateTimeTableWidgetItem, TestBackupsViewDialog, _dialog(), TestRestoreDialog, TestRestoreRefusalAndExit
+Cohesion: 0.10
+Nodes (4): RestoreDialog, _dialog(), TestRestoreDialog, TestRestoreRefusalAndExit
 
 ### Community 67 - "Idiom"
-Cohesion: 0.06
-Nodes (9): F4: Finish SentenceCard Controller Split; Stop Widget ORM Writes — Implementation Plan, Global Constraints, Self-Review Notes, Task 1: Fold idiom creation into `AnnotateTokenCommand`, Task 3: Rewire `SentenceCard` — require `command_manager`, delete ORM-direct writes, add `structure_changed`, AnnotateTokenCommand, Idiom, SessionMixin (+1 more)
+Cohesion: 0.04
+Nodes (12): Task 1: Fold idiom creation into `AnnotateTokenCommand`, AnnotateTokenCommand, Idiom, TestUndoStackCommands, sentence(), test_idiom_creation(), test_idiom_deletion_on_token_removal(), test_idiom_modal_navigation() (+4 more)
+
+### Community 69 - "FullTranslationPDFExporter"
+Cohesion: 0.03
+Nodes (5): FullTranslationPDFExporter, GlossaryEntry, _import_fixture_project(), TestFullTranslationPDFExporter, fake_compile()
+
+### Community 70 - ".get"
+Cohesion: 0.13
+Nodes (3): File map, Task 3: Export submenu, enablement, save-then-write, Task 4: Help copy for the three Project Export items
 
 ### Community 71 - "pdf_engine.py"
-Cohesion: 0.08
-Nodes (13): _bundle_has_required_index(), compile_latex_with_tectonic(), _normalize_platform(), PDFEngineError, resolve_tectonic_engine_paths(), TectonicEnginePaths, get_resource_path(), test_compile_omits_bundle_flags_when_bundle_missing() (+5 more)
+Cohesion: 0.11
+Nodes (11): _bundle_has_required_index(), compile_latex_with_tectonic(), _normalize_platform(), PDFEngineError, resolve_tectonic_engine_paths(), TectonicEnginePaths, test_compile_omits_bundle_flags_when_bundle_missing(), test_compile_uses_bundle_and_offline_flags() (+3 more)
+
+### Community 72 - "ProjectUI"
+Cohesion: 0.03
+Nodes (3): Task 4: Wire `structure_changed` in `ProjectWorkspace`, Task 7: Undo returns to that sentence, ProjectUI
 
 ### Community 75 - "AnnotationModalShortcuts"
-Cohesion: 0.11
-Nodes (4): Task 4: Edit menu and standard keys, AnnotationModalShortcuts, GlobalShortcuts, ShortcutsMixin
+Cohesion: 0.14
+Nodes (3): AnnotationModalShortcuts, GlobalShortcuts, ShortcutsMixin
 
-### Community 77 - "Note"
-Cohesion: 0.03
-Nodes (15): Note, ProjectSearchMatches, SearchResult, FullProjectNotesArea, TestClickableNoteLabel, test_project_updated_at_on_annotation_update(), test_project_updated_at_on_note_create(), test_project_updated_at_on_note_delete() (+7 more)
+### Community 77 - "normalize_old_english"
+Cohesion: 0.08
+Nodes (3): ProjectSearchMatches, SearchResult, normalize_old_english()
 
-### Community 81 - "_actions"
+### Community 78 - "6fcbc2da5f17_backfill_annotation_root_normalized_data.py"
+Cohesion: 0.19
+Nodes (6): _backfill_annotation_roots(), _column_exists(), downgrade(), _normalize_old_english(), _table_exists(), upgrade()
+
+### Community 80 - "get_logger"
+Cohesion: 0.07
+Nodes (4): touch_project_on_change(), ProjectExportPayload, get_logger(), _legacy_verbose_export_size()
+
+### Community 81 - "test_annotation_copy_paste.py"
 Cohesion: 0.09
 Nodes (5): _actions(), _select_card(), TestCopyAnnotation, TestCopyPasteIntegration, TestPasteAnnotation
 
@@ -460,105 +464,93 @@ Nodes (11): _add_preset_checks(), _check_constraint_exists(), _column_exists(), 
 Cohesion: 0.13
 Nodes (3): EditProjectDialog, test_edit_project_leaves_history(), TestEditProjectDialog
 
+### Community 88 - "Messages"
+Cohesion: 0.04
+Nodes (3): on_key_pressed(), Messages, TestMessagesSeverity
+
 ### Community 89 - "Task 3: Migrate the three writers to layers (atomic)"
-Cohesion: 0.05
-Nodes (6): Task 3: Migrate the three writers to layers (atomic), SearchHighlighter, TestSearchLayerEntryPoints, TestThemeSwitch, TestSearchHighlighterClear, TestSingleInstanceHighlighter
+Cohesion: 0.04
+Nodes (11): Task 3: Migrate the three writers to layers (atomic), SearchHighlighter, annotate_pos(), backgrounds(), card(), TestLayerCoexistence, TestSearchBeforeFirstRender, TestSearchLayerEntryPoints (+3 more)
 
 ### Community 90 - "Token"
-Cohesion: 0.05
-Nodes (7): Token, test_annotation_preserved_on_multiple_typo_fixes(), test_annotation_preserved_on_typo_fix(), test_annotation_shift_on_deletion(), test_annotation_shift_on_insertion(), test_annotation_stability_with_duplicate_surfaces(), TestUpdateFromSentence
+Cohesion: 0.04
+Nodes (8): Token, test_annotation_preserved_on_multiple_typo_fixes(), test_annotation_preserved_on_typo_fix(), test_annotation_shift_on_deletion(), test_annotation_shift_on_insertion(), test_annotation_stability_with_duplicate_surfaces(), TestTokenize, TestUpdateFromSentence
 
 ### Community 91 - "create_test_project"
-Cohesion: 0.02
-Nodes (5): create_test_project(), sentence_card(), TestMainWindowInitialization, TestSentenceCard, TestSentence
+Cohesion: 0.03
+Nodes (6): AnnotationPropagationPlan, AnnotationPropagationService, create_test_project(), TestAnnotationPropagationService, TestMainWindowInitialization, TestSentence
 
 ### Community 92 - "apply_theme"
-Cohesion: 0.12
-Nodes (4): apply_theme(), resolve_theme_name(), TestApplyTheme, TestResolveThemeName
+Cohesion: 0.22
+Nodes (3): apply_theme(), resolve_theme_name(), TestApplyTheme
 
 ### Community 93 - "AppContext"
 Cohesion: 0.05
-Nodes (4): AppContext, context(), TestAppContext, window_context()
+Nodes (4): Task 2: One project-scoped stack, clear_runtime_session(), AppContext, TestAppContext
 
-### Community 94 - "create_engine_with_path"
-Cohesion: 0.06
-Nodes (13): Task 2: Single `alembic_version` reader (D10), create_engine_with_path(), read_alembic_revision(), run_pragma_optimize(), TestCreateEngineWithPath, TestReadAlembicRevision, TestSQLitePragmas, _service() (+5 more)
-
-### Community 95 - ".test_line_initial_token_can_be_remembered_from_context_menu"
-Cohesion: 0.09
-Nodes (3): TestAnnotationPropagationMenu, text(), __init__()
+### Community 94 - "test_db.py"
+Cohesion: 0.05
+Nodes (9): Task 5: The injected engine is authoritative, with foreign keys OFF (D8), read_alembic_revision(), run_pragma_optimize(), run_migrations_online(), _run_with_connection(), TestBase, TestReadAlembicRevision, TestSessionLocal (+1 more)
 
 ### Community 96 - "test_migration_pos_codes.py"
 Cohesion: 0.17
 Nodes (13): Self-Review, Task 5: Data migration and preset CHECK constraints, _check_names(), _column(), engine(), _load(), test_checks_added_and_existing_check_kept_when_clean(), test_labels_become_codes_in_presets_and_annotations() (+5 more)
 
+### Community 97 - "EditSentenceCommand"
+Cohesion: 0.05
+Nodes (11): Review Focus, Self-review, Spec coverage, Task 4: Edit menu and standard keys, Task 6: Typed Run, Undo History Implementation Plan, EditSentenceCommand, TypedRun (+3 more)
+
 ### Community 99 - "help_paths.py"
-Cohesion: 0.08
-Nodes (13): ensure_runtime_help_assets(), HelpPaths, resolve_help_paths(), _sha256(), _sync_file(), get_log_dir(), get_app_data_path(), _bundle_dir() (+5 more)
+Cohesion: 0.09
+Nodes (11): ensure_runtime_help_assets(), HelpPaths, resolve_help_paths(), _sha256(), _sync_file(), _bundle_dir(), test_ensure_runtime_help_assets_copies_qch_and_qhc(), test_ensure_runtime_help_assets_raises_when_bundled_artifacts_missing() (+3 more)
 
 ### Community 100 - "TokenDetailsSidebar"
 Cohesion: 0.10
 Nodes (4): TokenDetailsSidebar, TestTokenDetailsSidebar, collect_labels(), collect_labels()
 
-### Community 103 - "MigrationCreationFailed"
-Cohesion: 0.09
-Nodes (6): main(), MigrationCreationFailed, FieldMappingService, MigrationCreationResult, ProjectFoldersMixin, TestMigrationCreationFailed
+### Community 103 - "merge_hyphenated_words.py"
+Cohesion: 0.21
+Nodes (5): downgrade(), _find_hyphenated_words(), _map_tokens_to_positions(), _merge_tokens_for_hyphenated_word(), upgrade()
 
 ### Community 105 - "ADR NNNN: <short, decision-oriented title>"
 Cohesion: 0.29
 Nodes (6): ADR NNNN: <short, decision-oriented title>, Alternatives considered, Consequences, Context, Decision, Related
 
-### Community 107 - "WholeSentenceHighlighter"
-Cohesion: 0.07
-Nodes (3): F3 Highlight Layers Implementation Plan, Review Focus, WholeSentenceHighlighter
-
 ### Community 108 - "test_undo_navigation.py"
-Cohesion: 0.17
-Nodes (13): blink_translation(), _card(), _in_view(), mock_services(), test_blink_translation_restores_style_without_push(), test_chapter_change_focuses_first_old_english_editor(), test_redo_after_chapter_change_returns_to_sentence(), test_search_navigation_to_other_chapter_keeps_focus_choice() (+5 more)
-
-### Community 110 - "FlakyCommand"
-Cohesion: 0.17
-Nodes (3): FlakyCommand, test_failed_redo_drops_command(), test_failed_undo_keeps_command_undoable()
+Cohesion: 0.15
+Nodes (14): blink_translation(), _card(), _in_view(), main_window(), mock_services(), test_blink_translation_restores_style_without_push(), test_chapter_change_focuses_first_old_english_editor(), test_redo_after_chapter_change_returns_to_sentence() (+6 more)
 
 ### Community 111 - "d6d8b613bc53_annotation_verb_metadata_and_normalized_.py"
-Cohesion: 0.11
-Nodes (14): _backfill_annotation_roots(), _column_exists(), downgrade(), _normalize_old_english(), _table_exists(), upgrade(), _backfill_annotations(), _backfill_tokens() (+6 more)
-
-### Community 114 - "TestEditModeAndRerender"
-Cohesion: 0.06
-Nodes (9): Global Constraints, Self-Review, normalized_oe_query(), annotate_pos(), backgrounds(), card(), TestEditModeAndRerender, TestLayerCoexistence (+1 more)
+Cohesion: 0.25
+Nodes (8): _backfill_annotations(), _backfill_tokens(), _check_constraint_exists(), _column_exists(), downgrade(), _normalize_old_english(), _table_exists(), upgrade()
 
 ### Community 115 - "AnnotationJson"
-Cohesion: 0.12
+Cohesion: 0.14
 Nodes (7): Copied Annotation as a Validated AnnotationJson Implementation Plan, Global Constraints, Review Focus, Task 2: `AppContext` holds a validated `AnnotationJson`, Task 3: Refuse and log an invalid copy, Task 4: Docs, help, final gates, AnnotationJson
 
 ### Community 117 - ".get"
-Cohesion: 0.09
-Nodes (10): MergeParagraphCommand, SplitParagraphCommand, TestSplitParagraphCommand, _create_three_sentences_single_paragraph(), test_merge_paragraph_command_execute_and_undo(), test_merge_paragraph_command_fails_when_first_paragraph(), test_merge_paragraph_command_fails_when_sentence_not_paragraph_start(), test_split_paragraph_command_execute_and_undo() (+2 more)
+Cohesion: 0.10
+Nodes (6): SplitParagraphCommand, TestSplitParagraphCommand, test_merge_paragraph_command_execute_and_undo(), test_merge_paragraph_command_fails_when_sentence_not_paragraph_start(), test_split_paragraph_command_execute_and_undo(), test_split_paragraph_command_fails_when_sentence_missing()
 
 ### Community 118 - "MainMenu"
-Cohesion: 0.13
-Nodes (4): HelpMenu, MainMenu, _non_separator_action_texts(), TestHelpMenu
+Cohesion: 0.08
+Nodes (6): HelpMenu, MainMenu, _non_separator_action_texts(), TestHelpMenu, TestMainMenu, test_tools_menu_includes_remembered_annotation_actions()
 
 ### Community 119 - "PresetPartOfSpeechFieldsBase"
-Cohesion: 0.10
+Cohesion: 0.09
 Nodes (13): Task 3: Preset dialog builds from the catalog; presets store codes, PresetPartOfSpeechFieldsBase, PresetPosFormManager, PosField, _build(), test_boolean_and_blank_semantics_survive(), test_declension_and_verb_class_have_no_clear_choice(), test_declension_extracts_the_code_not_the_label() (+5 more)
 
 ### Community 120 - "read_text"
 Cohesion: 0.18
 Nodes (6): read_text(), test_macos_build_verifies_tectonic_assets(), test_make_dmg_uses_single_applications_link_strategy(), test_spec_includes_alembic_runtime_assets(), test_spec_includes_tectonic_assets(), test_windows_build_verifies_tectonic_assets()
 
-### Community 121 - "OkCommand"
-Cohesion: 0.15
-Nodes (4): OkCommand, test_project_change_and_close_clear_history(), test_same_project_id_keeps_history(), test_undo_limit_is_50()
+### Community 121 - "test_state.py"
+Cohesion: 0.06
+Nodes (7): FlakyCommand, OkCommand, test_failed_redo_drops_command(), test_failed_undo_keeps_command_undoable(), test_project_change_and_close_clear_history(), test_same_project_id_keeps_history(), test_undo_limit_is_50()
 
 ### Community 129 - "prepare_tectonic_assets.py"
 Cohesion: 0.20
 Nodes (6): build_manifest(), copy_binary(), copy_bundle(), file_sha256(), main(), parse_args()
-
-### Community 130 - "project.py"
-Cohesion: 0.05
-Nodes (6): _RuntimeState, AlreadyExists, run_migrations_offline(), test_migration_failure_writes_last_working_version_only_when_restored(), test_unknown_revision_shows_the_dialog_then_exits(), temp_db_engine()
 
 ### Community 132 - "Sentence Notes"
 Cohesion: 0.18
@@ -573,16 +565,12 @@ Cohesion: 0.22
 Nodes (10): Annotation Modal, Morphological Annotation, POS Keyboard Shortcuts, Idiom, Idiom Range Selection, Incremental Annotation, Morphological Tag Reference, Old English Morphological Tags (+2 more)
 
 ### Community 140 - "sqlalchemy"
-Cohesion: 0.04
-Nodes (24): upgrade(), upgrade(), downgrade(), downgrade(), upgrade(), upgrade(), downgrade(), upgrade() (+16 more)
+Cohesion: 0.05
+Nodes (17): upgrade(), upgrade(), downgrade(), downgrade(), upgrade(), upgrade(), downgrade(), upgrade() (+9 more)
 
 ### Community 142 - "verify_tectonic_assets.py"
 Cohesion: 0.17
 Nodes (6): build_macos.sh script, file_sha256(), main(), parse_args(), verify_manifest(), verify_required_layout()
-
-### Community 143 - "_fetch_indexes"
-Cohesion: 0.14
-Nodes (4): _alembic_config(), _fetch_indexes(), TestFreshSchemaIndexes, TestMigrationUpgradeIndexes
 
 ### Community 145 - "Annotation"
 Cohesion: 0.05
@@ -592,29 +580,33 @@ Nodes (36): Agent Tooling and Quality Contract, Alembic Desktop Migrations, Fat 
 Cohesion: 0.27
 Nodes (6): _create_index_if_missing(), downgrade(), _drop_index_if_exists(), _index_exists(), _table_exists(), upgrade()
 
-### Community 149 - "test_undo_command.py"
-Cohesion: 0.06
-Nodes (9): EditSentenceCommand, test_failed_translation_write_does_not_merge_into_open_run(), _edit(), FailCommand, LogCommand, test_failed_execute_is_not_kept(), test_stack_owns_the_command_after_the_name_is_dropped(), test_successful_push_returns_true_and_is_on_stack() (+1 more)
+### Community 148 - "migration.py"
+Cohesion: 0.04
+Nodes (10): main(), FieldMappingService, MigrationCreationResult, MigrationMetadataService, ProjectFoldersMixin, RevisionVersionResolver, migration_service_with_temp_db(), temp_db_engine() (+2 more)
 
 ### Community 150 - "_apply_message"
 Cohesion: 0.33
 Nodes (3): _apply_message(), _count_line(), _skipped_line()
 
 ### Community 151 - "AnnotationLookupsMixin"
-Cohesion: 0.02
+Cohesion: 0.03
 Nodes (14): CaseFilterDialog, NumberFilterDialog, PartOfSpeechFilterDialog, SentenceFilterDialog, CaseHighlighterCommand, HighlighterCommandBase, IdiomHighlighterCommand, NoneHighlighterCommand (+6 more)
 
-### Community 154 - "test_migration_baseline.py"
-Cohesion: 0.20
-Nodes (11): Task 1: 1.0.0 baseline fixture and schema-drift test (D7), build_baseline_db(), build_create_all_db(), schema_snapshot(), _config(), _head(), _stamped_revision(), test_baseline_upgrade_keeps_rows_and_stamps_head() (+3 more)
+### Community 154 - "db.py"
+Cohesion: 0.05
+Nodes (28): Task 1: 1.0.0 baseline fixture and schema-drift test (D7), create_engine_with_path(), set_sqlite_pragma(), _parse_env_choice(), _parse_env_int(), _RuntimeState, _sqlite_pragma_settings(), build_baseline_db() (+20 more)
 
 ### Community 155 - "MainWindow"
-Cohesion: 0.03
-Nodes (16): RememberedAnnotation, AnnotationFormState, load_projects_into_table(), MainWindow, ClickableNoteLabel, _PosEntry, TokenTableColumn, clear_layout() (+8 more)
+Cohesion: 0.02
+Nodes (33): Task 2: Annotation modal builds from the catalog, HelpEngineError, HelpTopic, create_application(), ImportProjectDialog, AdjectiveFields, AdverbFields, ArticleFields (+25 more)
+
+### Community 156 - ".set_main_window"
+Cohesion: 0.09
+Nodes (3): _MockProjectUI, context(), window_context()
 
 ### Community 157 - "FileMenu"
 Cohesion: 0.11
-Nodes (4): FileMenu, PreferencesMenu, TestFileMenu, TestPreferencesMenu
+Nodes (3): FileMenu, TestFileMenu, TestPreferencesMenu
 
 ### Community 162 - "Annotation Modal"
 Cohesion: 0.22
@@ -637,8 +629,8 @@ Cohesion: 0.17
 Nodes (23): alembic_version, annotation_presets, annotations, chapters, idioms, idx_annotations_idiom_id, idx_annotations_token_id, idx_chapters_project_number (+15 more)
 
 ### Community 175 - "test_menus.py"
-Cohesion: 0.12
-Nodes (4): ToolsMenu, show_dialog(), _cleanup_mock_window(), TestToolsMenu
+Cohesion: 0.15
+Nodes (4): PreferencesMenu, ToolsMenu, _cleanup_mock_window(), TestToolsMenu
 
 ### Community 179 - "Elderly Scholar (Tolkien-like)"
 Cohesion: 0.48
@@ -673,16 +665,12 @@ Cohesion: 0.33
 Nodes (4): Aenglisc Toolkit, Local SQLite Project Storage, 500ms Autosave, SQLite WAL Database Lock
 
 ### Community 194 - "json"
-Cohesion: 0.31
-Nodes (10): _importer(), _migration(), _repairers(), _revision(), test_json_tables_equal_the_frozen_migration_tables(), test_malformed_values_section_raises_and_is_not_swallowed(), test_old_export_label_values_import_as_codes(), test_rename_mappings_still_work_alongside_values() (+2 more)
+Cohesion: 0.13
+Nodes (12): PosCodeRepair, _importer(), _migration(), _repairers(), _revision(), test_from_mapping_rejects_malformed_specs(), test_json_tables_equal_the_frozen_migration_tables(), test_malformed_values_section_raises_and_is_not_swallowed() (+4 more)
 
 ### Community 199 - "build_macos_helpbook.py"
 Cohesion: 0.16
 Nodes (7): _build_help_index(), _copy_html_pages(), main(), parse_args(), _prepare_output_directory(), _validate_source_html(), _write_helpbook_info_plist()
-
-### Community 200 - "test_wyrdcraeft_ingest.py"
-Cohesion: 0.22
-Nodes (3): _canonical_mixed(), test_ingest_mixed_creates_poem_chapter_and_prose_auto_titles(), test_ingest_pure_verse_chunks_sections_by_20_stanzas()
 
 ### Community 201 - "Circular App Icon"
 Cohesion: 0.67
@@ -724,17 +712,21 @@ Nodes (8): Annotation Guide, Idioms Guide, Annotation Keyboard Shortcuts, Keyboa
 Cohesion: 0.33
 Nodes (6): Annotation Metadata Fields, Root and Surface Form Normalization, Annotation Confidence, Annotation TODO Markers, OE Search Normalization, Search Modes
 
-### Community 215 - "BackupFailed"
-Cohesion: 0.06
-Nodes (7): Task 4: WAL-safe `restore_backup` that never prunes first (D3), BackupFailed, DoesNotExist, TestAlreadyExists, TestBackupFailed, TestDoesNotExist, flaky()
+### Community 215 - "pathlib"
+Cohesion: 0.05
+Nodes (8): BackupFailed, DoesNotExist, MigrationCreationFailed, NoAnnotationAvailable, TestBackupFailed, TestDoesNotExist, TestMigrationCreationFailed, TestPending
 
 ### Community 219 - "AppendTextDialog"
 Cohesion: 0.10
-Nodes (5): Task 2: One project-scoped stack, AppendTextDialog, OkCommand, test_append_clears_history(), TestAppendTextDialog
+Nodes (4): AppendTextDialog, OkCommand, test_append_clears_history(), TestAppendTextDialog
+
+### Community 221 - "set_runtime_session"
+Cohesion: 0.12
+Nodes (5): Global Constraints, Review Focus, Runtime Session Freeze Implementation Plan, get_session(), set_runtime_session()
 
 ### Community 224 - ".create"
-Cohesion: 0.07
-Nodes (13): File map, Global Constraints, Project Export Reading-Text Implementation Plan, Spec coverage (self-review), Task 1: `ReadingTextExporter` (strings only), Task 4: Help copy for the three Project Export items, visible_titles(), ReadingTextExporter (+5 more)
+Cohesion: 0.04
+Nodes (13): ReadingTextExporter, _mark_verse(), _require_n_sentences(), TestReadingTextExporter, full_window(), test_project_updated_at_on_annotation_update(), test_project_updated_at_on_note_create(), test_project_updated_at_on_note_delete() (+5 more)
 
 ### Community 225 - "Morphological Annotation"
 Cohesion: 0.50
@@ -760,25 +752,17 @@ Nodes (3): TestModalBuildsFromCatalog, TestPartOfSpeechSubclasses, TestPOSFieldM
 Cohesion: 0.52
 Nodes (4): _column_exists(), downgrade(), _table_exists(), upgrade()
 
-### Community 243 - "File Structure"
-Cohesion: 0.12
-Nodes (6): File Structure, Task 1: The catalog module and its parity tests, Task 6: Import remaps label-form values from older exports, Task 7: Docs, help, ADR status and final verification, PosCodeRepair, test_from_mapping_rejects_malformed_specs()
+### Community 239 - "_make_sqlite"
+Cohesion: 0.24
+Nodes (3): Task 4: WAL-safe `restore_backup` that never prunes first (D3), _make_sqlite(), _read_value()
 
-### Community 257 - "test_token_details_sidebar.py"
-Cohesion: 0.31
+### Community 257 - "TestSidebarRendersFromCatalog"
+Cohesion: 0.36
 Nodes (3): _label_texts(), _render(), TestSidebarRendersFromCatalog
 
-### Community 264 - "get_logger"
-Cohesion: 0.04
-Nodes (12): main(), touch_project_on_change(), configure_logging(), get_log_file_path(), get_logger(), create_application(), from_utc_iso(), to_utc_iso() (+4 more)
-
-### Community 267 - ".__init__"
-Cohesion: 0.12
-Nodes (4): Task 5: The injected engine is authoritative, with foreign keys OFF (D8), run_migrations_online(), _run_with_connection(), RevisionVersionResolver
-
-### Community 268 - "_sqlite_pragma_settings"
-Cohesion: 0.29
-Nodes (4): set_sqlite_pragma(), _parse_env_choice(), _parse_env_int(), _sqlite_pragma_settings()
+### Community 264 - "logs.py"
+Cohesion: 0.11
+Nodes (8): main(), configure_logging(), get_log_dir(), get_log_file_path(), get_app_data_path(), temp_log_dir(), test_log_rotation(), test_logging_configuration()
 
 ### Community 269 - "POS Field Catalog (F2) Implementation Plan"
 Cohesion: 0.50
@@ -786,11 +770,11 @@ Nodes (3): Global Constraints, POS Field Catalog (F2) Implementation Plan, Revie
 
 ### Community 305 - "SentenceCard"
 Cohesion: 0.02
-Nodes (10): Task 5: Add `command_manager` to every remaining bare `SentenceCard(...)` test call site, _focus_new_card(), SentenceCard, _select_card(), _card_for(), test_token_selection_edge_cases(), test_on_merge_paragraph_clicked_failure_leaves_stack_empty(), test_on_split_paragraph_clicked_executes_command_via_controller() (+2 more)
+Nodes (15): F4: Finish SentenceCard Controller Split; Stop Widget ORM Writes — Implementation Plan, Self-Review Notes, Task 3: Rewire `SentenceCard` — require `command_manager`, delete ORM-direct writes, add `structure_changed`, Task 5: Add `command_manager` to every remaining bare `SentenceCard(...)` test call site, _focus_new_card(), HierarchyPosition, SentenceCard, sentence_card() (+7 more)
 
 ### Community 314 - "push_command"
-Cohesion: 0.06
-Nodes (36): Self-review, Command, ApplyRememberedAnnotationsCommand, TokenBatchLocators, _is_obsolete(), is_orphaned(), maintain_stack(), settle() (+28 more)
+Cohesion: 0.07
+Nodes (36): ApplyRememberedAnnotationsCommand, _is_obsolete(), is_orphaned(), maintain_stack(), settle(), push_command(), redo_step(), undo_step() (+28 more)
 
 ## Ambiguous Edges - Review These
 - `Keyboard Shortcuts` → `Editor Versus Project Undo Model`  [AMBIGUOUS]
@@ -806,22 +790,22 @@ Nodes (36): Self-review, Command, ApplyRememberedAnnotationsCommand, TokenBatchL
 
 ## Knowledge Gaps
 - **78 isolated node(s):** `aenglisc_toolkit`, `Preterite-Present Requires Infinitive Shortcut`, `LaTeX PDF Layout Pipeline`, `Side-by-Side Full Translation View`, `Automatic Note Renumbering` (+73 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 3277 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **215 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 3267 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **181 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `Project` connect `Project` to `project.py`, `export_pdf.py`, `Annotation`, `get_logger`, `TestProject`, `ProjectUI`, `test_typed_run.py`, `SentenceCardController`, `NewProjectDialog`, `OpenProjectDialog`, `.split_sentences`, `MainWindow`, `get_runtime_session`, `SearchController`, `test_highlight_layers.py`, `full_window`, `._map_canonical_to_project`, `.create_from_sentence`, `WyrdcraeftIngestService`, `test_menus.py`, `ProjectImporter`, `push_command`, `BackupService`, `DeleteProjectDialog`, `DOCXExporter`, `TestFullTranslationPDFExporter`, `MainWindowActions`, `menus.py`, `Note`, `FullTranslationPDFExporter`, `_actions`, `._render_two_columns`, `EditProjectDialog`, `Token`, `AppendTextDialog`, `create_test_project`, `.create`, `._build_glossary_entries`, `test_undo_navigation.py`, `.build`, `.load_section`, `ProjectMenu`?**
-  _High betweenness centrality (0.102) - this node is a cross-community bridge._
+- **Why does `create_test_project()` connect `create_test_project` to `Sentence`, `.save`, `.load_project`, `.test_clickable_note_label_emits_clicked_signal`, `Annotation`, `ClickableNoteLabel`, `Project`, `TestToken`, `test_remembered_annotations.py`, `.test_context_menu_disables_force_propagate_without_required_fields`, `ProjectExporter`, `AnnotationLookupsMixin`, `OpenProjectDialog`, `MainWindow`, `conftest.py`, `TokenTableModel`, `TestSingleInstanceHighlighter`, `TokenTable`, `OldEnglishTextEdit`, `NoteDialog`, `.from_annotation`, `test_menus.py`, `TestNotesPanel`, `SentenceCard`, `AbstractPartOfSpeechRenderer`, `DOCXExporter`, `ProjectImporter`, `_actions`, `DeleteProjectDialog`, `StackAdjustment`, `TokenOccurrenceMixin`, `Idiom`, `FullTranslationPDFExporter`, `.get`, `.build`, `get_logger`, `test_annotation_copy_paste.py`, `TestOldEnglishTextEdit`, `.test_create_backup_creates_backup_file`, `.test_create_backup_creates_metadata_file`, `EditProjectDialog`, `pathlib`, `Task 3: Migrate the three writers to layers (atomic)`, `Token`, `AppendTextDialog`, `.test_line_initial_token_can_be_remembered_from_context_menu`, `.create`, `TokenDetailsSidebar`, `test_annotation_modal.py`, `test_annotation.py`, `AnnotationJson`, `ProjectMenu`?**
+  _High betweenness centrality (0.109) - this node is a cross-community bridge._
 - **Are the 2 inferred relationships involving `create_test_project()` (e.g. with `Task 3: Export submenu, enablement, save-then-write` and `Project`) actually correct?**
   _`create_test_project()` has 2 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `aenglisc_toolkit`, `Preterite-Present Requires Infinitive Shortcut`, `LaTeX PDF Layout Pipeline` to the rest of the system?**
   _78 weakly-connected nodes found - possible documentation gaps or missing edges._
-- **Should `Project` be split into smaller, more focused modules?**
-  _Cohesion score 0.028551381692573402 - nodes in this community are weakly interconnected._
-- **Why does `create_test_project()` connect `create_test_project` to `Project`, `test_token_details_sidebar.py`, `project.py`, `.save`, `.test_clickable_note_label_emits_clicked_signal`, `Annotation`, `TestToken`, `test_remembered_annotations.py`, `AnnotationLookupsMixin`, `OpenProjectDialog`, `MainWindow`, `TokenTableModel`, `.export_side_by_side_pdf`, `TokenTable`, `AnnotationPropagationService`, `.test_export_handles_file_write_error`, `test_highlight_layers.py`, `NoteDialog`, `.save`, `.export`, `.test_export_includes_translation`, `.test_export_includes_sentence_numbers`, `SentenceCard`, `test_menus.py`, `.export_side_by_side`, `TestNotesPanel`, `ProjectImporter`, `_actions`, `DeleteProjectDialog`, `.select`, `DOCXExporter`, `TokenOccurrenceMixin`, `TestFullTranslationPDFExporter`, `MainWindowActions`, `ImportProjectDialog`, `Note`, `.from_json`, `_actions`, `TestOldEnglishTextEdit`, `.test_create_backup_creates_backup_file`, `.test_create_backup_creates_metadata_file`, `EditProjectDialog`, `._render_two_columns`, `Task 3: Migrate the three writers to layers (atomic)`, `Token`, `AppendTextDialog`, `.test_line_initial_token_can_be_remembered_from_context_menu`, `.create`, `._build_glossary_entries`, `TokenDetailsSidebar`, `._on_annotation_applied`, `test_annotation.py`, `TestEditModeAndRerender`, `.get`, `ProjectMenu`?**
-  _High betweenness centrality (0.096) - this node is a cross-community bridge._
+- **Should `Sentence` be split into smaller, more focused modules?**
+  _Cohesion score 0.03719039950924009 - nodes in this community are weakly interconnected._
+- **Why does `Project` connect `Project` to `Sentence`, `WyrdcraeftIngestService`, `.load_project`, `export_pdf.py`, `Annotation`, `test_typed_run.py`, `.from_json`, `.select`, `NewProjectDialog`, `ProjectExporter`, `OpenProjectDialog`, `.split_sentences`, `MainWindow`, `conftest.py`, `SearchController`, `MainWindowActions`, `OldEnglishTextEdit`, `.create_from_sentence`, `TestFullTranslationWindow`, `test_menus.py`, `DOCXExporter`, `ProjectImporter`, `push_command`, `BackupService`, `DeleteProjectDialog`, `FullTranslationPDFExporter`, `.get`, `ProjectUI`, `normalize_old_english`, `get_logger`, `test_annotation_copy_paste.py`, `pathlib`, `EditProjectDialog`, `Token`, `AppendTextDialog`, `create_test_project`, `.create`, `test_undo_navigation.py`, `load_projects_into_table`, `._apply_field_mappings`, `WindowMenu`, `ProjectMenu`?**
+  _High betweenness centrality (0.098) - this node is a cross-community bridge._
 
 ### Low-confidence Hints
 _AMBIGUOUS edges — the extractor was unsure. Verify before acting on these._

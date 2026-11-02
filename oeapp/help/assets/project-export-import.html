@@ -88,8 +88,8 @@
 <li><strong>Location</strong>: Project → Export</li>
 <li><strong>Items</strong>:</li>
 <li><strong>Project file...</strong> — JSON (optionally <code>.json.gz</code>). Complete project data for sharing between Toolkit installations or archiving that project. This is a Project Export; it can be imported. Default name: <code>my_project.json</code>.</li>
-<li><strong>Old English...</strong> — UTF-8 <code>.txt</code> reading copy of the Old English text (official titles, verse indent, a line number every five verse lines). No notes or annotations. Default name: <code>my_project-oe.txt</code>. Disabled if the project has no sentences.</li>
-<li><strong>Translation...</strong> — UTF-8 <code>.txt</code> reading copy of the Modern English translation (same layout rules; empty sentences stay empty). Default name: <code>my_project-translation.txt</code>. Disabled if there is no translation yet.</li>
+<li><strong>Old English...</strong> — UTF-8 <code>.txt</code> reading copy of the Old English text (official titles, verse indent, a line number every five verse lines). No notes or annotations. Default name: <code>my_project-oe.txt</code>. Disabled when the project has no sentences. A sentence whose Old English text is blank still counts.</li>
+<li><strong>Translation...</strong> — UTF-8 <code>.txt</code> reading copy of the Modern English translation (same layout rules; empty sentences stay empty). Default name: <code>my_project-translation.txt</code>. Disabled when no sentence has a Modern English translation. A translation that is only spaces does not count.</li>
 <li><strong>Not for</strong>: side-by-side reading (use File → DOCX Export or Full Translation → Export PDF).</li>
 <li><strong>Import</strong>: only Project file JSON / <code>.json.gz</code>. Old English and Translation <code>.txt</code> files cannot recreate a project.</li>
 </ul>

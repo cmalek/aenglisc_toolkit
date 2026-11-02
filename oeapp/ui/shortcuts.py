@@ -82,12 +82,13 @@ class GlobalShortcuts(ShortcutsMixin):
         """
         Add all the shortcuts to the main window.
         """
-        self.add_shortcut("N", self.main_window.action_service.next_match)
-        self.add_shortcut("Shift+N", self.main_window.action_service.prev_match)
-        self.add_shortcut("Escape", self.main_window.action_service.on_escape_pressed)
-        self.add_shortcut("Ctrl+G", self.main_window.action_service.focus_first_match)
-        self.add_shortcut("Shift+Down", self.main_window.action_service.scroll_to_end)
-        self.add_shortcut("Shift+Up", self.main_window.action_service.scroll_to_start)
+        search = self.main_window.search_controller
+        self.add_shortcut("N", search.next_match)
+        self.add_shortcut("Shift+N", search.prev_match)
+        self.add_shortcut("Escape", self.main_window.on_escape_pressed)
+        self.add_shortcut("Ctrl+G", search.focus_first_match)
+        self.add_shortcut("Shift+Down", self.main_window.scroll_to_end)
+        self.add_shortcut("Shift+Up", self.main_window.scroll_to_start)
 
 
 class AnnotationModalShortcuts(ShortcutsMixin):

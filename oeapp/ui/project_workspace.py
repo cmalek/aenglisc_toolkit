@@ -96,7 +96,7 @@ class ProjectUI:
         if clear_search:
             self.main_window._clear_search_without_focus_restore()
         else:
-            self.main_window.action_service.perform_search(
+            self.main_window.search_controller.perform_search(
                 self.main_window.search_input.text(),
                 self.main_window.search_scope_combo.currentText(),
             )
@@ -496,7 +496,7 @@ class ProjectUI:
         self.refresh_theme_colors()
 
         # Re-apply search highlighting after refresh
-        self.main_window.action_service.perform_search(
+        self.main_window.search_controller.perform_search(
             self.main_window.search_input.text(),
             self.main_window.search_scope_combo.currentText(),
         )

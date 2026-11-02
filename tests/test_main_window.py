@@ -140,6 +140,13 @@ class TestMainWindowInitialization:
         )
         warn = MagicMock()
         monkeypatch.setattr(main_window.messages, "show_warning", warn)
+        menu = main_window.main_menu.project_menu
+        menu.export_old_english_action.setEnabled(True)
+        monkeypatch.setattr(
+            menu,
+            "update_reading_export_enabled",
+            lambda _project: None,
+        )
 
         assert main_window.action_service.export_old_english_text() is False
         assert list(tmp_path.iterdir()) == []
@@ -204,6 +211,13 @@ class TestMainWindowInitialization:
         )
         warn = MagicMock()
         monkeypatch.setattr(main_window.messages, "show_warning", warn)
+        menu = main_window.main_menu.project_menu
+        menu.export_translation_action.setEnabled(True)
+        monkeypatch.setattr(
+            menu,
+            "update_reading_export_enabled",
+            lambda _project: None,
+        )
 
         assert main_window.action_service.export_translation_text() is False
         assert list(tmp_path.iterdir()) == []
@@ -283,40 +297,6 @@ class TestMainWindowInitialization:
 
 class TestMainWindowActions:
     """Test cases for MainWindowActions logic."""
-
-    def test_navigation_next_prev_sentence(self, main_window):
-        """Test next_sentence and prev_sentence navigation logic."""
-        actions = main_window.action_service
-
-        mock_card1 = MagicMock()
-        mock_card2 = MagicMock()
-        mock_card3 = MagicMock()
-
-        actions.sentence_cards.extend([mock_card1, mock_card2, mock_card3])
-
-        for card in [mock_card1, mock_card2, mock_card3]:
-            card.has_focus = False
-
-        actions.next_sentence()
-        mock_card1.focus.assert_called_once()
-
-        mock_card1.has_focus = True
-        actions.next_sentence()
-        mock_card2.focus.assert_called_once()
-
-        mock_card1.has_focus = False
-        mock_card2.has_focus = True
-        actions.next_sentence()
-        mock_card3.focus.assert_called_once()
-
-        for card in [mock_card1, mock_card2, mock_card3]:
-            card.has_focus = False
-        actions.prev_sentence()
-        mock_card3.focus.assert_called_with()
-
-        mock_card3.has_focus = True
-        actions.prev_sentence()
-        mock_card2.focus.assert_called_with()
 
     def test_export_callback_uses_current_project(
         self, main_window, db_session, tmp_path, monkeypatch

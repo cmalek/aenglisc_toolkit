@@ -594,13 +594,11 @@ class ProjectMenu:
             project: Current project, or ``None`` when no project is open.
 
         """
-        sentences = project.sentences if project else []
-        has_sentences = bool(sentences)
+        has_sentences = bool(project and project.has_sentences())
         self.export_old_english_action.setEnabled(has_sentences)
-        has_translation = has_sentences and any(
-            (sentence.text_modern or "").strip() for sentence in sentences
+        self.export_translation_action.setEnabled(
+            bool(project and project.has_modern_english_translation())
         )
-        self.export_translation_action.setEnabled(has_translation)
 
 
 class HelpMenu:

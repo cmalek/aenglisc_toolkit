@@ -37,7 +37,6 @@ from oeapp.models.remembered_annotation import (
     AmbiguousRememberedSpellingError,
     RememberedAnnotation,
 )
-from oeapp.models.search_result import SearchResult
 from oeapp.services import (
     AnnotationPropagationService,
     AutosaveService,
@@ -85,6 +84,10 @@ class MainWindow(QMainWindow):
     """
     Main application window.
 
+    The window builds the shell, owns search, and scrolls between sentence
+    cards. Menu commands for export, backup, and annotation live on
+    :class:`MainWindowActions`.
+
     Args:
         app_context: App context.
 
@@ -128,8 +131,12 @@ class MainWindow(QMainWindow):
         #: Stable application context.
         self.app_context = app_context or AppContext()
         self.app_context.set_main_window(self)
-        #: Main window actions
-        self.action_service = MainWindowActions(self, self.app_context)
+        #: Search state and match navigation.
+        self.search_controller = SearchController(self, self.app_context)
+        #: Menu commands for export, backup, and annotation.
+        self.action_service = MainWindowActions(
+            self, self.app_context, self.backup_service
+        )
         #: Autosave service
         self.autosave_service: AutosaveService | None = AutosaveService(
             self.action_service.autosave
@@ -252,7 +259,9 @@ class MainWindow(QMainWindow):
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("Enter tokens or phrases...")
         self.search_input.textChanged.connect(self._on_search_text_changed)
-        self.search_input.returnPressed.connect(self.action_service.focus_first_match)
+        self.search_input.returnPressed.connect(
+            self.search_controller.focus_first_match
+        )
 
         # Intercept Escape key in search input
         def on_key_pressed(event: "QKeyEvent"):
@@ -293,7 +302,9 @@ class MainWindow(QMainWindow):
             text: Text.
 
         """
-        self.action_service.perform_search(text, self.search_scope_combo.currentText())
+        self.search_controller.perform_search(
+            text, self.search_scope_combo.currentText()
+        )
 
     def _on_search_scope_changed(self, index: int) -> None:  # noqa: ARG002
         """
@@ -307,17 +318,69 @@ class MainWindow(QMainWindow):
 
         """
         self.app_context.typed_run.end()
-        self.action_service.perform_search(
+        self.search_controller.perform_search(
             self.search_input.text(), self.search_scope_combo.currentText()
         )
 
     def _on_clear_search_clicked(self) -> None:
         """Handle clear search button click."""
-        self.action_service.clear_search(restore_origin_focus=True)
+        self.search_controller.clear_search(restore_origin_focus=True)
 
     def _clear_search_without_focus_restore(self) -> None:
         """Clear search state without restoring origin focus."""
-        self.action_service.clear_search(restore_origin_focus=False)
+        self.search_controller.clear_search(restore_origin_focus=False)
+
+    def focus_search_input(self) -> None:
+        """
+        Focus the search input.
+
+        Side Effects:
+            Ends the open Typed Run.
+
+        """
+        self.app_context.typed_run.end()
+        self.search_input.setFocus()
+        self.search_input.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.search_input.setFocus(Qt.FocusReason.OtherFocusReason)
+
+    def scroll_to_end(self) -> None:
+        """
+        Scroll to the last sentence card and focus it.
+
+        This is the event handler for the Shift+Down shortcut.
+        """
+        if self.sentence_cards:
+            card = self.sentence_cards[-1]
+            self.ensure_visible(card)
+            card.oe_text_edit.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+            card.oe_text_edit.setFocus(Qt.FocusReason.OtherFocusReason)
+
+    def on_escape_pressed(self) -> None:
+        """
+        Handle escape key press.
+
+        This is the event handler for the Escape shortcut.
+        """
+        if self.search_input.text():
+            self._on_clear_search_clicked()
+            return
+
+        for card in self.sentence_cards:
+            card.oe_text_edit.unhighlight()
+
+        self.token_details_sidebar.clear_sidebar()
+
+    def scroll_to_start(self) -> None:
+        """
+        Scroll to the first sentence card and focus it.
+
+        This is the event handler for the Shift+Up shortcut.
+        """
+        if self.sentence_cards:
+            card = self.sentence_cards[0]
+            self.ensure_visible(card)
+            card.oe_text_edit.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+            card.oe_text_edit.setFocus(Qt.FocusReason.OtherFocusReason)
 
     def build_navigation_toolbar(self) -> QWidget:
         """
@@ -485,7 +548,7 @@ class MainWindow(QMainWindow):
             to the first card and moves keyboard focus to it.
 
         """
-        QTimer.singleShot(0, self, self.action_service.scroll_to_start)
+        QTimer.singleShot(0, self, self.scroll_to_start)
 
     def keyPressEvent(self, event: "QKeyEvent") -> None:  # noqa: N802
         """
@@ -874,168 +937,42 @@ class MainWindow(QMainWindow):
 
 class MainWindowActions:
     """
-    Main window actions.  We separate the work from the UI to make the code more
-    readable and maintainable.
+    Menu commands for export, backup, project editing, and annotation.
+
+    Search lives on :class:`~oeapp.ui.search_controller.SearchController`.
+    Sentence scrolling lives on :class:`MainWindow`. Dialogs, undo, and
+    status messages stay here.
 
     Args:
-        main_window: Main window instance
+        main_window: Main window instance.
+        app_context: Shared application context.
+        backup_service: The window's backup service.
 
     """
 
-    def __init__(self, main_window: MainWindow, app_context: AppContext) -> None:
+    def __init__(
+        self,
+        main_window: MainWindow,
+        app_context: AppContext,
+        backup_service: BackupService,
+    ) -> None:
         """
         Initialize main window actions.
 
         Args:
             main_window: Main window instance.
             app_context: Shared application context.
+            backup_service: The window's backup service.
 
         """
         #: Main window instance.
         self.main_window = main_window
-        #: Backup service
-        self.backup_service = BackupService()
+        #: The window's backup service.
+        self.backup_service = backup_service
         #: Stable app context.
         self.app_context = app_context
         #: Messages
         self.messages = main_window.messages
-        #: Search UI state and navigation
-        self._search_controller = SearchController(
-            main_window, self.app_context
-        )
-
-    @property
-    def search_results(self) -> list[SearchResult]:
-        """
-        Ordered search results across the entire project.
-
-        Returns:
-            Current ordered search results.
-
-        """
-        return self._search_controller.search_results
-
-    @property
-    def search_total_matches(self) -> int:
-        """
-        Total number of matched occurrences across all results.
-
-        Returns:
-            Total match count for the active search.
-
-        """
-        return self._search_controller.search_total_matches
-
-    @property
-    def current_match_index(self) -> int:
-        """
-        Current match index in search_results.
-
-        Returns:
-            Zero-based index of the active search result.
-
-        """
-        return self._search_controller.current_match_index
-
-    @property
-    def sentence_cards(self) -> list[SentenceCard]:
-        """
-        Get the current sentence cards from main window.
-
-        Returns:
-            Sentence cards currently loaded in the workspace.
-
-        """
-        return self.main_window.sentence_cards
-
-    def perform_search(self, pattern: str, scope: str) -> None:
-        """
-        Perform project-wide search and update visible highlights.
-
-        Args:
-            pattern: Search pattern
-            scope: Search scope ("OE Text", "ModE text", "Notes", "All")
-
-        """
-        self._search_controller.perform_search(pattern, scope)
-
-    def next_match(self) -> None:
-        """Navigate to the next matching search result."""
-        self._search_controller.next_match()
-
-    def prev_match(self) -> None:
-        """Navigate to the previous matching search result."""
-        self._search_controller.prev_match()
-
-    def focus_search_input(self) -> None:
-        """
-        Focus the search input.
-
-        Side Effects:
-            Ends the open Typed Run.
-
-        """
-        self.app_context.typed_run.end()
-        self.main_window.search_input.setFocus()
-        self.main_window.search_input.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        self.main_window.search_input.setFocus(Qt.FocusReason.OtherFocusReason)
-
-    def focus_first_match(self) -> None:
-        """Focus the first match in search results."""
-        self._search_controller.focus_first_match()
-
-    def clear_search(self, restore_origin_focus: bool = False) -> None:
-        """
-        Clear search state, highlights, and optionally restore origin focus.
-
-        Args:
-            restore_origin_focus: Whether to restore focus to search origin ModE field.
-
-        """
-        self._search_controller.clear_search(restore_origin_focus=restore_origin_focus)
-
-    def scroll_to_end(self) -> None:
-        """
-        Scroll to the last sentence card and focus it.
-
-        This is a the event handler for the Shift+Down shortcut.
-        """
-        if self.sentence_cards:
-            card = self.sentence_cards[-1]
-            self.main_window.ensure_visible(card)
-            card.oe_text_edit.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-            card.oe_text_edit.setFocus(Qt.FocusReason.OtherFocusReason)
-
-    def on_escape_pressed(self) -> None:
-        """
-        Handle escape key press.
-
-        This is a the event handler for the Escape shortcut.
-        """
-        # If we're in search mode, clear the search
-        if self.main_window.search_input.text():
-            self.main_window._on_clear_search_clicked()
-            return
-
-        # If we're not in search mode, iterate through the sentence cards
-        # and clear all highlighting
-        for card in self.sentence_cards:
-            card.oe_text_edit.unhighlight()
-
-        # Clear the sidebar
-        self.main_window.token_details_sidebar.clear_sidebar()
-
-    def scroll_to_start(self) -> None:
-        """
-        Scroll to the first sentence card and focus it.
-
-        This is a the event handler for the Shift+Up shortcut.
-        """
-        if self.sentence_cards:
-            card = self.sentence_cards[0]
-            self.main_window.ensure_visible(card)
-            card.oe_text_edit.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-            card.oe_text_edit.setFocus(Qt.FocusReason.OtherFocusReason)
 
     @property
     def undo_stack(self) -> QUndoStack:
@@ -1058,70 +995,6 @@ class MainWindowActions:
 
         """
         return self.main_window.autosave_service
-
-    def next_sentence(self) -> None:
-        """
-        Navigate to next sentence.
-
-        - If no sentence card is focused, the first sentence card is focused.
-        - If the last sentence card is focused, the last sentence card is focused.
-
-        """
-        if not self.sentence_cards:
-            return
-
-        # Find currently focused sentence card
-        current_index = -1
-        for i, card in enumerate(self.sentence_cards):
-            if card.has_focus:
-                current_index = i
-                break
-
-        if current_index == -1:
-            self.sentence_cards[0].focus()
-        elif current_index < len(self.sentence_cards) - 1:
-            self.sentence_cards[current_index + 1].focus()
-
-    def prev_sentence(self) -> None:
-        """
-        Navigate to previous sentence.
-
-        - If no sentence card is focused, the last sentence card is focused.
-        - If the first sentence card is focused, the first sentence card is focused.
-
-        """
-        if not self.sentence_cards:
-            return
-
-        # Find currently focused sentence card
-        current_index = -1
-        for i, card in enumerate(self.sentence_cards):
-            if card.has_focus:
-                current_index = i
-                break
-
-        if current_index == -1:
-            self.sentence_cards[-1].focus()
-        elif current_index > 0:
-            self.sentence_cards[current_index - 1].focus()
-
-    def focus_translation(self) -> None:
-        """
-        Focus translation field of current sentence.
-
-        - If there is no sentence card focused, do nothing.
-        - If no sentence card is focused, the translation field of the last
-          sentence card is focused.
-        - If the translation field of the last sentence card is focused, the
-          translation field of the first sentence card is focused.
-
-        """
-        if not self.sentence_cards:
-            return
-        for card in self.sentence_cards:
-            if card.has_focus:
-                card.focus_translation()
-                break
 
     def copy_annotation(self) -> bool:
         """
@@ -1567,9 +1440,7 @@ class MainWindowActions:
             return False
 
         self._refresh_reading_export_enablement_for_current_project()
-        project_menu = self.main_window.main_menu.project_menu
-
-        if not project_menu.export_old_english_action.isEnabled():
+        if not project.has_sentences():
             self.messages.show_warning("No Old English text to export")
             return False
 
@@ -1627,9 +1498,7 @@ class MainWindowActions:
             return False
 
         self._refresh_reading_export_enablement_for_current_project()
-        project_menu = self.main_window.main_menu.project_menu
-
-        if not project_menu.export_translation_action.isEnabled():
+        if not project.has_modern_english_translation():
             self.messages.show_warning("No translation text to export")
             return False
 

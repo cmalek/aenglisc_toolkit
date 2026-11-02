@@ -291,6 +291,8 @@ class MockMainWindow(QWidget):
 
         self.backup_service = MagicMock()
         self.action_service = MagicMock()
+        self.focus_search_input = MagicMock()
+        self.search_controller = MagicMock()
         self.backup_service = MagicMock()
         self.save_project = MagicMock()
         self.export_project_docx = MagicMock()

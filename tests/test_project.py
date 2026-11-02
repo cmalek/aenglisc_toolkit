@@ -295,6 +295,26 @@ class TestProject:
         assert len(project.chapters[0].sections[0].paragraphs) == 1
         assert project.sentences[0].paragraph_id == project.chapters[0].sections[0].paragraphs[0].id
 
+    def test_reading_export_eligibility(self, db_session):
+        """Blank Old English still counts; whitespace is not a translation."""
+        empty = Project(name="Empty Eligibility")
+        empty.save()
+        assert empty.has_sentences() is False
+        assert empty.has_modern_english_translation() is False
+
+        project = Project.create(name="Eligibility", text="Hwæt.")
+        project.sentences[0].text_oe = ""
+        project.sentences[0].text_modern = "   "
+        db_session.commit()
+        db_session.refresh(project)
+
+        assert project.has_sentences() is True
+        assert project.has_modern_english_translation() is False
+
+        project.sentences[0].text_modern = " Lo. "
+        db_session.commit()
+        assert project.has_modern_english_translation() is True
+
     def test_append_oe_text_raises_key_error_when_last_paragraph_missing(
         self, db_session, monkeypatch
     ):

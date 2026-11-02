@@ -541,7 +541,7 @@ def _run_apply_dialog(qtbot, db_session, project_id: int):
     window.show()
     window.app_context.current_project_id = project_id
     window.messages = Messages(window)
-    actions = MainWindowActions(window, window.app_context)
+    actions = MainWindowActions(window, window.app_context, window.backup_service)
     captured: dict[str, str] = {}
     original = window.messages.show_information
 

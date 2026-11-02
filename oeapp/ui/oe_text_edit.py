@@ -1541,9 +1541,9 @@ class OldEnglishTextEdit(QTextEdit):
                     if event.key() == Qt.Key.Key_N:
                         if self._main_window:
                             if event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
-                                self._main_window.action_service.prev_match()
+                                self._main_window.search_controller.prev_match()
                             else:
-                                self._main_window.action_service.next_match()
+                                self._main_window.search_controller.next_match()
                         event.accept()
                         return
                 else:
@@ -1551,9 +1551,9 @@ class OldEnglishTextEdit(QTextEdit):
                     if event.key() == Qt.Key.Key_N:
                         if self._main_window:
                             if event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
-                                self._main_window.action_service.prev_match()
+                                self._main_window.search_controller.prev_match()
                             else:
-                                self._main_window.action_service.next_match()
+                                self._main_window.search_controller.next_match()
                         event.accept()
                         return
                     # If no token is selected, ignore the key press so it bubbles up
