@@ -336,12 +336,8 @@ class TestSentenceCard:
 
         idiom_calls = []
         token_calls = []
-        monkeypatch.setattr(
-            card.controller, "open_idiom_modal", lambda i: idiom_calls.append(i)
-        )
-        monkeypatch.setattr(
-            card.controller, "open_token_modal", lambda t: token_calls.append(t)
-        )
+        monkeypatch.setattr(card.controller, "open_idiom_modal", idiom_calls.append)
+        monkeypatch.setattr(card.controller, "open_token_modal", token_calls.append)
         monkeypatch.setattr(card.oe_text_edit, "find_token_at_position", lambda _: tokens[0].order_index)
 
         from PySide6.QtGui import QMouseEvent
@@ -483,10 +479,8 @@ class TestSentenceCard:
         card.token_table.table.clearSelection()
 
         opened_tokens = []
-        monkeypatch.setattr(card.controller, "open_idiom_modal", lambda idiom: None)
-        monkeypatch.setattr(
-            card.controller, "open_token_modal", lambda token: opened_tokens.append(token)
-        )
+        monkeypatch.setattr(card.controller, "open_idiom_modal", lambda _idiom: None)
+        monkeypatch.setattr(card.controller, "open_token_modal", opened_tokens.append)
 
         card._open_annotation_modal()
 
@@ -648,9 +642,8 @@ class TestSentenceCard:
         assert saved is not None
         assert saved.pos == "N"
 
-    def test_failed_annotation_push_does_not_paint(
-        self, db_session, qapp, mock_main_window
-    ):
+    @pytest.mark.usefixtures("qapp")
+    def test_failed_annotation_push_does_not_paint(self, db_session, mock_main_window):
         """A failed push leaves the card unpainted and emits nothing."""
         project = create_test_project(db_session, name="Test", text="Se cyning")
         sentence = project.sentences[0]
@@ -673,11 +666,12 @@ class TestSentenceCard:
                 Annotation(token_id=token.id, pos="N"),
             )
 
-        assert emitted == []
-        assert card.oe_text_edit.annotations.get(token.id) is before
+        assert emitted == []  # noqa: S101
+        assert card.oe_text_edit.annotations.get(token.id) is before  # noqa: S101
 
+    @pytest.mark.usefixtures("qapp")
     def test_undo_after_editing_a_token_annotation_in_the_modal(
-        self, db_session, qapp, mock_main_window, monkeypatch
+        self, db_session, mock_main_window, monkeypatch
     ):
         """Undo restores the value the token had before the modal edited it."""
         project = create_test_project(db_session, name="Test", text="Se cyning")
@@ -698,14 +692,15 @@ class TestSentenceCard:
         )
 
         card.controller.open_token_modal(token)
-        assert Annotation.get_by_token(token.id).pos == "N"
+        assert Annotation.get_by_token(token.id).pos == "N"  # noqa: S101
 
         card.undo_stack.undo()
         db_session.expire_all()
-        assert Annotation.get_by_token(token.id).pos == "V"
+        assert Annotation.get_by_token(token.id).pos == "V"  # noqa: S101
 
+    @pytest.mark.usefixtures("qapp")
     def test_undo_after_editing_an_idiom_annotation_in_the_modal(
-        self, db_session, qapp, mock_main_window, monkeypatch
+        self, db_session, mock_main_window, monkeypatch
     ):
         """Undo restores the value the idiom had before the modal edited it."""
         project = create_test_project(db_session, name="Test", text="Se cyning")
@@ -729,11 +724,11 @@ class TestSentenceCard:
         )
 
         card.controller.open_idiom_modal(idiom)
-        assert Annotation.get_by_idiom(idiom.id).pos == "N"
+        assert Annotation.get_by_idiom(idiom.id).pos == "N"  # noqa: S101
 
         card.undo_stack.undo()
         db_session.expire_all()
-        assert Annotation.get_by_idiom(idiom.id).pos == "V"
+        assert Annotation.get_by_idiom(idiom.id).pos == "V"  # noqa: S101
 
     def test_sentence_card_requires_undo_stack(
         self, db_session, qapp, mock_main_window

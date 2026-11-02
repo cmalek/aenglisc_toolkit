@@ -1,5 +1,6 @@
 """Annotation modal apply: before-snapshot, command, and Undo."""
 
+import pytest
 from oeapp.commands import AnnotateTokenCommand, push_command
 from oeapp.models import Annotation, AnnotationEdit, Idiom
 from oeapp.services.annotation_apply import AnnotationApplyService
@@ -22,18 +23,20 @@ def _existing_token_annotation(db_session, pos: str):
 
 
 def test_begin_without_existing_annotation_is_empty() -> None:
-    assert AnnotationApplyService().begin(None) == AnnotationEdit(before={})
+    assert AnnotationApplyService().begin(None) == AnnotationEdit(before={})  # noqa: S101
 
 
-def test_before_snapshot_is_taken_before_the_edit(db_session, qapp) -> None:
+@pytest.mark.usefixtures("qapp")
+def test_before_snapshot_is_taken_before_the_edit(db_session) -> None:
     _, token = _existing_token_annotation(db_session, "V")
     service = AnnotationApplyService()
     edit = service.begin(token.annotation)
     token.annotation.pos = "N"
-    assert edit.before["pos"] == "V"
+    assert edit.before["pos"] == "V"  # noqa: S101
 
 
-def test_undo_restores_an_edited_token_annotation(db_session, qapp) -> None:
+@pytest.mark.usefixtures("qapp")
+def test_undo_restores_an_edited_token_annotation(db_session) -> None:
     sentence, token = _existing_token_annotation(db_session, "V")
     service = AnnotationApplyService()
     edit = service.begin(token.annotation)
@@ -41,21 +44,20 @@ def test_undo_restores_an_edited_token_annotation(db_session, qapp) -> None:
     applied.pos = "N"
     stack = QUndoStack()
     command = service.command_for(edit, applied, sentence.id)
-    assert push_command(stack, command)
-    assert Annotation.get_by_token(token.id).pos == "N"
+    assert push_command(stack, command)  # noqa: S101
+    assert Annotation.get_by_token(token.id).pos == "N"  # noqa: S101
 
     stack.undo()
     db_session.expire_all()
-    assert Annotation.get_by_token(token.id).pos == "V"
+    assert Annotation.get_by_token(token.id).pos == "V"  # noqa: S101
 
     stack.redo()
     db_session.expire_all()
-    assert Annotation.get_by_token(token.id).pos == "N"
+    assert Annotation.get_by_token(token.id).pos == "N"  # noqa: S101
 
 
-def test_undo_of_a_first_token_annotation_blanks_its_fields(
-    db_session, qapp
-) -> None:
+@pytest.mark.usefixtures("qapp")
+def test_undo_of_a_first_token_annotation_blanks_its_fields(db_session) -> None:
     project = create_test_project(db_session, name="First", text="Se cyning")
     sentence = project.sentences[0]
     token = sentence.tokens[0]
@@ -63,23 +65,24 @@ def test_undo_of_a_first_token_annotation_blanks_its_fields(
     if existing is not None:
         db_session.delete(existing)
         db_session.commit()
-    assert Annotation.get_by_token(token.id) is None
+    assert Annotation.get_by_token(token.id) is None  # noqa: S101
 
     service = AnnotationApplyService()
     edit = service.begin(None)
     applied = Annotation(token_id=token.id, pos="N")
     stack = QUndoStack()
-    assert push_command(stack, service.command_for(edit, applied, sentence.id))
-    assert Annotation.get_by_token(token.id).pos == "N"
+    assert push_command(stack, service.command_for(edit, applied, sentence.id))  # noqa: S101
+    assert Annotation.get_by_token(token.id).pos == "N"  # noqa: S101
 
     stack.undo()
     db_session.expire_all()
     restored = Annotation.get_by_token(token.id)
-    assert restored is not None
-    assert restored.pos is None
+    assert restored is not None  # noqa: S101
+    assert restored.pos is None  # noqa: S101
 
 
-def test_undo_restores_an_edited_idiom_annotation(db_session, qapp) -> None:
+@pytest.mark.usefixtures("qapp")
+def test_undo_restores_an_edited_idiom_annotation(db_session) -> None:
     project = create_test_project(db_session, name="Idiom", text="Se cyning")
     sentence = project.sentences[0]
     tokens = list(sentence.tokens)
@@ -97,16 +100,15 @@ def test_undo_restores_an_edited_idiom_annotation(db_session, qapp) -> None:
     applied = idiom.annotation
     applied.pos = "N"
     stack = QUndoStack()
-    assert push_command(stack, service.command_for(edit, applied, sentence.id))
+    assert push_command(stack, service.command_for(edit, applied, sentence.id))  # noqa: S101
 
     stack.undo()
     db_session.expire_all()
-    assert Annotation.get_by_idiom(idiom.id).pos == "V"
+    assert Annotation.get_by_idiom(idiom.id).pos == "V"  # noqa: S101
 
 
-def test_new_idiom_apply_creates_the_idiom_and_its_annotation(
-    db_session, qapp
-) -> None:
+@pytest.mark.usefixtures("qapp")
+def test_new_idiom_apply_creates_the_idiom_and_its_annotation(db_session) -> None:
     project = create_test_project(db_session, name="New", text="Se cyning")
     sentence = project.sentences[0]
     tokens = list(sentence.tokens)
@@ -121,31 +123,33 @@ def test_new_idiom_apply_creates_the_idiom_and_its_annotation(
     service = AnnotationApplyService()
     edit = service.begin(None)
     command = service.command_for(edit, applied, sentence.id)
-    assert command.new_idiom is new_idiom
-    assert push_command(QUndoStack(), command)
+    assert command.new_idiom is new_idiom  # noqa: S101
+    assert push_command(QUndoStack(), command)  # noqa: S101
 
-    assert command.idiom_id is not None
-    assert Annotation.get_by_idiom(command.idiom_id).pos == "N"
+    assert command.idiom_id is not None  # noqa: S101
+    assert Annotation.get_by_idiom(command.idiom_id).pos == "N"  # noqa: S101
 
 
 def test_finish_copies_a_created_idiom_id() -> None:
+    created_idiom_id = 7
     applied = Annotation(pos="N")
     command = AnnotateTokenCommand(
         token_id=None,
-        idiom_id=7,
+        idiom_id=created_idiom_id,
         before={},
         after={},
         new_idiom=Idiom(sentence_id=1, start_token_id=1, end_token_id=2),
         sentence_id=1,
     )
     AnnotationApplyService().finish(applied, command)
-    assert applied.idiom_id == 7
+    assert applied.idiom_id == created_idiom_id  # noqa: S101
 
 
 def test_finish_leaves_an_existing_annotation_alone() -> None:
-    applied = Annotation(pos="N", idiom_id=3)
+    idiom_id = 3
+    applied = Annotation(pos="N", idiom_id=idiom_id)
     command = AnnotateTokenCommand(
-        token_id=None, idiom_id=3, before={}, after={}, sentence_id=1
+        token_id=None, idiom_id=idiom_id, before={}, after={}, sentence_id=1
     )
     AnnotationApplyService().finish(applied, command)
-    assert applied.idiom_id == 3
+    assert applied.idiom_id == idiom_id  # noqa: S101
