@@ -325,21 +325,6 @@ def run_pragma_optimize(engine: Engine | None = None) -> bool:
     return True
 
 
-def get_session():
-    """
-    Get a database session.
-
-    Yields:
-        SQLAlchemy session
-
-    """
-    session = SessionLocal()
-    try:
-        yield session
-    finally:
-        session.close()
-
-
 def table_to_model_name(table_name: str) -> str:
     """
     Convert table name to model name.

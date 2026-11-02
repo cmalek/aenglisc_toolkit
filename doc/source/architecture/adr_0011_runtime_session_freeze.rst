@@ -21,9 +21,8 @@ when nothing is registered. ``set_runtime_session`` replaces it.
 ``clear_runtime_session`` clears it. ``AppContext`` in ``oeapp/state.py``
 is the only product code that calls ``set_runtime_session`` or
 ``clear_runtime_session``. After a clear, the next ``get_runtime_session``
-creates the session itself. ``get_session`` in the same module also calls
-``SessionLocal()`` and yields that other session. Nothing calls
-``get_session``. D7 deletes it. The 2026-11-01 revision does not.
+creates the session itself. ``get_session`` has been deleted, and
+``get_runtime_session`` holds the only product ``SessionLocal()`` call.
 
 ``create_engine_with_path`` passes no ``poolclass``. For a file SQLite URL
 the dialect's default pool is ``QueuePool``. The finding rejects adding a
@@ -75,8 +74,7 @@ session it is given. ``get_runtime_session`` returns that session, and is
 the only product function that creates the registered runtime session when
 none is registered. ``clear_runtime_session`` clears it.
 
-``get_session`` remains until D7. It calls ``SessionLocal()``, yields that
-other session, and does not register it. It has no callers.
+``get_session`` was deleted under D7.
 
 ``create_engine_with_path`` keeps the dialect default pool, ``QueuePool``,
 for the file database. This decision does not switch the pool and does not
@@ -106,12 +104,10 @@ D3 — A pytest allowlist freezes each function's lookup counts
   ``self.session = ...`` and ``_RUNTIME_STATE.session = ...`` are not
   lookups.
 
-Imports, function definitions, and docstrings do not count. The two
-``SessionLocal()`` calls inside ``oeapp/db.py`` are the grandfathered
-creations, one in ``get_runtime_session`` and one in ``get_session``.
-``get_session`` has no calls, so that kind is absent until one appears.
-D7 removes the ``get_session`` creation from the allowlist in the change
-that deletes the function.
+Imports, function definitions, and docstrings do not count. One
+grandfathered ``SessionLocal()`` creation remains, in
+``get_runtime_session``. The kind name ``get_session`` stays in the
+scanner and is absent from the allowlist until something calls it.
 
 The enclosing function is the dotted names of the surrounding classes and
 functions, outermost first. Only the body is inside that function.
@@ -190,17 +186,15 @@ another changes the allowlist, including a move into a new function in
 receives the session from the function that already read it, which keeps
 the read.
 
-D7 — Delete ``get_session`` when its sprint is planned
-------------------------------------------------------
+D7 — Delete ``get_session``
+---------------------------
 
-``get_session`` in ``oeapp/db.py`` has no callers and calls
-``SessionLocal()``. Deleting it is part of this decision. The 2026-11-01
-revision does not delete it. The deletion waits until the sprint that
-includes this work has been planned. Until the function is gone, it
-remains a second ``SessionLocal()`` that does not register its session.
-The same change drops ``get_session`` from the ``oeapp/db.py`` allowlist
-entry. The scanner keeps ``get_session`` as a kind name, so a later call
-still counts.
+``get_session`` in ``oeapp/db.py`` had no callers and called
+``SessionLocal()`` without registering its session. It has been deleted,
+and ``get_runtime_session`` holds the only product ``SessionLocal()``
+call. The same change dropped ``get_session`` from the ``oeapp/db.py``
+allowlist entry. The scanner keeps ``get_session`` as a kind name, so a
+later function of that name still counts.
 
 Consequences
 ============
@@ -243,8 +237,6 @@ Consequences
   function or out of ``main_window.py``. Moving ``Annotation.get_by_idiom``
   onto ``SentenceCardController`` does not.
 - No help text changes. The runtime session is not a term in ``CONTEXT.md``.
-- ``get_session`` stays until the sprint in D7 is planned. This revision
-  does not delete it.
 - D5 is the later exception for a raised count, and only where a caller
   has to obtain the runtime session in order to pass it on and the same
   change removes the classmethod lookup. The test does not check that
@@ -296,9 +288,8 @@ Alternatives considered
 - **Cap every count at 1 in the test.** Rejected for this revision. The
   2026-10-28 tree has those counts. Making the cap a rule is a further
   decision.
-- **Delete** ``get_session`` **in the 2026-11-01 revision.** Rejected for
-  this date. D7 records the deletion and waits until the sprint that
-  includes it has been planned.
+- **Keep** ``get_session`` **until a sprint is planned for it.** Chosen in
+  the first 2026-11-01 revision. The sprint was planned and D7 deleted it.
 
 Related
 =======
@@ -311,5 +302,4 @@ Related
 - F7 follows this freeze. The audit had listed it earlier, at resolve
   order 9, and it already forbids new UI ``_get_session`` call sites:
   https://trello.com/c/rdFyWWxq
-- D7, delete ``get_session``, waits until the sprint that includes that
-  deletion has been planned.
+- D7, delete ``get_session``, is done.

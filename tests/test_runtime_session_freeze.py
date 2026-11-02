@@ -273,7 +273,6 @@ ALLOWLIST: dict[str, dict[str, dict[str, int]]] = {
     },
     "oeapp/db.py": {
         "get_runtime_session": {"SessionLocal": 1},
-        "get_session": {"SessionLocal": 1},
     },
     "oeapp/models/annotation.py": {
         "Annotation.exists": {"_get_session": 1},
