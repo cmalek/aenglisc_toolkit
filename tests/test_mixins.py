@@ -1,10 +1,11 @@
 """Unit tests for mixin classes."""
 
-import pytest
 
+from oeapp.db import get_runtime_session
 from oeapp.mixins import AnnotationTextualMixin, TokenOccurrenceMixin
 from oeapp.models.annotation import Annotation
 from oeapp.models.token import Token
+
 from tests.conftest import create_test_project, create_test_sentence
 
 
@@ -13,25 +14,29 @@ class TestTokenOccurrenceMixin:
 
     def test_find_token_occurrence_simple(self, db_session):
         """Test finding token occurrence in simple text."""
+        session = get_runtime_session()
         mixin = TokenOccurrenceMixin()
         text = "Se cyning"
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, text)
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         token = tokens[0]  # "Se"
         result = mixin._find_token_occurrence(text, token, tokens)
         assert result == 0
 
     def test_find_token_occurrence_multiple_occurrences(self, db_session):
         """Test finding correct occurrence when token appears multiple times."""
+        session = get_runtime_session()
         mixin = TokenOccurrenceMixin()
         text = "cyning cyning cyning"
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, text)
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         # Find "cyning" tokens - should have 3
         cyning_tokens = [t for t in tokens if t.surface == "cyning"]
-        assert len(cyning_tokens) >= 2, f"Expected at least 2 'cyning' tokens, got {len(cyning_tokens)}"
+        assert len(cyning_tokens) >= 2, (
+            f"Expected at least 2 'cyning' tokens, got {len(cyning_tokens)}"
+        )
         token1 = cyning_tokens[0]  # First "cyning"
         token2 = cyning_tokens[1]  # Second "cyning"
         # Should find first occurrence
@@ -43,11 +48,12 @@ class TestTokenOccurrenceMixin:
 
     def test_find_token_occurrence_not_found(self, db_session):
         """Test returns None when token not found in text."""
+        session = get_runtime_session()
         mixin = TokenOccurrenceMixin()
         text = "Se cyning"
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, text)
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         # Create a token that doesn't exist in text
         fake_token = Token(surface="missing", order_index=999)
         result = mixin._find_token_occurrence(text, fake_token, tokens)
@@ -55,11 +61,12 @@ class TestTokenOccurrenceMixin:
 
     def test_find_token_occurrence_empty_text(self, db_session):
         """Test handles empty text."""
+        session = get_runtime_session()
         mixin = TokenOccurrenceMixin()
         text = ""
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, text)
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         if tokens:
             token = tokens[0]
             result = mixin._find_token_occurrence(text, token, tokens)
@@ -67,11 +74,12 @@ class TestTokenOccurrenceMixin:
 
     def test_find_token_occurrence_empty_surface(self, db_session):
         """Test handles empty surface."""
+        session = get_runtime_session()
         mixin = TokenOccurrenceMixin()
         text = "Se cyning"
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, text)
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         # Create token with empty surface
         empty_token = Token(surface="", order_index=999)
         result = mixin._find_token_occurrence(text, empty_token, tokens)
@@ -84,12 +92,13 @@ class TestAnnotationTextualMixin:
 
     def test_format_pos_noun(self, db_session):
         """Test format_pos for noun."""
+        session = get_runtime_session()
         mixin = AnnotationTextualMixin()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         token = tokens[0]
-        annotation = Annotation.get(token.id)
+        annotation = Annotation.get(token.id, session=session)
         annotation.pos = "N"
         annotation.declension = "s"
         annotation.save()
@@ -98,12 +107,13 @@ class TestAnnotationTextualMixin:
 
     def test_format_pos_noun_no_declension(self, db_session):
         """Test format_pos for noun without declension."""
+        session = get_runtime_session()
         mixin = AnnotationTextualMixin()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         token = tokens[0]
-        annotation = Annotation.get(token.id)
+        annotation = Annotation.get(token.id, session=session)
         annotation.pos = "N"
         annotation.declension = None
         annotation.save()
@@ -112,12 +122,13 @@ class TestAnnotationTextualMixin:
 
     def test_format_pos_verb(self, db_session):
         """Test format_pos for verb."""
+        session = get_runtime_session()
         mixin = AnnotationTextualMixin()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning wæs")
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         verb_token = [t for t in tokens if t.surface == "wæs"][0]
-        annotation = Annotation.get(verb_token.id)
+        annotation = Annotation.get(verb_token.id, session=session)
         annotation.pos = "V"
         annotation.verb_class = "w1"
         annotation.save()
@@ -126,12 +137,13 @@ class TestAnnotationTextualMixin:
 
     def test_format_pos_verb_no_class(self, db_session):
         """Test format_pos for verb without class."""
+        session = get_runtime_session()
         mixin = AnnotationTextualMixin()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning wæs")
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         verb_token = [t for t in tokens if t.surface == "wæs"][0]
-        annotation = Annotation.get(verb_token.id)
+        annotation = Annotation.get(verb_token.id, session=session)
         annotation.pos = "V"
         annotation.verb_class = None
         annotation.save()
@@ -140,12 +152,13 @@ class TestAnnotationTextualMixin:
 
     def test_format_pos_adjective(self, db_session):
         """Test format_pos for adjective."""
+        session = get_runtime_session()
         mixin = AnnotationTextualMixin()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         token = tokens[0]
-        annotation = Annotation.get(token.id)
+        annotation = Annotation.get(token.id, session=session)
         annotation.pos = "A"
         annotation.adjective_inflection = "s"
         annotation.adjective_degree = "p"
@@ -155,12 +168,13 @@ class TestAnnotationTextualMixin:
 
     def test_format_pos_pronoun(self, db_session):
         """Test format_pos for pronoun."""
+        session = get_runtime_session()
         mixin = AnnotationTextualMixin()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         token = tokens[0]
-        annotation = Annotation.get(token.id)
+        annotation = Annotation.get(token.id, session=session)
         annotation.pos = "R"
         annotation.pronoun_type = "p"
         annotation.save()
@@ -169,12 +183,13 @@ class TestAnnotationTextualMixin:
 
     def test_format_pos_article(self, db_session):
         """Test format_pos for article/determiner."""
+        session = get_runtime_session()
         mixin = AnnotationTextualMixin()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         token = tokens[0]
-        annotation = Annotation.get(token.id)
+        annotation = Annotation.get(token.id, session=session)
         annotation.pos = "D"
         annotation.article_type = "d"
         annotation.save()
@@ -183,12 +198,13 @@ class TestAnnotationTextualMixin:
 
     def test_format_pos_adverb(self, db_session):
         """Test format_pos for adverb."""
+        session = get_runtime_session()
         mixin = AnnotationTextualMixin()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         token = tokens[0]
-        annotation = Annotation.get(token.id)
+        annotation = Annotation.get(token.id, session=session)
         annotation.pos = "B"
         annotation.adverb_degree = "p"
         annotation.save()
@@ -197,12 +213,13 @@ class TestAnnotationTextualMixin:
 
     def test_format_pos_conjunction(self, db_session):
         """Test format_pos for conjunction."""
+        session = get_runtime_session()
         mixin = AnnotationTextualMixin()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         token = tokens[0]
-        annotation = Annotation.get(token.id)
+        annotation = Annotation.get(token.id, session=session)
         annotation.pos = "C"
         annotation.conjunction_type = "c"
         annotation.save()
@@ -211,12 +228,13 @@ class TestAnnotationTextualMixin:
 
     def test_format_pos_preposition(self, db_session):
         """Test format_pos for preposition."""
+        session = get_runtime_session()
         mixin = AnnotationTextualMixin()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         token = tokens[0]
-        annotation = Annotation.get(token.id)
+        annotation = Annotation.get(token.id, session=session)
         annotation.pos = "E"
         annotation.save()
         result = mixin.format_pos(annotation)
@@ -224,12 +242,13 @@ class TestAnnotationTextualMixin:
 
     def test_format_pos_interjection(self, db_session):
         """Test format_pos for interjection."""
+        session = get_runtime_session()
         mixin = AnnotationTextualMixin()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         token = tokens[0]
-        annotation = Annotation.get(token.id)
+        annotation = Annotation.get(token.id, session=session)
         annotation.pos = "I"
         annotation.save()
         result = mixin.format_pos(annotation)
@@ -237,12 +256,13 @@ class TestAnnotationTextualMixin:
 
     def test_format_pos_none(self, db_session):
         """Test format_pos returns empty string when pos is None."""
+        session = get_runtime_session()
         mixin = AnnotationTextualMixin()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         token = tokens[0]
-        annotation = Annotation.get(token.id)
+        annotation = Annotation.get(token.id, session=session)
         annotation.pos = None
         annotation.save()
         result = mixin.format_pos(annotation)
@@ -250,12 +270,13 @@ class TestAnnotationTextualMixin:
 
     def test_format_gender_noun(self, db_session):
         """Test format_gender for noun."""
+        session = get_runtime_session()
         mixin = AnnotationTextualMixin()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         token = tokens[0]
-        annotation = Annotation.get(token.id)
+        annotation = Annotation.get(token.id, session=session)
         annotation.pos = "N"
         annotation.gender = "m"
         annotation.save()
@@ -264,12 +285,13 @@ class TestAnnotationTextualMixin:
 
     def test_format_gender_no_gender(self, db_session):
         """Test format_gender returns empty when no gender."""
+        session = get_runtime_session()
         mixin = AnnotationTextualMixin()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         token = tokens[0]
-        annotation = Annotation.get(token.id)
+        annotation = Annotation.get(token.id, session=session)
         annotation.pos = "N"
         annotation.gender = None
         annotation.save()
@@ -278,12 +300,13 @@ class TestAnnotationTextualMixin:
 
     def test_format_gender_wrong_pos(self, db_session):
         """Test format_gender returns empty for POS that doesn't have gender."""
+        session = get_runtime_session()
         mixin = AnnotationTextualMixin()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         token = tokens[0]
-        annotation = Annotation.get(token.id)
+        annotation = Annotation.get(token.id, session=session)
         annotation.pos = "B"  # Adverb
         annotation.gender = "m"
         annotation.save()
@@ -292,12 +315,13 @@ class TestAnnotationTextualMixin:
 
     def test_format_context_noun(self, db_session):
         """Test format_context for noun."""
+        session = get_runtime_session()
         mixin = AnnotationTextualMixin()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         token = tokens[0]
-        annotation = Annotation.get(token.id)
+        annotation = Annotation.get(token.id, session=session)
         annotation.pos = "N"
         annotation.case = "n"
         annotation.number = "s"
@@ -307,12 +331,13 @@ class TestAnnotationTextualMixin:
 
     def test_format_context_verb(self, db_session):
         """Test format_context for verb."""
+        session = get_runtime_session()
         mixin = AnnotationTextualMixin()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning wæs")
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         verb_token = [t for t in tokens if t.surface == "wæs"][0]
-        annotation = Annotation.get(verb_token.id)
+        annotation = Annotation.get(verb_token.id, session=session)
         annotation.pos = "V"
         annotation.verb_tense = "p"
         annotation.verb_mood = "i"
@@ -325,12 +350,13 @@ class TestAnnotationTextualMixin:
 
     def test_format_context_preposition(self, db_session):
         """Test format_context for preposition."""
+        session = get_runtime_session()
         mixin = AnnotationTextualMixin()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         token = tokens[0]
-        annotation = Annotation.get(token.id)
+        annotation = Annotation.get(token.id, session=session)
         annotation.pos = "E"
         annotation.prep_case = "d"
         annotation.save()
@@ -339,17 +365,17 @@ class TestAnnotationTextualMixin:
 
     def test_format_context_none_pos(self, db_session):
         """Test format_context returns empty when pos is None."""
+        session = get_runtime_session()
         mixin = AnnotationTextualMixin()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         token = tokens[0]
-        annotation = Annotation.get(token.id)
+        annotation = Annotation.get(token.id, session=session)
         annotation.pos = None
         annotation.save()
         result = mixin.format_context(annotation)
         assert result == ""
-
 
 
 class TestAnnotationTextualMixinUnknownCodes:
@@ -389,7 +415,9 @@ class TestAnnotationTextualMixinUnknownCodes:
         assert AnnotationTextualMixin().format_pos(annotation) == "Z"
 
     def test_known_codes_are_unchanged(self):
-        annotation = Annotation(pos="N", declension="s", gender="m", case="n", number="s")
+        annotation = Annotation(
+            pos="N", declension="s", gender="m", case="n", number="s"
+        )
         mixin = AnnotationTextualMixin()
         assert mixin.format_pos(annotation) == "n:strong"
         assert mixin.format_gender(annotation) == "m"

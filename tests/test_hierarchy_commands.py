@@ -6,13 +6,16 @@ from oeapp.commands.hierarchy import (
     SplitChapterCommand,
     SplitSectionCommand,
 )
+from oeapp.db import get_runtime_session
 from oeapp.models.chapter import Chapter
 from oeapp.models.paragraph import Paragraph
 from oeapp.models.project import Project
 from oeapp.models.section import Section
 
 
-def _build_section_with_paragraphs(db_session, *, chapter_id: int, section_number: int, count: int):
+def _build_section_with_paragraphs(
+    db_session, *, chapter_id: int, section_number: int, count: int
+):
     section = Section(chapter_id=chapter_id, number=section_number)
     db_session.add(section)
     db_session.flush()
@@ -26,6 +29,7 @@ def _build_section_with_paragraphs(db_session, *, chapter_id: int, section_numbe
 
 
 def test_split_section_command_execute_and_undo(db_session):
+    session = get_runtime_session()
     project = Project(name="Hierarchy Project")
     db_session.add(project)
     db_session.flush()
@@ -41,21 +45,24 @@ def test_split_section_command_execute_and_undo(db_session):
     assert cmd.execute() is True
 
     db_session.expire_all()
-    original_section = Section.get(section.id)
-    new_section = Section.get(cmd.new_section_id)
+    original_section = Section.get(section.id, session=session)
+    new_section = Section.get(cmd.new_section_id, session=session)
     assert original_section is not None
     assert new_section is not None
     assert [p.id for p in original_section.paragraphs] == [paragraphs[0].id]
-    assert [p.id for p in new_section.paragraphs] == [paragraphs[1].id, paragraphs[2].id]
+    assert [p.id for p in new_section.paragraphs] == [
+        paragraphs[1].id,
+        paragraphs[2].id,
+    ]
     assert [p.order for p in new_section.paragraphs] == [1, 2]
 
     assert cmd.undo() is True
     db_session.expire_all()
-    restored_section = Section.get(section.id)
+    restored_section = Section.get(section.id, session=session)
     assert restored_section is not None
     assert [p.id for p in restored_section.paragraphs] == [p.id for p in paragraphs]
     assert [p.order for p in restored_section.paragraphs] == [1, 2, 3]
-    assert Section.get(cmd.new_section_id) is None
+    assert Section.get(cmd.new_section_id, session=session) is None
 
 
 def test_split_section_command_fails_for_first_paragraph(db_session):
@@ -74,6 +81,7 @@ def test_split_section_command_fails_for_first_paragraph(db_session):
 
 
 def test_merge_section_command_execute_and_undo(db_session):
+    session = get_runtime_session()
     project = Project(name="Hierarchy Project")
     db_session.add(project)
     db_session.flush()
@@ -92,19 +100,19 @@ def test_merge_section_command_execute_and_undo(db_session):
     assert cmd.execute() is True
 
     db_session.expire_all()
-    merged_section = Section.get(section1.id)
+    merged_section = Section.get(section1.id, session=session)
     assert merged_section is not None
     assert [p.id for p in merged_section.paragraphs] == [
         section1_paragraphs[0].id,
         section2_paragraphs[0].id,
         section2_paragraphs[1].id,
     ]
-    assert Section.get(section2.id) is None
+    assert Section.get(section2.id, session=session) is None
 
     assert cmd.undo() is True
     db_session.expire_all()
-    restored_section1 = Section.get(section1.id)
-    restored_section2 = Section.get(cmd.removed_section_id)
+    restored_section1 = Section.get(section1.id, session=session)
+    restored_section2 = Section.get(cmd.removed_section_id, session=session)
     assert restored_section1 is not None
     assert restored_section2 is not None
     assert [p.id for p in restored_section1.paragraphs] == [section1_paragraphs[0].id]
@@ -133,6 +141,7 @@ def test_merge_section_command_fails_when_paragraph_not_section_start(db_session
 
 
 def test_split_and_merge_chapter_commands_execute_and_undo(db_session):
+    session = get_runtime_session()
     project = Project(name="Hierarchy Project")
     db_session.add(project)
     db_session.flush()
@@ -150,36 +159,41 @@ def test_split_and_merge_chapter_commands_execute_and_undo(db_session):
     assert split_cmd.execute() is True
 
     db_session.expire_all()
-    original_chapter = Chapter.get(chapter.id)
-    new_chapter = Chapter.get(split_cmd.new_chapter_id)
+    original_chapter = Chapter.get(chapter.id, session=session)
+    new_chapter = Chapter.get(split_cmd.new_chapter_id, session=session)
     assert original_chapter is not None
     assert new_chapter is not None
     assert [section.number for section in original_chapter.sections] == [1]
     assert [section.number for section in new_chapter.sections] == [1, 2]
-    assert [section.id for section in new_chapter.sections] == [sections[1].id, sections[2].id]
+    assert [section.id for section in new_chapter.sections] == [
+        sections[1].id,
+        sections[2].id,
+    ]
 
     assert split_cmd.undo() is True
     db_session.expire_all()
-    restored_chapter = Chapter.get(chapter.id)
+    restored_chapter = Chapter.get(chapter.id, session=session)
     assert restored_chapter is not None
-    assert [section.id for section in restored_chapter.sections] == [s.id for s in sections]
+    assert [section.id for section in restored_chapter.sections] == [
+        s.id for s in sections
+    ]
 
     assert split_cmd.execute() is True
     db_session.expire_all()
-    moved_section = Section.get(sections[1].id)
+    moved_section = Section.get(sections[1].id, session=session)
     assert moved_section is not None
 
     merge_cmd = MergeChapterCommand(section_id=moved_section.id)
     assert merge_cmd.execute() is True
     db_session.expire_all()
-    merged_chapter = Chapter.get(chapter.id)
+    merged_chapter = Chapter.get(chapter.id, session=session)
     assert merged_chapter is not None
     assert len(merged_chapter.sections) == 3
 
     assert merge_cmd.undo() is True
     db_session.expire_all()
-    chapter_after_undo = Chapter.get(chapter.id)
-    recreated_chapter = Chapter.get(merge_cmd.removed_chapter_id)
+    chapter_after_undo = Chapter.get(chapter.id, session=session)
+    recreated_chapter = Chapter.get(merge_cmd.removed_chapter_id, session=session)
     assert chapter_after_undo is not None
     assert recreated_chapter is not None
     assert len(chapter_after_undo.sections) == 1

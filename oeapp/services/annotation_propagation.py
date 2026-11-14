@@ -8,6 +8,7 @@ from html import escape
 from sqlalchemy import select
 
 from oeapp.commands import ApplyAnnotationPropagationCommand
+from oeapp.db import get_runtime_session
 from oeapp.models import Annotation
 from oeapp.ui.token_details_sidebar import BaseTokenDetailsSidebar
 from oeapp.utils import partially_normalize_old_english
@@ -46,8 +47,9 @@ class AnnotationPropagationService:
             Prepared propagation plan.
 
         """
+        session = get_runtime_session()
         source_annotation = source_token.annotation or Annotation.get_by_token(
-            source_token.id
+            source_token.id, session=session
         )
         source_key = partially_normalize_old_english(source_token.surface)
         summary = self._build_summary_html(
@@ -67,9 +69,7 @@ class AnnotationPropagationService:
             targets=targets,
             summary=summary,
             build_after=lambda target_annotation: (
-                source_payload
-                if target_annotation.is_safe_to_auto_fill()
-                else None
+                source_payload if target_annotation.is_safe_to_auto_fill() else None
             ),
         )
 
@@ -87,8 +87,9 @@ class AnnotationPropagationService:
             Prepared propagation plan.
 
         """
+        session = get_runtime_session()
         source_annotation = source_token.annotation or Annotation.get_by_token(
-            source_token.id
+            source_token.id, session=session
         )
         if source_token.id is None or source_annotation is None:
             return self._empty_plan(
@@ -134,6 +135,7 @@ class AnnotationPropagationService:
             Prepared propagation plan.
 
         """
+        session = get_runtime_session()
         before: dict[int, dict] = {}
         after: dict[int, dict] = {}
         affected_token_ids: list[int] = []
@@ -141,7 +143,9 @@ class AnnotationPropagationService:
         for target in targets:
             if target.id is None or target.id == source_token.id:
                 continue
-            target_annotation = target.annotation or Annotation.get_by_token(target.id)
+            target_annotation = target.annotation or Annotation.get_by_token(
+                target.id, session=session
+            )
             if target_annotation is None:
                 target_annotation = Annotation(token_id=target.id)
             payload = build_after(target_annotation)
@@ -272,8 +276,11 @@ class AnnotationPropagationService:
             HTML summary string for dialogs.
 
         """
+        session = get_runtime_session()
         annotation = source_token.annotation or (
-            Annotation.get_by_token(source_token.id) if source_token.id else None
+            Annotation.get_by_token(source_token.id, session=session)
+            if source_token.id
+            else None
         )
         pos_str = ""
         gender_str = ""

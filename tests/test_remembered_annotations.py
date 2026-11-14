@@ -8,6 +8,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from oeapp.commands import push_command
+from oeapp.db import get_runtime_session
 from oeapp.models import Annotation, RememberedAnnotation
 from oeapp.models.remembered_annotation import AmbiguousRememberedSpellingError
 from oeapp.services.import_export import ProjectExporter, ProjectImporter
@@ -29,9 +30,10 @@ def _sorted_tokens(sentence):
 
 def test_remembered_annotation_sanitizes_copied_fields(db_session):
     """Remembered entries should keep only replay-safe token annotation fields."""
+    session = get_runtime_session()
     project = create_test_project(db_session, name="Remembered Copy", text="ġiefu")
     token = _sorted_tokens(project.sentences[0])[0]
-    annotation = Annotation.get_by_token(token.id)
+    annotation = Annotation.get_by_token(token.id, session=session)
     assert annotation is not None
     annotation.pos = "N"
     annotation.gender = "f"
@@ -45,7 +47,7 @@ def test_remembered_annotation_sanitizes_copied_fields(db_session):
     annotation.save()
 
     remembered = RememberedAnnotation.upsert_from_token_annotation(
-        token, project_id=None
+        token, project_id=None, session=session
     )
 
     assert remembered.token_text == "ġiefu"
@@ -64,6 +66,7 @@ def test_remembered_annotation_sanitizes_copied_fields(db_session):
 
 def test_apply_remembered_annotations_exact_match_precedence_and_undo(db_session):
     """Apply should exact-match token surface, prefer project scope, and be undoable."""
+    session = get_runtime_session()
     project = create_test_project(
         db_session,
         name="Remembered Apply",
@@ -71,7 +74,7 @@ def test_apply_remembered_annotations_exact_match_precedence_and_undo(db_session
     )
     tokens = _sorted_tokens(project.sentences[0])
 
-    source_annotation = Annotation.get_by_token(tokens[0].id)
+    source_annotation = Annotation.get_by_token(tokens[0].id, session=session)
     assert source_annotation is not None
     source_annotation.pos = "N"
     source_annotation.gender = "f"
@@ -79,13 +82,17 @@ def test_apply_remembered_annotations_exact_match_precedence_and_undo(db_session
     source_annotation.root = "sæ"
     source_annotation.save()
 
-    RememberedAnnotation.upsert_from_token_annotation(tokens[0], project_id=None)
+    RememberedAnnotation.upsert_from_token_annotation(
+        tokens[0], project_id=None, session=session
+    )
     source_annotation.modern_english_meaning = "project sea"
     source_annotation.root = "project-sæ"
     source_annotation.save()
-    RememberedAnnotation.upsert_from_token_annotation(tokens[0], project_id=project.id)
+    RememberedAnnotation.upsert_from_token_annotation(
+        tokens[0], project_id=project.id, session=session
+    )
 
-    blocked_annotation = Annotation.get_by_token(tokens[2].id)
+    blocked_annotation = Annotation.get_by_token(tokens[2].id, session=session)
     assert blocked_annotation is not None
     blocked_annotation.pos = "V"
     blocked_annotation.root = "blocked"
@@ -151,6 +158,7 @@ def test_apply_remembered_annotations_reports_noop_states(
     db_session, project_text, expected_message
 ):
     """Apply should report both no-match and all-skipped no-op cases."""
+    session = get_runtime_session()
     project = create_test_project(
         db_session,
         name=f"Remembered Noop {project_text}",
@@ -160,12 +168,14 @@ def test_apply_remembered_annotations_reports_noop_states(
 
     if project_text == "sæ":
         token = _sorted_tokens(project.sentences[0])[0]
-        annotation = Annotation.get_by_token(token.id)
+        annotation = Annotation.get_by_token(token.id, session=session)
         assert annotation is not None
         annotation.pos = "N"
         annotation.root = "occupied"
         annotation.save()
-        RememberedAnnotation.upsert_from_token_annotation(token, project_id=None)
+        RememberedAnnotation.upsert_from_token_annotation(
+            token, project_id=None, session=session
+        )
 
     plan = service.plan_apply(project.id)
 
@@ -178,9 +188,10 @@ def test_project_export_import_round_trips_project_scoped_remembered_annotations
     db_session, tmp_path
 ):
     """Project export/import should include only project-scoped remembered entries."""
+    session = get_runtime_session()
     project = create_test_project(db_session, name="Remembered Export", text="sæ")
     token = _sorted_tokens(project.sentences[0])[0]
-    annotation = Annotation.get_by_token(token.id)
+    annotation = Annotation.get_by_token(token.id, session=session)
     assert annotation is not None
     annotation.pos = "N"
     annotation.modern_english_meaning = "sea"
@@ -188,8 +199,12 @@ def test_project_export_import_round_trips_project_scoped_remembered_annotations
     annotation.sense = "should never export to memory"
     annotation.save()
 
-    RememberedAnnotation.upsert_from_token_annotation(token, project_id=None)
-    RememberedAnnotation.upsert_from_token_annotation(token, project_id=project.id)
+    RememberedAnnotation.upsert_from_token_annotation(
+        token, project_id=None, session=session
+    )
+    RememberedAnnotation.upsert_from_token_annotation(
+        token, project_id=project.id, session=session
+    )
 
     export_path = tmp_path / "remembered_export.json"
     migration_service = MagicMock()
@@ -219,6 +234,7 @@ def test_project_export_import_round_trips_project_scoped_remembered_annotations
 
 def test_import_keeps_and_names_ambiguous_remembered_spellings(db_session, tmp_path):
     """Import keeps a colliding pair and can name both spellings."""
+    session = get_runtime_session()
     project = create_test_project(db_session, name="Ambiguous Import", text="ðæt")
     RememberedAnnotation(
         token_text="ðæt",
@@ -247,7 +263,9 @@ def test_import_keeps_and_names_ambiguous_remembered_spellings(db_session, tmp_p
         migration_service=importer_migration
     ).import_project_json(str(export_path))
 
-    groups = RememberedAnnotation.ambiguous_groups_for_scope(imported_project.id)
+    groups = RememberedAnnotation.ambiguous_groups_for_scope(
+        imported_project.id, session=session
+    )
     assert len(groups) == 1
     assert [entry.token_text for entry in groups[0]] == ["ðæt", "þæt"]
 
@@ -289,6 +307,7 @@ def test_tools_menu_includes_remembered_annotation_actions(db_session):
 
 def test_apply_matches_partial_spelling_and_keeps_length_marks(db_session):
     """Apply fills case variants and leaves a different length mark alone."""
+    session = get_runtime_session()
     project = create_test_project(
         db_session, name="Partial Apply", text="Hē hæfde hē he gōd god."
     )
@@ -301,21 +320,25 @@ def test_apply_matches_partial_spelling_and_keeps_length_marks(db_session):
         tokens[5],
     )
 
-    he_annotation = Annotation.get_by_token(he_capital.id)
+    he_annotation = Annotation.get_by_token(he_capital.id, session=session)
     assert he_annotation is not None
     he_annotation.pos = "R"
     he_annotation.modern_english_meaning = "he"
     he_annotation.root = "hē"
     he_annotation.save()
-    RememberedAnnotation.upsert_from_token_annotation(he_capital, project_id=None)
+    RememberedAnnotation.upsert_from_token_annotation(
+        he_capital, project_id=None, session=session
+    )
 
-    good_annotation = Annotation.get_by_token(good.id)
+    good_annotation = Annotation.get_by_token(good.id, session=session)
     assert good_annotation is not None
     good_annotation.pos = "A"
     good_annotation.modern_english_meaning = "good"
     good_annotation.root = "gōd"
     good_annotation.save()
-    RememberedAnnotation.upsert_from_token_annotation(good, project_id=None)
+    RememberedAnnotation.upsert_from_token_annotation(
+        good, project_id=None, session=session
+    )
 
     plan = RememberedAnnotationService().plan_apply(project.id)
 
@@ -328,27 +351,32 @@ def test_apply_matches_partial_spelling_and_keeps_length_marks(db_session):
 
 def test_apply_folds_eth_dots_and_hyphens(db_session):
     """Apply treats eth, consonant dots, and hyphens as the same spelling."""
+    session = get_runtime_session()
     project = create_test_project(
         db_session, name="Fold Apply", text="ðæt ġe-wāt þæt gewāt."
     )
     tokens = _sorted_tokens(project.sentences[0])
     eth, hyphenated, thorn, plain = tokens
 
-    eth_annotation = Annotation.get_by_token(eth.id)
+    eth_annotation = Annotation.get_by_token(eth.id, session=session)
     assert eth_annotation is not None
     eth_annotation.pos = "R"
     eth_annotation.modern_english_meaning = "that"
     eth_annotation.root = "se"
     eth_annotation.save()
-    RememberedAnnotation.upsert_from_token_annotation(eth, project_id=None)
+    RememberedAnnotation.upsert_from_token_annotation(
+        eth, project_id=None, session=session
+    )
 
-    hyphen_annotation = Annotation.get_by_token(hyphenated.id)
+    hyphen_annotation = Annotation.get_by_token(hyphenated.id, session=session)
     assert hyphen_annotation is not None
     hyphen_annotation.pos = "V"
     hyphen_annotation.modern_english_meaning = "went"
     hyphen_annotation.root = "gewāt"
     hyphen_annotation.save()
-    RememberedAnnotation.upsert_from_token_annotation(hyphenated, project_id=None)
+    RememberedAnnotation.upsert_from_token_annotation(
+        hyphenated, project_id=None, session=session
+    )
 
     plan = RememberedAnnotationService().plan_apply(project.id)
 
@@ -385,36 +413,40 @@ def test_apply_reports_ambiguous_partial_spellings(db_session):
 
 def test_remember_keeps_saved_spelling_when_partial_match_exists(db_session):
     """Remembering a case variant updates the saved entry and keeps its label."""
+    session = get_runtime_session()
     project = create_test_project(db_session, name="Keep Spelling", text="Hē hē")
     capital, lower = _sorted_tokens(project.sentences[0])
-    capital_annotation = Annotation.get_by_token(capital.id)
+    capital_annotation = Annotation.get_by_token(capital.id, session=session)
     assert capital_annotation is not None
     capital_annotation.pos = "R"
     capital_annotation.modern_english_meaning = "he"
     capital_annotation.root = "hē"
     capital_annotation.save()
-    RememberedAnnotation.upsert_from_token_annotation(capital, project_id=None)
+    RememberedAnnotation.upsert_from_token_annotation(
+        capital, project_id=None, session=session
+    )
 
-    lower_annotation = Annotation.get_by_token(lower.id)
+    lower_annotation = Annotation.get_by_token(lower.id, session=session)
     assert lower_annotation is not None
     lower_annotation.pos = "R"
     lower_annotation.modern_english_meaning = "he himself"
     lower_annotation.root = "hē"
     lower_annotation.save()
     remembered = RememberedAnnotation.upsert_from_token_annotation(
-        lower, project_id=None
+        lower, project_id=None, session=session
     )
 
     assert remembered.token_text == "Hē"
     assert remembered.modern_english_meaning == "he himself"
-    assert len(RememberedAnnotation.list_for_scope(None)) == 1
+    assert len(RememberedAnnotation.list_for_scope(None, session=session)) == 1
 
 
 def test_remember_refuses_when_partial_spelling_is_ambiguous(db_session):
     """Remember names both saved spellings instead of choosing one."""
+    session = get_runtime_session()
     project = create_test_project(db_session, name="Refuse Ambiguous", text="ðæt")
     token = _sorted_tokens(project.sentences[0])[0]
-    annotation = Annotation.get_by_token(token.id)
+    annotation = Annotation.get_by_token(token.id, session=session)
     assert annotation is not None
     annotation.pos = "R"
     annotation.modern_english_meaning = "that"
@@ -428,11 +460,14 @@ def test_remember_refuses_when_partial_spelling_is_ambiguous(db_session):
     ).save()
 
     with pytest.raises(AmbiguousRememberedSpellingError, match="ðæt / þæt"):
-        RememberedAnnotation.upsert_from_token_annotation(token, project_id=None)
+        RememberedAnnotation.upsert_from_token_annotation(
+            token, project_id=None, session=session
+        )
 
 
 def test_editor_can_correct_one_row_of_an_ambiguous_pair(db_session):
     """Saving an open row still works, and a new spelling of the pair does not."""
+    session = get_runtime_session()
     del db_session
     RememberedAnnotation(
         token_text="ðæt",
@@ -448,16 +483,16 @@ def test_editor_can_correct_one_row_of_an_ambiguous_pair(db_session):
         modern_english_meaning="the",
         verb_transitivity="transitive",
     ).save()
-    row = RememberedAnnotation.get_for_scope("ðæt", None)
+    row = RememberedAnnotation.get_for_scope("ðæt", None, session=session)
     assert row is not None
     payload = row.annotation_payload()
     payload["modern_english_meaning"] = "that one"
-    saved = RememberedAnnotation.upsert_fields("ðæt", None, payload)
+    saved = RememberedAnnotation.upsert_fields("ðæt", None, payload, session=session)
 
     assert saved.token_text == "ðæt"
     assert saved.modern_english_meaning == "that one"
     with pytest.raises(AmbiguousRememberedSpellingError, match="ðæt / þæt"):
-        RememberedAnnotation.upsert_fields("Ðæt", None, payload)
+        RememberedAnnotation.upsert_fields("Ðæt", None, payload, session=session)
 
 
 def test_apply_lets_a_clean_project_entry_hide_a_global_conflict(db_session):
@@ -574,20 +609,20 @@ def _run_apply_dialog(qtbot, db_session, project_id: int):
 @pytest.mark.usefixtures("qapp")
 def test_apply_remembered_annotations_opens_summary_dialog(db_session, qtbot):
     """Apply opens the summary dialog and waits until it is dismissed."""
+    session = get_runtime_session()
     project = create_test_project(db_session, name="Apply Dialog", text="Hē hē")
     capital, lower = _sorted_tokens(project.sentences[0])
-    annotation = Annotation.get_by_token(capital.id)
+    annotation = Annotation.get_by_token(capital.id, session=session)
     assert annotation is not None
     annotation.pos = "R"
     annotation.modern_english_meaning = "he"
     annotation.root = "hē"
     annotation.save()
-    RememberedAnnotation.upsert_from_token_annotation(capital, project_id=None)
-
-    expected = (
-        "1 token updated.\n"
-        "1 token skipped because it already had an annotation."
+    RememberedAnnotation.upsert_from_token_annotation(
+        capital, project_id=None, session=session
     )
+
+    expected = "1 token updated.\n1 token skipped because it already had an annotation."
     window, captured = _run_apply_dialog(qtbot, db_session, project.id)
 
     assert captured["title"] == "Apply Remembered Annotations"

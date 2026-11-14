@@ -1,12 +1,14 @@
 """Tests for idiom management."""
 
 import pytest
-from PySide6.QtWidgets import QPushButton
-from PySide6.QtGui import QUndoStack
-from oeapp.models.idiom import Idiom
+from oeapp.db import get_runtime_session
 from oeapp.models.annotation import Annotation
-from oeapp.ui.sentence_card import SentenceCard
+from oeapp.models.idiom import Idiom
 from oeapp.ui.dialogs.annotation_modal import AnnotationModal
+from oeapp.ui.sentence_card import SentenceCard
+from PySide6.QtGui import QUndoStack
+from PySide6.QtWidgets import QPushButton
+
 
 @pytest.fixture
 def sentence(db_session, sample_sentence):
@@ -18,6 +20,7 @@ def sentence(db_session, sample_sentence):
     db_session.commit()
     db_session.refresh(sample_sentence)
     return sample_sentence
+
 
 def test_idiom_creation(db_session, sentence):
     """Test creating an idiom."""
@@ -41,6 +44,7 @@ def test_idiom_creation(db_session, sentence):
     assert sentence.idioms[0].annotation.pos == "R"
     assert sentence.idioms[0].start_token.surface == "swā"
     assert sentence.idioms[0].end_token.surface == "swā"
+
 
 def test_idiom_deletion_on_token_removal(db_session, sentence):
     """Test that idiom is deleted when one of its tokens is removed."""
@@ -66,6 +70,7 @@ def test_idiom_deletion_on_token_removal(db_session, sentence):
     assert len(sentence.idioms) == 0
     assert any("Idiom annotation deleted" in m for m in messages)
 
+
 def test_idiom_preservation_on_token_modification(db_session, sentence):
     """Test that idiom is preserved when a token is modified but not removed."""
     sentence = db_session.merge(sentence)
@@ -89,6 +94,7 @@ def test_idiom_preservation_on_token_modification(db_session, sentence):
     assert len(sentence.idioms) == 1
     assert len(messages) == 0
     assert sentence.tokens[1].surface == "hwat"
+
 
 def test_idiom_preservation_on_insertion_in_middle(db_session, sentence):
     """Test that idiom is preserved and includes new token when inserted in middle."""
@@ -114,12 +120,15 @@ def test_idiom_preservation_on_insertion_in_middle(db_session, sentence):
     # Rendering should now include 4 tokens
     start_order = sentence.idioms[0].start_token.order_index
     end_order = sentence.idioms[0].end_token.order_index
-    tokens_in_range = [t for t in sentence.tokens if start_order <= t.order_index <= end_order]
+    tokens_in_range = [
+        t for t in sentence.tokens if start_order <= t.order_index <= end_order
+    ]
     assert len(tokens_in_range) == 4
 
 
 def test_idiom_to_json_from_json(db_session, sentence):
     """Test idiom JSON serialization/deserialization by token order index."""
+    session = get_runtime_session()
     sentence = db_session.merge(sentence)
     tokens = list(sentence.tokens)
     idiom = Idiom(
@@ -147,12 +156,13 @@ def test_idiom_to_json_from_json(db_session, sentence):
     assert len(sentence.idioms) == 0
 
     token_map = {token.order_index: token for token in sentence.tokens}
-    restored = Idiom.from_json(sentence.id, idiom_data, token_map)
+    restored = Idiom.from_json(sentence.id, idiom_data, token_map, session=session)
     db_session.refresh(restored)
     assert restored.start_token.order_index == 0
     assert restored.end_token.order_index == 2
     assert restored.annotation is not None
     assert restored.annotation.pos == "R"
+
 
 @pytest.mark.qt_no_exception_capture
 def test_idiom_selection_ui(qtbot, db_session, sentence, mock_main_window):
@@ -177,7 +187,8 @@ def test_idiom_selection_ui(qtbot, db_session, sentence, mock_main_window):
     # Simulate Cmd+Click on third token
     card.oe_text_edit.selector.idiom_selection(2)
     assert card.oe_text_edit.current_range() == (0, 2)
-    assert card.oe_text_edit.current_token_index() == 0 # start of idiom
+    assert card.oe_text_edit.current_token_index() == 0  # start of idiom
+
 
 @pytest.mark.qt_no_exception_capture
 def test_idiom_modal_navigation(qtbot, db_session, sentence, mock_main_window):
@@ -215,6 +226,7 @@ def test_idiom_modal_navigation(qtbot, db_session, sentence, mock_main_window):
 
     # Mock controller.open_token_modal to avoid blocking on exec()
     opened_token = None
+
     def mock_open_token_modal(token):
         nonlocal opened_token
         opened_token = token

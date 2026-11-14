@@ -3,9 +3,10 @@
 from datetime import UTC, datetime
 
 import pytest
-
+from oeapp.db import get_runtime_session
 from oeapp.models.note import Note
 from oeapp.models.token import Token
+
 from tests.conftest import create_test_project, create_test_sentence
 
 
@@ -14,10 +15,11 @@ class TestNote:
 
     def test_create_with_all_fields(self, db_session):
         """Test model creation with all fields."""
+        session = get_runtime_session()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
         # Use existing tokens created by Sentence.create
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         assert len(tokens) >= 2, "Need at least 2 tokens for this test"
         start_token = tokens[0]
         end_token = tokens[1]
@@ -57,10 +59,11 @@ class TestNote:
 
     def test_get_returns_existing(self, db_session):
         """Test get() returns existing note."""
+        session = get_runtime_session()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
         # Use existing token created by Sentence.create
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         token = tokens[0]
 
         note = Note(
@@ -72,18 +75,20 @@ class TestNote:
         note.save()
         note_id = note.id
 
-        retrieved = Note.get(note_id)
+        retrieved = Note.get(note_id, session=session)
         assert retrieved is not None
         assert retrieved.id == note_id
         assert retrieved.note_text_md == "Test note"
 
     def test_get_returns_none_for_nonexistent(self, db_session):
         """Test get() returns None for nonexistent note."""
-        result = Note.get(99999)
+        session = get_runtime_session()
+        result = Note.get(99999, session=session)
         assert result is None
 
     def test_token_fk_validates_zero_and_false_to_none(self, db_session):
         """Test @validates coerces 0 and False token FKs to None."""
+        session = get_runtime_session()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
 
@@ -101,7 +106,7 @@ class TestNote:
         assert note.start_token is None
         assert note.end_token is None
 
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         assert tokens
         note.start_token = tokens[0].id
         note.end_token = tokens[0].id
@@ -110,10 +115,11 @@ class TestNote:
 
     def test_to_json_serializes_note(self, db_session):
         """Test to_json() serializes note data."""
+        session = get_runtime_session()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
         # Use existing tokens created by Sentence.create
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         assert len(tokens) >= 2, "Need at least 2 tokens for this test"
         start_token = tokens[0]
         end_token = tokens[1]
@@ -156,16 +162,20 @@ class TestNote:
 
     def test_from_json_creates_note(self, db_session):
         """Test from_json() creates note from data."""
+        session = get_runtime_session()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
         # Use existing tokens created by Sentence.create
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         assert len(tokens) >= 2, "Need at least 2 tokens for this test"
         start_token = tokens[0]
         end_token = tokens[1]
 
         # Create token map
-        token_map = {start_token.order_index: start_token, end_token.order_index: end_token}
+        token_map = {
+            start_token.order_index: start_token,
+            end_token.order_index: end_token,
+        }
 
         note_data = {
             "note_text_md": "Test note",
@@ -263,4 +273,3 @@ class TestNote:
 
         assert note.sentence.id == sentence.id
         assert note.sentence.text_oe == "Se cyning"
-

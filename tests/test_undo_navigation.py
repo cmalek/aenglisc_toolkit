@@ -3,6 +3,7 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
+from oeapp.db import get_runtime_session
 from oeapp.models.chapter import Chapter
 from oeapp.models.paragraph import Paragraph
 from oeapp.models.project import Project
@@ -28,13 +29,15 @@ def mock_services():
 
 
 def _add_section(project: Project, chapter: Chapter, number: int, text: str):
-    section = Section.create(chapter_id=chapter.id, number=number)
-    paragraph = Paragraph.create(section_id=section.id, order=1)
+    session = get_runtime_session()
+    section = Section.create(chapter_id=chapter.id, number=number, session=session)
+    paragraph = Paragraph.create(section_id=section.id, order=1, session=session)
     Sentence.create(
         project_id=project.id,
         display_order=number * 10,
         text_oe=text,
         paragraph_id=paragraph.id,
+        session=session,
     )
     return section
 
@@ -44,10 +47,13 @@ def main_window(qapp, db_session, mock_services):
     """
     Show a project with two sections in chapter one and one in chapter two.
     """
-    project = Project.create(text="Se cyning cōm.", name=f"Nav {id(db_session)}")
+    session = get_runtime_session()
+    project = Project.create(
+        text="Se cyning cōm.", name=f"Nav {id(db_session)}", session=session
+    )
     chapter_one = project.chapters[0]
     _add_section(project, chapter_one, 2, "Hē wæs gōd.")
-    chapter_two = Chapter.create(project_id=project.id, number=2)
+    chapter_two = Chapter.create(project_id=project.id, number=2, session=session)
     _add_section(project, chapter_two, 1, "Þā fōr hē.")
     db_session.refresh(project)
     window = MainWindow(app_context=AppContext(session=db_session))
@@ -174,8 +180,9 @@ def test_section_change_focuses_first_old_english_editor(main_window, qtbot, qap
 
 
 def test_search_navigation_to_other_chapter_keeps_focus_choice(main_window, qapp):
+    session = get_runtime_session()
     chapter_two = main_window.chapter_combo.itemData(1)
-    target = Chapter.get(chapter_two).sections[0]
+    target = Chapter.get(chapter_two, session=session).sections[0]
     sentence_id = target.paragraphs[0].sentences[0].id
     with patch.object(main_window, "focus_section_start") as focus_start:
         card = main_window.project_ui.navigate_to_sentence(

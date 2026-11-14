@@ -106,6 +106,8 @@ class Token(SaveDeleteMixin, Base):
         sentence_id: int,
         token_data: dict,
         commit: bool = True,
+        *,
+        session: Session,
     ) -> "Token":
         """
         Create a token and annotation from JSON import data.
@@ -115,13 +117,13 @@ class Token(SaveDeleteMixin, Base):
             token_data: Token data dictionary from JSON
 
         Keyword Args:
+            session: Runtime SQLAlchemy session.
             commit: Whether to commit the changes
 
         Returns:
             Created Token entity
 
         """
-        session = cls._get_session()
         token = cls(
             sentence_id=sentence_id,
             order_index=token_data["order_index"],
@@ -164,33 +166,37 @@ class Token(SaveDeleteMixin, Base):
         return value
 
     @classmethod
-    def get(cls, token_id: int) -> "Token | None":
+    def get(cls, token_id: int, *, session: Session) -> "Token | None":
         """
         Get a token by ID.
 
         Args:
             token_id: Token ID
 
+        Keyword Args:
+            session: Runtime SQLAlchemy session.
+
         Returns:
             Token or None if not found
 
         """
-        session = cls._get_session()
         return session.get(cls, token_id)
 
     @classmethod
-    def list(cls, sentence_id: int) -> builtins.list["Token"]:
+    def list(cls, sentence_id: int, *, session: Session) -> builtins.list["Token"]:
         """
         Get all tokens by sentence ID, ordered by order index.
 
         Args:
             sentence_id: Sentence ID
 
+        Keyword Args:
+            session: Runtime SQLAlchemy session.
+
         Returns:
             List of tokens ordered by order index
 
         """
-        session = cls._get_session()
         return builtins.list(
             session.scalars(
                 select(cls)
@@ -205,6 +211,8 @@ class Token(SaveDeleteMixin, Base):
         sentence_id: int,
         sentence_text: str,
         commit: bool = True,
+        *,
+        session: Session,
     ) -> builtins.list["Token"]:
         """
         Create new tokens for a sentence.
@@ -214,6 +222,7 @@ class Token(SaveDeleteMixin, Base):
             sentence_text: Text of the sentence to tokenize
 
         Keyword Args:
+            session: Runtime SQLAlchemy session.
             commit: Whether to commit the changes to the database
 
         Returns:
@@ -224,8 +233,6 @@ class Token(SaveDeleteMixin, Base):
         from oeapp.services.logs import get_logger  # noqa: PLC0415
 
         logger = get_logger(cls.__name__)
-
-        session = cls._get_session()
         # Tokenize sentence
         token_strings = cls.tokenize(sentence_text)
         tokens = []
@@ -238,7 +245,7 @@ class Token(SaveDeleteMixin, Base):
             session.add(token)
             session.flush()  # Get the ID
 
-            if not Annotation.exists(token_id=token.id):
+            if not Annotation.exists(token_id=token.id, session=session):
                 annotation = Annotation(token_id=token.id)
                 annotation.save(commit=False)
 
@@ -259,7 +266,7 @@ class Token(SaveDeleteMixin, Base):
 
     @classmethod
     def update_from_sentence(
-        cls, sentence_text: str, sentence_id: int
+        cls, sentence_text: str, sentence_id: int, *, session: Session
     ) -> builtins.list[str]:
         """
         Update tokens in the sentence and re-order them.
@@ -267,6 +274,9 @@ class Token(SaveDeleteMixin, Base):
         Args:
             sentence_text: Text of the sentence to update
             sentence_id: Sentence ID
+
+        Keyword Args:
+            session: Runtime SQLAlchemy session.
 
         Returns:
             List of messages
@@ -277,10 +287,8 @@ class Token(SaveDeleteMixin, Base):
         from oeapp.services.logs import get_logger  # noqa: PLC0415
 
         logger = get_logger(cls.__name__)
-
-        session = cls._get_session()
         token_strings = cls.tokenize(sentence_text)
-        existing_tokens = cls.list(sentence_id)
+        existing_tokens = cls.list(sentence_id, session=session)
 
         # Capture original order indices before moving to temp positions
         original_orders = {t.id: t.order_index for t in existing_tokens}
@@ -315,18 +323,23 @@ class Token(SaveDeleteMixin, Base):
 
         # Update notes AND idioms
         cls._update_notes_for_token_changes(
-            sentence_id, existing_tokens, matched_positions, matched_token_ids
+            sentence_id,
+            existing_tokens,
+            matched_positions,
+            matched_token_ids,
+            session=session,
         )
         messages = cls._update_idioms_for_token_changes(
             sentence_id,
             existing_tokens,
             matched_token_ids,
             original_orders,
+            session=session,
         )
 
         session.commit()
-        sentence = cast("Sentence", Sentence.get(sentence_id))
-        if len(cls.list(sentence_id)) > 0:
+        sentence = cast("Sentence", Sentence.get(sentence_id, session=session))
+        if len(cls.list(sentence_id, session=session)) > 0:
             logger.info(
                 "token.update_from_sentence.success",
                 project_id=sentence.project_id,
@@ -556,7 +569,7 @@ class Token(SaveDeleteMixin, Base):
         token = cls(sentence_id=sentence_id, order_index=index, surface=surface)
         session.add(token)
         session.flush()
-        if not Annotation.exists(token_id=token.id):
+        if not Annotation.exists(token_id=token.id, session=session):
             annotation = Annotation(token_id=token.id)
             session.add(annotation)
         matched_positions[index] = token
@@ -585,6 +598,8 @@ class Token(SaveDeleteMixin, Base):
         old_tokens: builtins.list["Token"],
         new_token_positions: dict[int, "Token"],
         matched_token_ids: set[int],
+        *,
+        session: Session,
     ) -> None:
         """
         Update notes when tokens change.
@@ -595,11 +610,13 @@ class Token(SaveDeleteMixin, Base):
             new_token_positions: New token positions.
             matched_token_ids: Matched token ids.
 
+        Keyword Args:
+            session: Runtime SQLAlchemy session.
+
         """
         from oeapp.models.sentence import Sentence  # noqa: PLC0415
 
-        sentence = Sentence.get(sentence_id)
-        session = cls._get_session()
+        sentence = Sentence.get(sentence_id, session=session)
         if not sentence or not sentence.notes:
             return
 
@@ -707,6 +724,8 @@ class Token(SaveDeleteMixin, Base):
         old_tokens: builtins.list["Token"],
         matched_token_ids: set[int],
         original_orders: dict[int, int],
+        *,
+        session: Session,
     ) -> builtins.list[str]:
         """
         Update idioms when tokens change.
@@ -717,14 +736,16 @@ class Token(SaveDeleteMixin, Base):
             matched_token_ids: Set of matched token IDs
             original_orders: Dictionary of original orders
 
+        Keyword Args:
+            session: Runtime SQLAlchemy session.
+
         Returns:
             List of messages
 
         """
         from oeapp.models.sentence import Sentence  # noqa: PLC0415
 
-        sentence = Sentence.get(sentence_id)
-        session = cls._get_session()
+        sentence = Sentence.get(sentence_id, session=session)
         messages: builtins.list[str] = []
         if not sentence or not sentence.idioms:
             return messages

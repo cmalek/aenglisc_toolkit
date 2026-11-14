@@ -1,14 +1,15 @@
 """Unit tests for NewProjectDialog."""
 
+from oeapp.db import get_runtime_session
 from oeapp.models.project import Project
 from oeapp.ui.dialogs.new_project import NewProjectDialog
+
 
 class TestNewProjectDialog:
     """Test cases for NewProjectDialog."""
 
     def test_new_project_dialog_initializes(self, db_session, mock_main_window, qapp):
         """Test NewProjectDialog initializes correctly."""
-
         dialog = NewProjectDialog(mock_main_window)
 
         assert dialog.main_window == mock_main_window
@@ -25,8 +26,11 @@ class TestNewProjectDialog:
         assert dialog.translator_edit is not None
         assert dialog.notes_edit is not None
 
-    def test_new_project_dialog_creates_project_with_metadata(self, db_session, mock_main_window, qapp, qtbot):
+    def test_new_project_dialog_creates_project_with_metadata(
+        self, db_session, mock_main_window, qapp, qtbot
+    ):
         """Test NewProjectDialog creates project with metadata."""
+        session = get_runtime_session()
         dialog = NewProjectDialog(mock_main_window)
         dialog.build()
 
@@ -39,10 +43,9 @@ class TestNewProjectDialog:
         # Call new_project directly (this is what happens after exec() returns)
         dialog.new_project()
 
-        project = Project.get(1)
+        project = Project.get(1, session=session)
         assert project is not None
         assert project.name == "Metadata Project"
         assert project.source == "Custom Source"
         assert project.translator == "Custom Translator"
         assert project.notes == "Custom Notes"
-

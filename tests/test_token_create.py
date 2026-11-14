@@ -1,12 +1,11 @@
 """Unit tests for Token.create_from_sentence and related methods."""
 
-import pytest
 from datetime import datetime
 
-
-from oeapp.models.token import Token
+from oeapp.db import get_runtime_session
 from oeapp.models.project import Project
 from oeapp.models.sentence import Sentence
+from oeapp.models.token import Token
 
 
 class TestTokenize:
@@ -142,15 +141,16 @@ class TestCreateFromSentence:
 
     def test_create_simple_sentence(self, db_session, project_and_sentence):
         """Test creating tokens from a simple sentence."""
+        session = get_runtime_session()
         _, sentence_id = project_and_sentence
 
         # Delete existing tokens from the fixture-created sentence
-        existing_tokens = Token.list(sentence_id)
+        existing_tokens = Token.list(sentence_id, session=session)
         for token in existing_tokens:
             token.delete(commit=False)
         db_session.commit()
 
-        tokens = Token.create_from_sentence(sentence_id, "Se cyning")
+        tokens = Token.create_from_sentence(sentence_id, "Se cyning", session=session)
 
         assert len(tokens) == 2
         assert tokens[0].surface == "Se"
@@ -164,15 +164,16 @@ class TestCreateFromSentence:
 
     def test_create_with_punctuation(self, db_session, project_and_sentence):
         """Test creating tokens with punctuation."""
+        session = get_runtime_session()
         _, sentence_id = project_and_sentence
 
         # Delete existing tokens from the fixture-created sentence
-        existing_tokens = Token.list(sentence_id)
+        existing_tokens = Token.list(sentence_id, session=session)
         for token in existing_tokens:
             token.delete(commit=False)
         db_session.commit()
 
-        tokens = Token.create_from_sentence(sentence_id, "Se cyning.")
+        tokens = Token.create_from_sentence(sentence_id, "Se cyning.", session=session)
 
         # Tokenizer filters out trailing punctuation, so we get 2 tokens
         assert len(tokens) == 2
@@ -181,29 +182,31 @@ class TestCreateFromSentence:
 
     def test_create_empty_sentence(self, db_session, project_and_sentence):
         """Test creating tokens from an empty sentence."""
+        session = get_runtime_session()
         _, sentence_id = project_and_sentence
 
         # Delete existing tokens from the fixture-created sentence
-        existing_tokens = Token.list(sentence_id)
+        existing_tokens = Token.list(sentence_id, session=session)
         for token in existing_tokens:
             token.delete(commit=False)
         db_session.commit()
 
-        tokens = Token.create_from_sentence(sentence_id, "")
+        tokens = Token.create_from_sentence(sentence_id, "", session=session)
 
         assert len(tokens) == 0
 
     def test_create_single_token(self, db_session, project_and_sentence):
         """Test creating a single token."""
+        session = get_runtime_session()
         _, sentence_id = project_and_sentence
 
         # Delete existing tokens from the fixture-created sentence
-        existing_tokens = Token.list(sentence_id)
+        existing_tokens = Token.list(sentence_id, session=session)
         for token in existing_tokens:
             token.delete(commit=False)
         db_session.commit()
 
-        tokens = Token.create_from_sentence(sentence_id, "cyning")
+        tokens = Token.create_from_sentence(sentence_id, "cyning", session=session)
 
         assert len(tokens) == 1
         assert tokens[0].surface == "cyning"
@@ -211,31 +214,39 @@ class TestCreateFromSentence:
 
     def test_sequential_order_indices(self, db_session, project_and_sentence):
         """Test that tokens are created with sequential order indices."""
+        session = get_runtime_session()
         _, sentence_id = project_and_sentence
 
         # Delete existing tokens from the fixture-created sentence
-        existing_tokens = Token.list(sentence_id)
+        existing_tokens = Token.list(sentence_id, session=session)
         for token in existing_tokens:
             token.delete(commit=False)
         db_session.commit()
 
-        tokens = Token.create_from_sentence(sentence_id, "Se cyning wæs gōd")
+        tokens = Token.create_from_sentence(
+            sentence_id, "Se cyning wæs gōd", session=session
+        )
 
         assert len(tokens) == 4
         for i, token in enumerate(tokens):
-            assert token.order_index == i, f"Token at index {i} has order_index {token.order_index}, expected {i}"
+            assert token.order_index == i, (
+                f"Token at index {i} has order_index {token.order_index}, expected {i}"
+            )
 
     def test_all_tokens_have_ids(self, db_session, project_and_sentence):
         """Test that all created tokens have database IDs."""
+        session = get_runtime_session()
         _, sentence_id = project_and_sentence
 
         # Delete existing tokens from the fixture-created sentence
-        existing_tokens = Token.list(sentence_id)
+        existing_tokens = Token.list(sentence_id, session=session)
         for token in existing_tokens:
             token.delete(commit=False)
         db_session.commit()
 
-        tokens = Token.create_from_sentence(sentence_id, "Se cyning wæs")
+        tokens = Token.create_from_sentence(
+            sentence_id, "Se cyning wæs", session=session
+        )
 
         assert len(tokens) == 3
         for token in tokens:
@@ -243,70 +254,82 @@ class TestCreateFromSentence:
 
     def test_all_tokens_have_timestamps(self, db_session, project_and_sentence):
         """Test that all created tokens have timestamps."""
+        session = get_runtime_session()
         _, sentence_id = project_and_sentence
 
         # Delete existing tokens from the fixture-created sentence
-        existing_tokens = Token.list(sentence_id)
+        existing_tokens = Token.list(sentence_id, session=session)
         for token in existing_tokens:
             token.delete(commit=False)
         db_session.commit()
 
-        tokens = Token.create_from_sentence(sentence_id, "Se cyning")
+        tokens = Token.create_from_sentence(sentence_id, "Se cyning", session=session)
 
         assert len(tokens) == 2
         for token in tokens:
-            assert token.created_at is not None, f"Token {token.surface} should have created_at"
-            assert token.updated_at is not None, f"Token {token.surface} should have updated_at"
+            assert token.created_at is not None, (
+                f"Token {token.surface} should have created_at"
+            )
+            assert token.updated_at is not None, (
+                f"Token {token.surface} should have updated_at"
+            )
             # Timestamps may be strings from SQLite or datetime objects
             assert isinstance(token.created_at, (datetime, str))
             assert isinstance(token.updated_at, (datetime, str))
 
     def test_tokens_persisted_to_database(self, db_session, project_and_sentence):
         """Test that tokens are persisted to the database."""
+        session = get_runtime_session()
         project_id, sentence_id = project_and_sentence
 
         # Delete existing tokens from the fixture-created sentence
-        existing_tokens = Token.list(sentence_id)
+        existing_tokens = Token.list(sentence_id, session=session)
         for token in existing_tokens:
             token.delete(commit=False)
         db_session.commit()
 
         # Create new tokens
-        tokens = Token.create_from_sentence(sentence_id, "Se cyning")
+        tokens = Token.create_from_sentence(sentence_id, "Se cyning", session=session)
 
         # Verify tokens can be retrieved from database
-        retrieved_tokens = Token.list(sentence_id)
+        retrieved_tokens = Token.list(sentence_id, session=session)
         assert len(retrieved_tokens) == 2
         assert retrieved_tokens[0].surface == "Se"
         assert retrieved_tokens[1].surface == "cyning"
 
     def test_tokens_correct_sentence_id(self, db_session, project_and_sentence):
         """Test that all tokens have the correct sentence_id."""
+        session = get_runtime_session()
         _, sentence_id = project_and_sentence
 
         # Delete existing tokens from the fixture-created sentence
-        existing_tokens = Token.list(sentence_id)
+        existing_tokens = Token.list(sentence_id, session=session)
         for token in existing_tokens:
             token.delete(commit=False)
         db_session.commit()
 
-        tokens = Token.create_from_sentence(sentence_id, "Se cyning wæs")
+        tokens = Token.create_from_sentence(
+            sentence_id, "Se cyning wæs", session=session
+        )
 
         assert len(tokens) == 3
         for token in tokens:
-            assert token.sentence_id == sentence_id, f"Token {token.surface} should have sentence_id {sentence_id}"
+            assert token.sentence_id == sentence_id, (
+                f"Token {token.surface} should have sentence_id {sentence_id}"
+            )
 
     def test_create_with_old_english_characters(self, db_session, project_and_sentence):
         """Test creating tokens with Old English characters."""
+        session = get_runtime_session()
         _, sentence_id = project_and_sentence
 
         # Delete existing tokens from the fixture-created sentence
-        existing_tokens = Token.list(sentence_id)
+        existing_tokens = Token.list(sentence_id, session=session)
         for token in existing_tokens:
             token.delete(commit=False)
         db_session.commit()
 
-        tokens = Token.create_from_sentence(sentence_id, "þā ðæt")
+        tokens = Token.create_from_sentence(sentence_id, "þā ðæt", session=session)
 
         assert len(tokens) == 2
         assert tokens[0].surface == "þā"
@@ -314,15 +337,18 @@ class TestCreateFromSentence:
 
     def test_create_with_duplicate_tokens(self, db_session, project_and_sentence):
         """Test creating tokens with duplicate surfaces."""
+        session = get_runtime_session()
         _, sentence_id = project_and_sentence
 
         # Delete existing tokens from the fixture-created sentence
-        existing_tokens = Token.list(sentence_id)
+        existing_tokens = Token.list(sentence_id, session=session)
         for token in existing_tokens:
             token.delete(commit=False)
         db_session.commit()
 
-        tokens = Token.create_from_sentence(sentence_id, "þā cyning þā")
+        tokens = Token.create_from_sentence(
+            sentence_id, "þā cyning þā", session=session
+        )
 
         assert len(tokens) == 3
         assert tokens[0].surface == "þā"
@@ -333,27 +359,24 @@ class TestCreateFromSentence:
 
     def test_create_multiple_times_different_sentences(self, db_session):
         """Test creating tokens for different sentences."""
+        session = get_runtime_session()
         # Create project
         project = Project(name="Test Project")
         project.save()
 
         # Create first sentence
         sentence1 = Sentence.create(
-            project_id=project.id,
-            display_order=1,
-            text_oe="Se cyning"
+            project_id=project.id, display_order=1, text_oe="Se cyning", session=session
         )
 
         # Create second sentence
         sentence2 = Sentence.create(
-            project_id=project.id,
-            display_order=2,
-            text_oe="wæs gōd"
+            project_id=project.id, display_order=2, text_oe="wæs gōd", session=session
         )
 
         # Get tokens from sentences
-        tokens1 = Token.list(sentence1.id)
-        tokens2 = Token.list(sentence2.id)
+        tokens1 = Token.list(sentence1.id, session=session)
+        tokens2 = Token.list(sentence2.id, session=session)
 
         # Both sets should exist
         assert len(tokens1) == 2
@@ -365,15 +388,18 @@ class TestCreateFromSentence:
 
     def test_create_with_whitespace(self, db_session, project_and_sentence):
         """Test creating tokens with extra whitespace."""
+        session = get_runtime_session()
         _, sentence_id = project_and_sentence
 
         # Delete existing tokens from the fixture-created sentence
-        existing_tokens = Token.list(sentence_id)
+        existing_tokens = Token.list(sentence_id, session=session)
         for token in existing_tokens:
             token.delete(commit=False)
         db_session.commit()
 
-        tokens = Token.create_from_sentence(sentence_id, "  Se   cyning  ")
+        tokens = Token.create_from_sentence(
+            sentence_id, "  Se   cyning  ", session=session
+        )
 
         assert len(tokens) == 2
         assert tokens[0].surface == "Se"
@@ -381,15 +407,18 @@ class TestCreateFromSentence:
 
     def test_create_complex_sentence(self, db_session, project_and_sentence):
         """Test creating tokens from a complex sentence."""
+        session = get_runtime_session()
         _, sentence_id = project_and_sentence
 
         # Delete existing tokens from the fixture-created sentence
-        existing_tokens = Token.list(sentence_id)
+        existing_tokens = Token.list(sentence_id, session=session)
         for token in existing_tokens:
             token.delete(commit=False)
         db_session.commit()
 
-        tokens = Token.create_from_sentence(sentence_id, "Hwæt! Se cyning wæs gōd.")
+        tokens = Token.create_from_sentence(
+            sentence_id, "Hwæt! Se cyning wæs gōd.", session=session
+        )
 
         # Tokenizer splits punctuation, so we get 7 tokens (including period)
         assert len(tokens) >= 6
@@ -405,30 +434,34 @@ class TestCreateFromSentence:
 
     def test_order_indices_start_at_zero(self, db_session, project_and_sentence):
         """Test that order indices start at zero."""
+        session = get_runtime_session()
         _, sentence_id = project_and_sentence
 
         # Delete existing tokens from the fixture-created sentence
-        existing_tokens = Token.list(sentence_id)
+        existing_tokens = Token.list(sentence_id, session=session)
         for token in existing_tokens:
             token.delete(commit=False)
         db_session.commit()
 
-        tokens = Token.create_from_sentence(sentence_id, "Se cyning")
+        tokens = Token.create_from_sentence(sentence_id, "Se cyning", session=session)
 
         assert len(tokens) >= 1
         assert tokens[0].order_index == 0
 
     def test_no_gaps_in_order_indices(self, db_session, project_and_sentence):
         """Test that there are no gaps in order indices."""
+        session = get_runtime_session()
         _, sentence_id = project_and_sentence
 
         # Delete existing tokens from the fixture-created sentence
-        existing_tokens = Token.list(sentence_id)
+        existing_tokens = Token.list(sentence_id, session=session)
         for token in existing_tokens:
             token.delete(commit=False)
         db_session.commit()
 
-        tokens = Token.create_from_sentence(sentence_id, "Se cyning wæs gōd")
+        tokens = Token.create_from_sentence(
+            sentence_id, "Se cyning wæs gōd", session=session
+        )
 
         order_indices = [token.order_index for token in tokens]
         order_indices.sort()
@@ -438,57 +471,58 @@ class TestCreateFromSentence:
 
     def test_tokens_returned_in_order(self, db_session, project_and_sentence):
         """Test that tokens are returned in order."""
+        session = get_runtime_session()
         _, sentence_id = project_and_sentence
 
         # Delete existing tokens from the fixture-created sentence
-        existing_tokens = Token.list(sentence_id)
+        existing_tokens = Token.list(sentence_id, session=session)
         for token in existing_tokens:
             token.delete(commit=False)
         db_session.commit()
 
-        tokens = Token.create_from_sentence(sentence_id, "Se cyning wæs")
+        tokens = Token.create_from_sentence(
+            sentence_id, "Se cyning wæs", session=session
+        )
 
         assert tokens[0].order_index < tokens[1].order_index
         assert tokens[1].order_index < tokens[2].order_index
 
     def test_lemma_is_none_by_default(self, db_session, project_and_sentence):
         """Test that lemma is None by default."""
+        session = get_runtime_session()
         _, sentence_id = project_and_sentence
 
         # Delete existing tokens from the fixture-created sentence
-        existing_tokens = Token.list(sentence_id)
+        existing_tokens = Token.list(sentence_id, session=session)
         for token in existing_tokens:
             token.delete(commit=False)
         db_session.commit()
 
-        tokens = Token.create_from_sentence(sentence_id, "Se cyning")
+        tokens = Token.create_from_sentence(sentence_id, "Se cyning", session=session)
 
         for token in tokens:
             assert token.lemma is None
 
     def test_different_sentences_different_tokens(self, db_session):
         """Test that tokens for different sentences are separate."""
+        session = get_runtime_session()
         # Create project
         project = Project(name="Test Project")
         project.save()
 
         # Create first sentence
         sentence1 = Sentence.create(
-            project_id=project.id,
-            display_order=1,
-            text_oe="Se cyning"
+            project_id=project.id, display_order=1, text_oe="Se cyning", session=session
         )
 
         # Create second sentence
         sentence2 = Sentence.create(
-            project_id=project.id,
-            display_order=2,
-            text_oe="Se cyning"
+            project_id=project.id, display_order=2, text_oe="Se cyning", session=session
         )
 
         # Get tokens from sentences
-        tokens1 = Token.list(sentence1.id)
-        tokens2 = Token.list(sentence2.id)
+        tokens1 = Token.list(sentence1.id, session=session)
+        tokens2 = Token.list(sentence2.id, session=session)
 
         # Both should have tokens
         assert len(tokens1) == 2
@@ -498,4 +532,3 @@ class TestCreateFromSentence:
         assert tokens1[0].id != tokens2[0].id
         assert tokens1[0].sentence_id == sentence1.id
         assert tokens2[0].sentence_id == sentence2.id
-

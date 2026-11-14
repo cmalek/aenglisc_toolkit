@@ -13,7 +13,7 @@ from sqlalchemy import (
     select,
     text,
 )
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from oeapp.db import Base
 
@@ -131,6 +131,8 @@ class AnnotationPreset(SaveDeleteMixin, Base):
         name: str,
         pos: "PresetPos",
         commit: bool = True,
+        *,
+        session: Session,
         **kwargs,
     ) -> "AnnotationPreset":
         """
@@ -141,6 +143,7 @@ class AnnotationPreset(SaveDeleteMixin, Base):
             pos: Part of speech (N, V, A, R, D)
 
         Keyword Args:
+            session: Runtime SQLAlchemy session.
             commit: Whether to commit the changes
             **kwargs: Field values for the preset
 
@@ -164,8 +167,6 @@ class AnnotationPreset(SaveDeleteMixin, Base):
         if pos not in ("N", "V", "A", "R", "D"):
             msg = f"Invalid POS: {pos}. Must be one of: N, V, A, R, D"
             raise ValueError(msg)
-
-        session = cls._get_session()
         preset = cls(name=name.strip(), pos=pos, **kwargs)
         session.add(preset)
         session.flush()
@@ -180,7 +181,7 @@ class AnnotationPreset(SaveDeleteMixin, Base):
         return preset
 
     @classmethod
-    def get(cls, preset_id: int) -> "AnnotationPreset | None":
+    def get(cls, preset_id: int, *, session: Session) -> "AnnotationPreset | None":
         """
         Get a preset by ID.
 
@@ -188,15 +189,17 @@ class AnnotationPreset(SaveDeleteMixin, Base):
             session: SQLAlchemy session
             preset_id: Preset ID
 
+        Keyword Args:
+            session: Runtime SQLAlchemy session.
+
         Returns:
             AnnotationPreset or None if not found
 
         """
-        session = cls._get_session()
         return session.get(cls, preset_id)
 
     @classmethod
-    def get_all_by_pos(cls, pos: str) -> list["AnnotationPreset"]:
+    def get_all_by_pos(cls, pos: str, *, session: Session) -> list["AnnotationPreset"]:
         """
         Get all presets for a POS, ordered by name.
 
@@ -204,11 +207,13 @@ class AnnotationPreset(SaveDeleteMixin, Base):
             session: SQLAlchemy session
             pos: Part of speech (N, V, A, R, D)
 
+        Keyword Args:
+            session: Runtime SQLAlchemy session.
+
         Returns:
             List of AnnotationPreset entities ordered by name
 
         """
-        session = cls._get_session()
         return list(
             session.scalars(select(cls).where(cls.pos == pos).order_by(cls.name)).all()
         )
@@ -218,6 +223,8 @@ class AnnotationPreset(SaveDeleteMixin, Base):
         cls,
         preset_id: int,
         commit: bool = True,
+        *,
+        session: Session,
         **kwargs,
     ) -> "AnnotationPreset | None":
         """
@@ -227,6 +234,7 @@ class AnnotationPreset(SaveDeleteMixin, Base):
             preset_id: Preset ID
 
         Keyword Args:
+            session: Runtime SQLAlchemy session.
             commit: Whether to commit the changes
             **kwargs: Field values to update
 
@@ -241,9 +249,7 @@ class AnnotationPreset(SaveDeleteMixin, Base):
         from oeapp.services.logs import get_logger  # noqa: PLC0415
 
         logger = get_logger(cls.__name__)
-
-        session = cls._get_session()
-        preset = cls.get(preset_id)
+        preset = cls.get(preset_id, session=session)
         if not preset:
             return None
 
@@ -299,9 +305,7 @@ class AnnotationPreset(SaveDeleteMixin, Base):
 
     @classmethod
     def from_json(
-        cls,
-        preset_data: dict,
-        commit: bool = True,
+        cls, preset_data: dict, commit: bool = True, *, session: Session
     ) -> "AnnotationPreset":
         """
         Create preset from JSON import data.
@@ -310,13 +314,13 @@ class AnnotationPreset(SaveDeleteMixin, Base):
             preset_data: Preset data dictionary from JSON
 
         Keyword Args:
+            session: Runtime SQLAlchemy session.
             commit: Whether to commit changes
 
         Returns:
             Created preset
 
         """
-        session = cls._get_session()
         preset = cls(
             name=preset_data["name"],
             pos=preset_data["pos"],

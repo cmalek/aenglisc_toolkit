@@ -1,9 +1,6 @@
 """Unit tests for project search behavior."""
 
 import pytest
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QComboBox, QLabel, QLineEdit, QPushButton
-
 from oeapp.models.chapter import Chapter
 from oeapp.models.note import Note
 from oeapp.models.paragraph import Paragraph
@@ -11,6 +8,8 @@ from oeapp.models.project import Project
 from oeapp.models.section import Section
 from oeapp.models.sentence import Sentence
 from oeapp.ui.main_window import MainWindow
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QComboBox, QLabel, QLineEdit, QPushButton
 
 
 @pytest.fixture
@@ -54,6 +53,7 @@ def search_project(db_session, window):
         display_order=1,
         text_oe="Se cyning rad.",
         commit=False,
+        session=session,
     )
     s1.text_modern = "The king rode."
 
@@ -63,6 +63,7 @@ def search_project(db_session, window):
         display_order=2,
         text_oe="Þæt scip seglode.",
         commit=False,
+        session=session,
     )
     s2.text_modern = "The ship sailed."
 
@@ -72,6 +73,7 @@ def search_project(db_session, window):
         display_order=3,
         text_oe="Se helm wearð.",
         commit=False,
+        session=session,
     )
     s3.text_modern = "Helm showed the way."
 
@@ -90,12 +92,14 @@ def search_project(db_session, window):
         note_text_md="Ship note with cynn references",
         note_type="sentence",
         commit=False,
+        session=session,
     )
     Note.create(
         sentence_id=s3.id,
         note_text_md="Navigator note: helm marker",
         note_type="sentence",
         commit=False,
+        session=session,
     )
 
     session.commit()
@@ -132,7 +136,9 @@ def test_search_ui_elements_exist(window):
     assert isinstance(window.search_scope_combo, QComboBox)
 
 
-def test_search_oe_uses_normalized_token_and_root_matching(qtbot, window, search_project):
+def test_search_oe_uses_normalized_token_and_root_matching(
+    qtbot, window, search_project
+):
     """OE search should normalize the term and match token/root normalized fields."""
     window.search_scope_combo.setCurrentText("OE Text")
     window.search_input.setText("CY-N")
@@ -158,7 +164,9 @@ def test_notes_scope_combines_notes_and_normalized_oe(qtbot, window, search_proj
     window.search_input.setText("cyn")
     qtbot.waitUntil(lambda: window.search_counter_label.text() != "0 / 0")
 
-    current, total = [int(part.strip()) for part in window.search_counter_label.text().split("/")]
+    current, total = [
+        int(part.strip()) for part in window.search_counter_label.text().split("/")
+    ]
     assert current == 1
     assert total >= 2
 
@@ -169,7 +177,9 @@ def test_all_scope_combines_oe_mode_and_notes(qtbot, window, search_project):
     window.search_input.setText("helm")
     qtbot.waitUntil(lambda: window.search_counter_label.text() != "0 / 0")
 
-    current, total = [int(part.strip()) for part in window.search_counter_label.text().split("/")]
+    current, total = [
+        int(part.strip()) for part in window.search_counter_label.text().split("/")
+    ]
     assert current == 1
     assert total >= 2
 
@@ -188,7 +198,9 @@ def test_search_navigation_loads_other_chapter_and_focuses_mode_field(
     )
 
     assert window.chapter_combo.currentData() == search_project.chapters[1].id
-    assert window.section_combo.currentData() == search_project.chapters[1].sections[0].id
+    assert (
+        window.section_combo.currentData() == search_project.chapters[1].sections[0].id
+    )
     target_card = window.sentence_cards[0]
     assert target_card.sentence.display_order == 3
     assert window.focusWidget() == target_card.translation_edit
@@ -214,13 +226,17 @@ def test_clear_restores_origin_mode_focus(qtbot, window, search_project):
     )
 
     assert window.chapter_combo.currentData() == search_project.chapters[0].id
-    assert window.section_combo.currentData() == search_project.chapters[0].sections[0].id
+    assert (
+        window.section_combo.currentData() == search_project.chapters[0].sections[0].id
+    )
     restored_card = window.sentence_cards[0]
     assert restored_card.sentence.display_order == 1
     assert window.focusWidget() == restored_card.translation_edit
 
 
-def test_escape_clears_search_and_restores_origin_mode_focus(qtbot, window, search_project):
+def test_escape_clears_search_and_restores_origin_mode_focus(
+    qtbot, window, search_project
+):
     """Escape in active search should restore focus to origin ModE textbox."""
     origin_card = window.sentence_cards[0]
     origin_card.translation_edit.setFocus()
@@ -241,7 +257,9 @@ def test_escape_clears_search_and_restores_origin_mode_focus(qtbot, window, sear
     )
 
     assert window.chapter_combo.currentData() == search_project.chapters[0].id
-    assert window.section_combo.currentData() == search_project.chapters[0].sections[0].id
+    assert (
+        window.section_combo.currentData() == search_project.chapters[0].sections[0].id
+    )
     restored_card = window.sentence_cards[0]
     assert restored_card.sentence.display_order == 1
     assert window.focusWidget() == restored_card.translation_edit

@@ -4,9 +4,9 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Integer, String
-from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
+from sqlalchemy.orm import Mapped, Session, mapped_column, relationship, validates
 
-from oeapp.db import Base
+from oeapp.db import Base, get_runtime_session
 from oeapp.models.mixins import SaveDeleteMixin
 from oeapp.models.token import Token
 from oeapp.utils import from_utc_iso, to_utc_iso
@@ -92,7 +92,7 @@ class Note(SaveDeleteMixin, Base):
         return value
 
     @classmethod
-    def get(cls, pk: int) -> "Note | None":
+    def get(cls, pk: int, *, session: Session) -> "Note | None":
         """
         Get a note by ID.
 
@@ -100,11 +100,13 @@ class Note(SaveDeleteMixin, Base):
             session: SQLAlchemy session
             pk: Primary key
 
+        Keyword Args:
+            session: Runtime SQLAlchemy session.
+
         Returns:
             Note or None if not found
 
         """
-        session = cls._get_session()
         return session.get(cls, pk)
 
     @classmethod
@@ -116,6 +118,8 @@ class Note(SaveDeleteMixin, Base):
         note_text_md: str = "",
         note_type: str = "token",
         commit: bool = True,
+        *,
+        session: Session,
     ) -> "Note":
         """
         Create a new note.
@@ -128,12 +132,13 @@ class Note(SaveDeleteMixin, Base):
             note_type: Note type
             commit: Whether to commit the changes to the database
 
+        Keyword Args:
+            session: Runtime SQLAlchemy session.
 
         Returns:
             The computed value.
 
         """
-        session = cls._get_session()
         note = cls(
             sentence_id=sentence_id,
             start_token=start_token_id,
@@ -157,6 +162,7 @@ class Note(SaveDeleteMixin, Base):
             Dictionary containing note data
 
         """
+        session = get_runtime_session()
         note_data: dict = {
             "note_text_md": self.note_text_md,
             "note_type": self.note_type,
@@ -167,11 +173,11 @@ class Note(SaveDeleteMixin, Base):
         # For notes, we need to reference tokens by order_index
         # since we don't have PKs
         if self.start_token:
-            start_token = Token.get(self.start_token)
+            start_token = Token.get(self.start_token, session=session)
             if start_token:
                 note_data["start_token_order_index"] = start_token.order_index
         if self.end_token:
-            end_token = Token.get(self.end_token)
+            end_token = Token.get(self.end_token, session=session)
             if end_token:
                 note_data["end_token_order_index"] = end_token.order_index
 

@@ -203,8 +203,9 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
             ``True`` on success, ``False`` on failure.
 
         """
+        session = get_runtime_session()
         self.last_error = None
-        project = Project.get(project_id)
+        project = Project.get(project_id, session=session)
         if project is None:
             self.last_error = f"Project not found: {project_id}"
             self.logger.error(

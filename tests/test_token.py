@@ -3,11 +3,11 @@
 from datetime import UTC, datetime
 
 import pytest
-
-from sqlalchemy.exc import IntegrityError
-
+from oeapp.db import get_runtime_session
 from oeapp.models.annotation import Annotation
 from oeapp.models.token import Token
+from sqlalchemy.exc import IntegrityError
+
 from tests.conftest import create_test_project, create_test_sentence
 
 
@@ -16,10 +16,11 @@ class TestToken:
 
     def test_create_model(self, db_session):
         """Test model creation."""
+        session = get_runtime_session()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
         # Use existing token created by Sentence.create
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         token = tokens[0]
 
         assert token.id is not None
@@ -29,27 +30,30 @@ class TestToken:
 
     def test_get_returns_existing(self, db_session):
         """Test get() returns existing token."""
+        session = get_runtime_session()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         token_id = tokens[0].id
 
-        retrieved = Token.get(token_id)
+        retrieved = Token.get(token_id, session=session)
         assert retrieved is not None
         assert retrieved.id == token_id
         assert retrieved.surface == tokens[0].surface
 
     def test_get_returns_none_for_nonexistent(self, db_session):
         """Test get() returns None for nonexistent token."""
-        result = Token.get(99999)
+        session = get_runtime_session()
+        result = Token.get(99999, session=session)
         assert result is None
 
     def test_list_returns_tokens_for_sentence(self, db_session):
         """Test list() returns tokens for sentence ordered by order_index."""
+        session = get_runtime_session()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning wæs")
 
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         assert len(tokens) >= 3
         assert all(t.sentence_id == sentence.id for t in tokens)
         # Check ordering
@@ -58,24 +62,26 @@ class TestToken:
 
     def test_list_returns_empty_when_no_tokens(self, db_session):
         """Test list() returns empty list when no tokens exist."""
+        session = get_runtime_session()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "")
         # Empty sentence should have no tokens
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         assert tokens == []
 
     def test_create_from_sentence_creates_tokens(self, db_session):
         """Test create_from_sentence() creates tokens from text."""
+        session = get_runtime_session()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
 
         # Clear existing tokens
-        existing = Token.list(sentence.id)
+        existing = Token.list(sentence.id, session=session)
         for token in existing:
             token.delete(commit=False)
         db_session.commit()
 
-        tokens = Token.create_from_sentence(sentence.id, "Se cyning")
+        tokens = Token.create_from_sentence(sentence.id, "Se cyning", session=session)
 
         assert len(tokens) == 2
         assert tokens[0].surface == "Se"
@@ -85,28 +91,30 @@ class TestToken:
 
     def test_create_from_sentence_creates_annotations(self, db_session):
         """Test create_from_sentence() creates empty annotations."""
+        session = get_runtime_session()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
 
         # Clear existing tokens
-        existing = Token.list(sentence.id)
+        existing = Token.list(sentence.id, session=session)
         for token in existing:
             token.delete(commit=False)
         db_session.commit()
 
-        tokens = Token.create_from_sentence(sentence.id, "Se cyning")
+        tokens = Token.create_from_sentence(sentence.id, "Se cyning", session=session)
 
         # Check that annotations were created
         for token in tokens:
             assert token.id is not None
-            annotation = Annotation.get(token.id)
+            annotation = Annotation.get(token.id, session=session)
             assert annotation is not None
 
     def test_to_json_serializes_token(self, db_session):
         """Test to_json() serializes token data."""
+        session = get_runtime_session()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         token = tokens[0]
 
         data = token.to_json()
@@ -121,9 +129,10 @@ class TestToken:
         self, db_session
     ):
         """Untouched auto-created annotation should serialize as null."""
+        session = get_runtime_session()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        token = Token.list(sentence.id)[0]
+        token = Token.list(sentence.id, session=session)[0]
 
         data = token.to_json()
         assert "annotation" in data
@@ -131,13 +140,14 @@ class TestToken:
 
     def test_to_json_includes_annotation(self, db_session):
         """Test to_json() includes annotation if present."""
+        session = get_runtime_session()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         token = tokens[0]
 
         # Add annotation
-        annotation = Annotation.get(token.id)
+        annotation = Annotation.get(token.id, session=session)
         if annotation:
             annotation.pos = "N"
             annotation.gender = "m"
@@ -150,13 +160,14 @@ class TestToken:
 
     def test_to_json_excludes_annotation_when_none(self, db_session):
         """Test to_json() excludes annotation when None."""
+        session = get_runtime_session()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         token = tokens[0]
 
         # Ensure no annotation
-        annotation = Annotation.get(token.id)
+        annotation = Annotation.get(token.id, session=session)
         if annotation:
             annotation.delete()
 
@@ -167,6 +178,7 @@ class TestToken:
 
     def test_from_json_creates_token(self, db_session):
         """Test from_json() creates token from data."""
+        session = get_runtime_session()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
 
@@ -177,7 +189,7 @@ class TestToken:
             "created_at": "2024-01-15T10:30:45+00:00",
             "updated_at": "2024-01-15T10:30:45+00:00",
         }
-        token = Token.from_json(sentence.id, token_data)
+        token = Token.from_json(sentence.id, token_data, session=session)
 
         assert token.sentence_id == sentence.id
         assert token.order_index == 2
@@ -187,6 +199,7 @@ class TestToken:
 
     def test_from_json_creates_annotation(self, db_session):
         """Test from_json() creates annotation if present in data."""
+        session = get_runtime_session()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
 
@@ -198,15 +211,16 @@ class TestToken:
                 "verb_tense": "p",
             },
         }
-        token = Token.from_json(sentence.id, token_data)
+        token = Token.from_json(sentence.id, token_data, session=session)
 
-        annotation = Annotation.get(token.id)
+        annotation = Annotation.get(token.id, session=session)
         assert annotation is not None
         assert annotation.pos == "V"
         assert annotation.verb_tense == "p"
 
     def test_from_json_handles_missing_annotation(self, db_session):
         """Test from_json() handles missing annotation in data."""
+        session = get_runtime_session()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
 
@@ -214,39 +228,41 @@ class TestToken:
             "order_index": 2,
             "surface": "wæs",
         }
-        token = Token.from_json(sentence.id, token_data)
+        token = Token.from_json(sentence.id, token_data, session=session)
 
         # Should still create token
         assert token.surface == "wæs"
 
     def test_delete_removes_token(self, db_session):
         """Test deleting token removes it."""
+        session = get_runtime_session()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         token_id = tokens[0].id
 
         # Delete token directly
-        token = Token.get(token_id)
+        token = Token.get(token_id, session=session)
         token.delete()
 
-        assert Token.get(token_id) is None
+        assert Token.get(token_id, session=session) is None
 
     def test_delete_cascades_to_annotation(self, db_session):
         """Test deleting token cascades to annotation."""
+        session = get_runtime_session()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         token = tokens[0]
 
         # Ensure annotation exists
-        annotation = Annotation.get(token.id)
+        annotation = Annotation.get(token.id, session=session)
         assert annotation is not None
 
         token.delete()
 
         # Annotation should be deleted via cascade
-        annotation_after = Annotation.get(token.id)
+        annotation_after = Annotation.get(token.id, session=session)
         assert annotation_after is None
 
     def test_unique_constraint_prevents_duplicate_order(self, db_session):
@@ -276,9 +292,10 @@ class TestToken:
 
     def test_updated_at_updates_on_change(self, db_session):
         """Test updated_at updates when token is modified."""
+        session = get_runtime_session()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         token = tokens[0]
         original_updated = token.updated_at
 
@@ -294,9 +311,10 @@ class TestToken:
 
     def test_surface_normalized_updates_with_surface(self, db_session):
         """Token should keep surface_normalized in sync with surface."""
+        session = get_runtime_session()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Hēah-þing")
-        token = Token.list(sentence.id)[0]
+        token = Token.list(sentence.id, session=session)[0]
 
         token.surface = "Hēah-ðing"
         token.save()
@@ -306,9 +324,10 @@ class TestToken:
 
     def test_relationship_with_sentence(self, db_session):
         """Test token has relationship with sentence."""
+        session = get_runtime_session()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         token = tokens[0]
 
         assert token.sentence.id == sentence.id
@@ -316,9 +335,10 @@ class TestToken:
 
     def test_relationship_with_annotation(self, db_session):
         """Test token has relationship with annotation."""
+        session = get_runtime_session()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         token = tokens[0]
 
         # Annotation should exist (created by create_from_sentence)

@@ -1,16 +1,15 @@
 """Unit tests for commands pushed onto a QUndoStack."""
 
 import pytest
-
 from oeapp.commands import (
     AddNoteCommand,
     AnnotateTokenCommand,
-    UpdateNoteCommand,
     DeleteNoteCommand,
     SplitParagraphCommand,
-    MergeParagraphCommand,
+    UpdateNoteCommand,
     push_command,
 )
+from oeapp.db import get_runtime_session
 from oeapp.models.annotation import Annotation
 from oeapp.models.idiom import Idiom
 from oeapp.models.note import Note
@@ -28,9 +27,8 @@ class TestUndoStackCommands:
         undo_stack = setup["undo_stack"]
         session = setup["session"]
 
-        before = {
-            k: None
-            for k in [
+        before = dict.fromkeys(
+            [
                 "pos",
                 "gender",
                 "number",
@@ -58,7 +56,7 @@ class TestUndoStackCommands:
                 "confidence",
                 "updated_at",
             ]
-        }
+        )
         after = before.copy()
         after.update(
             {
@@ -176,9 +174,8 @@ class TestUndoStackCommands:
         undo_stack = setup["undo_stack"]
         session = setup["session"]
 
-        before = {
-            k: None
-            for k in [
+        before = dict.fromkeys(
+            [
                 "pos",
                 "gender",
                 "number",
@@ -205,7 +202,7 @@ class TestUndoStackCommands:
                 "sense",
                 "root",
             ]
-        }
+        )
         after = before.copy()
         after.update(
             {
@@ -242,7 +239,7 @@ class TestUndoStackCommands:
         undo_stack = setup["undo_stack"]
         session = setup["session"]
 
-        tokens = Token.list(sentence_id)
+        tokens = Token.list(sentence_id, session=session)
         if len(tokens) < 2:
             token2 = Token(sentence_id=sentence_id, order_index=1, surface="cyning")
             token2.save()
@@ -250,9 +247,8 @@ class TestUndoStackCommands:
         else:
             token_id_2 = tokens[1].id
 
-        before = {
-            k: None
-            for k in [
+        before = dict.fromkeys(
+            [
                 "pos",
                 "gender",
                 "number",
@@ -279,7 +275,7 @@ class TestUndoStackCommands:
                 "sense",
                 "root",
             ]
-        }
+        )
 
         after1 = before.copy()
         after1.update(
@@ -331,9 +327,8 @@ class TestUndoStackCommands:
         assert not undo_stack.canUndo()
         assert not undo_stack.canRedo()
 
-        before = {
-            k: None
-            for k in [
+        before = dict.fromkeys(
+            [
                 "pos",
                 "gender",
                 "number",
@@ -360,7 +355,7 @@ class TestUndoStackCommands:
                 "sense",
                 "root",
             ]
-        }
+        )
         after = before.copy()
         after.update(
             {"pos": "N", "gender": "m", "number": "s", "case": "n", "confidence": 100}
@@ -382,7 +377,6 @@ class TestUndoStackCommands:
 
     def test_execute_creates_new_idiom_and_annotation(self, command_setup):
         """A new_idiom is persisted, linked, and refreshes the sentence collections."""
-        from oeapp.models.idiom import Idiom
         from oeapp.models.sentence import Sentence
         from oeapp.models.token import Token
 
@@ -391,7 +385,7 @@ class TestUndoStackCommands:
         session = setup["session"]
         sentence_id = setup["sentence_id"]
 
-        tokens = Token.list(sentence_id)
+        tokens = Token.list(sentence_id, session=session)
         assert len(tokens) >= 2
         start_token, end_token = tokens[0], tokens[1]
 
@@ -418,25 +412,25 @@ class TestUndoStackCommands:
         assert command.idiom_id == new_idiom.id
 
         # The annotation was created and linked to the new idiom.
-        annotation = Annotation.get_by_idiom(new_idiom.id)
+        annotation = Annotation.get_by_idiom(new_idiom.id, session=session)
         assert annotation is not None
         assert annotation.pos == "N"
         assert annotation.confidence == 90
 
         # The sentence's idiom/token collections were refreshed in-session.
-        sentence = Sentence.get(sentence_id)
+        sentence = Sentence.get(sentence_id, session=session)
         assert any(i.id == new_idiom.id for i in sentence.idioms)
 
     def test_undo_new_idiom_deletes_idiom_and_annotation(self, command_setup):
         """Undoing a new-idiom annotation deletes the idiom (annotation cascades)."""
-        from oeapp.models.idiom import Idiom
+        session = get_runtime_session()
         from oeapp.models.token import Token
 
         setup = command_setup
         undo_stack = setup["undo_stack"]
         sentence_id = setup["sentence_id"]
 
-        tokens = Token.list(sentence_id)
+        tokens = Token.list(sentence_id, session=session)
         start_token, end_token = tokens[0], tokens[1]
 
         new_idiom = Idiom(
@@ -457,28 +451,26 @@ class TestUndoStackCommands:
 
         undo_stack.undo()
 
-        assert Idiom.get(created_idiom_id) is None
-        assert Annotation.get_by_idiom(created_idiom_id) is None
+        assert Idiom.get(created_idiom_id, session=session) is None
+        assert Annotation.get_by_idiom(created_idiom_id, session=session) is None
 
         # The delete must be committed, not just flushed: a later rollback
         # elsewhere in the app must not resurrect the "deleted" idiom row.
-        from oeapp.db import get_runtime_session  # noqa: PLC0415
-
         get_runtime_session().rollback()
 
-        assert Idiom.get(created_idiom_id) is None
-        assert Annotation.get_by_idiom(created_idiom_id) is None
+        assert Idiom.get(created_idiom_id, session=session) is None
+        assert Annotation.get_by_idiom(created_idiom_id, session=session) is None
 
     def test_redo_new_idiom_recreates_idiom_and_annotation(self, command_setup):
         """Redo after undo must recreate the idiom, not reuse the deleted row's id."""
-        from oeapp.models.idiom import Idiom
+        session = get_runtime_session()
         from oeapp.models.token import Token
 
         setup = command_setup
         undo_stack = setup["undo_stack"]
         sentence_id = setup["sentence_id"]
 
-        tokens = Token.list(sentence_id)
+        tokens = Token.list(sentence_id, session=session)
         start_token, end_token = tokens[0], tokens[1]
 
         new_idiom = Idiom(
@@ -498,15 +490,15 @@ class TestUndoStackCommands:
         first_idiom_id = command.idiom_id
 
         undo_stack.undo()
-        assert Idiom.get(first_idiom_id) is None
+        assert Idiom.get(first_idiom_id, session=session) is None
 
         undo_stack.redo()
 
         # Redo must have created a *new* idiom row (old id is gone for good).
         assert command.idiom_id is not None
-        recreated = Idiom.get(command.idiom_id)
+        recreated = Idiom.get(command.idiom_id, session=session)
         assert recreated is not None
-        annotation = Annotation.get_by_idiom(command.idiom_id)
+        annotation = Annotation.get_by_idiom(command.idiom_id, session=session)
         assert annotation is not None
         assert annotation.pos == "N"
 
@@ -516,10 +508,11 @@ class TestAddNoteCommand:
 
     def test_execute_creates_note(self, command_setup):
         """Test execute() creates note."""
+        session = get_runtime_session()
         setup = command_setup
         sentence_id = setup["sentence_id"]
 
-        tokens = Token.list(sentence_id)
+        tokens = Token.list(sentence_id, session=session)
         start_token_id = tokens[0].id
         end_token_id = tokens[1].id if len(tokens) > 1 else tokens[0].id
 
@@ -533,16 +526,17 @@ class TestAddNoteCommand:
         assert command.execute()
         assert command.note_id is not None
 
-        note = Note.get(command.note_id)
+        note = Note.get(command.note_id, session=session)
         assert note is not None
         assert note.note_text_md == "Test note"
 
     def test_undo_deletes_note(self, db_session, command_setup):
         """Test undo() deletes note."""
+        session = get_runtime_session()
         setup = command_setup
         sentence_id = setup["sentence_id"]
 
-        tokens = Token.list(sentence_id)
+        tokens = Token.list(sentence_id, session=session)
         start_token_id = tokens[0].id
         end_token_id = tokens[0].id
 
@@ -556,7 +550,7 @@ class TestAddNoteCommand:
         note_id = command.note_id
 
         assert command.undo()
-        assert Note.get(note_id) is None
+        assert Note.get(note_id, session=session) is None
 
 
 class TestUpdateNoteCommand:
@@ -582,11 +576,12 @@ class TestUpdateNoteCommand:
 
     def test_execute_updates_note(self, note_setup):
         """Test execute() updates note."""
+        session = get_runtime_session()
         setup = note_setup
         note_id = setup["note_id"]
         token_id = setup["token_id"]
 
-        note = Note.get(note_id)
+        note = Note.get(note_id, session=session)
         original_text = note.note_text_md
 
         command = UpdateNoteCommand(
@@ -600,15 +595,16 @@ class TestUpdateNoteCommand:
         )
 
         assert command.execute()
-        assert Note.get(note_id).note_text_md == "Updated note"
+        assert Note.get(note_id, session=session).note_text_md == "Updated note"
 
     def test_undo_restores_note(self, note_setup):
         """Test undo() restores original note text."""
+        session = get_runtime_session()
         setup = note_setup
         note_id = setup["note_id"]
         token_id = setup["token_id"]
 
-        note = Note.get(note_id)
+        note = Note.get(note_id, session=session)
         original_text = note.note_text_md
 
         command = UpdateNoteCommand(
@@ -622,7 +618,7 @@ class TestUpdateNoteCommand:
         )
         command.execute()
         assert command.undo()
-        assert Note.get(note_id).note_text_md == original_text
+        assert Note.get(note_id, session=session).note_text_md == original_text
 
 
 class TestDeleteNoteCommand:
@@ -648,18 +644,20 @@ class TestDeleteNoteCommand:
 
     def test_execute_deletes_note(self, note_setup):
         """Test execute() deletes note."""
+        session = get_runtime_session()
         note_id = note_setup["note_id"]
         command = DeleteNoteCommand(note_id=note_id)
         assert command.execute()
-        assert Note.get(note_id) is None
+        assert Note.get(note_id, session=session) is None
 
     def test_undo_restores_note(self, note_setup):
         """Test undo() restores deleted note."""
+        session = get_runtime_session()
         note_id = note_setup["note_id"]
         command = DeleteNoteCommand(note_id=note_id)
         command.execute()
         assert command.undo()
-        note = Note.get(note_id)
+        note = Note.get(note_id, session=session)
         assert note is not None
         assert note.note_text_md == "Note to delete"
 
@@ -671,26 +669,27 @@ class TestSplitParagraphCommand:
         """Test execute() splits a paragraph."""
         sentence_id = command_setup["sentence_id"]
         session = command_setup["session"]
-        
+
         # Ensure we have a second sentence in the same paragraph to split
-        sentence = Sentence.get(sentence_id)
+        sentence = Sentence.get(sentence_id, session=session)
         project_id = sentence.project_id
-        
+
         # Create a second sentence in the same paragraph
         s2 = Sentence.create(
             project_id=project_id,
             display_order=sentence.display_order + 1,
             text_oe="Second sentence.",
             paragraph_id=sentence.paragraph_id,
-            commit=True
+            commit=True,
+            session=session,
         )
         s2_id = s2.id
-        
+
         original_p_id = sentence.paragraph_id
         command = SplitParagraphCommand(sentence_id=s2_id)
-        
+
         assert command.execute()
-        s2 = Sentence.get(s2_id)
+        s2 = Sentence.get(s2_id, session=session)
         assert s2.paragraph_id != original_p_id
         assert s2.paragraph.order == 2
 
@@ -698,35 +697,39 @@ class TestSplitParagraphCommand:
         """Test undo() restores original paragraph."""
         sentence_id = command_setup["sentence_id"]
         session = command_setup["session"]
-    
-        sentence = Sentence.get(sentence_id)
+
+        sentence = Sentence.get(sentence_id, session=session)
         s2 = Sentence.create(
             project_id=sentence.project_id,
             display_order=sentence.display_order + 1,
             text_oe="Second sentence.",
             paragraph_id=sentence.paragraph_id,
-            commit=True
+            commit=True,
+            session=session,
         )
         s2_id = s2.id
         original_p_id = sentence.paragraph_id
-    
+
         command = SplitParagraphCommand(sentence_id=s2_id)
         command.execute()
-    
+
         # Verify it moved
         s2_after_exec = session.get(Sentence, s2_id)
         assert s2_after_exec.paragraph_id != original_p_id
-    
+
         # Undo
         assert command.undo()
-    
+
         # Use a fresh query from the session
         # Use session.scalar(select(Sentence).where(Sentence.id == s2_id))
         from sqlalchemy import select
+
         s2_after_undo = session.scalar(select(Sentence).where(Sentence.id == s2_id))
         if s2_after_undo is None:
             # Try to see if it's in the project at all
-            all_s = session.scalars(select(Sentence).where(Sentence.project_id == sentence.project_id)).all()
+            all_s = session.scalars(
+                select(Sentence).where(Sentence.project_id == sentence.project_id)
+            ).all()
             print(f"DEBUG: all sentences in project: {[s.id for s in all_s]}")
         assert s2_after_undo is not None, f"Sentence {s2_id} not found after undo"
         assert s2_after_undo.paragraph_id == original_p_id

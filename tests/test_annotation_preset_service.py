@@ -1,11 +1,11 @@
 """Unit tests for AnnotationPresetService."""
 
 import pytest
-from sqlalchemy.exc import IntegrityError
-
+from oeapp.db import get_runtime_session
 from oeapp.models.annotation import Annotation
 from oeapp.models.annotation_preset import AnnotationPreset
 from oeapp.services.annotation_preset_service import AnnotationPresetService
+from sqlalchemy.exc import IntegrityError
 
 
 class TestAnnotationPresetService:
@@ -13,9 +13,10 @@ class TestAnnotationPresetService:
 
     def test_get_presets_for_pos_filters_correctly(self, db_session):
         """Test get_presets_for_pos() filters correctly by POS."""
-        AnnotationPreset.create(name="Noun 1", pos="N")
-        AnnotationPreset.create(name="Noun 2", pos="N")
-        AnnotationPreset.create(name="Verb 1", pos="V")
+        session = get_runtime_session()
+        AnnotationPreset.create(name="Noun 1", pos="N", session=session)
+        AnnotationPreset.create(name="Noun 2", pos="N", session=session)
+        AnnotationPreset.create(name="Verb 1", pos="V", session=session)
 
         service = AnnotationPresetService()
         nouns = service.get_presets_for_pos("N")
@@ -59,13 +60,14 @@ class TestAnnotationPresetService:
 
     def test_update_preset_updates_fields(self, db_session):
         """Test update_preset() updates preset fields."""
-        preset = AnnotationPreset.create(name="Original", pos="A", gender="m")
+        session = get_runtime_session()
+        preset = AnnotationPreset.create(
+            name="Original", pos="A", gender="m", session=session
+        )
 
         service = AnnotationPresetService()
         field_values = {"gender": "f", "number": "p"}
-        updated = service.update_preset(
-            preset.id, "Updated Name", field_values
-        )
+        updated = service.update_preset(preset.id, "Updated Name", field_values)
 
         assert updated is not None
         assert updated.name == "Updated Name"
@@ -74,8 +76,9 @@ class TestAnnotationPresetService:
 
     def test_update_preset_handles_duplicate_error(self, db_session):
         """Test update_preset() handles IntegrityError for duplicates."""
-        AnnotationPreset.create(name="Existing", pos="N")
-        preset2 = AnnotationPreset.create(name="To Update", pos="N")
+        session = get_runtime_session()
+        AnnotationPreset.create(name="Existing", pos="N", session=session)
+        preset2 = AnnotationPreset.create(name="To Update", pos="N", session=session)
 
         service = AnnotationPresetService()
         with pytest.raises(IntegrityError):
@@ -83,14 +86,15 @@ class TestAnnotationPresetService:
 
     def test_delete_preset_removes_preset(self, db_session):
         """Test delete_preset() removes preset."""
-        preset = AnnotationPreset.create(name="To Delete", pos="R")
+        session = get_runtime_session()
+        preset = AnnotationPreset.create(name="To Delete", pos="R", session=session)
         preset_id = preset.id
 
         service = AnnotationPresetService()
         result = service.delete_preset(preset_id)
 
         assert result is True
-        assert AnnotationPreset.get(preset_id) is None
+        assert AnnotationPreset.get(preset_id, session=session) is None
 
     def test_apply_preset_to_annotation_applies_only_non_none_values(self, db_session):
         """Test apply_preset_to_annotation() applies only non-None values."""

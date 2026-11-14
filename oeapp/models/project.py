@@ -68,67 +68,75 @@ class Project(SaveDeleteMixin, Base):
         order_by="Sentence.display_order",
     )
     #: Remembered annotations.
-    remembered_annotations: Mapped[
-        builtins.list["RememberedAnnotation"]
-    ] = relationship(
-        "RememberedAnnotation",
-        back_populates="project",
-        cascade="all, delete-orphan",
-        order_by="RememberedAnnotation.token_text",
+    remembered_annotations: Mapped[builtins.list["RememberedAnnotation"]] = (
+        relationship(
+            "RememberedAnnotation",
+            back_populates="project",
+            cascade="all, delete-orphan",
+            order_by="RememberedAnnotation.token_text",
+        )
     )
 
     @classmethod
-    def exists(cls, name: str) -> bool:
+    def exists(cls, name: str, *, session: Session) -> bool:
         """
         Get all projects.
 
         Args:
             name: Name.
 
+        Keyword Args:
+            session: Runtime SQLAlchemy session.
+
         Returns:
             The computed value.
 
         """
-        session = cls._get_session()
         return session.scalar(select(cls).where(cls.name == name)) is not None
 
     @classmethod
-    def get(cls, project_id: int) -> "Project | None":
+    def get(cls, project_id: int, *, session: Session) -> "Project | None":
         """
         Get a project by name.
 
         Args:
             project_id: Project ID
 
+        Keyword Args:
+            session: Runtime SQLAlchemy session.
+
         Returns:
             Project or None if not found
 
         """
-        session = cls._get_session()
         return session.get(cls, project_id)
 
     @classmethod
-    def first(cls) -> "Project | None":
+    def first(cls, *, session: Session) -> "Project | None":
         """
         Get the first project.
+
+        Keyword Args:
+            session: Runtime SQLAlchemy session.
 
         Returns:
             The first project or None if there are no projects
 
         """
-        session = cls._get_session()
         return session.scalar(select(cls).order_by(cls.id).limit(1))
 
     @classmethod
-    def list(cls) -> builtins.list["Project"]:
+    def list(cls, *, session: Session) -> builtins.list["Project"]:
         """
         Get all projects.
+
+        Keyword Args:
+            session: Runtime SQLAlchemy session.
 
         Returns:
             List of projects
 
         """
-        session = cls._get_session()
         return builtins.list(session.scalars(select(cls)).all())
 
     @classmethod
@@ -140,6 +148,8 @@ class Project(SaveDeleteMixin, Base):
         translator: str | None = None,
         notes: str | None = None,
         commit: bool = True,
+        *,
+        session: Session,
     ) -> "Project":
         """
         Create a new project.
@@ -148,6 +158,7 @@ class Project(SaveDeleteMixin, Base):
             text: Old English text to process and add to the project
 
         Keyword Args:
+            session: Runtime SQLAlchemy session.
             name: Project name
             source: Bibliographic source
             translator: Translator name
@@ -165,10 +176,8 @@ class Project(SaveDeleteMixin, Base):
         from oeapp.services.logs import get_logger  # noqa: PLC0415
 
         logger = get_logger(cls.__name__)
-
-        session = cls._get_session()
         # Check if project with this name already exists
-        if cls.exists(name):
+        if cls.exists(name, session=session):
             raise AlreadyExists("Project", name)  # noqa: EM101
 
         # Create project
@@ -207,6 +216,7 @@ class Project(SaveDeleteMixin, Base):
                 text_oe=sentence_text,
                 paragraph_id=current_paragraph_id,
                 commit=False,
+                session=session,
             )
 
         if commit:
@@ -320,6 +330,7 @@ class Project(SaveDeleteMixin, Base):
                 display_order=max_order + order_offset,
                 text_oe=sentence_text,
                 paragraph_id=current_paragraph_id,
+                session=session,
             )
 
         session.commit()
@@ -695,9 +706,7 @@ class Project(SaveDeleteMixin, Base):
             whitespace.
 
         """
-        return any(
-            (sentence.text_modern or "").strip() for sentence in self.sentences
-        )
+        return any((sentence.text_modern or "").strip() for sentence in self.sentences)
 
     def total_token_count(self) -> int:
         """

@@ -3,9 +3,8 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from oeapp.commands import push_command
-from PySide6.QtGui import QUndoStack
+from oeapp.db import get_runtime_session
 from oeapp.models import Annotation
 from oeapp.models.idiom import Idiom
 from oeapp.models.token import Token
@@ -13,7 +12,7 @@ from oeapp.services.annotation_apply import AnnotationApplyService
 from oeapp.ui.oe_text_edit import OldEnglishTextEdit
 from oeapp.ui.sentence_card import SentenceCard
 from PySide6.QtCore import QPoint, Qt
-from PySide6.QtGui import QKeyEvent
+from PySide6.QtGui import QKeyEvent, QUndoStack
 from PySide6.QtWidgets import QComboBox
 
 from tests.conftest import create_test_project, create_test_sentence
@@ -81,7 +80,9 @@ class TestSentenceCard:
         assert "n" in card.CASE_COLORS
         assert "s" in card.NUMBER_COLORS
 
-    def test_sentence_card_emits_token_selected_signal(self, db_session, qapp, mock_main_window):
+    def test_sentence_card_emits_token_selected_signal(
+        self, db_session, qapp, mock_main_window
+    ):
         """Test SentenceCard emits token_selected_for_details signal."""
         project = create_test_project(db_session, name="Test", text="Se cyning")
 
@@ -97,10 +98,12 @@ class TestSentenceCard:
         # Connect signal
         received_token = None
         received_sentence = None
+
         def on_token_selected(token, sentence, card):
             nonlocal received_token, received_sentence
             received_token = token
             received_sentence = sentence
+
         card.token_selected_for_details.connect(on_token_selected)
 
         # Simulate token selection
@@ -109,13 +112,14 @@ class TestSentenceCard:
         assert received_token == token
         assert received_sentence == sentence
 
-    def test_sentence_card_handles_paragraph_start(self, db_session, qapp, mock_main_window):
+    def test_sentence_card_handles_paragraph_start(
+        self, db_session, qapp, mock_main_window
+    ):
         """Test SentenceCard handles paragraph start flag."""
         project = create_test_project(db_session, name="Test", text="")
 
         sentence = create_test_sentence(
-            db_session, project_id=project.id, text="First paragraph.",
-            display_order=1
+            db_session, project_id=project.id, text="First paragraph.", display_order=1
         )
 
         card = SentenceCard(
@@ -127,7 +131,9 @@ class TestSentenceCard:
 
         assert card.sentence.paragraph.order == 1
 
-    def test_token_navigation_next_prev(self, db_session, qapp, qtbot, mock_main_window):
+    def test_token_navigation_next_prev(
+        self, db_session, qapp, qtbot, mock_main_window
+    ):
         """Test token navigation using arrow keys."""
         from PySide6.QtCore import Qt
         from PySide6.QtGui import QKeyEvent
@@ -186,7 +192,9 @@ class TestSentenceCard:
         assert card.oe_text_edit.current_token_index() == 0
         assert card.token_table.table.currentRow() == 0
 
-    def test_enter_key_opens_annotation_modal(self, db_session, qapp, qtbot, monkeypatch, mock_main_window):
+    def test_enter_key_opens_annotation_modal(
+        self, db_session, qapp, qtbot, monkeypatch, mock_main_window
+    ):
         """Test that pressing Enter key opens the annotation modal when a token is selected."""
         from PySide6.QtCore import Qt
         from PySide6.QtGui import QKeyEvent
@@ -329,7 +337,9 @@ class TestSentenceCard:
     def test_double_click_selected_idiom_opens_idiom_modal(
         self, db_session, qtbot, monkeypatch, mock_main_window
     ):
-        card, tokens, idiom = self._create_card_with_idiom(db_session, qtbot, mock_main_window)
+        card, tokens, idiom = self._create_card_with_idiom(
+            db_session, qtbot, mock_main_window
+        )
         card.oe_text_edit.selector.idiom_selection(tokens[0].order_index)
         card.oe_text_edit.selector.idiom_selection(tokens[1].order_index)
         selection = card.oe_text_edit.current_range()
@@ -338,15 +348,18 @@ class TestSentenceCard:
         token_calls = []
         monkeypatch.setattr(card.controller, "open_idiom_modal", idiom_calls.append)
         monkeypatch.setattr(card.controller, "open_token_modal", token_calls.append)
-        monkeypatch.setattr(card.oe_text_edit, "find_token_at_position", lambda _: tokens[0].order_index)
+        monkeypatch.setattr(
+            card.oe_text_edit, "find_token_at_position", lambda _: tokens[0].order_index
+        )
 
         from PySide6.QtGui import QMouseEvent
+
         event = QMouseEvent(
             QMouseEvent.Type.MouseButtonDblClick,
             QPoint(0, 0),
             Qt.MouseButton.LeftButton,
             Qt.MouseButton.LeftButton,
-            Qt.KeyboardModifier.NoModifier
+            Qt.KeyboardModifier.NoModifier,
         )
         card.oe_text_edit.mouseDoubleClickEvent(event)
 
@@ -354,7 +367,9 @@ class TestSentenceCard:
         assert token_calls == []
         assert card.oe_text_edit.current_range() == selection
 
-    def test_token_table_selection_syncs_to_card(self, db_session, qapp, mock_main_window):
+    def test_token_table_selection_syncs_to_card(
+        self, db_session, qapp, mock_main_window
+    ):
         """Test that selecting a token in the table updates the card state."""
         project = create_test_project(db_session, name="Test", text="Se cyning")
         sentence = project.sentences[0]
@@ -374,9 +389,13 @@ class TestSentenceCard:
         assert card.oe_text_edit.current_token_index() == token.order_index
         assert card.oe_text_edit.span_highlighter.is_highlighted
 
-    def test_arrow_keys_in_edit_mode_move_cursor(self, db_session, qapp, qtbot, mock_main_window):
+    def test_arrow_keys_in_edit_mode_move_cursor(
+        self, db_session, qapp, qtbot, mock_main_window
+    ):
         """Test that arrow keys move the cursor instead of tokens in edit mode."""
-        project = create_test_project(db_session, name="TestEdit", text="Se cyning fēoll")
+        project = create_test_project(
+            db_session, name="TestEdit", text="Se cyning fēoll"
+        )
         sentence = project.sentences[0]
         card = SentenceCard(
             sentence,
@@ -525,7 +544,9 @@ class TestSentenceCard:
         assert card.sentence_highlighter is not None
         assert card.sentence_highlighter.card == card
 
-    def test_sentence_card_highlighter_combo_box_in_layout(self, db_session, qapp, mock_main_window):
+    def test_sentence_card_highlighter_combo_box_in_layout(
+        self, db_session, qapp, mock_main_window
+    ):
         """Test that the highlighting combo box is present in the layout."""
         project = create_test_project(db_session, name="Test", text="Se cyning")
         sentence = project.sentences[0]
@@ -552,11 +573,12 @@ class TestSentenceCard:
         self, db_session, qapp, mock_main_window
     ):
         """Applying a token annotation updates the existing row via the command."""
+        session = get_runtime_session()
         project = create_test_project(db_session, name="Test", text="Se cyning")
         sentence = project.sentences[0]
         token = sentence.tokens[0]
 
-        existing = Annotation.get_by_token(token.id)
+        existing = Annotation.get_by_token(token.id, session=session)
         if not existing:
             existing = Annotation(token_id=token.id, pos="V")
             existing.save()
@@ -575,13 +597,14 @@ class TestSentenceCard:
         edit = AnnotationApplyService().begin(existing)
         card.controller.apply_annotation(edit, new_ann)
 
-        updated = Annotation.get_by_token(token.id)
+        updated = Annotation.get_by_token(token.id, session=session)
         assert updated.pos == "N"
 
     def test_annotation_applied_updates_existing_idiom_annotation(
         self, db_session, qapp, mock_main_window
     ):
         """Applying an idiom annotation updates the existing row via the command."""
+        session = get_runtime_session()
         project = create_test_project(db_session, name="Test", text="Se cyning")
         sentence = project.sentences[0]
         token1 = sentence.tokens[0]
@@ -606,13 +629,14 @@ class TestSentenceCard:
         edit = AnnotationApplyService().begin(existing)
         card.controller.apply_annotation(edit, new_ann)
 
-        updated = Annotation.get_by_idiom(idiom.id)
+        updated = Annotation.get_by_idiom(idiom.id, session=session)
         assert updated.pos == "N"
 
     def test_idiom_annotation_applied_creates_idiom_via_command(
         self, db_session, qapp, mock_main_window
     ):
         """A brand-new idiom is created through the command, not idiom.save()."""
+        session = get_runtime_session()
         project = create_test_project(db_session, name="Test", text="Se cyning")
         sentence = project.sentences[0]
         token1 = sentence.tokens[0]
@@ -638,7 +662,7 @@ class TestSentenceCard:
         )
 
         assert new_idiom.id is not None
-        saved = Annotation.get_by_idiom(new_idiom.id)
+        saved = Annotation.get_by_idiom(new_idiom.id, session=session)
         assert saved is not None
         assert saved.pos == "N"
 
@@ -674,10 +698,13 @@ class TestSentenceCard:
         self, db_session, mock_main_window, monkeypatch
     ):
         """Undo restores the value the token had before the modal edited it."""
+        session = get_runtime_session()
         project = create_test_project(db_session, name="Test", text="Se cyning")
         sentence = project.sentences[0]
         token = sentence.tokens[0]
-        existing = Annotation.get_by_token(token.id) or Annotation(token_id=token.id)
+        existing = Annotation.get_by_token(token.id, session=session) or Annotation(
+            token_id=token.id
+        )
         existing.pos = "V"
         existing.save()
         db_session.refresh(token)
@@ -692,17 +719,18 @@ class TestSentenceCard:
         )
 
         card.controller.open_token_modal(token)
-        assert Annotation.get_by_token(token.id).pos == "N"  # noqa: S101
+        assert Annotation.get_by_token(token.id, session=session).pos == "N"  # noqa: S101
 
         card.undo_stack.undo()
         db_session.expire_all()
-        assert Annotation.get_by_token(token.id).pos == "V"  # noqa: S101
+        assert Annotation.get_by_token(token.id, session=session).pos == "V"  # noqa: S101
 
     @pytest.mark.usefixtures("qapp")
     def test_undo_after_editing_an_idiom_annotation_in_the_modal(
         self, db_session, mock_main_window, monkeypatch
     ):
         """Undo restores the value the idiom had before the modal edited it."""
+        session = get_runtime_session()
         project = create_test_project(db_session, name="Test", text="Se cyning")
         sentence = project.sentences[0]
         token1 = sentence.tokens[0]
@@ -724,11 +752,11 @@ class TestSentenceCard:
         )
 
         card.controller.open_idiom_modal(idiom)
-        assert Annotation.get_by_idiom(idiom.id).pos == "N"  # noqa: S101
+        assert Annotation.get_by_idiom(idiom.id, session=session).pos == "N"  # noqa: S101
 
         card.undo_stack.undo()
         db_session.expire_all()
-        assert Annotation.get_by_idiom(idiom.id).pos == "V"  # noqa: S101
+        assert Annotation.get_by_idiom(idiom.id, session=session).pos == "V"  # noqa: S101
 
     def test_sentence_card_requires_undo_stack(
         self, db_session, qapp, mock_main_window
@@ -838,7 +866,9 @@ class TestOldEnglishTextEditInternal:
         widget.setReadOnly(True)
 
         # Test Right Arrow - should be ignored (bubbled up)
-        event_right = QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_Right, Qt.NoModifier)
+        event_right = QKeyEvent(
+            QKeyEvent.Type.KeyPress, Qt.Key.Key_Right, Qt.NoModifier
+        )
         widget.keyPressEvent(event_right)
         assert event_right.isAccepted() is False
 
@@ -849,7 +879,9 @@ class TestOldEnglishTextEditInternal:
 
         # Test not read-only (edit mode)
         widget.setReadOnly(False)
-        event_right_edit = QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_Right, Qt.NoModifier)
+        event_right_edit = QKeyEvent(
+            QKeyEvent.Type.KeyPress, Qt.Key.Key_Right, Qt.NoModifier
+        )
         widget.keyPressEvent(event_right_edit)
         # When not read-only, it should be accepted by QTextEdit
         assert event_right_edit.isAccepted() is True

@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 )
 from sqlalchemy.exc import SQLAlchemyError
 
+from oeapp.db import get_runtime_session
 from oeapp.models import Annotation, Idiom
 from oeapp.models.annotation_preset import AnnotationPreset
 from oeapp.services.annotation_preset_service import AnnotationPresetService
@@ -137,8 +138,10 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         #: Remembered annotation.
         self.remembered_annotation = remembered_annotation
         self.main_window = main_window  #: Main window for preset-management parenting
-        if self.main_window is None and parent is not None and hasattr(
-            parent, "main_window"
+        if (
+            self.main_window is None
+            and parent is not None
+            and hasattr(parent, "main_window")
         ):
             self.main_window = parent.main_window  #: Inherited from parent widget
         #: Annotation.
@@ -786,6 +789,7 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         - Load the preset values into the Part of Speech form
         - Update the status label based on the new preset
         """
+        session = get_runtime_session()
         if self.preset_combo.currentIndex() == 0:
             # Empty selection
             return
@@ -794,7 +798,7 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         if not preset_id:
             return
 
-        preset = AnnotationPreset.get(preset_id)
+        preset = AnnotationPreset.get(preset_id, session=session)
         if not preset:
             return
 

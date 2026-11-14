@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from oeapp.commands import ApplyRememberedAnnotationsCommand
+from oeapp.db import get_runtime_session
 from oeapp.models import Annotation, RememberedAnnotation
 from oeapp.utils import partially_normalize_old_english
 
@@ -44,7 +45,10 @@ class RememberedAnnotationService:
             The computed value.
 
         """
-        return RememberedAnnotation.upsert_from_token_annotation(token, project_id)
+        session = get_runtime_session()
+        return RememberedAnnotation.upsert_from_token_annotation(
+            token, project_id, session=session
+        )
 
     def save_entry(
         self,
@@ -64,10 +68,12 @@ class RememberedAnnotationService:
             The computed value.
 
         """
+        session = get_runtime_session()
         return RememberedAnnotation.upsert_fields(
             token_text=token_text,
             project_id=project_id,
             field_data=field_data,
+            session=session,
         )
 
     def plan_apply(self, project_id: int) -> RememberedAnnotationApplyPlan:
@@ -81,8 +87,13 @@ class RememberedAnnotationService:
             The computed value.
 
         """
-        applicable, ambiguous = RememberedAnnotation.resolve_for_project(project_id)
-        tokens = RememberedAnnotation.matching_tokens(project_id, list(applicable))
+        session = get_runtime_session()
+        applicable, ambiguous = RememberedAnnotation.resolve_for_project(
+            project_id, session=session
+        )
+        tokens = RememberedAnnotation.matching_tokens(
+            project_id, list(applicable), session=session
+        )
         before: dict[int, dict] = {}
         after: dict[int, dict] = {}
         skipped_count = 0
@@ -91,7 +102,9 @@ class RememberedAnnotationService:
         for token in tokens:
             if token.id is None:
                 continue
-            annotation = token.annotation or Annotation.get_by_token(token.id)
+            annotation = token.annotation or Annotation.get_by_token(
+                token.id, session=session
+            )
             if annotation is None:
                 annotation = Annotation(token_id=token.id)
             if not annotation.is_safe_to_auto_fill():

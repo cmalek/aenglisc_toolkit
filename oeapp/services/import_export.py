@@ -70,7 +70,7 @@ class ProjectExporter(SessionMixin):
             Project
 
         """
-        project = Project.get(project_id)
+        project = Project.get(project_id, session=self.session)
         if project is None:
             msg = f"Project with ID {project_id} not found"
             raise ValueError(msg)
@@ -494,7 +494,7 @@ class ProjectImporter(SessionMixin):
         was_renamed = False
 
         while True:
-            if not Project.exists(name):
+            if not Project.exists(name, session=self.session):
                 break
             name = f"{original_name} ({counter})"
             counter += 1
@@ -527,7 +527,9 @@ class ProjectImporter(SessionMixin):
 
         """
         for chapter_data in project_data.get("chapters", []):
-            Chapter.from_json(project_id, chapter_data, commit=False)
+            Chapter.from_json(
+                project_id, chapter_data, commit=False, session=self.session
+            )
 
     def _create_remembered_annotations(
         self, project_id: int, project_data: dict[str, Any]
@@ -574,7 +576,7 @@ class ProjectImporter(SessionMixin):
             Dict of (chapter_number, section_number, paragraph_order) to paragraph ID
 
         """
-        project = Project.get(project_id)
+        project = Project.get(project_id, session=self.session)
         if project is None:
             msg = f"Project with ID {project_id} not found"
             raise ValueError(msg)
@@ -613,6 +615,7 @@ class ProjectImporter(SessionMixin):
             sentence_data,
             paragraph_lookup=paragraph_lookup,
             commit=False,
+            session=self.session,
         )
 
     def import_project_json(self, filename: str) -> tuple[Project, bool]:

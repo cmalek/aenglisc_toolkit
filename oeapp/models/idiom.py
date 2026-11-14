@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, ForeignKey, Index, Integer
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, Session, mapped_column, relationship
 
 from oeapp.db import Base
 from oeapp.utils import from_utc_iso, to_utc_iso
@@ -73,18 +73,20 @@ class Idiom(SaveDeleteMixin, Base):
     )
 
     @classmethod
-    def get(cls, idiom_id: int) -> "Idiom | None":
+    def get(cls, idiom_id: int, *, session: Session) -> "Idiom | None":
         """
         Get an idiom by ID.
 
         Args:
             idiom_id: ID of the idiom
 
+        Keyword Args:
+            session: Runtime SQLAlchemy session.
+
         Returns:
             Idiom or None if not found
 
         """
-        session = cls._get_session()
         return session.get(cls, idiom_id)
 
     @classmethod
@@ -94,6 +96,8 @@ class Idiom(SaveDeleteMixin, Base):
         start_token_id: int,
         end_token_id: int,
         commit: bool = True,
+        *,
+        session: Session,
     ) -> "Idiom":
         """
         Create a new idiom.
@@ -104,11 +108,13 @@ class Idiom(SaveDeleteMixin, Base):
             end_token_id: End token ID
             commit: Whether to commit the changes to the database
 
+        Keyword Args:
+            session: Runtime SQLAlchemy session.
+
         Returns:
             The new :class:`~oeapp.models.idiom.Idiom` object
 
         """
-        session = cls._get_session()
         idiom = cls(
             sentence_id=sentence_id,
             start_token_id=start_token_id,
@@ -197,6 +203,8 @@ class Idiom(SaveDeleteMixin, Base):
         idiom_data: dict,
         token_map: dict[int, "Token"],
         commit: bool = True,
+        *,
+        session: Session,
     ) -> "Idiom":
         """
         Create idiom from JSON import data.
@@ -207,6 +215,7 @@ class Idiom(SaveDeleteMixin, Base):
             token_map: Map of order_index to Token entities
 
         Keyword Args:
+            session: Runtime SQLAlchemy session.
             commit: Whether to commit the changes
 
         Returns:
@@ -229,8 +238,6 @@ class Idiom(SaveDeleteMixin, Base):
         if start_token.id is None or end_token.id is None:
             msg = "Idiom token references do not have database IDs"
             raise ValueError(msg)
-
-        session = cls._get_session()
         idiom = cls(
             sentence_id=sentence_id,
             start_token_id=start_token.id,

@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from PySide6.QtCore import Qt
 
+from oeapp.db import get_runtime_session
 from oeapp.models.project import Project
 from oeapp.models.search_result import ProjectSearchMatches, SearchResult
 from oeapp.ui.mixins import ThemeMixin
@@ -44,9 +45,7 @@ class SearchController(ThemeMixin):
 
     """
 
-    def __init__(
-        self, main_window: MainWindow, app_context: AppContext
-    ) -> None:
+    def __init__(self, main_window: MainWindow, app_context: AppContext) -> None:
         """
         Initialize search controller state.
 
@@ -105,9 +104,7 @@ class SearchController(ThemeMixin):
         self._search_token_map = matches.token_map
         self.current_match_index = -1 if not matches.results else 0
         normalized_oe = self._normalized_oe_query(pattern, scope)
-        self._apply_visible_highlights(
-            pattern, scope, normalized_oe, matches.token_map
-        )
+        self._apply_visible_highlights(pattern, scope, normalized_oe, matches.token_map)
         self._update_search_ui(matches.total_match_count)
 
     def next_match(self) -> None:
@@ -157,9 +154,7 @@ class SearchController(ThemeMixin):
         else:
             self._search_origin = None
 
-    def _project_search_matches(
-        self, pattern: str, scope: str
-    ) -> ProjectSearchMatches:
+    def _project_search_matches(self, pattern: str, scope: str) -> ProjectSearchMatches:
         """
         Load current project matches via fat-ORM search helpers.
 
@@ -171,10 +166,11 @@ class SearchController(ThemeMixin):
             Ordered project matches and highlight metadata.
 
         """
+        session = get_runtime_session()
         project_id = self.app_context.current_project_id
         if project_id is None:
             return ProjectSearchMatches()
-        project = Project.get(project_id)
+        project = Project.get(project_id, session=session)
         if project is None:
             return ProjectSearchMatches()
         return project.search_matches(pattern, scope)
@@ -241,9 +237,7 @@ class SearchController(ThemeMixin):
                 return card
         project_ui = getattr(self.main_window, "project_ui", None)
         selected = (
-            project_ui.get_selected_sentence_card()
-            if project_ui is not None
-            else None
+            project_ui.get_selected_sentence_card() if project_ui is not None else None
         )
         if selected is not None:
             return selected

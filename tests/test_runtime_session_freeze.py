@@ -38,8 +38,7 @@ def count_runtime_session_lookups(source: str) -> dict[str, dict[str, int]]:
     counts: dict[str, dict[str, int]] = {}
     _accumulate(ast.parse(source), [], counts)
     return {
-        scope: dict(sorted(kinds.items()))
-        for scope, kinds in sorted(counts.items())
+        scope: dict(sorted(kinds.items())) for scope, kinds in sorted(counts.items())
     }
 
 
@@ -239,12 +238,15 @@ def outer(session=get_runtime_session()):
 
 ALLOWLIST: dict[str, dict[str, dict[str, int]]] = {
     "oeapp/commands/annotation.py": {
+        "AnnotateTokenCommand._target_sentence_id": {"get_runtime_session": 1},
+        "AnnotateTokenCommand.annotation": {"get_runtime_session": 1},
         "AnnotateTokenCommand.execute": {"_get_session": 1},
         "AnnotateTokenCommand.undo": {"_get_session": 1},
         "ApplyAnnotationPropagationCommand.execute": {"_get_session": 1},
         "ApplyAnnotationPropagationCommand.undo": {"_get_session": 1},
         "ApplyRememberedAnnotationsCommand.execute": {"_get_session": 1},
         "ApplyRememberedAnnotationsCommand.undo": {"_get_session": 1},
+        "TokenBatchLocators.record_sentences": {"get_runtime_session": 1},
     },
     "oeapp/commands/hierarchy.py": {
         "MergeChapterCommand.execute": {"_get_session": 1},
@@ -257,7 +259,14 @@ ALLOWLIST: dict[str, dict[str, dict[str, int]]] = {
         "SplitSectionCommand.undo": {"_get_session": 1},
     },
     "oeapp/commands/note.py": {
+        "AddNoteCommand._get_next_note_number": {"get_runtime_session": 1},
+        "AddNoteCommand.execute": {"get_runtime_session": 1},
         "AddNoteCommand.get_note_number": {"get_runtime_session": 1},
+        "AddNoteCommand.undo": {"get_runtime_session": 1},
+        "DeleteNoteCommand.execute": {"get_runtime_session": 1},
+        "DeleteNoteCommand.undo": {"get_runtime_session": 1},
+        "UpdateNoteCommand.execute": {"get_runtime_session": 1},
+        "UpdateNoteCommand.undo": {"get_runtime_session": 1},
     },
     "oeapp/commands/paragraph.py": {
         "MergeParagraphCommand.execute": {"_get_session": 1},
@@ -267,121 +276,78 @@ ALLOWLIST: dict[str, dict[str, dict[str, int]]] = {
     },
     "oeapp/commands/sentence.py": {
         "AddSentenceCommand.execute": {"_get_session": 1},
+        "AddSentenceCommand.undo": {"get_runtime_session": 1},
+        "DeleteSentenceCommand.execute": {"get_runtime_session": 1},
         "DeleteSentenceCommand.undo": {"_get_session": 1},
+        "EditSentenceCommand.execute": {"get_runtime_session": 1},
+        "EditSentenceCommand.undo": {"get_runtime_session": 1},
         "MergeSentenceCommand.execute": {"_get_session": 1},
         "MergeSentenceCommand.undo": {"_get_session": 1},
+        "_token_ids": {"get_runtime_session": 1},
     },
-    "oeapp/db.py": {
-        "get_runtime_session": {"SessionLocal": 1},
-    },
-    "oeapp/models/annotation.py": {
-        "Annotation.exists": {"_get_session": 1},
-        "Annotation.get": {"_get_session": 1},
-        "Annotation.get_by_idiom": {"_get_session": 1},
-        "Annotation.get_by_token": {"_get_session": 1},
-    },
-    "oeapp/models/annotation_preset.py": {
-        "AnnotationPreset.create": {"_get_session": 1},
-        "AnnotationPreset.from_json": {"_get_session": 1},
-        "AnnotationPreset.get": {"_get_session": 1},
-        "AnnotationPreset.get_all_by_pos": {"_get_session": 1},
-        "AnnotationPreset.update": {"_get_session": 1},
-    },
-    "oeapp/models/chapter.py": {
-        "Chapter.create": {"_get_session": 1},
-        "Chapter.from_json": {"_get_session": 1},
-        "Chapter.get": {"_get_session": 1},
-        "Chapter.get_chapters_after": {"_get_session": 1},
-        "Chapter.last_section_number": {"_get_session": 1},
-        "Chapter.list": {"_get_session": 1},
-        "Chapter.previous_chapter": {"_get_session": 1},
-    },
-    "oeapp/models/idiom.py": {
-        "Idiom.create": {"_get_session": 1},
-        "Idiom.from_json": {"_get_session": 1},
-        "Idiom.get": {"_get_session": 1},
-    },
+    "oeapp/db.py": {"get_runtime_session": {"SessionLocal": 1}},
+    "oeapp/models/annotation.py": {"Annotation.from_json": {"get_runtime_session": 1}},
+    "oeapp/models/chapter.py": {"Chapter.last_section_number": {"_get_session": 1}},
     "oeapp/models/mixins.py": {
         "SaveDeleteMixin.delete": {"_get_session": 1},
         "SaveDeleteMixin.save": {"_get_session": 1},
         "SessionMixin._get_session": {"get_runtime_session": 1},
     },
-    "oeapp/models/note.py": {
-        "Note.create": {"_get_session": 1},
-        "Note.get": {"_get_session": 1},
-    },
+    "oeapp/models/note.py": {"Note.to_json": {"get_runtime_session": 1}},
     "oeapp/models/paragraph.py": {
-        "Paragraph.create": {"_get_session": 1},
-        "Paragraph.from_json": {"_get_session": 1},
-        "Paragraph.get": {"_get_session": 1},
-        "Paragraph.get_paragraphs_after": {"_get_session": 1},
-        "Paragraph.last_sentence_number": {"_get_session": 1},
-        "Paragraph.list": {"_get_session": 1},
-        "Paragraph.previous_paragraph": {"_get_session": 1},
+        "Paragraph.last_sentence_number": {"_get_session": 1}
     },
     "oeapp/models/project.py": {
         "Project.append_oe_text": {"_get_session": 1},
-        "Project.create": {"_get_session": 1},
-        "Project.exists": {"_get_session": 1},
-        "Project.first": {"_get_session": 1},
-        "Project.get": {"_get_session": 1},
         "Project.last_chapter_number": {"_get_session": 1},
-        "Project.list": {"_get_session": 1},
         "Project.total_token_count": {"_get_session": 1},
     },
     "oeapp/models/remembered_annotation.py": {
-        "RememberedAnnotation.get": {"_get_session": 1},
-        "RememberedAnnotation.get_for_scope": {"_get_session": 1},
-        "RememberedAnnotation.list_for_scope": {"_get_session": 1},
-        "RememberedAnnotation.matching_tokens": {"_get_session": 1},
+        "RememberedAnnotation.from_json": {"get_runtime_session": 1}
     },
     "oeapp/models/section.py": {
-        "Section.create": {"_get_session": 1},
-        "Section.from_json": {"_get_session": 1},
-        "Section.get": {"_get_session": 1},
         "Section.get_paragraphs_after": {"_get_session": 1},
-        "Section.get_sections_after": {"_get_session": 1},
         "Section.last_paragraph_number": {"_get_session": 1},
-        "Section.list": {"_get_session": 1},
-        "Section.previous_section": {"_get_session": 1},
     },
-    "oeapp/models/sentence.py": {
-        "Sentence._calculate_paragraph_and_sentence_numbers": {
-            "_get_session": 1,
-        },
-        "Sentence.create": {"_get_session": 1},
-        "Sentence.from_json": {"_get_session": 1},
-        "Sentence.get": {"_get_session": 1},
-        "Sentence.get_next_sentence": {"_get_session": 1},
-        "Sentence.list": {"_get_session": 1},
-        "Sentence.recalculate_project_structure": {"_get_session": 1},
-        "Sentence.renumber_sentences": {"_get_session": 1},
-        "Sentence.restore_display_orders": {"_get_session": 1},
-        "Sentence.subsequent_sentences": {"_get_session": 1},
-        "Sentence.update": {"_get_session": 1},
-    },
-    "oeapp/models/token.py": {
-        "Token._update_idioms_for_token_changes": {"_get_session": 1},
-        "Token._update_notes_for_token_changes": {"_get_session": 1},
-        "Token.create_from_sentence": {"_get_session": 1},
-        "Token.from_json": {"_get_session": 1},
-        "Token.get": {"_get_session": 1},
-        "Token.list": {"_get_session": 1},
-        "Token.update_from_sentence": {"_get_session": 1},
+    "oeapp/models/sentence.py": {"Sentence.update": {"_get_session": 1}},
+    "oeapp/services/annotation_preset_service.py": {
+        "AnnotationPresetService.create_preset": {"get_runtime_session": 1},
+        "AnnotationPresetService.delete_preset": {"get_runtime_session": 1},
+        "AnnotationPresetService.get_presets_for_pos": {"get_runtime_session": 1},
+        "AnnotationPresetService.update_preset": {"get_runtime_session": 1},
     },
     "oeapp/services/annotation_propagation.py": {
+        "AnnotationPropagationService._build_plan": {"get_runtime_session": 1},
+        "AnnotationPropagationService._build_summary_html": {"get_runtime_session": 1},
         "AnnotationPropagationService._meaning_targets": {"_get_session": 1},
         "AnnotationPropagationService._project_tokens": {"_get_session": 1},
+        "AnnotationPropagationService.plan_meaning_propagation": {
+            "get_runtime_session": 1
+        },
+        "AnnotationPropagationService.plan_surface_propagation": {
+            "get_runtime_session": 1
+        },
     },
-    "oeapp/services/export_docx.py": {
-        "DOCXExporter.__init__": {"_get_session": 1},
+    "oeapp/services/backup.py": {
+        "BackupService._project_summaries": {"get_runtime_session": 1}
+    },
+    "oeapp/services/export_docx.py": {"DOCXExporter.__init__": {"_get_session": 1}},
+    "oeapp/services/export_pdf.py": {
+        "FullTranslationPDFExporter.export_side_by_side_pdf": {"get_runtime_session": 1}
     },
     "oeapp/services/import_export.py": {
         "ProjectExporter.__init__": {"_get_session": 1},
         "ProjectImporter.__init__": {"_get_session": 1},
     },
+    "oeapp/services/remembered_annotation_service.py": {
+        "RememberedAnnotationService.plan_apply": {"get_runtime_session": 1},
+        "RememberedAnnotationService.remember_token_annotation": {
+            "get_runtime_session": 1
+        },
+        "RememberedAnnotationService.save_entry": {"get_runtime_session": 1},
+    },
     "oeapp/services/wyrdcraeft_ingest.py": {
-        "WyrdcraeftIngestService.__init__": {"_get_session": 1},
+        "WyrdcraeftIngestService.__init__": {"_get_session": 1}
     },
     "oeapp/state.py": {
         "AppContext.__init__": {"set_runtime_session": 1},
@@ -389,34 +355,95 @@ ALLOWLIST: dict[str, dict[str, dict[str, int]]] = {
         "AppContext.session": {"get_runtime_session": 1},
         "AppContext.session.setter": {"set_runtime_session": 1},
     },
+    "oeapp/ui/dialogs/annotation_modal.py": {
+        "AnnotationModal._on_preset_apply": {"get_runtime_session": 1}
+    },
     "oeapp/ui/dialogs/annotation_preset_management.py": {
-        "AnnotationPresetManagementDialog.__init__": {"_get_session": 1},
+        "AnnotationPresetManagementDialog.__init__": {"_get_session": 1}
+    },
+    "oeapp/ui/dialogs/append_text.py": {
+        "AppendTextDialog.append_text": {"get_runtime_session": 1}
+    },
+    "oeapp/ui/dialogs/delete_project.py": {
+        "DeleteProjectDialog._delete_project": {"get_runtime_session": 1},
+        "DeleteProjectDialog._get_selected_project": {"get_runtime_session": 1},
+    },
+    "oeapp/ui/dialogs/edit_project.py": {
+        "EditProjectDialog.save_project": {"get_runtime_session": 1}
     },
     "oeapp/ui/dialogs/note_dialog.py": {
         "NoteDialog._on_delete_clicked": {"app_context.session": 1},
         "NoteDialog._on_save_clicked": {"app_context.session": 1},
     },
+    "oeapp/ui/dialogs/open_project.py": {
+        "OpenProjectDialog.open_project": {"get_runtime_session": 1}
+    },
+    "oeapp/ui/dialogs/remembered_annotations_dialog.py": {
+        "RememberedAnnotationsDialog._create_new": {"get_runtime_session": 1},
+        "RememberedAnnotationsDialog._reload_entries": {"get_runtime_session": 1},
+        "RememberedAnnotationsDialog._selected_entry": {"get_runtime_session": 1},
+    },
+    "oeapp/ui/dialogs/utils.py": {
+        "load_projects_into_table": {"get_runtime_session": 1}
+    },
     "oeapp/ui/main_window.py": {
-        "MainWindow._show_startup_dialog": {"app_context.session": 1},
-        "MainWindowActions.export_old_english_text": {"app_context.session": 1},
+        "MainWindow._show_startup_dialog": {
+            "app_context.session": 1,
+            "get_runtime_session": 1,
+        },
+        "MainWindow.reload_project": {"get_runtime_session": 1},
+        "MainWindow.show_restore_dialog": {"get_runtime_session": 1},
+        "MainWindowActions._refresh_reading_export_enablement_for_current_project": {
+            "get_runtime_session": 1
+        },
+        "MainWindowActions.autosave": {"get_runtime_session": 1},
+        "MainWindowActions.edit_project": {"get_runtime_session": 1},
+        "MainWindowActions.export_old_english_text": {
+            "app_context.session": 1,
+            "get_runtime_session": 1,
+        },
         "MainWindowActions.export_project_docx": {"app_context.session": 1},
-        "MainWindowActions.export_project_json": {"app_context.session": 1},
-        "MainWindowActions.export_translation_text": {"app_context.session": 1},
+        "MainWindowActions.export_project_json": {
+            "app_context.session": 1,
+            "get_runtime_session": 1,
+        },
+        "MainWindowActions.export_translation_text": {
+            "app_context.session": 1,
+            "get_runtime_session": 1,
+        },
+        "MainWindowActions.import_project_json": {"get_runtime_session": 1},
         "MainWindowActions.paste_annotation": {"app_context.session": 1},
+    },
+    "oeapp/ui/menus.py": {
+        "ProjectMenu.__init__": {"get_runtime_session": 1},
+        "WindowMenu._show_full_translation": {"get_runtime_session": 1},
     },
     "oeapp/ui/notes_panel.py": {
         "NotesPanel._on_note_saved": {"app_context.session": 1},
         "NotesPanel.update_notes": {"app_context.session": 1},
     },
     "oeapp/ui/oe_text_edit.py": {
-        "OldEnglishTextEdit.render_readonly_text": {"get_runtime_session": 1},
+        "OldEnglishTextEdit.render_readonly_text": {"get_runtime_session": 1}
     },
     "oeapp/ui/project_workspace.py": {
         "ProjectUI._can_reload_current_project": {"app_context.session": 1},
         "ProjectUI._on_annotation_applied": {"app_context.session": 1},
+        "ProjectUI._reload_after_structure_change": {"get_runtime_session": 1},
+        "ProjectUI.load_section": {"get_runtime_session": 1},
+        "ProjectUI.navigate_to_sentence": {"get_runtime_session": 1},
+        "ProjectUI.update_sections_for_chapter": {"get_runtime_session": 1},
+    },
+    "oeapp/ui/search_controller.py": {
+        "SearchController._project_search_matches": {"get_runtime_session": 1}
     },
     "oeapp/ui/sentence_card_controller.py": {
+        "SentenceCardController.on_merge_clicked": {"get_runtime_session": 1},
         "SentenceCardController.on_save_oe_clicked": {"get_runtime_session": 1},
+        "SentenceCardController.open_token_modal": {"get_runtime_session": 1},
+    },
+    "oeapp/ui/undo_presenter.py": {
+        "UndoPresenter.apply_translation": {"get_runtime_session": 1},
+        "UndoPresenter.undo_translation": {"get_runtime_session": 1},
     },
 }
 

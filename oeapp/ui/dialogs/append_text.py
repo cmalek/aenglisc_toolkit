@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from oeapp.db import get_runtime_session
 from oeapp.models.project import Project
 from oeapp.services.wyrdcraeft_ingest import WyrdcraeftIngestService
 
@@ -97,6 +98,7 @@ class AppendTextDialog(TextInputMixin):
             and reloads the project.
 
         """
+        session = get_runtime_session()
         # Check that a project is open
         project_id = self.app_context.current_project_id
         if project_id is None:
@@ -107,7 +109,7 @@ class AppendTextDialog(TextInputMixin):
             return
 
         # Get the current project
-        project = Project.get(project_id)
+        project = Project.get(project_id, session=session)
         if project is None:
             self.app_context.show_error("Project not found.")
             self.dialog.reject()

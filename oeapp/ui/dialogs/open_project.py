@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from oeapp.db import get_runtime_session
 from oeapp.models.project import Project
 
 from .new_project import NewProjectDialog
@@ -154,6 +155,7 @@ class OpenProjectDialog:
         """
         Open an existing project.
         """
+        session = get_runtime_session()
         # Get the selected row from the table.
         selected_row = self.project_table.currentRow()
         if selected_row >= 0:
@@ -161,7 +163,7 @@ class OpenProjectDialog:
             if name_item:
                 self.project_id = name_item.data(Qt.ItemDataRole.UserRole)
                 # Get the project from the database.
-                project = cast("Project", Project.get(self.project_id))
+                project = cast("Project", Project.get(self.project_id, session=session))
                 if project is None:
                     self.app_context.show_warning("Project not found")
                     return

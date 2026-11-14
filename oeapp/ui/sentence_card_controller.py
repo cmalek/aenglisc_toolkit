@@ -185,12 +185,13 @@ class SentenceCardController:
         """
         Merge the current sentence with the next sentence after confirmation.
         """
+        session = get_runtime_session()
         card = self.card
         if not card.sentence.id:
             return
 
         next_sentence = Sentence.get_next_sentence(
-            card.sentence.project_id, card.sentence.display_order + 1
+            card.sentence.project_id, card.sentence.display_order + 1, session=session
         )
         if next_sentence is None:
             QMessageBox.warning(
@@ -344,9 +345,7 @@ class SentenceCardController:
                 is_chapter_start=False,
             )
 
-        sentences = sorted(
-            sentence.paragraph.sentences, key=lambda s: s.display_order
-        )
+        sentences = sorted(sentence.paragraph.sentences, key=lambda s: s.display_order)
         is_paragraph_start = bool(sentences) and sentences[0].id == sentence.id
 
         is_section_start = False
@@ -364,8 +363,7 @@ class SentenceCardController:
                 sentence.paragraph.section.chapter.sections, key=lambda s: s.number
             )
             is_chapter_start = (
-                bool(sections)
-                and sections[0].id == sentence.paragraph.section.id
+                bool(sections) and sections[0].id == sentence.paragraph.section.id
             )
 
         return HierarchyPosition(
@@ -519,9 +517,7 @@ class SentenceCardController:
 
         """
         card = self.card
-        command = self.annotation_apply.command_for(
-            edit, annotation, card.sentence.id
-        )
+        command = self.annotation_apply.command_for(edit, annotation, card.sentence.id)
         if not push_command(card.undo_stack, command):
             return
         self.annotation_apply.finish(annotation, command)
@@ -593,10 +589,11 @@ class SentenceCardController:
             token: Token to annotate.
 
         """
+        session = get_runtime_session()
         card = self.card
         annotation = token.annotation
         if annotation is None and token.id:
-            annotation = Annotation.get_by_token(token.id)
+            annotation = Annotation.get_by_token(token.id, session=session)
         edit = self.annotation_apply.begin(annotation)
 
         modal = AnnotationModal(

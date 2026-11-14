@@ -3,14 +3,14 @@
 from datetime import UTC, datetime
 
 import pytest
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session as SASession
-
+from oeapp.db import get_runtime_session
 from oeapp.exc import AlreadyExists
 from oeapp.models.chapter import Chapter
 from oeapp.models.paragraph import Paragraph
 from oeapp.models.project import Project
 from oeapp.models.sentence import Sentence
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session as SASession
 
 
 class TestProject:
@@ -36,71 +36,81 @@ class TestProject:
 
     def test_exists_returns_true_when_exists(self, db_session):
         """Test exists() returns True when project exists."""
+        session = get_runtime_session()
         project = Project(name="Test Project")
         project.save()
 
-        assert Project.exists("Test Project") is True
+        assert Project.exists("Test Project", session=session) is True
 
     def test_exists_returns_false_when_not_exists(self, db_session):
         """Test exists() returns False when project doesn't exist."""
-        assert Project.exists("Nonexistent") is False
+        session = get_runtime_session()
+        assert Project.exists("Nonexistent", session=session) is False
 
     def test_get_returns_existing(self, db_session):
         """Test get() returns existing project."""
+        session = get_runtime_session()
         project = Project(name="Test Project")
         project.save()
         project_id = project.id
 
-        retrieved = Project.get(project_id)
+        retrieved = Project.get(project_id, session=session)
         assert retrieved is not None
         assert retrieved.id == project_id
         assert retrieved.name == "Test Project"
 
     def test_get_returns_none_for_nonexistent(self, db_session):
         """Test get() returns None for nonexistent project."""
-        result = Project.get(99999)
+        session = get_runtime_session()
+        result = Project.get(99999, session=session)
         assert result is None
 
     def test_first_returns_first_project(self, db_session):
         """Test first() returns first project."""
+        session = get_runtime_session()
         project1 = Project(name="First Project")
         project1.save(commit=False)
         project2 = Project(name="Second Project")
         project2.save()
 
-        first = Project.first()
+        first = Project.first(session=session)
         assert first is not None
         assert first.name in ["First Project", "Second Project"]
 
     def test_first_returns_none_when_no_projects(self, db_session):
         """Test first() returns None when no projects exist."""
-        result = Project.first()
+        session = get_runtime_session()
+        result = Project.first(session=session)
         assert result is None
 
     def test_list_returns_all_projects(self, db_session):
         """Test list() returns all projects."""
+        session = get_runtime_session()
         project1 = Project(name="Project 1")
         project1.save(commit=False)
         project2 = Project(name="Project 2")
         project2.save()
 
-        projects = Project.list()
+        projects = Project.list(session=session)
         assert len(projects) == 2
         assert all(isinstance(p, Project) for p in projects)
 
     def test_list_returns_empty_when_no_projects(self, db_session):
         """Test list() returns empty list when no projects exist."""
-        projects = Project.list()
+        session = get_runtime_session()
+        projects = Project.list(session=session)
         assert projects == []
 
     def test_create_creates_project_with_sentences(self, db_session):
         """Test create() creates project and sentences from text."""
+        session = get_runtime_session()
         project = Project.create(
             text="Se cyning. Þæt scip.",
             name="Test Project",
             source="Test Source",
             translator="Test Translator",
             notes="Test Notes",
+            session=session,
         )
 
         assert project.id is not None
@@ -115,20 +125,23 @@ class TestProject:
 
     def test_create_raises_already_exists_for_duplicate_name(self, db_session):
         """Test create() raises AlreadyExists for duplicate name."""
-        Project.create(text="Se cyning", name="Test Project")
+        session = get_runtime_session()
+        Project.create(text="Se cyning", name="Test Project", session=session)
 
         with pytest.raises(AlreadyExists):
-            Project.create(text="Þæt scip", name="Test Project")
+            Project.create(text="Þæt scip", name="Test Project", session=session)
 
     def test_create_with_default_name(self, db_session):
         """Test create() uses default name when not provided."""
-        project = Project.create(text="Se cyning")
+        session = get_runtime_session()
+        project = Project.create(text="Se cyning", session=session)
         assert project.name == "Untitled Project"
 
     def test_total_token_count_returns_count(self, db_session):
         """Test total_token_count() returns total tokens in project."""
+        session = get_runtime_session()
         project = Project.create(
-            text="Se cyning. Þæt scip.", name="Test"
+            text="Se cyning. Þæt scip.", name="Test", session=session
         )
 
         count = project.total_token_count()
@@ -146,16 +159,18 @@ class TestProject:
 
     def test_delete_removes_project(self, db_session):
         """Test deleting project removes it."""
-        project = Project.create(text="Se cyning", name="To Delete")
+        session = get_runtime_session()
+        project = Project.create(text="Se cyning", name="To Delete", session=session)
         project_id = project.id
 
         project.delete()
 
-        assert Project.get(project_id) is None
+        assert Project.get(project_id, session=session) is None
 
     def test_delete_removes_cascade_sentences(self, db_session):
         """Test deleting project cascades to sentences."""
-        project = Project.create(text="Se cyning", name="Test")
+        session = get_runtime_session()
+        project = Project.create(text="Se cyning", name="Test", session=session)
         sentence_id = project.sentences[0].id
 
         project.delete()
@@ -166,7 +181,8 @@ class TestProject:
 
     def test_append_oe_text_appends_sentences(self, db_session):
         """Test append_oe_text() appends sentences to project."""
-        project = Project.create(text="Se cyning", name="Test")
+        session = get_runtime_session()
+        project = Project.create(text="Se cyning", name="Test", session=session)
         original_count = len(project.sentences)
 
         project.append_oe_text("Þæt scip.")
@@ -190,12 +206,14 @@ class TestProject:
 
     def test_to_json_serializes_project(self, db_session):
         """Test to_json() serializes project data."""
+        session = get_runtime_session()
         project = Project.create(
             text="Se cyning",
             name="Test",
             source="Test Source",
             translator="Test Translator",
             notes="Test Notes",
+            session=session,
         )
 
         data = project.to_json()
@@ -260,7 +278,8 @@ class TestProject:
 
     def test_relationship_with_sentences(self, db_session):
         """Test project has relationship with sentences."""
-        project = Project.create(text="Se cyning", name="Test")
+        session = get_runtime_session()
+        project = Project.create(text="Se cyning", name="Test", session=session)
 
         assert len(project.sentences) > 0
         assert all(s.project_id == project.id for s in project.sentences)
@@ -293,16 +312,20 @@ class TestProject:
         assert len(project.chapters) == 1
         assert len(project.chapters[0].sections) == 1
         assert len(project.chapters[0].sections[0].paragraphs) == 1
-        assert project.sentences[0].paragraph_id == project.chapters[0].sections[0].paragraphs[0].id
+        assert (
+            project.sentences[0].paragraph_id
+            == project.chapters[0].sections[0].paragraphs[0].id
+        )
 
     def test_reading_export_eligibility(self, db_session):
         """Blank Old English still counts; whitespace is not a translation."""
+        session = get_runtime_session()
         empty = Project(name="Empty Eligibility")
         empty.save()
         assert empty.has_sentences() is False
         assert empty.has_modern_english_translation() is False
 
-        project = Project.create(name="Eligibility", text="Hwæt.")
+        project = Project.create(name="Eligibility", text="Hwæt.", session=session)
         project.sentences[0].text_oe = ""
         project.sentences[0].text_modern = "   "
         db_session.commit()
@@ -318,7 +341,10 @@ class TestProject:
     def test_append_oe_text_raises_key_error_when_last_paragraph_missing(
         self, db_session, monkeypatch
     ):
-        project = Project.create(text="First sentence.", name="Missing Paragraph")
+        session = get_runtime_session()
+        project = Project.create(
+            text="First sentence.", name="Missing Paragraph", session=session
+        )
         last_paragraph_id = project.sentences[-1].paragraph_id
         original_get = SASession.get
 

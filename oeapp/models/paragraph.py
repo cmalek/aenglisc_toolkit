@@ -6,7 +6,7 @@ import builtins
 from typing import TYPE_CHECKING
 
 from sqlalchemy import ForeignKey, Index, Integer, func, select
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, Session, mapped_column, relationship
 
 from oeapp.db import Base
 from oeapp.models.mixins import SaveDeleteMixin
@@ -26,9 +26,7 @@ class Paragraph(SaveDeleteMixin, Base):
     #: Tablename  .
     __tablename__ = "paragraphs"
     #: Table args  .
-    __table_args__ = (
-        Index("idx_paragraphs_section_order", "section_id", "order"),
-    )
+    __table_args__ = (Index("idx_paragraphs_section_order", "section_id", "order"),)
 
     #: The paragraph ID.
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -55,6 +53,8 @@ class Paragraph(SaveDeleteMixin, Base):
         order: int,
         sentences: list[Sentence] | None = None,
         commit: bool = True,
+        *,
+        session: Session,
     ) -> Paragraph:
         """
         Create a new paragraph.
@@ -64,6 +64,7 @@ class Paragraph(SaveDeleteMixin, Base):
             order: Paragraph order
 
         Keyword Args:
+            session: Runtime SQLAlchemy session.
             sentences: The sentences to add to the paragraph
             commit: Whether to commit the changes to the database
 
@@ -71,7 +72,6 @@ class Paragraph(SaveDeleteMixin, Base):
             The new :class:`~oeapp.models.paragraph.Paragraph` object
 
         """
-        session = cls._get_session()
         paragraph = cls(section_id=section_id, order=order)
         if sentences:
             paragraph.sentences = sentences
@@ -81,33 +81,37 @@ class Paragraph(SaveDeleteMixin, Base):
         return paragraph
 
     @classmethod
-    def get(cls, paragraph_id: int) -> Paragraph | None:
+    def get(cls, paragraph_id: int, *, session: Session) -> Paragraph | None:
         """
         Get a paragraph by ID.
 
         Args:
             paragraph_id: Paragraph ID
 
+        Keyword Args:
+            session: Runtime SQLAlchemy session.
+
         Returns:
             The :class:`~oeapp.models.paragraph.Paragraph` object or None if not found
 
         """
-        session = cls._get_session()
         return session.get(cls, paragraph_id)
 
     @classmethod
-    def list(cls, section_id: int | None = None) -> builtins.list[Paragraph]:
+    def list(
+        cls, section_id: int | None = None, *, session: Session
+    ) -> builtins.list[Paragraph]:
         """
         Get all paragraphs by section ID.
 
         Keyword Args:
+            session: Runtime SQLAlchemy session.
             section_id: Section ID
 
         Returns:
             List of paragraphs ordered by (Section.number, Paragraph.order)
 
         """
-        session = cls._get_session()
         if section_id:
             stmt = select(cls).where(cls.section_id == section_id).order_by(cls.order)
         else:
@@ -116,7 +120,12 @@ class Paragraph(SaveDeleteMixin, Base):
 
     @classmethod
     def get_paragraphs_after(
-        cls, section_id: int, order: int, exclude_paragraph_id: int | None = None
+        cls,
+        section_id: int,
+        order: int,
+        exclude_paragraph_id: int | None = None,
+        *,
+        session: Session,
     ) -> Sequence[Paragraph]:
         """
         Get all paragraphs in the same section, with ``order``
@@ -127,13 +136,13 @@ class Paragraph(SaveDeleteMixin, Base):
             order: Paragraph order
 
         Keyword Args:
+            session: Runtime SQLAlchemy session.
             exclude_paragraph_id: Paragraph ID to exclude
 
         Returns:
             List of subsequent paragraphs
 
         """
-        session = cls._get_session()
         if exclude_paragraph_id:
             stmt = select(cls).where(
                 cls.section_id == section_id,
@@ -145,7 +154,9 @@ class Paragraph(SaveDeleteMixin, Base):
         return session.scalars(stmt.order_by(cls.order)).all()
 
     @classmethod
-    def previous_paragraph(cls, section_id: int, order: int) -> Paragraph | None:
+    def previous_paragraph(
+        cls, section_id: int, order: int, *, session: Session
+    ) -> Paragraph | None:
         """
         Get the paragraph with the given order - 1 in the same section.
 
@@ -153,11 +164,13 @@ class Paragraph(SaveDeleteMixin, Base):
             section_id: Section ID
             order: Paragraph order
 
+        Keyword Args:
+            session: Runtime SQLAlchemy session.
+
         Returns:
             The previous paragraph or None if not found
 
         """
-        session = cls._get_session()
         return session.scalar(
             select(cls)
             .where(
@@ -207,6 +220,8 @@ class Paragraph(SaveDeleteMixin, Base):
         section_id: int,
         paragraph_data: dict,
         commit: bool = True,
+        *,
+        session: Session,
     ) -> Paragraph:
         """
         Create paragraph from JSON import data.
@@ -216,13 +231,13 @@ class Paragraph(SaveDeleteMixin, Base):
             paragraph_data: Paragraph data dictionary from JSON
 
         Keyword Args:
+            session: Runtime SQLAlchemy session.
             commit: Whether to commit changes
 
         Returns:
             Created paragraph
 
         """
-        session = cls._get_session()
         paragraph = cls(
             section_id=section_id,
             order=paragraph_data["order"],

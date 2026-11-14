@@ -107,7 +107,7 @@ class WyrdcraeftIngestService(SessionMixin):
             The created project.
 
         """
-        if Project.exists(name):
+        if Project.exists(name, session=self.session):
             raise AlreadyExists("Project", name)  # noqa: EM101
 
         project = Project(name=name, source=source, translator=translator, notes=notes)
@@ -202,7 +202,6 @@ class WyrdcraeftIngestService(SessionMixin):
         Returns:
             Metadata for ``DocumentIngestor``.
 
-
         Keyword Args:
             title: Title.
             source: Source.
@@ -239,7 +238,6 @@ class WyrdcraeftIngestService(SessionMixin):
 
         Returns:
             Typed canonical :class:`wyrdcraeft.models.OldEnglishText`.
-
 
         Keyword Args:
             text: Text.
@@ -289,7 +287,6 @@ class WyrdcraeftIngestService(SessionMixin):
         Returns:
             ``None``.
 
-
         Keyword Args:
             project: Project.
             canonical: Canonical.
@@ -311,6 +308,7 @@ class WyrdcraeftIngestService(SessionMixin):
                     title=self._chapter_title_for_verse(run),
                     title_auto=not run.title_official,
                     commit=False,
+                    session=self.session,
                 )
                 display_order = self._create_verse_hierarchy(
                     run=run,
@@ -326,6 +324,7 @@ class WyrdcraeftIngestService(SessionMixin):
                     title=chapter_title,
                     title_auto=title_auto,
                     commit=False,
+                    session=self.session,
                 )
                 display_order = self._create_prose_hierarchy(
                     run=run,
@@ -374,7 +373,6 @@ class WyrdcraeftIngestService(SessionMixin):
 
         Returns:
             ``None``.
-
 
         Keyword Args:
             section: Section.
@@ -444,7 +442,6 @@ class WyrdcraeftIngestService(SessionMixin):
 
         Returns:
             ``None``.
-
 
         Keyword Args:
             runs: Runs.
@@ -558,7 +555,6 @@ class WyrdcraeftIngestService(SessionMixin):
         Returns:
             Next display order after insertion.
 
-
         Keyword Args:
             run: Run.
             chapter: Chapter.
@@ -572,6 +568,7 @@ class WyrdcraeftIngestService(SessionMixin):
             title=None,
             title_auto=False,
             commit=False,
+            session=self.session,
         )
         display_order = display_order_start
         paragraph_order = 1
@@ -590,6 +587,7 @@ class WyrdcraeftIngestService(SessionMixin):
                     verse_line_start=None,
                     verse_line_end=None,
                     commit=False,
+                    session=self.session,
                 )
                 display_order += 1
         return display_order
@@ -613,7 +611,6 @@ class WyrdcraeftIngestService(SessionMixin):
 
         Returns:
             Next display order after insertion.
-
 
         Keyword Args:
             run: Run.
@@ -639,6 +636,7 @@ class WyrdcraeftIngestService(SessionMixin):
                 title=section_title,
                 title_auto=True,
                 commit=False,
+                session=self.session,
             )
             section_number += 1
 
@@ -655,6 +653,7 @@ class WyrdcraeftIngestService(SessionMixin):
                     verse_line_start=stanza.line_start,
                     verse_line_end=stanza.line_end,
                     commit=False,
+                    session=self.session,
                 )
                 display_order += 1
         return display_order
@@ -700,7 +699,6 @@ class WyrdcraeftIngestService(SessionMixin):
 
         Returns:
             Resolved 1-based line number.
-
 
         Keyword Args:
             fallback_index: Fallback index.

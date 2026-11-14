@@ -2,6 +2,7 @@
 
 from typing import TYPE_CHECKING, cast
 
+from oeapp.db import get_runtime_session
 from oeapp.models.annotation_preset import AnnotationPreset
 
 if TYPE_CHECKING:
@@ -24,7 +25,8 @@ class AnnotationPresetService:
             List of AnnotationPreset entities ordered by name
 
         """
-        return AnnotationPreset.get_all_by_pos(pos)
+        session = get_runtime_session()
+        return AnnotationPreset.get_all_by_pos(pos, session=session)
 
     @staticmethod
     def create_preset(
@@ -52,8 +54,9 @@ class AnnotationPresetService:
             IntegrityError: If preset with same name and pos already exists
 
         """
+        session = get_runtime_session()
         return AnnotationPreset.create(
-            name, cast("PresetPos", pos), commit=commit, **field_values
+            name, cast("PresetPos", pos), commit=commit, **field_values, session=session
         )
 
     @staticmethod
@@ -81,8 +84,11 @@ class AnnotationPresetService:
             IntegrityError: If name change would create duplicate
 
         """
+        session = get_runtime_session()
         update_data = {"name": name.strip() if name else None, **field_values}
-        return AnnotationPreset.update(preset_id, commit=commit, **update_data)
+        return AnnotationPreset.update(
+            preset_id, commit=commit, **update_data, session=session
+        )
 
     @staticmethod
     def delete_preset(preset_id: int) -> bool:
@@ -96,7 +102,8 @@ class AnnotationPresetService:
             True if preset was deleted, False if not found
 
         """
-        preset = AnnotationPreset.get(preset_id)
+        session = get_runtime_session()
+        preset = AnnotationPreset.get(preset_id, session=session)
         if preset:
             preset.delete()
             return True

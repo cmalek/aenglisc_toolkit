@@ -1,9 +1,8 @@
 """Unit tests for Token.update_from_sentence and related methods."""
 
-import pytest
-from sqlalchemy import select
-
+from oeapp.db import get_runtime_session
 from oeapp.models.token import Token
+from sqlalchemy import select
 
 
 class TestUpdateFromSentence:
@@ -11,10 +10,11 @@ class TestUpdateFromSentence:
 
     def test_no_changes(self, db_session, project_and_sentence):
         """Test updating with no changes to tokens."""
+        session = get_runtime_session()
         _, sentence_id = project_and_sentence
 
         # Delete existing tokens from the fixture-created sentence
-        existing_tokens = Token.list(sentence_id)
+        existing_tokens = Token.list(sentence_id, session=session)
         for token in existing_tokens:
             token.delete(commit=False)
         db_session.commit()
@@ -26,9 +26,9 @@ class TestUpdateFromSentence:
         token2.save()
 
         # Update with same text
-        Token.update_from_sentence("Se cyning", sentence_id)
+        Token.update_from_sentence("Se cyning", sentence_id, session=session)
 
-        tokens = Token.list(sentence_id)
+        tokens = Token.list(sentence_id, session=session)
         assert len(tokens) == 2
         assert tokens[0].surface == "Se"
         assert tokens[0].order_index == 0
@@ -37,10 +37,11 @@ class TestUpdateFromSentence:
 
     def test_add_new_tokens(self, db_session, project_and_sentence):
         """Test adding new tokens to sentence."""
+        session = get_runtime_session()
         _, sentence_id = project_and_sentence
 
         # Delete existing tokens from the fixture-created sentence
-        existing_tokens = Token.list(sentence_id)
+        existing_tokens = Token.list(sentence_id, session=session)
         for token in existing_tokens:
             token.delete(commit=False)
         db_session.commit()
@@ -52,9 +53,9 @@ class TestUpdateFromSentence:
         token2.save()
 
         # Add a new token
-        Token.update_from_sentence("Se cyning wæs", sentence_id)
+        Token.update_from_sentence("Se cyning wæs", sentence_id, session=session)
 
-        tokens = Token.list(sentence_id)
+        tokens = Token.list(sentence_id, session=session)
         assert len(tokens) == 3
         assert tokens[0].surface == "Se"
         assert tokens[1].surface == "cyning"
@@ -65,10 +66,11 @@ class TestUpdateFromSentence:
 
     def test_remove_tokens(self, db_session, project_and_sentence):
         """Test removing tokens from sentence."""
+        session = get_runtime_session()
         _, sentence_id = project_and_sentence
 
         # Delete existing tokens from the fixture-created sentence
-        existing_tokens = Token.list(sentence_id)
+        existing_tokens = Token.list(sentence_id, session=session)
         for token in existing_tokens:
             token.delete(commit=False)
         db_session.commit()
@@ -82,9 +84,9 @@ class TestUpdateFromSentence:
         token3.save()
 
         # Remove a token
-        Token.update_from_sentence("Se cyning", sentence_id)
+        Token.update_from_sentence("Se cyning", sentence_id, session=session)
 
-        tokens = Token.list(sentence_id)
+        tokens = Token.list(sentence_id, session=session)
         assert len(tokens) == 2
         assert tokens[0].surface == "Se"
         assert tokens[1].surface == "cyning"
@@ -94,10 +96,11 @@ class TestUpdateFromSentence:
 
     def test_reorder_tokens(self, db_session, project_and_sentence):
         """Test reordering tokens."""
+        session = get_runtime_session()
         _, sentence_id = project_and_sentence
 
         # Delete existing tokens from the fixture-created sentence
-        existing_tokens = Token.list(sentence_id)
+        existing_tokens = Token.list(sentence_id, session=session)
         for token in existing_tokens:
             token.delete(commit=False)
         db_session.commit()
@@ -109,9 +112,9 @@ class TestUpdateFromSentence:
         token2.save()
 
         # Reorder tokens
-        Token.update_from_sentence("cyning Se", sentence_id)
+        Token.update_from_sentence("cyning Se", sentence_id, session=session)
 
-        tokens = Token.list(sentence_id)
+        tokens = Token.list(sentence_id, session=session)
         assert len(tokens) == 2
         assert tokens[0].surface == "cyning"
         assert tokens[0].order_index == 0
@@ -126,10 +129,11 @@ class TestUpdateFromSentence:
         and its surface is updated. The algorithm matches by position first,
         then by surface for unmatched positions.
         """
+        session = get_runtime_session()
         _, sentence_id = project_and_sentence
 
         # Delete existing tokens from the fixture-created sentence
-        existing_tokens = Token.list(sentence_id)
+        existing_tokens = Token.list(sentence_id, session=session)
         for token in existing_tokens:
             token.delete(commit=False)
         db_session.commit()
@@ -142,9 +146,9 @@ class TestUpdateFromSentence:
         original_token_id = token1.id
 
         # Update surface form - "Se" changes to "Þā" at same position
-        Token.update_from_sentence("Þā cyning", sentence_id)
+        Token.update_from_sentence("Þā cyning", sentence_id, session=session)
 
-        tokens = Token.list(sentence_id)
+        tokens = Token.list(sentence_id, session=session)
         assert len(tokens) == 2
         # First token should be preserved (same position) with updated surface
         assert tokens[0].surface == "Þā"
@@ -155,10 +159,11 @@ class TestUpdateFromSentence:
 
     def test_complex_reordering_with_duplicates(self, db_session, project_and_sentence):
         """Test complex reordering with duplicate tokens."""
+        session = get_runtime_session()
         _, sentence_id = project_and_sentence
 
         # Delete existing tokens from the fixture-created sentence
-        existing_tokens = Token.list(sentence_id)
+        existing_tokens = Token.list(sentence_id, session=session)
         for token in existing_tokens:
             token.delete(commit=False)
         db_session.commit()
@@ -178,9 +183,9 @@ class TestUpdateFromSentence:
         db_session.flush()
 
         # Reorder and change
-        Token.update_from_sentence("þā wæs cyning þā", sentence_id)
+        Token.update_from_sentence("þā wæs cyning þā", sentence_id, session=session)
 
-        tokens = Token.list(sentence_id)
+        tokens = Token.list(sentence_id, session=session)
         assert len(tokens) == 4
         assert tokens[0].surface == "þā"
         assert tokens[1].surface == "wæs"
@@ -192,10 +197,11 @@ class TestUpdateFromSentence:
 
     def test_preserve_annotations(self, db_session, project_and_sentence):
         """Test that token annotations are preserved when tokens are matched."""
+        session = get_runtime_session()
         _, sentence_id = project_and_sentence
 
         # Delete existing tokens from the fixture-created sentence
-        existing_tokens = Token.list(sentence_id)
+        existing_tokens = Token.list(sentence_id, session=session)
         for token in existing_tokens:
             token.delete(commit=False)
         db_session.commit()
@@ -209,14 +215,17 @@ class TestUpdateFromSentence:
 
         # Add annotation
         from oeapp.models.annotation import Annotation
-        annotation = Annotation(token_id=token1.id, pos="R", gender="m", number="s", case="n")
+
+        annotation = Annotation(
+            token_id=token1.id, pos="R", gender="m", number="s", case="n"
+        )
         annotation.save()
 
         # Update sentence (reorder)
-        Token.update_from_sentence("cyning Se", sentence_id)
+        Token.update_from_sentence("cyning Se", sentence_id, session=session)
 
         # Verify annotation still exists on the matched token
-        tokens = Token.list(sentence_id)
+        tokens = Token.list(sentence_id, session=session)
         token_with_annotation = None
         for t in tokens:
             if t.id == original_token_id:
@@ -229,12 +238,15 @@ class TestUpdateFromSentence:
         assert annotation.pos == "R"
         assert annotation.gender == "m"
 
-    def test_sequential_numbering_after_insertion(self, db_session, project_and_sentence):
+    def test_sequential_numbering_after_insertion(
+        self, db_session, project_and_sentence
+    ):
         """Test that tokens are numbered sequentially after insertion."""
+        session = get_runtime_session()
         _, sentence_id = project_and_sentence
 
         # Delete existing tokens from the fixture-created sentence
-        existing_tokens = Token.list(sentence_id)
+        existing_tokens = Token.list(sentence_id, session=session)
         for token in existing_tokens:
             token.delete(commit=False)
         db_session.commit()
@@ -246,20 +258,25 @@ class TestUpdateFromSentence:
         token2.save()
 
         # Insert token in middle
-        Token.update_from_sentence("Se wæs cyning", sentence_id)
+        Token.update_from_sentence("Se wæs cyning", sentence_id, session=session)
 
-        tokens = Token.list(sentence_id)
+        tokens = Token.list(sentence_id, session=session)
         assert len(tokens) == 3
         # Verify sequential numbering (0, 1, 2)
         for i, token in enumerate(tokens):
-            assert token.order_index == i, f"Token at index {i} has order_index {token.order_index}, expected {i}"
+            assert token.order_index == i, (
+                f"Token at index {i} has order_index {token.order_index}, expected {i}"
+            )
 
-    def test_sequential_numbering_after_deletion(self, db_session, project_and_sentence):
+    def test_sequential_numbering_after_deletion(
+        self, db_session, project_and_sentence
+    ):
         """Test that tokens are numbered sequentially after deletion."""
+        session = get_runtime_session()
         _, sentence_id = project_and_sentence
 
         # Delete existing tokens from the fixture-created sentence
-        existing_tokens = Token.list(sentence_id)
+        existing_tokens = Token.list(sentence_id, session=session)
         for token in existing_tokens:
             token.delete(commit=False)
         db_session.commit()
@@ -273,20 +290,23 @@ class TestUpdateFromSentence:
         token3.save()
 
         # Delete middle token
-        Token.update_from_sentence("Se wæs", sentence_id)
+        Token.update_from_sentence("Se wæs", sentence_id, session=session)
 
-        tokens = Token.list(sentence_id)
+        tokens = Token.list(sentence_id, session=session)
         assert len(tokens) == 2
         # Verify sequential numbering (0, 1)
         for i, token in enumerate(tokens):
-            assert token.order_index == i, f"Token at index {i} has order_index {token.order_index}, expected {i}"
+            assert token.order_index == i, (
+                f"Token at index {i} has order_index {token.order_index}, expected {i}"
+            )
 
     def test_sequential_numbering_after_reorder(self, db_session, project_and_sentence):
         """Test that tokens are numbered sequentially after reordering."""
+        session = get_runtime_session()
         _, sentence_id = project_and_sentence
 
         # Delete existing tokens from the fixture-created sentence
-        existing_tokens = Token.list(sentence_id)
+        existing_tokens = Token.list(sentence_id, session=session)
         for token in existing_tokens:
             token.delete(commit=False)
         db_session.commit()
@@ -300,20 +320,23 @@ class TestUpdateFromSentence:
         token3.save()
 
         # Complete reorder
-        Token.update_from_sentence("wæs Se cyning", sentence_id)
+        Token.update_from_sentence("wæs Se cyning", sentence_id, session=session)
 
-        tokens = Token.list(sentence_id)
+        tokens = Token.list(sentence_id, session=session)
         assert len(tokens) == 3
         # Verify sequential numbering
         for i, token in enumerate(tokens):
-            assert token.order_index == i, f"Token at index {i} has order_index {token.order_index}, expected {i}"
+            assert token.order_index == i, (
+                f"Token at index {i} has order_index {token.order_index}, expected {i}"
+            )
 
     def test_no_gaps_in_numbering(self, db_session, project_and_sentence):
         """Test that there are no gaps in token numbering."""
+        session = get_runtime_session()
         _, sentence_id = project_and_sentence
 
         # Delete existing tokens from the fixture-created sentence
-        existing_tokens = Token.list(sentence_id)
+        existing_tokens = Token.list(sentence_id, session=session)
         for token in existing_tokens:
             token.delete(commit=False)
         db_session.commit()
@@ -327,9 +350,9 @@ class TestUpdateFromSentence:
         token3.save()
 
         # Make various changes
-        Token.update_from_sentence("Þā cyning", sentence_id)
+        Token.update_from_sentence("Þā cyning", sentence_id, session=session)
 
-        tokens = Token.list(sentence_id)
+        tokens = Token.list(sentence_id, session=session)
         order_indices = [token.order_index for token in tokens]
         order_indices.sort()
 
@@ -338,10 +361,11 @@ class TestUpdateFromSentence:
 
     def test_all_positions_filled(self, db_session, project_and_sentence):
         """Test that all positions are filled after update."""
+        session = get_runtime_session()
         _, sentence_id = project_and_sentence
 
         # Delete existing tokens from the fixture-created sentence
-        existing_tokens = Token.list(sentence_id)
+        existing_tokens = Token.list(sentence_id, session=session)
         for token in existing_tokens:
             token.delete(commit=False)
         db_session.commit()
@@ -352,9 +376,9 @@ class TestUpdateFromSentence:
         token2 = Token(sentence_id=sentence_id, order_index=1, surface="cyning")
         token2.save()
 
-        Token.update_from_sentence("Se cyning wæs þā", sentence_id)
+        Token.update_from_sentence("Se cyning wæs þā", sentence_id, session=session)
 
-        tokens = Token.list(sentence_id)
+        tokens = Token.list(sentence_id, session=session)
         assert len(tokens) == 4
 
         # Check that we have tokens at positions 0, 1, 2, 3
@@ -363,10 +387,11 @@ class TestUpdateFromSentence:
 
     def test_handles_empty_sentence(self, db_session, project_and_sentence):
         """Test updating to an empty sentence."""
+        session = get_runtime_session()
         _, sentence_id = project_and_sentence
 
         # Delete existing tokens from the fixture-created sentence
-        existing_tokens = Token.list(sentence_id)
+        existing_tokens = Token.list(sentence_id, session=session)
         for token in existing_tokens:
             token.delete(commit=False)
         db_session.commit()
@@ -377,17 +402,18 @@ class TestUpdateFromSentence:
         token2 = Token(sentence_id=sentence_id, order_index=1, surface="cyning")
         token2.save()
 
-        Token.update_from_sentence("", sentence_id)
+        Token.update_from_sentence("", sentence_id, session=session)
 
-        tokens = Token.list(sentence_id)
+        tokens = Token.list(sentence_id, session=session)
         assert len(tokens) == 0
 
     def test_handles_single_token(self, db_session, project_and_sentence):
         """Test updating with a single token."""
+        session = get_runtime_session()
         _, sentence_id = project_and_sentence
 
         # Delete existing tokens from the fixture-created sentence
-        existing_tokens = Token.list(sentence_id)
+        existing_tokens = Token.list(sentence_id, session=session)
         for token in existing_tokens:
             token.delete(commit=False)
         db_session.commit()
@@ -398,19 +424,22 @@ class TestUpdateFromSentence:
         token2 = Token(sentence_id=sentence_id, order_index=1, surface="cyning")
         token2.save()
 
-        Token.update_from_sentence("cyning", sentence_id)
+        Token.update_from_sentence("cyning", sentence_id, session=session)
 
-        tokens = Token.list(sentence_id)
+        tokens = Token.list(sentence_id, session=session)
         assert len(tokens) == 1
         assert tokens[0].surface == "cyning"
         assert tokens[0].order_index == 0
 
-    def test_multiple_updates_preserve_numbering(self, db_session, project_and_sentence):
+    def test_multiple_updates_preserve_numbering(
+        self, db_session, project_and_sentence
+    ):
         """Test that multiple sequential updates maintain proper numbering."""
+        session = get_runtime_session()
         _, sentence_id = project_and_sentence
 
         # Delete existing tokens from the fixture-created sentence
-        existing_tokens = Token.list(sentence_id)
+        existing_tokens = Token.list(sentence_id, session=session)
         for token in existing_tokens:
             token.delete(commit=False)
         db_session.commit()
@@ -422,33 +451,36 @@ class TestUpdateFromSentence:
         token2.save()
 
         # First update
-        Token.update_from_sentence("Se cyning wæs", sentence_id)
-        tokens = Token.list(sentence_id)
+        Token.update_from_sentence("Se cyning wæs", sentence_id, session=session)
+        tokens = Token.list(sentence_id, session=session)
         assert len(tokens) == 3
         for i, token in enumerate(tokens):
             assert token.order_index == i
 
         # Second update
-        Token.update_from_sentence("Þā Se cyning", sentence_id)
-        tokens = Token.list(sentence_id)
+        Token.update_from_sentence("Þā Se cyning", sentence_id, session=session)
+        tokens = Token.list(sentence_id, session=session)
         assert len(tokens) == 3
         for i, token in enumerate(tokens):
             assert token.order_index == i
 
         # Third update
-        Token.update_from_sentence("Se", sentence_id)
-        tokens = Token.list(sentence_id)
+        Token.update_from_sentence("Se", sentence_id, session=session)
+        tokens = Token.list(sentence_id, session=session)
         assert len(tokens) == 1
         assert tokens[0].order_index == 0
 
-    def test_split_does_not_shift_following_token_annotation(self, db_session, project_and_sentence):
+    def test_split_does_not_shift_following_token_annotation(
+        self, db_session, project_and_sentence
+    ):
         """
         Splitting one token must not shift annotations from following tokens.
         """
+        session = get_runtime_session()
         _, sentence_id = project_and_sentence
 
         # Reset fixture tokens and create a controlled sequence
-        existing_tokens = Token.list(sentence_id)
+        existing_tokens = Token.list(sentence_id, session=session)
         for token in existing_tokens:
             token.delete(commit=False)
         db_session.commit()
@@ -469,9 +501,11 @@ class TestUpdateFromSentence:
         ann2 = Annotation(token_id=token2.id, pos="V")
         ann2.save()
 
-        Token.update_from_sentence("god cundre ġife ġemǣred", sentence_id)
+        Token.update_from_sentence(
+            "god cundre ġife ġemǣred", sentence_id, session=session
+        )
 
-        tokens = Token.list(sentence_id)
+        tokens = Token.list(sentence_id, session=session)
         surfaces = [t.surface for t in tokens]
         assert surfaces == ["god", "cundre", "ġife", "ġemǣred"]
 
@@ -480,8 +514,10 @@ class TestUpdateFromSentence:
         assert token_by_surface["ġife"].id == token1.id
         assert token_by_surface["ġemǣred"].id == token2.id
 
-        gi_ann = Annotation.get_by_token(token_by_surface["ġife"].id)
-        ge_ann = Annotation.get_by_token(token_by_surface["ġemǣred"].id)
+        gi_ann = Annotation.get_by_token(token_by_surface["ġife"].id, session=session)
+        ge_ann = Annotation.get_by_token(
+            token_by_surface["ġemǣred"].id, session=session
+        )
         assert gi_ann is not None and gi_ann.pos == "N"
         assert ge_ann is not None and ge_ann.pos == "V"
 
@@ -491,12 +527,13 @@ class TestUpdateFromSentence:
         """
         Merging tokens removes annotations of deleted tokens from the DB.
         """
+        session = get_runtime_session()
         from oeapp.models.annotation import Annotation
 
         _, sentence_id = project_and_sentence
 
         # Reset fixture tokens and create controlled token sequence.
-        existing_tokens = Token.list(sentence_id)
+        existing_tokens = Token.list(sentence_id, session=session)
         for token in existing_tokens:
             token.delete(commit=False)
         db_session.commit()
@@ -514,15 +551,15 @@ class TestUpdateFromSentence:
         old_token_ids = {token0.id, token1.id}
 
         # Merge two tokens into one.
-        Token.update_from_sentence("godcundre", sentence_id)
+        Token.update_from_sentence("godcundre", sentence_id, session=session)
 
-        tokens = Token.list(sentence_id)
+        tokens = Token.list(sentence_id, session=session)
         assert len(tokens) == 1
         assert tokens[0].surface == "godcundre"
 
         # Old token-attached annotations must be removed.
         for old_ann_id in old_ann_ids:
-            assert Annotation.get(old_ann_id) is None
+            assert Annotation.get(old_ann_id, session=session) is None
 
         # No annotation row should point to a non-existent token.
         token_ids = {t.id for t in tokens if t.id}

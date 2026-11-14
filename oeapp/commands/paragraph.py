@@ -42,14 +42,14 @@ class SplitParagraphCommand(SessionMixin, Command):
 
         """
         session = self._get_session()
-        sentence = Sentence.get(self.sentence_id)
+        sentence = Sentence.get(self.sentence_id, session=session)
         if sentence is None or sentence.paragraph_id is None:
             return False
 
         if sentence is None or sentence.paragraph_id is None:
             return False
 
-        original_paragraph = Paragraph.get(sentence.paragraph_id)
+        original_paragraph = Paragraph.get(sentence.paragraph_id, session=session)
         if not original_paragraph:
             return False
 
@@ -87,6 +87,7 @@ class SplitParagraphCommand(SessionMixin, Command):
             section_id=section_id,
             order=original_paragraph.order,
             exclude_paragraph_id=self.new_paragraph_id,
+            session=session,
         )
         for p in subsequent_paragraphs:
             p.order += 1
@@ -111,13 +112,13 @@ class SplitParagraphCommand(SessionMixin, Command):
             return False
 
         # Re-fetch new_paragraph from session
-        new_paragraph = Paragraph.get(self.new_paragraph_id)
+        new_paragraph = Paragraph.get(self.new_paragraph_id, session=session)
         if not new_paragraph:
             return False
 
         # Move sentences back to original paragraph
         for s_id in self.moved_sentence_ids:
-            s = Sentence.get(s_id)
+            s = Sentence.get(s_id, session=session)
             if s:
                 s.paragraph_id = self.original_paragraph_id
                 s.save(commit=False)
@@ -131,8 +132,7 @@ class SplitParagraphCommand(SessionMixin, Command):
 
         # Shift subsequent paragraphs back
         subsequent_paragraphs = Paragraph.get_paragraphs_after(
-            section_id=section_id,
-            order=order_to_remove,
+            section_id=section_id, order=order_to_remove, session=session
         )
         for p in subsequent_paragraphs:
             p.order -= 1
@@ -187,11 +187,11 @@ class MergeParagraphCommand(SessionMixin, Command):
 
         """
         session = self._get_session()
-        sentence = Sentence.get(self.sentence_id)
+        sentence = Sentence.get(self.sentence_id, session=session)
         if sentence is None or sentence.paragraph_id is None:
             return False
 
-        current_paragraph = Paragraph.get(sentence.paragraph_id)
+        current_paragraph = Paragraph.get(sentence.paragraph_id, session=session)
         if not current_paragraph or current_paragraph.order == 1:
             # Cannot merge first paragraph of section
             return False
@@ -210,7 +210,7 @@ class MergeParagraphCommand(SessionMixin, Command):
 
         # Find previous paragraph in the same section
         prev_paragraph = Paragraph.previous_paragraph(
-            section_id=section_id, order=current_paragraph.order
+            section_id=section_id, order=current_paragraph.order, session=session
         )
         if not prev_paragraph:
             return False
@@ -232,8 +232,7 @@ class MergeParagraphCommand(SessionMixin, Command):
 
         # Shift subsequent paragraphs back
         subsequent_paragraphs = Paragraph.get_paragraphs_after(
-            section_id=section_id,
-            order=self.original_order,
+            section_id=section_id, order=self.original_order, session=session
         )
         for p in subsequent_paragraphs:
             p.order -= 1
@@ -258,7 +257,7 @@ class MergeParagraphCommand(SessionMixin, Command):
         ):
             return False
 
-        target_paragraph = Paragraph.get(self.target_paragraph_id)
+        target_paragraph = Paragraph.get(self.target_paragraph_id, session=session)
         if not target_paragraph:
             return False
 
@@ -266,8 +265,7 @@ class MergeParagraphCommand(SessionMixin, Command):
 
         # Shift subsequent paragraphs forward
         subsequent_paragraphs = Paragraph.get_paragraphs_after(
-            section_id=section_id,
-            order=self.original_order,
+            section_id=section_id, order=self.original_order, session=session
         )
         for p in subsequent_paragraphs:
             p.order += 1
@@ -283,7 +281,7 @@ class MergeParagraphCommand(SessionMixin, Command):
 
         # Move sentences back
         for s_id in self.moved_sentence_ids:
-            s = Sentence.get(s_id)
+            s = Sentence.get(s_id, session=session)
             if s:
                 s.paragraph_id = new_p.id
                 s.save(commit=False)

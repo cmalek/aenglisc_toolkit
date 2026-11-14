@@ -5,15 +5,16 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-from PySide6.QtCore import QPoint
-from PySide6.QtGui import QCloseEvent
-from PySide6.QtWidgets import QLabel, QSplitter, QStatusBar, QWidget
-
 from oeapp.commands import Command, push_command
+from oeapp.db import get_runtime_session
 from oeapp.models import AnnotationJson
 from oeapp.models.note import Note
 from oeapp.state import AppContext
 from oeapp.ui.main_window import MainWindow, Messages
+from PySide6.QtCore import QPoint
+from PySide6.QtGui import QCloseEvent
+from PySide6.QtWidgets import QLabel, QSplitter, QStatusBar, QWidget
+
 from tests.conftest import create_test_project, create_test_sentence
 
 
@@ -85,7 +86,9 @@ class TestMainWindowInitialization:
         self, main_window, db_session, tmp_path, monkeypatch
     ):
         """Export should autosave dirty sentences before writing OE text."""
+        session = get_runtime_session()
         from oeapp.models.sentence import Sentence
+
         from tests.conftest import create_test_project, create_test_sentence
 
         project = create_test_project(db_session, name="Save First")
@@ -108,7 +111,7 @@ class TestMainWindowInitialization:
         assert out.exists()
         assert "UNSAVED" in out.read_text(encoding="utf-8")
         db_session.expire_all()
-        assert Sentence.get(sentence.id).text_oe == "UNSAVED"
+        assert Sentence.get(sentence.id, session=session).text_oe == "UNSAVED"
 
     def test_export_old_english_cancel_writes_nothing(
         self, main_window, db_session, tmp_path, monkeypatch
@@ -246,8 +249,10 @@ class TestMainWindowInitialization:
     def test_export_project_json_enablement_uses_current_project_not_target(
         self, main_window, db_session, tmp_path, monkeypatch
     ):
-        """Exporting another project (e.g. from Delete Project) must not
-        disable/enable menu actions based on that other project's state."""
+        """
+        Exporting another project (e.g. from Delete Project) must not
+        disable/enable menu actions based on that other project's state.
+        """
         current = create_test_project(db_session, name="Current")
         create_test_sentence(db_session, current.id, "Se cyning.")
         other = create_test_project(db_session, name="Other", text="")
@@ -377,8 +382,7 @@ class TestMainWindowActions:
         assert main_window.app_context.copied_annotation is not None
         assert main_window.app_context.copied_annotation.pos == "N"
         assert (
-            main_window.app_context.copied_annotation.modern_english_meaning
-            == "king"
+            main_window.app_context.copied_annotation.modern_english_meaning == "king"
         )
 
     @patch("oeapp.ui.main_window.push_command", return_value=True)
@@ -488,9 +492,7 @@ class TestMainWindowActions:
             new_card.enter_edit_mode.assert_called_once_with()
             new_card.flash_added.assert_called_once_with()
 
-    def test_on_structure_changed_scrolls_without_edit_mode_or_flash(
-        self, main_window
-    ):
+    def test_on_structure_changed_scrolls_without_edit_mode_or_flash(self, main_window):
         """A hierarchy change should scroll to the card but not edit/flash it."""
         project_ui = main_window.project_ui
         main_window.app_context.current_project_id = 1
@@ -522,9 +524,7 @@ class TestMainWindowActions:
             target_card.enter_edit_mode.assert_not_called()
             target_card.flash_added.assert_not_called()
 
-    def test_reload_after_structure_change_preserves_undo_history(
-        self, main_window
-    ):
+    def test_reload_after_structure_change_preserves_undo_history(self, main_window):
         """Structural reload keeps the same undo stack and its history."""
         project_ui = main_window.project_ui
         main_window.app_context.current_project_id = 1
@@ -569,7 +569,9 @@ class TestMainWindowHelp:
         """show_help should instantiate and show the QtHelp dialog."""
         main_window.show_help(topic="Keybindings")
 
-        mock_help_dialog.assert_called_once_with(topic="Keybindings", parent=main_window)
+        mock_help_dialog.assert_called_once_with(
+            topic="Keybindings", parent=main_window
+        )
         mock_help_dialog.return_value.show.assert_called_once()
 
     @patch("oeapp.ui.main_window.HelpCenterDialog")
@@ -635,7 +637,9 @@ class TestMainWindowOptimizeHooks:
         window.deleteLater()
         qapp.processEvents()
 
-    def test_close_event_swallows_optimize_errors(self, qapp, db_session, mock_services):
+    def test_close_event_swallows_optimize_errors(
+        self, qapp, db_session, mock_services
+    ):
         """Close should not fail even if optimize unexpectedly raises."""
         with patch(
             "oeapp.ui.main_window.run_pragma_optimize",
@@ -651,7 +655,9 @@ class TestMainWindowOptimizeHooks:
 class TestMessagesSeverity:
     """Test cases for error/warning message severity."""
 
-    def test_show_error_uses_critical_severity(self, db_session, mock_main_window, qapp):
+    def test_show_error_uses_critical_severity(
+        self, db_session, mock_main_window, qapp
+    ):
         """show_error renders with the critical icon, not the warning icon."""
         messages = Messages(mock_main_window)
 
@@ -710,7 +716,8 @@ class TestSidebarResizing:
         assert sidebar.minimumWidth() != sidebar.maximumWidth()
 
     def test_splitter_panes_are_not_collapsible(self, main_window):
-        """Neither splitter pane can be dragged to zero width.
+        """
+        Neither splitter pane can be dragged to zero width.
 
         ``QSplitter.childrenCollapsible()`` defaults to ``True``, which lets a
         drag push a pane straight past its minimum width to zero even though
@@ -722,7 +729,8 @@ class TestSidebarResizing:
         assert main_window.main_splitter.childrenCollapsible() is False
 
     def test_sidebar_starts_at_default_width(self, main_window, qapp):
-        """The sidebar still opens at its established default width.
+        """
+        The sidebar still opens at its established default width.
 
         ``QSplitter.sizes()`` only reflects a requested ``setSizes()`` call
         once the widget has actually been laid out on screen; on a
@@ -744,7 +752,8 @@ class TestSidebarResizing:
 
 
 class TestThemeRefreshReachesStaleSites:
-    """Regression tests for D5's "no visibly stale panel" acceptance criterion.
+    """
+    Regression tests for D5's "no visibly stale panel" acceptance criterion.
 
     ``ThemeMixin.reddish`` is not the only value baked from the palette at
     construction time: verse card backgrounds, paragraph separators, and
@@ -756,7 +765,8 @@ class TestThemeRefreshReachesStaleSites:
     def test_refresh_theme_dependent_widgets_rerenders_open_project(
         self, main_window, qapp
     ):
-        """The theme refresh hook must re-render loaded sentence cards and
+        """
+        The theme refresh hook must re-render loaded sentence cards and
         paragraph separators, not just call the help dialog's refresh.
 
         Against the pre-fix code, ``refresh_theme_dependent_widgets`` never

@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-
+from oeapp.db import get_runtime_session
 from oeapp.models.annotation import Annotation
 from oeapp.models.chapter import Chapter
 from oeapp.models.idiom import Idiom
@@ -17,6 +17,7 @@ from oeapp.models.section import Section
 from oeapp.models.sentence import Sentence
 from oeapp.services.import_export import ProjectExporter, ProjectImporter
 from oeapp.services.import_export_schema import ProjectExportPayload
+
 from tests.conftest import create_test_project
 
 FORBIDDEN_ID_KEYS = {
@@ -46,6 +47,7 @@ def _assert_no_row_ids(data):
 
 def _build_full_project(db_session) -> Project:
     """Create a project with structure, notes, token and idiom annotations."""
+    session = get_runtime_session()
     project = create_test_project(
         db_session,
         text="Se cyning. Þæt scip.",
@@ -56,7 +58,7 @@ def _build_full_project(db_session) -> Project:
     )
     sentence = project.sentences[0]
     tokens = sorted(sentence.tokens, key=lambda t: t.order_index)
-    token_annotation = Annotation.get_by_token(tokens[0].id)
+    token_annotation = Annotation.get_by_token(tokens[0].id, session=session)
     assert token_annotation is not None
     token_annotation.pos = "N"
     token_annotation.gender = "m"
@@ -141,7 +143,9 @@ class TestProjectExporter:
         assert data["migration_version"] == "v123"
         assert data["project"]["name"] == "Full Export Test"
         assert "chapters" in data["project"]
-        assert data["project"]["chapters"][0]["sections"][0]["paragraphs"][0]["order"] == 1
+        assert (
+            data["project"]["chapters"][0]["sections"][0]["paragraphs"][0]["order"] == 1
+        )
         assert len(data["sentences"]) == 2
         assert data["sentences"][0]["text_oe"] == "Se cyning."
         assert "paragraph_ref" in data["sentences"][0]
@@ -213,7 +217,9 @@ class TestProjectExporter:
         self, db_session, tmp_path
     ):
         """Test default export omits null and schema-default values."""
-        project = create_test_project(db_session, name="Sparse Export", text="Se cyning.")
+        project = create_test_project(
+            db_session, name="Sparse Export", text="Se cyning."
+        )
         mock_migration = MagicMock()
         mock_migration.db_migration_version.return_value = "v1"
         exporter = ProjectExporter(migration_service=mock_migration)
@@ -423,10 +429,10 @@ class TestProjectImporter:
         with pytest.raises(ValueError, match="not found"):
             importer.import_project_json("nonexistent.json")
 
-        with patch("pathlib.Path.exists", return_value=True):
-            with patch("pathlib.Path.read_bytes", side_effect=PermissionError("Denied")):
-                with pytest.raises(ValueError, match="Failed to load"):
-                    importer.import_project_json("denied.json")
+        with patch("pathlib.Path.exists", return_value=True), patch(
+            "pathlib.Path.read_bytes", side_effect=PermissionError("Denied")
+        ), pytest.raises(ValueError, match="Failed to load"):
+            importer.import_project_json("denied.json")
 
     def test_import_rejects_reading_text_txt(self, db_session, tmp_path) -> None:
         path = tmp_path / "Beowulf-oe.txt"
@@ -485,7 +491,9 @@ class TestProjectImporter:
         export_file = tmp_path / "source.json"
         exporter.export_project_json(project.id, str(export_file))
         disguised_file = tmp_path / "not_really_gzip.gz"
-        disguised_file.write_text(export_file.read_text(encoding="utf-8"), encoding="utf-8")
+        disguised_file.write_text(
+            export_file.read_text(encoding="utf-8"), encoding="utf-8"
+        )
 
         project.delete()
         db_session.commit()
@@ -561,6 +569,7 @@ class TestProjectImporter:
         self, db_session, tmp_path
     ):
         """Verse span metadata and title_auto flags should survive export/import."""
+        session = get_runtime_session()
         project = Project(name="Verse Roundtrip")
         project.save()
         chapter = Chapter.create(
@@ -569,6 +578,7 @@ class TestProjectImporter:
             title="Auto Prose Header ....",
             title_auto=True,
             commit=False,
+            session=session,
         )
         section = Section.create(
             chapter_id=chapter.id,
@@ -576,6 +586,7 @@ class TestProjectImporter:
             title="Lines 1-5",
             title_auto=True,
             commit=False,
+            session=session,
         )
         paragraph = Paragraph(section_id=section.id, order=1)
         db_session.add(paragraph)
@@ -588,6 +599,7 @@ class TestProjectImporter:
             verse_line_start=1,
             verse_line_end=5,
             commit=False,
+            session=session,
         )
         db_session.commit()
 
@@ -627,9 +639,8 @@ class TestProjectImporter:
             with patch("pathlib.Path.open", side_effect=OSError):
                 assert importer._load_field_mappings() == {}
 
-        with patch("pathlib.Path.exists", return_value=True):
-            with patch(
-                "pathlib.Path.open",
-                side_effect=json.JSONDecodeError("msg", "doc", 0),
-            ):
-                assert importer._load_field_mappings() == {}
+        with patch("pathlib.Path.exists", return_value=True), patch(
+            "pathlib.Path.open",
+            side_effect=json.JSONDecodeError("msg", "doc", 0),
+        ):
+            assert importer._load_field_mappings() == {}

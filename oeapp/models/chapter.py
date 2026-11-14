@@ -6,7 +6,7 @@ import builtins  # noqa: TC003
 from typing import TYPE_CHECKING
 
 from sqlalchemy import Boolean, ForeignKey, Index, Integer, String, func, select
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, Session, mapped_column, relationship
 
 from oeapp.db import Base
 from oeapp.models.mixins import SaveDeleteMixin
@@ -26,9 +26,7 @@ class Chapter(SaveDeleteMixin, Base):
     #: Tablename  .
     __tablename__ = "chapters"
     #: Table args  .
-    __table_args__ = (
-        Index("idx_chapters_project_number", "project_id", "number"),
-    )
+    __table_args__ = (Index("idx_chapters_project_number", "project_id", "number"),)
 
     #: The chapter ID.
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -54,18 +52,20 @@ class Chapter(SaveDeleteMixin, Base):
     )
 
     @classmethod
-    def get(cls, chapter_id: int) -> Chapter | None:
+    def get(cls, chapter_id: int, *, session: Session) -> Chapter | None:
         """
         Get a chapter by ID.
 
         Args:
             chapter_id: The chapter ID
 
+        Keyword Args:
+            session: Runtime SQLAlchemy session.
+
         Returns:
             The chapter or None if not found
 
         """
-        session = cls._get_session()
         return session.get(cls, chapter_id)
 
     @classmethod
@@ -77,6 +77,8 @@ class Chapter(SaveDeleteMixin, Base):
         title_auto: bool = False,
         sections: list[Section] | None = None,
         commit: bool = True,
+        *,
+        session: Session,
     ) -> Chapter:
         """
         Create a new chapter.
@@ -88,6 +90,7 @@ class Chapter(SaveDeleteMixin, Base):
             title_auto: Whether the title was auto-generated
 
         Keyword Args:
+            session: Runtime SQLAlchemy session.
             sections: The sections to add to the chapter
             commit: Whether to commit the changes to the database
 
@@ -95,7 +98,6 @@ class Chapter(SaveDeleteMixin, Base):
             The new :class:`~oeapp.models.chapter.Chapter` object
 
         """
-        session = cls._get_session()
         chapter = cls(
             project_id=project_id,
             number=number,
@@ -113,19 +115,21 @@ class Chapter(SaveDeleteMixin, Base):
         return chapter
 
     @classmethod
-    def list(cls, project_id: int | None = None) -> Sequence[Chapter]:
+    def list(
+        cls, project_id: int | None = None, *, session: Session
+    ) -> Sequence[Chapter]:
         """
         Get all chapters.  If ``project_id`` is provided, return chapters in the
         project.
 
         Keyword Args:
+            session: Runtime SQLAlchemy session.
             project_id: Project ID to filter by, if not provided, return all chapters
 
         Returns:
             List of :class:`~oeapp.models.chapter.Chapter` objects
 
         """
-        session = cls._get_session()
         if project_id:
             stmt = select(cls).where(cls.project_id == project_id)
         else:
@@ -134,7 +138,12 @@ class Chapter(SaveDeleteMixin, Base):
 
     @classmethod
     def get_chapters_after(
-        cls, project_id: int, number: int, exclude_chapter_id: int | None = None
+        cls,
+        project_id: int,
+        number: int,
+        exclude_chapter_id: int | None = None,
+        *,
+        session: Session,
     ) -> Sequence[Chapter]:
         """
         Get the subsequent chapters by project ID and number.
@@ -144,13 +153,13 @@ class Chapter(SaveDeleteMixin, Base):
             number: Chapter number
 
         Keyword Args:
+            session: Runtime SQLAlchemy session.
             exclude_chapter_id: Chapter ID to exclude
 
         Returns:
             List of subsequent chapters
 
         """
-        session = cls._get_session()
         if exclude_chapter_id:
             stmt = select(cls).where(
                 cls.project_id == project_id,
@@ -162,13 +171,18 @@ class Chapter(SaveDeleteMixin, Base):
         return session.scalars(stmt.order_by(cls.number)).all()
 
     @classmethod
-    def previous_chapter(cls, project_id: int, number: int) -> Chapter | None:
+    def previous_chapter(
+        cls, project_id: int, number: int, *, session: Session
+    ) -> Chapter | None:
         """
         Get the chapter with the given number - 1 in the same project.
 
         Args:
             project_id: Project ID
             number: Chapter number
+
+        Keyword Args:
+            session: Runtime SQLAlchemy session.
 
         Returns:
             The previous chapter or None if not found
@@ -177,7 +191,6 @@ class Chapter(SaveDeleteMixin, Base):
             ValueError: If the project ID is not found
 
         """
-        session = cls._get_session()
         return session.scalar(
             select(cls)
             .where(cls.project_id == project_id, cls.number == number - 1)
@@ -241,6 +254,8 @@ class Chapter(SaveDeleteMixin, Base):
         project_id: int,
         chapter_data: dict,
         commit: bool = True,
+        *,
+        session: Session,
     ) -> Chapter:
         """
         Create chapter (and nested sections/paragraphs) from JSON import data.
@@ -250,6 +265,7 @@ class Chapter(SaveDeleteMixin, Base):
             chapter_data: Chapter data dictionary from JSON
 
         Keyword Args:
+            session: Runtime SQLAlchemy session.
             commit: Whether to commit changes
 
         Returns:
@@ -259,7 +275,6 @@ class Chapter(SaveDeleteMixin, Base):
         # Import here to avoid circular import
         from oeapp.models.section import Section  # noqa: PLC0415
 
-        session = cls._get_session()
         chapter = cls(
             project_id=project_id,
             number=chapter_data["number"],
@@ -270,7 +285,7 @@ class Chapter(SaveDeleteMixin, Base):
         session.flush()
 
         for section_data in chapter_data.get("sections", []):
-            Section.from_json(chapter.id, section_data, commit=False)
+            Section.from_json(chapter.id, section_data, commit=False, session=session)
 
         if commit:
             session.commit()

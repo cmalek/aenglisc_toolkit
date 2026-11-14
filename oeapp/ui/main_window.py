@@ -28,7 +28,7 @@ from oeapp.commands import (
     AnnotateTokenCommand,
     push_command,
 )
-from oeapp.db import run_pragma_optimize
+from oeapp.db import get_runtime_session, run_pragma_optimize
 from oeapp.exc import MigrationFailed, UnknownDatabaseRevision
 from oeapp.help.help_engine import HelpEngineError
 from oeapp.models.annotation_json import AnnotationJson
@@ -766,8 +766,9 @@ class MainWindow(QMainWindow):
         - If there are no projects in the database, show NewProjectDialog.
         - If there are projects, show OpenProjectDialog.
         """
+        session = get_runtime_session()
         # Check if there are any projects in the database
-        if bool(Project.first()) and self.app_context.session:
+        if bool(Project.first(session=session)) and self.app_context.session:
             # Projects exist, show OpenProjectDialog
             OpenProjectDialog(self).execute()
         else:
@@ -871,12 +872,13 @@ class MainWindow(QMainWindow):
         """
         Show restore dialog.
         """
+        session = get_runtime_session()
         dialog = RestoreDialog(self)
         dialog.execute()
         # After restore, we may need to reload
         project_id = self.app_context.current_project_id
         if project_id is not None:
-            project = Project.get(project_id)
+            project = Project.get(project_id, session=session)
             if project:
                 self.project_ui.load(project)
                 self.main_menu.project_menu.update_reading_export_enabled(project)
@@ -918,10 +920,11 @@ class MainWindow(QMainWindow):
             reload bypasses :meth:`load_project` (e.g. Append OE text).
 
         """
+        session = get_runtime_session()
         self.project_ui.reload()
         project_id = self.app_context.current_project_id
         if project_id is not None:
-            project = Project.get(project_id)
+            project = Project.get(project_id, session=session)
             if project:
                 self.main_menu.project_menu.update_reading_export_enabled(project)
 
@@ -1253,10 +1256,11 @@ class MainWindowActions:
         - Show a message in the status bar that the project has been saved.
 
         """
+        session = get_runtime_session()
         project_id = self.app_context.current_project_id
         if project_id is None:
             return
-        project = Project.get(project_id)
+        project = Project.get(project_id, session=session)
         if project is None:
             return
 
@@ -1272,6 +1276,7 @@ class MainWindowActions:
         """
         Import project from JSON format.
         """
+        session = get_runtime_session()
         # Get file path from user
         file_path, _ = QFileDialog.getOpenFileName(
             self.main_window,
@@ -1292,7 +1297,7 @@ class MainWindowActions:
             ambiguous_spellings = [
                 " / ".join(entry.token_text for entry in group)
                 for group in RememberedAnnotation.ambiguous_groups_for_scope(
-                    imported_project.id
+                    imported_project.id, session=session
                 )
             ]
 
@@ -1338,10 +1343,11 @@ class MainWindowActions:
             :attr:`ProjectMenu`. Does nothing when no project is open.
 
         """
+        session = get_runtime_session()
         current_project_id = self.app_context.current_project_id
         if current_project_id is None:
             return
-        current_project = Project.get(current_project_id)
+        current_project = Project.get(current_project_id, session=session)
         self.main_window.main_menu.project_menu.update_reading_export_enabled(
             current_project
         )
@@ -1366,6 +1372,7 @@ class MainWindowActions:
             True if export was successful, False if canceled or failed
 
         """
+        session = get_runtime_session()
         target_project_id = (
             project_id
             if type(project_id) is int
@@ -1378,7 +1385,7 @@ class MainWindowActions:
         self.autosave()
 
         # Get project name for default filename
-        project = Project.get(target_project_id)
+        project = Project.get(target_project_id, session=session)
         if project is None:
             self.messages.show_warning("Project not found")
             return False
@@ -1427,6 +1434,7 @@ class MainWindowActions:
             True if export was successful, False if canceled or failed.
 
         """
+        session = get_runtime_session()
         project_id = self.app_context.current_project_id
         if not self.app_context.session or project_id is None:
             self.messages.show_warning("No project open")
@@ -1434,7 +1442,7 @@ class MainWindowActions:
 
         self.autosave()
 
-        project = Project.get(project_id)
+        project = Project.get(project_id, session=session)
         if project is None:
             self.messages.show_warning("Project not found")
             return False
@@ -1444,9 +1452,7 @@ class MainWindowActions:
             self.messages.show_warning("No Old English text to export")
             return False
 
-        default_filename = (
-            ProjectExporter.sanitize_filename(project.name) + "-oe.txt"
-        )
+        default_filename = ProjectExporter.sanitize_filename(project.name) + "-oe.txt"
         file_path, _ = QFileDialog.getSaveFileName(
             self.main_window,
             "Export Old English Text",
@@ -1485,6 +1491,7 @@ class MainWindowActions:
             True if export was successful, False if canceled or failed.
 
         """
+        session = get_runtime_session()
         project_id = self.app_context.current_project_id
         if not self.app_context.session or project_id is None:
             self.messages.show_warning("No project open")
@@ -1492,7 +1499,7 @@ class MainWindowActions:
 
         self.autosave()
 
-        project = Project.get(project_id)
+        project = Project.get(project_id, session=session)
         if project is None:
             self.messages.show_warning("Project not found")
             return False
@@ -1554,12 +1561,13 @@ class MainWindowActions:
         """
         Edit the current project's metadata.
         """
+        session = get_runtime_session()
         project_id = self.app_context.current_project_id
         if project_id is None:
             self.messages.show_warning("No project open")
             return
 
-        project = Project.get(project_id)
+        project = Project.get(project_id, session=session)
         if project is None:
             self.messages.show_warning("Project not found")
             return

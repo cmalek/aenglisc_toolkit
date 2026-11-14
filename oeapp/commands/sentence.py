@@ -6,6 +6,7 @@ from typing import Any, Literal
 
 from sqlalchemy import select
 
+from oeapp.db import get_runtime_session
 from oeapp.models.annotation import Annotation
 from oeapp.models.idiom import Idiom
 from oeapp.models.mixins import SessionMixin
@@ -27,7 +28,8 @@ def _token_ids(sentence_id: int) -> set[int]:
         The token ids.
 
     """
-    return {token.id for token in Token.list(sentence_id)}
+    session = get_runtime_session()
+    return {token.id for token in Token.list(sentence_id, session=session)}
 
 
 def _idiom_ids(sentence: Sentence) -> set[int]:
@@ -71,7 +73,8 @@ class EditSentenceCommand(SessionMixin, Command):
             True if successful
 
         """
-        sentence = Sentence.get(self.sentence_id)
+        session = get_runtime_session()
+        sentence = Sentence.get(self.sentence_id, session=session)
         if sentence is None:
             return False
 
@@ -90,7 +93,8 @@ class EditSentenceCommand(SessionMixin, Command):
             True if successful, False otherwise
 
         """
-        sentence = Sentence.get(self.sentence_id)
+        session = get_runtime_session()
+        sentence = Sentence.get(self.sentence_id, session=session)
         if sentence is None:
             return False
 
@@ -195,8 +199,8 @@ class MergeSentenceCommand(SessionMixin, Command):
 
         """
         session = self._get_session()
-        current_sentence = Sentence.get(self.current_sentence_id)
-        next_sentence = Sentence.get(self.next_sentence_id)
+        current_sentence = Sentence.get(self.current_sentence_id, session=session)
+        next_sentence = Sentence.get(self.next_sentence_id, session=session)
 
         if current_sentence is None or next_sentence is None:
             return False
@@ -295,7 +299,7 @@ class MergeSentenceCommand(SessionMixin, Command):
         # Update display_order for all subsequent sentences
         # Query using stored values since next_sentence is now deleted
         subsequent_sentences = Sentence.subsequent_sentences(
-            next_project_id, next_display_order
+            next_project_id, next_display_order, session=session
         )
         for sentence in subsequent_sentences:
             old_order = sentence.display_order
@@ -331,7 +335,7 @@ class MergeSentenceCommand(SessionMixin, Command):
 
         """
         session = self._get_session()
-        current_sentence = Sentence.get(self.current_sentence_id)
+        current_sentence = Sentence.get(self.current_sentence_id, session=session)
         if current_sentence is None:
             return False
         token_ids_before = _token_ids(current_sentence.id)
@@ -339,7 +343,7 @@ class MergeSentenceCommand(SessionMixin, Command):
         # CRITICAL: Restore display_order for subsequent sentences FIRST
         # This must happen before recreating the next sentence to avoid
         # unique constraint violations
-        Sentence.restore_display_orders(self.display_order_changes)
+        Sentence.restore_display_orders(self.display_order_changes, session=session)
 
         # Now recreate next sentence (will get a new ID, which is fine)
         next_sentence = Sentence(
@@ -354,7 +358,7 @@ class MergeSentenceCommand(SessionMixin, Command):
         # Restore tokens to next sentence with original order_index
         # CRITICAL: Do this BEFORE updating current sentence text
         for token_data in self.next_sentence_tokens:
-            token = Token.get(token_data["id"])
+            token = Token.get(token_data["id"], session=session)
             if token:
                 token.sentence_id = next_sentence.id  # Use the new sentence ID
                 token.order_index = token_data["order_index"]
@@ -369,7 +373,7 @@ class MergeSentenceCommand(SessionMixin, Command):
 
         # Restore notes to next sentence
         for note_data in self.next_sentence_notes:
-            note = Note.get(note_data["id"])
+            note = Note.get(note_data["id"], session=session)
             if note:
                 note.sentence_id = next_sentence.id  # Use the new sentence ID
                 note.save()
@@ -377,7 +381,7 @@ class MergeSentenceCommand(SessionMixin, Command):
         # Restore idioms to next sentence
 
         for idiom_data in self.next_sentence_idioms:
-            idiom = Idiom.get(idiom_data["id"])
+            idiom = Idiom.get(idiom_data["id"], session=session)
             if idiom:
                 idiom.sentence_id = next_sentence.id
                 idiom.save()
@@ -485,7 +489,7 @@ class AddSentenceCommand(SessionMixin, Command):
 
         """
         session = self._get_session()
-        reference_sentence = Sentence.get(self.reference_sentence_id)
+        reference_sentence = Sentence.get(self.reference_sentence_id, session=session)
         if reference_sentence is None:
             return False
 
@@ -513,7 +517,7 @@ class AddSentenceCommand(SessionMixin, Command):
             # For "after", we need sentences with display_order > reference_order
             affected_sentences = list(
                 Sentence.subsequent_sentences(
-                    self.project_id, reference_sentence.display_order
+                    self.project_id, reference_sentence.display_order, session=session
                 )
             )
             # Sort descending for processing
@@ -526,6 +530,7 @@ class AddSentenceCommand(SessionMixin, Command):
             self.display_order_changes = Sentence.renumber_sentences(
                 affected_sentences,
                 order_function=lambda s: s.display_order + 1,
+                session=session,
             )
 
         # Create new sentence in the same paragraph as the reference sentence
@@ -534,6 +539,7 @@ class AddSentenceCommand(SessionMixin, Command):
             display_order=target_order,
             text_oe="",
             paragraph_id=reference_sentence.paragraph_id,
+            session=session,
         )
         self.new_sentence_id = new_sentence.id
         self.last_adjustment = StackAdjustment()
@@ -555,16 +561,17 @@ class AddSentenceCommand(SessionMixin, Command):
             True if successful, False otherwise
 
         """
+        session = get_runtime_session()
         if self.new_sentence_id is None:
             return False
 
         # Delete the new sentence first
-        new_sentence = Sentence.get(self.new_sentence_id)
+        new_sentence = Sentence.get(self.new_sentence_id, session=session)
         if new_sentence:
             new_sentence.delete()
 
         # Restore display_order using two-phase approach
-        Sentence.restore_display_orders(self.display_order_changes)
+        Sentence.restore_display_orders(self.display_order_changes, session=session)
         self.last_adjustment = StackAdjustment(
             obsolete_sentence_ids={self.new_sentence_id}
         )
@@ -623,7 +630,8 @@ class DeleteSentenceCommand(SessionMixin, Command):
             True if successful, False otherwise
 
         """
-        sentence = Sentence.get(self.sentence_id)
+        session = get_runtime_session()
+        sentence = Sentence.get(self.sentence_id, session=session)
         if sentence is None:
             return False
 
@@ -707,16 +715,17 @@ class DeleteSentenceCommand(SessionMixin, Command):
         # Update display_order for all subsequent sentences (decrement by 1)
         # Use two-phase approach to avoid unique constraint violations
         subsequent_sentences = Sentence.subsequent_sentences(
-            project_id, deleted_display_order
+            project_id, deleted_display_order, session=session
         )
         if subsequent_sentences:
             self.display_order_changes = Sentence.renumber_sentences(
                 list(subsequent_sentences),
                 order_function=lambda s: s.display_order - 1,
+                session=session,
             )
 
         # Recalculate project structure after deletion
-        Sentence.recalculate_project_structure(project_id)
+        Sentence.recalculate_project_structure(project_id, session=session)
 
         return True
 
@@ -740,7 +749,7 @@ class DeleteSentenceCommand(SessionMixin, Command):
         # This must happen before recreating the sentence to avoid
         # unique constraint violations
         Sentence.restore_display_orders(
-            self.display_order_changes
+            self.display_order_changes, session=session
         )  # Ensure display_order changes are applied
 
         # Recreate sentence (will get a new ID, which is fine)

@@ -22,6 +22,7 @@ if "AENGLISC_TOOLKIT_DB_PATH" not in os.environ:
 # Set a temporary app data path for tests
 if "AENGLISC_TOOLKIT_DATA_PATH" not in os.environ:
     import tempfile
+
     os.environ["AENGLISC_TOOLKIT_DATA_PATH"] = tempfile.mkdtemp()
 
 # Redirect QSettings away from the real ~/Library/Preferences plist. Must run
@@ -37,17 +38,15 @@ QCoreApplication.setOrganizationName("oeapp-tests")
 QCoreApplication.setApplicationName("oeapp-tests")
 
 from oeapp.services.logs import configure_logging
+
 configure_logging()
 
+import pytest
+from oeapp.db import clear_runtime_session, get_runtime_session, set_runtime_session
 from oeapp.models import *
-
-
+from oeapp.state import AppContext
 from PySide6.QtGui import QUndoStack
 from PySide6.QtWidgets import QMenuBar, QWidget
-import pytest
-
-from oeapp.db import clear_runtime_session, set_runtime_session
-from oeapp.state import AppContext
 
 # CRITICAL: Create QApplication BEFORE any Qt imports to prevent segmentation faults
 # This must happen at module import time, before any test modules are imported
@@ -61,28 +60,28 @@ try:
         # Create QApplication with minimal args to avoid requiring display
         # Use sys.argv if available, otherwise empty list
         import sys
-        app_args = sys.argv if hasattr(sys, 'argv') else []
+
+        app_args = sys.argv if hasattr(sys, "argv") else []
         _ = QApplication(app_args)
 except (ImportError, RuntimeError):
     # If Qt is not available or can't be initialized, that's okay
     # Some tests mock Qt, so we can't require it here
     pass
 
-from sqlalchemy.orm import sessionmaker
-
-from sqlalchemy import select
-
 from oeapp.db import Base, create_engine_with_path
 from oeapp.models.project import Project
 from oeapp.models.sentence import Sentence
 from oeapp.models.token import Token
 from oeapp.services.migration import MigrationService
+from sqlalchemy import select
+from sqlalchemy.orm import sessionmaker
 
 
 @pytest.fixture(scope="session")
 def qapp():
     """Create QApplication instance for testing PySide6 widgets."""
     from PySide6.QtWidgets import QApplication
+
     app = QApplication.instance()
     if app is None:
         app = QApplication([])
@@ -192,22 +191,25 @@ def db_session():
 @pytest.fixture
 def sample_project(db_session):
     """Create a sample project with default text."""
+    session = get_runtime_session()
     return Project.create(
-        text="Se cyning",
-        name=f"Sample Project {id(db_session)}",
+        text="Se cyning", name=f"Sample Project {id(db_session)}", session=session
     )
 
 
 @pytest.fixture
 def sample_sentence(db_session, sample_project):
     """Get the first sentence of the sample project."""
+    session = get_runtime_session()
     if sample_project.sentences:
         return sample_project.sentences[0]
     return Sentence.create(
         project_id=sample_project.id,
         display_order=1,
         text_oe="Se cyning",
+        session=session,
     )
+
 
 @pytest.fixture
 def mock_main_window(db_session):
@@ -215,21 +217,23 @@ def mock_main_window(db_session):
     main_window = MockMainWindow(db_session)
     return main_window
 
+
 @pytest.fixture
 def command_setup(db_session):
     """Set up test database and base objects."""
+    session = get_runtime_session()
     # Create test project and sentence
     project = Project(name="Test Project")
     project.save()
     project_id = project.id
 
     sentence = Sentence.create(
-        project_id=project_id, display_order=1, text_oe="Se cyning"
+        project_id=project_id, display_order=1, text_oe="Se cyning", session=session
     )
     sentence.text_modern = "The king"
     sentence.save()
 
-    tokens = Token.list(sentence.id)
+    tokens = Token.list(sentence.id, session=session)
     token_id = tokens[0].id
 
     # Use an undo stack with a small limit for tests
@@ -247,6 +251,7 @@ def command_setup(db_session):
 @pytest.fixture
 def project_and_sentence(db_session):
     """Create a test project and sentence."""
+    session = get_runtime_session()
     # Create project
     project = Project(name="Test Project")
     db_session.add(project)
@@ -254,14 +259,14 @@ def project_and_sentence(db_session):
 
     # Create sentence
     sentence = Sentence.create(
-        project_id=project.id,
-        display_order=1,
-        text_oe="Se cyning"
+        project_id=project.id, display_order=1, text_oe="Se cyning", session=session
     )
 
     return project.id, sentence.id
 
+
 # Test helper classes
+
 
 class MockMainWindow(QWidget):
     """Mock main window that inherits from QWidget."""
@@ -355,7 +360,6 @@ class _MockProjectUI:
         self._selected_sentence_card = None
 
 
-
 # Test helper functions (not fixtures, but available for import)
 
 
@@ -375,6 +379,7 @@ def create_test_project(
 
     Returns:
         Created Project instance
+
     """
     if name is None:
         name = f"Test Project {id(session)}"
@@ -382,13 +387,18 @@ def create_test_project(
     # If text is empty, Project.create won't create any chapters/sections/paragraphs
     # We need to ensure they exist even for empty projects
     project = Project.create(
-        text=text, name=name, source=source, translator=translator, notes=notes
+        text=text,
+        name=name,
+        source=source,
+        translator=translator,
+        notes=notes,
+        session=session,
     )
 
     if not text:
         from oeapp.models.chapter import Chapter
-        from oeapp.models.section import Section
         from oeapp.models.paragraph import Paragraph
+        from oeapp.models.section import Section
 
         chapter = Chapter(project_id=project.id, number=1)
         session.add(chapter)
@@ -418,6 +428,7 @@ def create_test_sentence(
 
     Returns:
         Created Sentence instance
+
     """
     # If project_id not specified, create a new project
     if project_id is None:
@@ -427,13 +438,12 @@ def create_test_sentence(
     # Check if a sentence with this display_order already exists
     existing = session.scalar(
         select(Sentence).where(
-            Sentence.project_id == project_id,
-            Sentence.display_order == display_order
+            Sentence.project_id == project_id, Sentence.display_order == display_order
         )
     )
     if existing is not None:
         # Find the next available display_order
-        all_sentences = Sentence.list(project_id)
+        all_sentences = Sentence.list(project_id, session=session)
         if all_sentences:
             display_order = max(s.display_order for s in all_sentences) + 1
         else:
@@ -442,8 +452,8 @@ def create_test_sentence(
     # Ensure we have a paragraph if not provided
     if paragraph_id is None:
         from oeapp.models.chapter import Chapter
-        from oeapp.models.section import Section
         from oeapp.models.paragraph import Paragraph
+        from oeapp.models.section import Section
 
         project = session.get(Project, project_id)
         if not project.chapters:
@@ -465,10 +475,13 @@ def create_test_sentence(
         display_order=display_order,
         text_oe=text,
         paragraph_id=paragraph_id,
+        session=session,
     )
 
 
-def create_test_token(session, sentence_id, surface="cyning", order_index=0, lemma=None):
+def create_test_token(
+    session, sentence_id, surface="cyning", order_index=0, lemma=None
+):
     """
     Helper to create a token with defaults.
 
@@ -481,6 +494,7 @@ def create_test_token(session, sentence_id, surface="cyning", order_index=0, lem
 
     Returns:
         Created Token instance
+
     """
     token = Token(
         sentence_id=sentence_id,
@@ -502,7 +516,7 @@ def mock_migration_services():
     migration_service = MigrationService(
         backup_service=mock_backup,
         engine=mock_engine,
-        migration_metadata_service=mock_metadata
+        migration_metadata_service=mock_metadata,
     )
 
     return migration_service, mock_metadata

@@ -3,11 +3,13 @@
 from datetime import UTC, datetime
 
 import pytest
-from sqlalchemy.exc import IntegrityError
-
+from oeapp.db import get_runtime_session
 from oeapp.models.annotation import Annotation
-from oeapp.models.token import Token
 from oeapp.models.idiom import Idiom
+from oeapp.models.token import Token
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import sessionmaker
+
 from tests.conftest import create_test_project, create_test_sentence
 
 
@@ -16,14 +18,15 @@ class TestAnnotation:
 
     def test_create_with_all_fields(self, db_session):
         """Test model creation with all fields."""
+        session = get_runtime_session()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
         # Sentence.create already creates tokens, so get the first one
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         token = tokens[0]  # Use existing token instead of creating new one
 
         # Delete existing annotation created by Sentence.create
-        existing_ann = Annotation.get(token.id)
+        existing_ann = Annotation.get(token.id, session=session)
         if existing_ann:
             existing_ann.delete()
 
@@ -58,7 +61,7 @@ class TestAnnotation:
             root="cyning",
         )
         annotation.save()
-        _annotation = Annotation.get(annotation.id)
+        _annotation = Annotation.get(annotation.id, session=session)
 
         assert _annotation.token_id == token.id
         assert _annotation.pos == "N"
@@ -92,14 +95,15 @@ class TestAnnotation:
 
     def test_create_with_partial_fields(self, db_session):
         """Test model creation with partial fields (None values)."""
+        session = get_runtime_session()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
         # Sentence.create already creates tokens, so get the first one
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         token = tokens[0]  # Use existing token instead of creating new one
 
         # Delete existing annotation created by Sentence.create
-        existing_ann = Annotation.get(token.id)
+        existing_ann = Annotation.get(token.id, session=session)
         if existing_ann:
             existing_ann.delete()
 
@@ -113,62 +117,67 @@ class TestAnnotation:
 
     def test_get_returns_existing(self, db_session):
         """Test get() returns existing annotation."""
+        session = get_runtime_session()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         token = tokens[0]
 
         # Get existing annotation and update it
-        annotation = Annotation.get(token.id)
+        annotation = Annotation.get(token.id, session=session)
         assert annotation is not None
         annotation.pos = "N"
         annotation.gender = "m"
         annotation.save()
         annotation_id = annotation.token_id
 
-        retrieved = Annotation.get(annotation_id)
+        retrieved = Annotation.get(annotation_id, session=session)
         assert retrieved is not None
         assert retrieved.token_id == annotation_id
         assert retrieved.pos == "N"
 
     def test_get_returns_none_for_nonexistent(self, db_session):
         """Test get() returns None for nonexistent annotation."""
-        result = Annotation.get(99999)
+        session = get_runtime_session()
+        result = Annotation.get(99999, session=session)
         assert result is None
 
     def test_exists_returns_true_when_exists(self, db_session):
         """Test exists() returns True when annotation exists."""
+        session = get_runtime_session()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         token = tokens[0]
 
         # Annotation already exists from Sentence.create
-        assert Annotation.exists(token.id) is True
+        assert Annotation.exists(token.id, session=session) is True
 
     def test_exists_returns_false_when_not_exists(self, db_session):
         """Test exists() returns False when annotation doesn't exist."""
+        session = get_runtime_session()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         token = tokens[0]
 
         # Delete existing annotation
-        existing_ann = Annotation.get(token.id)
+        existing_ann = Annotation.get(token.id, session=session)
         if existing_ann:
             existing_ann.delete()
 
-        assert Annotation.exists(token.id) is False
+        assert Annotation.exists(token.id, session=session) is False
 
     def test_to_json_serializes_all_fields(self, db_session):
         """Test to_json() serializes all fields."""
+        session = get_runtime_session()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         token = tokens[0]
 
         # Get existing annotation and update it
-        annotation = Annotation.get(token.id)
+        annotation = Annotation.get(token.id, session=session)
         assert annotation is not None
         annotation.pos = "N"
         annotation.gender = "m"
@@ -238,13 +247,14 @@ class TestAnnotation:
 
     def test_from_json_creates_annotation(self, db_session):
         """Test from_json() creates annotation from data."""
+        session = get_runtime_session()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         token = tokens[0]
 
         # Delete existing annotation created by Sentence.create
-        existing_ann = Annotation.get(token.id)
+        existing_ann = Annotation.get(token.id, session=session)
         if existing_ann:
             existing_ann.delete()
 
@@ -271,13 +281,14 @@ class TestAnnotation:
 
     def test_from_json_handles_partial_data(self, db_session):
         """Test from_json() handles partial data."""
+        session = get_runtime_session()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         token = tokens[0]
 
         # Delete existing annotation created by Sentence.create
-        existing_ann = Annotation.get(token.id)
+        existing_ann = Annotation.get(token.id, session=session)
         if existing_ann:
             existing_ann.delete()
 
@@ -289,12 +300,15 @@ class TestAnnotation:
 
     def test_from_json_with_idiom_id(self, db_session):
         """Test from_json() with idiom_id."""
+        session = get_runtime_session()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
 
         idiom = Idiom(
-            sentence_id=sentence.id, start_token_id=tokens[0].id, end_token_id=tokens[1].id
+            sentence_id=sentence.id,
+            start_token_id=tokens[0].id,
+            end_token_id=tokens[1].id,
         )
         idiom.save()
 
@@ -315,7 +329,9 @@ class TestAnnotation:
             Annotation.from_json(1, {}, idiom_id=1)
 
         # Case 2: Neither ID provided
-        with pytest.raises(ValueError, match="Either token_id or idiom_id must be provided"):
+        with pytest.raises(
+            ValueError, match="Either token_id or idiom_id must be provided"
+        ):
             Annotation.from_json(None, {})
 
         # Case 3: Invalid field in JSON
@@ -330,6 +346,7 @@ class TestAnnotation:
 
     def test_from_json_updates_existing_annotation(self, db_session):
         """Test from_json() updates existing annotation."""
+        session = get_runtime_session()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
         token = sentence.tokens[0]
@@ -343,7 +360,7 @@ class TestAnnotation:
         assert annotation.confidence == 99
 
         # Verify it's the same record
-        retrieved = Annotation.get_by_token(token.id)
+        retrieved = Annotation.get_by_token(token.id, session=session)
         assert retrieved.id == annotation.id
         assert retrieved.pos == "V"
 
@@ -362,15 +379,16 @@ class TestAnnotation:
 
     def test_from_json_commit_false(self, db_session):
         """Test from_json() with commit=False."""
+        session = get_runtime_session()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
         token = sentence.tokens[0]
 
         # Delete existing
-        ann = Annotation.get_by_token(token.id)
+        ann = Annotation.get_by_token(token.id, session=session)
         if ann:
             ann.delete()
-        db_session.commit() # Ensure it's committed as deleted
+        db_session.commit()  # Ensure it's committed as deleted
 
         ann_data = {"pos": "N"}
         # from_json calls annotation.save(commit=commit)
@@ -381,23 +399,24 @@ class TestAnnotation:
         assert annotation in db_session
 
         # Verify it's in the DB (flushed)
-        assert Annotation.get_by_token(token.id) is not None
+        assert Annotation.get_by_token(token.id, session=session) is not None
 
         # Rollback the transaction - this should remove the flushed record
         db_session.rollback()
 
         # Now it should be gone
-        assert Annotation.get_by_token(token.id) is None
+        assert Annotation.get_by_token(token.id, session=session) is None
 
     def test_check_constraint_rejects_invalid_pos(self, db_session):
         """Test check constraint rejects invalid POS values."""
+        session = get_runtime_session()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         token = tokens[0]
 
         # Delete existing annotation
-        existing_ann = Annotation.get(token.id)
+        existing_ann = Annotation.get(token.id, session=session)
         if existing_ann:
             existing_ann.delete()
 
@@ -407,13 +426,14 @@ class TestAnnotation:
 
     def test_check_constraint_rejects_invalid_gender(self, db_session):
         """Test check constraint rejects invalid gender values."""
+        session = get_runtime_session()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         token = tokens[0]
 
         # Delete existing annotation
-        existing_ann = Annotation.get(token.id)
+        existing_ann = Annotation.get(token.id, session=session)
         if existing_ann:
             existing_ann.delete()
 
@@ -423,13 +443,14 @@ class TestAnnotation:
 
     def test_check_constraint_rejects_invalid_number(self, db_session):
         """Test check constraint rejects invalid number values."""
+        session = get_runtime_session()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         token = tokens[0]
 
         # Delete existing annotation
-        existing_ann = Annotation.get(token.id)
+        existing_ann = Annotation.get(token.id, session=session)
         if existing_ann:
             existing_ann.delete()
         annotation = Annotation(token_id=token.id, pos="N", number="x")
@@ -438,13 +459,14 @@ class TestAnnotation:
 
     def test_check_constraint_rejects_invalid_case(self, db_session):
         """Test check constraint rejects invalid case values."""
+        session = get_runtime_session()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         token = tokens[0]
 
         # Delete existing annotation
-        existing_ann = Annotation.get(token.id)
+        existing_ann = Annotation.get(token.id, session=session)
         if existing_ann:
             existing_ann.delete()
 
@@ -454,13 +476,14 @@ class TestAnnotation:
 
     def test_check_constraint_rejects_invalid_confidence(self, db_session):
         """Test check constraint rejects invalid confidence values."""
+        session = get_runtime_session()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         token = tokens[0]
 
         # Delete existing annotation
-        existing_ann = Annotation.get(token.id)
+        existing_ann = Annotation.get(token.id, session=session)
         if existing_ann:
             existing_ann.delete()
 
@@ -477,13 +500,14 @@ class TestAnnotation:
 
     def test_updated_at_set_on_creation(self, db_session):
         """Test updated_at is set on creation."""
+        session = get_runtime_session()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         token = tokens[0]
 
         # Get existing annotation and update it
-        annotation = Annotation.get(token.id)
+        annotation = Annotation.get(token.id, session=session)
         assert annotation is not None
         before = datetime.now(UTC).replace(tzinfo=None)
         annotation.pos = "N"
@@ -494,13 +518,14 @@ class TestAnnotation:
 
     def test_updated_at_updates_on_change(self, db_session):
         """Test updated_at updates when annotation is modified."""
+        session = get_runtime_session()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         token = tokens[0]
 
         # Get existing annotation
-        annotation = Annotation.get(token.id)
+        annotation = Annotation.get(token.id, session=session)
         assert annotation is not None
         annotation.pos = "N"
         annotation.save()
@@ -519,13 +544,14 @@ class TestAnnotation:
 
     def test_relationship_with_token(self, db_session):
         """Test annotation has relationship with token."""
+        session = get_runtime_session()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         token = tokens[0]
 
         # Get existing annotation
-        annotation = Annotation.get(token.id)
+        annotation = Annotation.get(token.id, session=session)
         assert annotation is not None
         annotation.pos = "N"
         annotation.save()
@@ -573,10 +599,11 @@ class TestAnnotationEmptinessPredicates:
     @pytest.fixture
     def annotation(self, db_session):
         """Get the default, untouched annotation created for a fresh token."""
+        session = get_runtime_session()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
-        token = Token.list(sentence.id)[0]
-        annotation = Annotation.get(token.id)
+        token = Token.list(sentence.id, session=session)[0]
+        annotation = Annotation.get(token.id, session=session)
         assert annotation is not None
         return annotation
 
@@ -748,10 +775,11 @@ class TestAnnotationFromAnnotation:
 
     def test_root_normalized_updates_with_root_changes(self, db_session):
         """Annotation should keep root_normalized in sync with root."""
+        session = get_runtime_session()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Sċip")
         token = sentence.tokens[0]
-        annotation = Annotation.get_by_token(token.id)
+        annotation = Annotation.get_by_token(token.id, session=session)
         assert annotation is not None
 
         annotation.root = "Sċip-ðrēam"
@@ -762,12 +790,13 @@ class TestAnnotationFromAnnotation:
 
     def test_from_annotation_commit_false(self, db_session):
         """Test commit=False does not save to DB."""
+        session = get_runtime_session()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
         token = sentence.tokens[0]
 
         # Ensure no existing annotation or delete it
-        ann = Annotation.get_by_token(token.id)
+        ann = Annotation.get_by_token(token.id, session=session)
         if ann:
             ann.delete()
 
@@ -778,16 +807,17 @@ class TestAnnotationFromAnnotation:
 
         # Check that it's not in DB
         # Note: Annotation.get_by_token uses a new select, so it should be None
-        assert Annotation.get_by_token(token.id) is None
+        assert Annotation.get_by_token(token.id, session=session) is None
 
     def test_from_annotation_commit_true(self, db_session):
         """Test commit=True saves to DB."""
+        session = get_runtime_session()
         project = create_test_project(db_session)
         sentence = create_test_sentence(db_session, project.id, "Se cyning")
         token = sentence.tokens[0]
 
         # Ensure no existing annotation or delete it
-        ann = Annotation.get_by_token(token.id)
+        ann = Annotation.get_by_token(token.id, session=session)
         if ann:
             ann.delete()
 
@@ -797,7 +827,7 @@ class TestAnnotationFromAnnotation:
         target.from_annotation(source, commit=True)
 
         # Check that it's in DB
-        retrieved = Annotation.get_by_token(token.id)
+        retrieved = Annotation.get_by_token(token.id, session=session)
         assert retrieved is not None
         assert retrieved.pos == "N"
 
@@ -827,3 +857,24 @@ def test_undo_snapshot_keeps_grammatical_and_lexical_fields_only() -> None:
         "last_inferred_json",
         "updated_at",
     }
+
+
+def test_get_by_token_reads_the_session_it_is_given(db_session) -> None:
+    """An uncommitted edit is visible only on the session passed in."""
+    project = create_test_project(db_session)
+    sentence = create_test_sentence(db_session, project.id, "Se cyning")
+    token = Token.list(sentence.id, session=db_session)[0]
+    found = Annotation.get_by_token(token.id, session=db_session)
+    assert found is not None  # noqa: S101
+    found.pos = "N"
+    db_session.flush()
+    other = sessionmaker(bind=db_session.get_bind())()
+    try:
+        stale = Annotation.get_by_token(token.id, session=other)
+        assert stale is not None  # noqa: S101
+        assert stale.pos != "N"  # noqa: S101
+        fresh = Annotation.get_by_token(token.id, session=db_session)
+        assert fresh is not None  # noqa: S101
+        assert fresh.pos == "N"  # noqa: S101
+    finally:
+        other.close()

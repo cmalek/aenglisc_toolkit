@@ -17,6 +17,7 @@ from oeapp.commands import (
 from oeapp.commands.abstract import Command, CommandLocators, StackAdjustment
 from oeapp.commands.stack_maintenance import maintain_stack
 from oeapp.commands.undo_command import UndoCommand, redo_step, undo_step
+from oeapp.db import get_runtime_session
 from oeapp.models.annotation import Annotation
 from oeapp.models.note import Note
 from oeapp.models.project import Project
@@ -38,10 +39,13 @@ class Setup:
 @pytest.fixture
 def setup(db_session) -> Setup:
     """Create a project with two sentences and an empty stack."""
+    session = get_runtime_session()
     project = Project.create(
-        text="Se cyning cōm. Hē wæs gōd.", name=f"Stack {id(db_session)}"
+        text="Se cyning cōm. Hē wæs gōd.",
+        name=f"Stack {id(db_session)}",
+        session=session,
     )
-    sentences = Sentence.list(project.id)
+    sentences = Sentence.list(project.id, session=session)
     assert len(sentences) == 2  # noqa: PLR2004
     return Setup(project.id, sentences[0].id, sentences[1].id, QUndoStack())
 
@@ -69,7 +73,8 @@ def add_sentence_before(project_id: int, sentence_id: int) -> AddSentenceCommand
 
 
 def merge_sentences(current_id: int, next_id: int) -> MergeSentenceCommand:
-    current = Sentence.get(current_id)
+    session = get_runtime_session()
+    current = Sentence.get(current_id, session=session)
     assert current is not None
     return MergeSentenceCommand(
         current_sentence_id=current_id,
@@ -86,7 +91,10 @@ def annotate(token_id: int) -> AnnotateTokenCommand:
 
 
 def token_named(sentence_id: int, surface: str) -> Token:
-    return next(t for t in Token.list(sentence_id) if t.surface == surface)
+    session = get_runtime_session()
+    return next(
+        t for t in Token.list(sentence_id, session=session) if t.surface == surface
+    )
 
 
 def entries(stack: QUndoStack) -> list:
@@ -97,22 +105,24 @@ def entries(stack: QUndoStack) -> list:
 
 
 def test_delete_drops_the_translation_step_and_undo_restores_the_capture(setup):
+    session = get_runtime_session()
     push_command(setup.undo_stack, edit_translation(setup.sentence_id, "", "hello"))
     push_command(setup.undo_stack, delete_sentence(setup.sentence_id))
     assert undo_step(setup.undo_stack) is True
-    sentences = Sentence.list(setup.project_id)
+    sentences = Sentence.list(setup.project_id, session=session)
     assert len(sentences) == 2  # noqa: PLR2004
     assert sentences[0].text_modern == "hello"
     assert setup.undo_stack.canUndo() is False
 
 
 def test_insert_keeps_the_translation_on_the_same_sentence_id(setup):
+    session = get_runtime_session()
     sentence_id = setup.sentence_id
     push_command(setup.undo_stack, edit_translation(sentence_id, "", "hello"))
     push_command(setup.undo_stack, add_sentence_before(setup.project_id, sentence_id))
     assert undo_step(setup.undo_stack) is True  # undo the insert
     assert undo_step(setup.undo_stack) is True
-    assert Sentence.get(sentence_id).text_modern == ""
+    assert Sentence.get(sentence_id, session=session).text_modern == ""
 
 
 # --- locators and adjustments ------------------------------------------------
@@ -133,7 +143,8 @@ def test_delete_and_merge_are_removals(setup):
 
 
 def test_delete_records_the_sentence_its_tokens_and_the_new_id_on_undo(setup):
-    token_ids = {t.id for t in Token.list(setup.sentence_id)}
+    session = get_runtime_session()
+    token_ids = {t.id for t in Token.list(setup.sentence_id, session=session)}
     delete = delete_sentence(setup.sentence_id)
     push_command(setup.undo_stack, delete)
     assert delete.last_adjustment.obsolete_sentence_ids == {setup.sentence_id}
@@ -142,7 +153,7 @@ def test_delete_records_the_sentence_its_tokens_and_the_new_id_on_undo(setup):
     undo_step(setup.undo_stack)
     # SQLite may hand the restored row the same id or a new one; the locator
     # follows whichever it is.
-    restored = Sentence.list(setup.project_id)[0]
+    restored = Sentence.list(setup.project_id, session=session)[0]
     assert delete.sentence_id == restored.id
     assert delete.last_adjustment.obsolete_sentence_ids == set()
 
@@ -151,6 +162,7 @@ def test_delete_records_the_sentence_its_tokens_and_the_new_id_on_undo(setup):
 
 
 def test_merge_moves_the_annotation_locator_with_its_token(setup):
+    session = get_runtime_session()
     token = token_named(setup.next_sentence_id, "wæs")
     annotation = annotate(token.id)
     push_command(setup.undo_stack, annotation)
@@ -166,14 +178,14 @@ def test_merge_moves_the_annotation_locator_with_its_token(setup):
     assert setup.undo_stack.command(0).isObsolete() is False
 
     assert undo_step(setup.undo_stack) is True
-    new_next = Sentence.list(setup.project_id)[1]
+    new_next = Sentence.list(setup.project_id, session=session)[1]
     assert merge.next_sentence_id == new_next.id
     assert merge.last_adjustment.token_sentence[token.id] == new_next.id
     assert annotation.sentence_id == new_next.id
-    assert Token.get(token.id).sentence_id == new_next.id
+    assert Token.get(token.id, session=session).sentence_id == new_next.id
 
     assert undo_step(setup.undo_stack) is True
-    assert Annotation.get_by_token(token.id).pos is None
+    assert Annotation.get_by_token(token.id, session=session).pos is None
 
 
 def test_translation_of_the_merged_away_sentence_is_dropped(setup):
@@ -206,6 +218,7 @@ def test_oe_edit_that_drops_the_surface_makes_the_annotation_obsolete(setup):
 
 
 def test_oe_edit_that_keeps_the_surface_leaves_the_annotation(setup):
+    session = get_runtime_session()
     token = token_named(setup.sentence_id, "cyning")
     push_command(setup.undo_stack, annotate(token.id))
     edit = edit_old_english(setup.sentence_id, "Se cyning cōm.", "Se cyning cōm nū.")
@@ -214,7 +227,7 @@ def test_oe_edit_that_keeps_the_surface_leaves_the_annotation(setup):
     assert setup.undo_stack.command(0).isObsolete() is False
     assert undo_step(setup.undo_stack) is True
     assert undo_step(setup.undo_stack) is True
-    assert Annotation.get_by_token(token.id).pos is None
+    assert Annotation.get_by_token(token.id, session=session).pos is None
 
 
 # --- snapshots are not locators ----------------------------------------------
@@ -262,6 +275,7 @@ def test_batch_apply_drops_dead_tokens_and_keeps_the_rest(setup):
 
 
 def test_redo_region_entries_on_a_removed_insert_are_dropped(setup):
+    session = get_runtime_session()
     add = add_sentence_before(setup.project_id, setup.sentence_id)
     push_command(setup.undo_stack, add)
     new_id = add.new_sentence_id
@@ -272,8 +286,8 @@ def test_redo_region_entries_on_a_removed_insert_are_dropped(setup):
     assert setup.undo_stack.command(1).isObsolete() is True
 
     assert redo_step(setup.undo_stack) is True
-    assert add.new_sentence_id == Sentence.list(setup.project_id)[0].id
-    assert Sentence.get(add.new_sentence_id).text_modern is None
+    assert add.new_sentence_id == Sentence.list(setup.project_id, session=session)[0].id
+    assert Sentence.get(add.new_sentence_id, session=session).text_modern is None
     assert setup.undo_stack.count() == 1
     assert setup.undo_stack.canRedo() is False
 
@@ -294,7 +308,8 @@ def test_maintain_stack_marks_only_orphaned_entries(setup):
 
 
 def add_note(sentence_id: int, text: str = "a note") -> AddNoteCommand:
-    tokens = Token.list(sentence_id)
+    session = get_runtime_session()
+    tokens = Token.list(sentence_id, session=session)
     return AddNoteCommand(
         sentence_id=sentence_id,
         start_token_id=tokens[0].id,
@@ -304,6 +319,7 @@ def add_note(sentence_id: int, text: str = "a note") -> AddNoteCommand:
 
 
 def test_note_step_under_a_deleted_sentence_does_not_jam_undo(setup):
+    session = get_runtime_session()
     stack = setup.undo_stack
     push_command(stack, edit_translation(setup.next_sentence_id, "", "kept"))
     push_command(stack, add_note(setup.sentence_id))
@@ -313,13 +329,14 @@ def test_note_step_under_a_deleted_sentence_does_not_jam_undo(setup):
     assert stack.count() == 2  # noqa: PLR2004
     assert stack.command(stack.index() - 1).text() == "Edit translation"
     assert undo_step(stack) is True
-    assert Sentence.get(setup.next_sentence_id).text_modern == ""
+    assert Sentence.get(setup.next_sentence_id, session=session).text_modern == ""
 
 
 def test_update_note_records_its_sentence_and_tokens(setup):
+    session = get_runtime_session()
     add = add_note(setup.sentence_id)
     push_command(setup.undo_stack, add)
-    note = Note.get(add.note_id)
+    note = Note.get(add.note_id, session=session)
     update = UpdateNoteCommand(
         note_id=note.id,
         before_text="a note",

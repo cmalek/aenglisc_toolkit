@@ -454,7 +454,7 @@ class AnnotationPresetManagementDialog(AnnotationLookupsMixin, SessionMixin, QDi
         if not preset_id:
             return
 
-        preset = AnnotationPreset.get(preset_id)
+        preset = AnnotationPreset.get(preset_id, session=self.session)
         if not preset:
             return
 
@@ -486,7 +486,7 @@ class AnnotationPresetManagementDialog(AnnotationLookupsMixin, SessionMixin, QDi
         if not preset_id:
             return
 
-        preset = AnnotationPreset.get(preset_id)
+        preset = AnnotationPreset.get(preset_id, session=self.session)
         if not preset:
             return
 
@@ -852,7 +852,9 @@ class AnnotationPresetManagementDialog(AnnotationLookupsMixin, SessionMixin, QDi
 
         try:
             if self.current_preset_id:
-                preset = AnnotationPreset.get(self.current_preset_id)
+                preset = AnnotationPreset.get(
+                    self.current_preset_id, session=self.session
+                )
                 if preset and preset.pos == pos:
                     self.preset_service.update_preset(
                         self.current_preset_id,

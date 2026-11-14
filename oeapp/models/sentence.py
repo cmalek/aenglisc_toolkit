@@ -15,7 +15,7 @@ from sqlalchemy import (
     UniqueConstraint,
     select,
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, Session, mapped_column, relationship
 
 from oeapp.db import Base
 from oeapp.models.mixins import SaveDeleteMixin
@@ -122,6 +122,8 @@ class Sentence(SaveDeleteMixin, Base):
         project_id: int,
         display_order: int,
         is_paragraph_start: bool,
+        *,
+        session: Session,
     ) -> dict[str, int]:
         """
         Calculate paragraph_number and sentence_number_in_paragraph for a new sentence.
@@ -131,11 +133,13 @@ class Sentence(SaveDeleteMixin, Base):
             display_order: Display order of the new sentence
             is_paragraph_start: Whether this sentence starts a paragraph
 
+        Keyword Args:
+            session: Runtime SQLAlchemy session.
+
         Returns:
             Dictionary with 'paragraph_number' and 'sentence_number_in_paragraph'
 
         """
-        session = cls._get_session()
         # Get all sentences before this one, ordered by display_order
         previous_sentences = list(
             session.scalars(
@@ -174,33 +178,37 @@ class Sentence(SaveDeleteMixin, Base):
         }
 
     @classmethod
-    def get(cls, sentence_id: int) -> Sentence | None:
+    def get(cls, sentence_id: int, *, session: Session) -> Sentence | None:
         """
         Get a sentence by ID.
 
         Args:
             sentence_id: Sentence id.
 
+        Keyword Args:
+            session: Runtime SQLAlchemy session.
+
         Returns:
             The computed value.
 
         """
-        session = cls._get_session()
         return session.get(cls, sentence_id)
 
     @classmethod
-    def list(cls, project_id: int) -> builtins.list[Sentence]:
+    def list(cls, project_id: int, *, session: Session) -> builtins.list[Sentence]:
         """
         Check if a sentence exists by project ID and display order.
 
         Args:
             project_id: Project id.
 
+        Keyword Args:
+            session: Runtime SQLAlchemy session.
+
         Returns:
             The computed value.
 
         """
-        session = cls._get_session()
         return builtins.list(
             session.scalars(
                 select(cls)
@@ -212,7 +220,9 @@ class Sentence(SaveDeleteMixin, Base):
         )
 
     @classmethod
-    def get_next_sentence(cls, project_id: int, display_order: int) -> Sentence | None:
+    def get_next_sentence(
+        cls, project_id: int, display_order: int, *, session: Session
+    ) -> Sentence | None:
         """
         Get the next sentence by project ID and display order.
 
@@ -220,11 +230,13 @@ class Sentence(SaveDeleteMixin, Base):
             project_id: Project ID
             display_order: Display order
 
+        Keyword Args:
+            session: Runtime SQLAlchemy session.
+
         Returns:
             The next sentence or None if there is no next sentence
 
         """
-        session = cls._get_session()
         stmt = (
             select(Sentence)
             .where(
@@ -245,6 +257,8 @@ class Sentence(SaveDeleteMixin, Base):
         verse_line_start: int | None = None,
         verse_line_end: int | None = None,
         commit: bool = True,
+        *,
+        session: Session,
     ) -> Sentence:
         """
         Import an entire OE text into a project.
@@ -262,6 +276,7 @@ class Sentence(SaveDeleteMixin, Base):
             verse_line_end: Last verse line number represented by this sentence
 
         Keyword Args:
+            session: Runtime SQLAlchemy session.
             commit: Whether to commit the changes to the database
 
         Returns:
@@ -276,8 +291,6 @@ class Sentence(SaveDeleteMixin, Base):
         from oeapp.services.logs import get_logger  # noqa: PLC0415
 
         logger = get_logger(cls.__name__)
-
-        session = cls._get_session()
 
         # If paragraph_id is not provided, ensure we have a default hierarchy
         if paragraph_id is None:
@@ -310,7 +323,7 @@ class Sentence(SaveDeleteMixin, Base):
 
         # Create tokens from sentence text
         tokens = Token.create_from_sentence(
-            sentence_id=sentence.id, sentence_text=text_oe
+            sentence_id=sentence.id, sentence_text=text_oe, session=session
         )
         sentence.tokens = tokens
 
@@ -328,7 +341,7 @@ class Sentence(SaveDeleteMixin, Base):
 
     @classmethod
     def subsequent_sentences(
-        cls, project_id: int, display_order: int
+        cls, project_id: int, display_order: int, *, session: Session
     ) -> Sequence[Sentence]:
         """
         Get the subsequent sentences by project ID and display order.
@@ -338,11 +351,13 @@ class Sentence(SaveDeleteMixin, Base):
             project_id: Project ID
             display_order: Display order
 
+        Keyword Args:
+            session: Runtime SQLAlchemy session.
+
         Returns:
             List of subsequent sentences
 
         """
-        session = cls._get_session()
         return builtins.list(
             session.scalars(
                 select(cls)
@@ -357,6 +372,8 @@ class Sentence(SaveDeleteMixin, Base):
         sentences: builtins.list[Sentence],
         order_mapping: dict[int, int] | None = None,
         order_function: Callable[[Sentence], int] | None = None,
+        *,
+        session: Session,
     ) -> builtins.list[tuple[int, int, int]]:
         """
         Update display_order for multiple sentences using two-phase approach.
@@ -369,6 +386,9 @@ class Sentence(SaveDeleteMixin, Base):
             order_mapping: Optional dict mapping sentence.id -> new display_order
             order_function: Optional function taking Sentence -> new display_order
 
+        Keyword Args:
+            session: Runtime SQLAlchemy session.
+
         Returns:
             List of (sentence_id, old_order, new_order) tuples tracking changes
 
@@ -376,7 +396,6 @@ class Sentence(SaveDeleteMixin, Base):
             ValueError: If neither order_mapping nor order_function is provided
 
         """
-        session = cls._get_session()
         if not sentences:
             return []
 
@@ -419,8 +438,7 @@ class Sentence(SaveDeleteMixin, Base):
 
     @classmethod
     def restore_display_orders(
-        cls,
-        changes: builtins.list[tuple[int, int, int]],
+        cls, changes: builtins.list[tuple[int, int, int]], *, session: Session
     ) -> None:
         """
         Restore display_order values using two-phase approach.
@@ -432,15 +450,17 @@ class Sentence(SaveDeleteMixin, Base):
         Args:
             changes: List of (sentence_id, old_order, new_order) tuples
 
+        Keyword Args:
+            session: Runtime SQLAlchemy session.
+
         """
-        session = cls._get_session()
         if not changes:
             return
 
         # Phase 1: Move to temporary positions
         temp_offset = -10000
         for sentence_id, _old_order, _new_order in changes:
-            sentence = cls.get(sentence_id)
+            sentence = cls.get(sentence_id, session=session)
             if sentence:
                 sentence.display_order = temp_offset
                 temp_offset -= 1
@@ -453,7 +473,7 @@ class Sentence(SaveDeleteMixin, Base):
             changes, key=lambda x: x[1], reverse=True
         )
         for sentence_id, old_order, _new_order in sorted_changes:
-            sentence = cls.get(sentence_id)
+            sentence = cls.get(sentence_id, session=session)
             if sentence:
                 sentence.display_order = old_order
                 session.add(sentence)
@@ -461,20 +481,23 @@ class Sentence(SaveDeleteMixin, Base):
         session.flush()
 
     @classmethod
-    def recalculate_project_structure(cls, project_id: int) -> None:
+    def recalculate_project_structure(
+        cls, project_id: int, *, session: Session
+    ) -> None:
         """
         Recalculate paragraph order for all paragraphs in a project.
 
         Args:
             project_id: Project id.
 
+        Keyword Args:
+            session: Runtime SQLAlchemy session.
+
         """
         # Import here to avoid circular import
         from oeapp.models.project import Project  # noqa: PLC0415
 
-        session = cls._get_session()
-
-        project = Project.get(project_id)
+        project = Project.get(project_id, session=session)
         if not project:
             return
 
@@ -550,6 +573,8 @@ class Sentence(SaveDeleteMixin, Base):
         sentence_data: dict,
         paragraph_lookup: dict[tuple[int, int, int], int],
         commit: bool = True,
+        *,
+        session: Session,
     ) -> Sentence:
         """
         Create a sentence and all related entities from JSON import data.
@@ -560,6 +585,7 @@ class Sentence(SaveDeleteMixin, Base):
             paragraph_lookup: Map of hierarchy refs to paragraph IDs
 
         Keyword Args:
+            session: Runtime SQLAlchemy session.
             commit: Whether to commit changes
 
         Returns:
@@ -608,7 +634,9 @@ class Sentence(SaveDeleteMixin, Base):
         # Create tokens and build token map
         token_map: dict[int, Token] = {}
         for token_data in sentence_data.get("tokens", []):
-            token = Token.from_json(sentence.id, token_data, commit=False)
+            token = Token.from_json(
+                sentence.id, token_data, commit=False, session=session
+            )
             token_map[token.order_index] = token
 
         # Create notes
@@ -617,9 +645,9 @@ class Sentence(SaveDeleteMixin, Base):
 
         # Create idioms
         for idiom_data in sentence_data.get("idioms", []):
-            Idiom.from_json(sentence.id, idiom_data, token_map, commit=False)
-
-        session = cls._get_session()
+            Idiom.from_json(
+                sentence.id, idiom_data, token_map, commit=False, session=session
+            )
         if commit:
             session.commit()
         else:
@@ -657,7 +685,7 @@ class Sentence(SaveDeleteMixin, Base):
 
         session = self._get_session()
         self.text_oe = text_oe
-        messages = Token.update_from_sentence(text_oe, self.id)
+        messages = Token.update_from_sentence(text_oe, self.id, session=session)
         if commit:
             session.commit()
         # Refresh to get updated tokens

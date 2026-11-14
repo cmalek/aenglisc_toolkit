@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from oeapp.db import get_runtime_session
 from oeapp.models.project import Project
 from oeapp.utils import get_logo_pixmap
 
@@ -146,6 +147,7 @@ class DeleteProjectDialog:
             Selected Project or None if no selection
 
         """
+        session = get_runtime_session()
         selected_row = self.project_table.currentRow()
         if selected_row < 0:
             return None
@@ -160,7 +162,7 @@ class DeleteProjectDialog:
 
         return cast(
             "Project",
-            Project.get(project_id),
+            Project.get(project_id, session=session),
         )
 
     def _export_and_delete(self) -> None:
@@ -189,6 +191,7 @@ class DeleteProjectDialog:
             project: Project to delete. If None, gets selected project.
 
         """
+        session = get_runtime_session()
         if project is None:
             project = self._get_selected_project()
 
@@ -252,7 +255,7 @@ class DeleteProjectDialog:
             self.main_window.setWindowTitle("Ænglisc Toolkit")
 
             # Show appropriate dialog based on remaining projects
-            remaining_projects = Project.list()
+            remaining_projects = Project.list(session=session)
             if not remaining_projects:
                 # No projects remaining, show NewProjectDialog
                 self.dialog.accept()

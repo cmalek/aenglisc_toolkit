@@ -50,11 +50,11 @@ class SplitSectionCommand(SessionMixin, Command):
 
         """
         session = self._get_session()
-        paragraph = Paragraph.get(self.paragraph_id)
+        paragraph = Paragraph.get(self.paragraph_id, session=session)
         if not paragraph or not paragraph.section_id:
             return False
 
-        original_section = Section.get(paragraph.section_id)
+        original_section = Section.get(paragraph.section_id, session=session)
         if not original_section:
             return False
 
@@ -62,7 +62,7 @@ class SplitSectionCommand(SessionMixin, Command):
         chapter_id = original_section.chapter_id
 
         # Get all paragraphs in the original section, ordered by order
-        paragraphs = Paragraph.list(section_id=original_section.id)
+        paragraphs = Paragraph.list(section_id=original_section.id, session=session)
         paragraphs = sorted(paragraphs, key=lambda p: p.order)
 
         # Find index of paragraph to split at
@@ -85,6 +85,7 @@ class SplitSectionCommand(SessionMixin, Command):
             chapter_id=chapter_id,
             number=original_section.number + 1,
             commit=False,
+            session=session,
         )
         self.new_section_id = new_section.id
 
@@ -93,6 +94,7 @@ class SplitSectionCommand(SessionMixin, Command):
             chapter_id=chapter_id,
             number=original_section.number,
             exclude_section_id=self.new_section_id,
+            session=session,
         )
         for s in subsequent_sections:
             s.number += 1
@@ -125,8 +127,8 @@ class SplitSectionCommand(SessionMixin, Command):
             return False
 
         # RE-FETCH EVERYTHING
-        new_section = Section.get(self.new_section_id)
-        original_section = Section.get(self.original_section_id)
+        new_section = Section.get(self.new_section_id, session=session)
+        original_section = Section.get(self.original_section_id, session=session)
         if not new_section or not original_section:
             return False
 
@@ -135,7 +137,9 @@ class SplitSectionCommand(SessionMixin, Command):
 
         # Move paragraphs back to original section
         # CRITICAL: Use a query to get them, don't rely on the relationship yet
-        paragraphs_to_move = Paragraph.list(section_id=self.new_section_id)
+        paragraphs_to_move = Paragraph.list(
+            section_id=self.new_section_id, session=session
+        )
 
         for i, p in enumerate(sorted(paragraphs_to_move, key=lambda x: x.order), 1):
             p.section_id = self.original_section_id
@@ -150,8 +154,7 @@ class SplitSectionCommand(SessionMixin, Command):
 
         # Shift subsequent sections back
         subsequent_sections = Section.get_sections_after(
-            chapter_id=chapter_id,
-            number=number_to_remove,
+            chapter_id=chapter_id, number=number_to_remove, session=session
         )
         for s in subsequent_sections:
             s.number -= 1
@@ -213,11 +216,11 @@ class MergeSectionCommand(SessionMixin, Command):
 
         """
         session = self._get_session()
-        paragraph = Paragraph.get(self.paragraph_id)
+        paragraph = Paragraph.get(self.paragraph_id, session=session)
         if not paragraph or not paragraph.section_id:
             return False
 
-        current_section = Section.get(paragraph.section_id)
+        current_section = Section.get(paragraph.section_id, session=session)
         if not current_section or current_section.number == 1:
             # Cannot merge first section of chapter
             return False
@@ -232,7 +235,9 @@ class MergeSectionCommand(SessionMixin, Command):
         chapter_id = current_section.chapter_id
 
         # Find previous section in the same chapter
-        prev_section = Section.previous_section(chapter_id, current_section.number)
+        prev_section = Section.previous_section(
+            chapter_id, current_section.number, session=session
+        )
         if not prev_section:
             return False
 
@@ -255,8 +260,7 @@ class MergeSectionCommand(SessionMixin, Command):
 
         # Shift subsequent sections back
         subsequent_sections = Section.get_sections_after(
-            chapter_id=chapter_id,
-            number=self.original_number,
+            chapter_id=chapter_id, number=self.original_number, session=session
         )
         for s in subsequent_sections:
             s.number -= 1
@@ -282,7 +286,7 @@ class MergeSectionCommand(SessionMixin, Command):
         ):
             return False
 
-        target_section = Section.get(self.target_section_id)
+        target_section = Section.get(self.target_section_id, session=session)
         if not target_section:
             return False
 
@@ -290,8 +294,7 @@ class MergeSectionCommand(SessionMixin, Command):
 
         # Shift subsequent sections forward
         subsequent_sections = Section.get_sections_after(
-            chapter_id=chapter_id,
-            number=self.original_number,
+            chapter_id=chapter_id, number=self.original_number, session=session
         )
         for s in subsequent_sections:
             s.number += 1
@@ -302,6 +305,7 @@ class MergeSectionCommand(SessionMixin, Command):
             chapter_id=chapter_id,
             number=self.original_number,
             commit=False,
+            session=session,
         )
 
         # Move paragraphs back
@@ -367,11 +371,11 @@ class SplitChapterCommand(SessionMixin, Command):
 
         """
         session = self._get_session()
-        section = Section.get(self.section_id)
+        section = Section.get(self.section_id, session=session)
         if not section or not section.chapter_id:
             return False
 
-        original_chapter = Chapter.get(section.chapter_id)
+        original_chapter = Chapter.get(section.chapter_id, session=session)
         if not original_chapter:
             return False
 
@@ -380,7 +384,7 @@ class SplitChapterCommand(SessionMixin, Command):
 
         # Get all sections in the original chapter, ordered by number
         sections = sorted(
-            Section.list(chapter_id=original_chapter.id),
+            Section.list(chapter_id=original_chapter.id, session=session),
             key=lambda s: s.number,
         )
 
@@ -404,6 +408,7 @@ class SplitChapterCommand(SessionMixin, Command):
             project_id=project_id,
             number=original_chapter.number + 1,
             commit=False,
+            session=session,
         )
         self.new_chapter_id = new_chapter.id
 
@@ -412,6 +417,7 @@ class SplitChapterCommand(SessionMixin, Command):
             project_id=project_id,
             number=original_chapter.number,
             exclude_chapter_id=self.new_chapter_id,
+            session=session,
         )
         for c in subsequent_chapters:
             c.number += 1
@@ -443,7 +449,7 @@ class SplitChapterCommand(SessionMixin, Command):
         if not self.new_chapter_id or not self.original_chapter_id:
             return False
 
-        new_chapter = Chapter.get(self.new_chapter_id)
+        new_chapter = Chapter.get(self.new_chapter_id, session=session)
         original_chapter = session.get(Chapter, self.original_chapter_id)
         if not new_chapter or not original_chapter:
             return False
@@ -468,8 +474,7 @@ class SplitChapterCommand(SessionMixin, Command):
 
         # Shift subsequent chapters back
         subsequent_chapters = Chapter.get_chapters_after(
-            project_id=project_id,
-            number=number_to_remove,
+            project_id=project_id, number=number_to_remove, session=session
         )
         for c in subsequent_chapters:
             c.number -= 1
@@ -527,11 +532,11 @@ class MergeChapterCommand(SessionMixin, Command):
 
         """
         session = self._get_session()
-        section = Section.get(self.section_id)
+        section = Section.get(self.section_id, session=session)
         if not section or not section.chapter_id:
             return False
 
-        current_chapter = Chapter.get(section.chapter_id)
+        current_chapter = Chapter.get(section.chapter_id, session=session)
         if not current_chapter or current_chapter.number == 1:
             # Cannot merge first chapter of project
             return False
@@ -546,7 +551,9 @@ class MergeChapterCommand(SessionMixin, Command):
         project_id = current_chapter.project_id
 
         # Find previous chapter in the same project
-        prev_chapter = Chapter.previous_chapter(project_id, current_chapter.number)
+        prev_chapter = Chapter.previous_chapter(
+            project_id, current_chapter.number, session=session
+        )
         if not prev_chapter:
             return False
 
@@ -569,8 +576,7 @@ class MergeChapterCommand(SessionMixin, Command):
 
         # Shift subsequent chapters back
         subsequent_chapters = Chapter.get_chapters_after(
-            project_id=project_id,
-            number=self.original_number,
+            project_id=project_id, number=self.original_number, session=session
         )
         for c in subsequent_chapters:
             c.number -= 1
@@ -596,7 +602,7 @@ class MergeChapterCommand(SessionMixin, Command):
         ):
             return False
 
-        target_chapter = Chapter.get(self.target_chapter_id)
+        target_chapter = Chapter.get(self.target_chapter_id, session=session)
         if not target_chapter:
             return False
 
@@ -604,8 +610,7 @@ class MergeChapterCommand(SessionMixin, Command):
 
         # Shift subsequent chapters forward
         subsequent_chapters = Chapter.get_chapters_after(
-            project_id=project_id,
-            number=self.original_number,
+            project_id=project_id, number=self.original_number, session=session
         )
         for c in subsequent_chapters:
             c.number += 1
@@ -616,6 +621,7 @@ class MergeChapterCommand(SessionMixin, Command):
             project_id=project_id,
             number=self.original_number,
             commit=False,
+            session=session,
         )
 
         # Move sections back

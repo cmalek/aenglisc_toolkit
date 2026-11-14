@@ -1,9 +1,7 @@
 """Unit tests for Menus."""
 
-from PySide6.QtGui import QAction
-from PySide6.QtWidgets import QMenu
 import pytest
-
+from oeapp.db import get_runtime_session
 from oeapp.help.topics import HELP_TOPICS
 from oeapp.ui.menus import (
     FileMenu,
@@ -13,6 +11,8 @@ from oeapp.ui.menus import (
     ProjectMenu,
     ToolsMenu,
 )
+from PySide6.QtGui import QAction
+from PySide6.QtWidgets import QMenu
 
 
 @pytest.fixture(autouse=True)
@@ -103,7 +103,9 @@ class TestProjectMenu:
         # Should not raise error
         assert project_menu is not None
 
-    def test_project_menu_has_edit_project_action(self, db_session, mock_main_window, qapp):
+    def test_project_menu_has_edit_project_action(
+        self, db_session, mock_main_window, qapp
+    ):
         """Test ProjectMenu has Edit Project action."""
         main_menu = MainMenu(mock_main_window)
         project_menu = ProjectMenu(main_menu, mock_main_window)
@@ -112,11 +114,15 @@ class TestProjectMenu:
         texts = [a.text() for a in actions]
         assert "&Edit Project..." in texts
 
-    def test_project_menu_export_submenu_items(self, db_session, mock_main_window, qapp):
+    def test_project_menu_export_submenu_items(
+        self, db_session, mock_main_window, qapp
+    ):
         """Project menu should expose an Export submenu with three items."""
         main_menu = MainMenu(mock_main_window)
         project_menu = ProjectMenu(main_menu, mock_main_window)
-        texts = [a.text() for a in project_menu.project_menu.actions() if not a.isSeparator()]
+        texts = [
+            a.text() for a in project_menu.project_menu.actions() if not a.isSeparator()
+        ]
         assert "&Export..." not in texts
         assert "&Export" in texts
         child_texts = [a.text() for a in project_menu.export_submenu.actions()]
@@ -126,7 +132,9 @@ class TestProjectMenu:
         self, db_session, mock_main_window, qapp
     ):
         """Reading-text export actions should reflect sentence/translation state."""
+        session = get_runtime_session()
         from oeapp.models.project import Project
+
         from tests.conftest import create_test_project
 
         main_menu = MainMenu(mock_main_window)
@@ -136,7 +144,7 @@ class TestProjectMenu:
         assert not project_menu.export_old_english_action.isEnabled()
         assert not project_menu.export_translation_action.isEnabled()
 
-        filled = Project.create(name="FilledMenu", text="Hwæt.")
+        filled = Project.create(name="FilledMenu", text="Hwæt.", session=session)
         project_menu.update_reading_export_enabled(filled)
         assert project_menu.export_old_english_action.isEnabled()
         assert not project_menu.export_translation_action.isEnabled()
@@ -267,7 +275,7 @@ class TestPreferencesMenu:
     def test_preferences_action_uses_preferences_role_on_macos(
         self, db_session, mock_main_window, qapp, monkeypatch
     ):
-        """macOS preferences action should use PreferencesRole and open settings."""
+        """MacOS preferences action should use PreferencesRole and open settings."""
         monkeypatch.setattr("oeapp.ui.menus.sys.platform", "darwin")
         monkeypatch.setattr("oeapp.ui.menus._is_offscreen_qt_platform", lambda: False)
         main_menu = MainMenu(mock_main_window)

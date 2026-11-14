@@ -2,14 +2,14 @@
 
 from unittest.mock import MagicMock
 
-import pytest
-
-from PySide6.QtGui import QUndoStack
+from oeapp.db import get_runtime_session
 from oeapp.models import Annotation, AnnotationJson
 from oeapp.models.project import Project
 from oeapp.ui.main_window import MainWindowActions
 from oeapp.ui.sentence_card import SentenceCard
+from PySide6.QtGui import QUndoStack
 from structlog.testing import capture_logs
+
 from tests.conftest import create_test_project
 
 
@@ -22,7 +22,9 @@ def _actions(mock_main_window) -> MainWindowActions:
     )
 
 
-def _select_card(db_session, mock_main_window, sentence, token_index: int) -> SentenceCard:
+def _select_card(
+    db_session, mock_main_window, sentence, token_index: int
+) -> SentenceCard:
     """Create and select a real sentence card for token interaction tests."""
     card = SentenceCard(
         sentence,
@@ -86,7 +88,9 @@ class TestCopyAnnotation:
         assert copied.sense == "ruler in this line"
         assert copied.root == "cyning"
 
-    def test_copy_annotation_copies_none_values(self, db_session, qapp, mock_main_window):
+    def test_copy_annotation_copies_none_values(
+        self, db_session, qapp, mock_main_window
+    ):
         """Test copy_annotation preserves explicit None values."""
         del qapp
         project = create_test_project(
@@ -123,7 +127,6 @@ class TestCopyAnnotation:
         assert copied.case is None
         assert copied.verb_class == "w1"
         assert copied.root == "bēon"
-
 
     def test_copy_annotation_stores_annotation_json(
         self, db_session, qapp, mock_main_window
@@ -192,7 +195,9 @@ class TestPasteAnnotation:
 
         assert _actions(main_window).paste_annotation() is False
 
-    def test_paste_annotation_no_copied_annotation(self, db_session, qapp, mock_main_window):
+    def test_paste_annotation_no_copied_annotation(
+        self, db_session, qapp, mock_main_window
+    ):
         """Test paste_annotation shows message when nothing was copied."""
         del qapp
         project = create_test_project(db_session, name="Test", text="Se cyning")
@@ -201,9 +206,13 @@ class TestPasteAnnotation:
         _select_card(db_session, mock_main_window, sentence, 0)
 
         assert _actions(mock_main_window).paste_annotation() is True
-        mock_main_window.messages.show_message.assert_called_with("No annotation to paste")
+        mock_main_window.messages.show_message.assert_called_with(
+            "No annotation to paste"
+        )
 
-    def test_paste_annotation_success_and_undo(self, db_session, qapp, mock_main_window):
+    def test_paste_annotation_success_and_undo(
+        self, db_session, qapp, mock_main_window
+    ):
         """Test paste_annotation applies annotation data and remains undoable."""
         del qapp
         project = create_test_project(db_session, name="Test", text="Se cyning")
@@ -257,7 +266,6 @@ class TestPasteAnnotation:
         assert token.annotation.pos == "N"
         assert token.annotation.gender == "m"
 
-
     def test_paste_annotation_does_not_copy_source_timestamps(
         self, db_session, qapp, mock_main_window
     ):
@@ -282,7 +290,9 @@ class TestPasteAnnotation:
 class TestCopyPasteIntegration:
     """Integration tests for copy/paste workflow."""
 
-    def test_copy_then_paste_to_different_token(self, db_session, qapp, mock_main_window):
+    def test_copy_then_paste_to_different_token(
+        self, db_session, qapp, mock_main_window
+    ):
         """Test copying annotation from one token and pasting to another."""
         del qapp
         project = create_test_project(db_session, name="Test", text="Se cyning rād")
@@ -318,10 +328,10 @@ class TestCopyPasteIntegration:
         self, db_session, qapp, mock_main_window
     ):
         """Test copying annotation across sentences."""
+        session = get_runtime_session()
         del qapp
         project = Project.create(
-            name="Multi-sentence Test",
-            text="Se cyning.\nSēo cwēn.",
+            name="Multi-sentence Test", text="Se cyning.\nSēo cwēn.", session=session
         )
         sentence1 = project.sentences[0]
         sentence2 = project.sentences[1]

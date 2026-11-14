@@ -1,19 +1,21 @@
 """Tests to reproduce the annotation shifting bug."""
 
-import pytest
+from oeapp.db import get_runtime_session
 from oeapp.models.token import Token
-from oeapp.models.annotation import Annotation
+
 from tests.conftest import create_test_project, create_test_sentence
+
 
 def test_annotation_shift_on_insertion(db_session):
     """
     Test that inserting a token in the middle of a sentence
     causes later annotations to shift (the bug).
     """
+    session = get_runtime_session()
     project = create_test_project(db_session)
     # Original sentence: "Se cyning wæs"
     sentence = create_test_sentence(db_session, project.id, "Se cyning wæs")
-    tokens = Token.list(sentence.id)
+    tokens = Token.list(sentence.id, session=session)
     assert len(tokens) == 3
 
     # Add annotations to each token
@@ -31,7 +33,7 @@ def test_annotation_shift_on_insertion(db_session):
     sentence.update("Se god cyning wæs")
 
     # Get updated tokens
-    new_tokens = Token.list(sentence.id)
+    new_tokens = Token.list(sentence.id, session=session)
     assert len(new_tokens) == 4
 
     # Expected (what SHOULD happen):
@@ -53,19 +55,24 @@ def test_annotation_shift_on_insertion(db_session):
 
     assert se_token.annotation.modern_english_meaning == "meaning_0"
     # This is where it currently fails (it will have meaning_1 instead of None/empty)
-    assert god_token.annotation.modern_english_meaning is None or god_token.annotation.modern_english_meaning == ""
+    assert (
+        god_token.annotation.modern_english_meaning is None
+        or god_token.annotation.modern_english_meaning == ""
+    )
     assert cyning_token.annotation.modern_english_meaning == "meaning_1"
     assert waes_token.annotation.modern_english_meaning == "meaning_2"
+
 
 def test_annotation_shift_on_deletion(db_session):
     """
     Test that deleting a token in the middle of a sentence
     causes later annotations to shift (the bug).
     """
+    session = get_runtime_session()
     project = create_test_project(db_session)
     # Original sentence: "Se god cyning wæs"
     sentence = create_test_sentence(db_session, project.id, "Se god cyning wæs")
-    tokens = Token.list(sentence.id)
+    tokens = Token.list(sentence.id, session=session)
     assert len(tokens) == 4
 
     # Add annotations to each token
@@ -84,7 +91,7 @@ def test_annotation_shift_on_deletion(db_session):
     sentence.update("Se cyning wæs")
 
     # Get updated tokens
-    new_tokens = Token.list(sentence.id)
+    new_tokens = Token.list(sentence.id, session=session)
     assert len(new_tokens) == 3
 
     # Expected:
@@ -105,14 +112,16 @@ def test_annotation_shift_on_deletion(db_session):
     assert cyning_token.annotation.modern_english_meaning == "meaning_2"
     assert waes_token.annotation.modern_english_meaning == "meaning_3"
 
+
 def test_annotation_preserved_on_typo_fix(db_session):
     """
     Test that fixing a typo (1-to-1 replacement) preserves the annotation.
     """
+    session = get_runtime_session()
     project = create_test_project(db_session)
     # Original sentence: "Se cyning wæs"
     sentence = create_test_sentence(db_session, project.id, "Se cyning wæs")
-    tokens = Token.list(sentence.id)
+    tokens = Token.list(sentence.id, session=session)
 
     # Add annotation to "cyning"
     cyning_token = tokens[1]
@@ -123,20 +132,22 @@ def test_annotation_preserved_on_typo_fix(db_session):
     sentence.update("Se kyning wæs")
 
     # Get updated tokens
-    new_tokens = Token.list(sentence.id)
+    new_tokens = Token.list(sentence.id, session=session)
     kyning_token = next(t for t in new_tokens if t.surface == "kyning")
 
     # Annotation should be preserved
     assert kyning_token.annotation.modern_english_meaning == "king"
 
+
 def test_annotation_preserved_on_multiple_typo_fixes(db_session):
     """
     Test that fixing multiple adjacent typos (N-to-N replacement) preserves annotations.
     """
+    session = get_runtime_session()
     project = create_test_project(db_session)
     # Original sentence: "Se cyning wæs"
     sentence = create_test_sentence(db_session, project.id, "Se cyning wæs")
-    tokens = Token.list(sentence.id)
+    tokens = Token.list(sentence.id, session=session)
 
     # Add annotations
     tokens[1].annotation.modern_english_meaning = "king"
@@ -148,7 +159,7 @@ def test_annotation_preserved_on_multiple_typo_fixes(db_session):
     sentence.update("Se kyning was")
 
     # Get updated tokens
-    new_tokens = Token.list(sentence.id)
+    new_tokens = Token.list(sentence.id, session=session)
     kyning_token = next(t for t in new_tokens if t.surface == "kyning")
     was_token = next(t for t in new_tokens if t.surface == "was")
 
@@ -156,15 +167,17 @@ def test_annotation_preserved_on_multiple_typo_fixes(db_session):
     assert kyning_token.annotation.modern_english_meaning == "king"
     assert was_token.annotation.modern_english_meaning == "was"
 
+
 def test_annotation_stability_with_duplicate_surfaces(db_session):
     """
     Test that annotations stay with the correct instance of duplicate words
     when tokens are inserted/deleted.
     """
+    session = get_runtime_session()
     project = create_test_project(db_session)
     # Sentence: "ond he ond hie" (and he and they)
     sentence = create_test_sentence(db_session, project.id, "ond he ond hie")
-    tokens = Token.list(sentence.id)
+    tokens = Token.list(sentence.id, session=session)
     assert len(tokens) == 4
 
     # Annotate the two "ond" tokens differently
@@ -179,7 +192,7 @@ def test_annotation_stability_with_duplicate_surfaces(db_session):
     sentence.update("ond he þā ond hie")
 
     # Get updated tokens
-    new_tokens = Token.list(sentence.id)
+    new_tokens = Token.list(sentence.id, session=session)
     assert len(new_tokens) == 5
 
     # Check that the "ond" tokens kept their specific annotations
@@ -191,10 +204,9 @@ def test_annotation_stability_with_duplicate_surfaces(db_session):
 
     # Now delete the first "ond": "he þā ond hie"
     sentence.update("he þā ond hie")
-    new_tokens_after_delete = Token.list(sentence.id)
+    new_tokens_after_delete = Token.list(sentence.id, session=session)
     assert len(new_tokens_after_delete) == 4
 
     # The remaining "ond" should still be "AND_2"
     remaining_ond = next(t for t in new_tokens_after_delete if t.surface == "ond")
     assert remaining_ond.annotation.modern_english_meaning == "AND_2"
-

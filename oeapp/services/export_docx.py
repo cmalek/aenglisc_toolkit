@@ -64,7 +64,6 @@ class DOCXExporter(SessionMixin, AnnotationTextualMixin, TokenOccurrenceMixin):
             cell: The cell to modify
             **kwargs: Border settings (top, bottom, left, right, start, end)
 
-
         Keyword Args:
             kwargs: Kwargs.
 
@@ -215,9 +214,8 @@ class DOCXExporter(SessionMixin, AnnotationTextualMixin, TokenOccurrenceMixin):
         )
         previous_chapter = previous_section.chapter if previous_section else None
 
-        chapter_changed = (
-            current_chapter is not None
-            and (previous_chapter is None or current_chapter.id != previous_chapter.id)
+        chapter_changed = current_chapter is not None and (
+            previous_chapter is None or current_chapter.id != previous_chapter.id
         )
         if (
             current_chapter is not None
@@ -227,9 +225,8 @@ class DOCXExporter(SessionMixin, AnnotationTextualMixin, TokenOccurrenceMixin):
         ):
             titles.append(current_chapter.title)
 
-        section_changed = (
-            current_section is not None
-            and (previous_section is None or current_section.id != previous_section.id)
+        section_changed = current_section is not None and (
+            previous_section is None or current_section.id != previous_section.id
         )
         if (
             current_section is not None
@@ -254,7 +251,7 @@ class DOCXExporter(SessionMixin, AnnotationTextualMixin, TokenOccurrenceMixin):
         """
         doc: DocumentObject = Document()
         self._setup_document_styles(doc)
-        project = Project.get(project_id)
+        project = Project.get(project_id, session=self.session)
         if project is None:
             return False
 
@@ -376,7 +373,7 @@ class DOCXExporter(SessionMixin, AnnotationTextualMixin, TokenOccurrenceMixin):
         section.left_margin = Inches(0.5)
         section.right_margin = Inches(0.5)
 
-        project = Project.get(project_id)
+        project = Project.get(project_id, session=self.session)
         if project is None:
             return False
 
@@ -452,9 +449,8 @@ class DOCXExporter(SessionMixin, AnnotationTextualMixin, TokenOccurrenceMixin):
 
             is_paragraph_start = self._is_paragraph_start(sentence)
             if (
-                (sentence.is_verse or is_paragraph_start)
-                and previous_sentence is not None
-            ):
+                sentence.is_verse or is_paragraph_start
+            ) and previous_sentence is not None:
                 current_oe_p = oe_cell.add_paragraph()
                 current_mode_p = mode_cell.add_paragraph()
             elif previous_sentence is not None:

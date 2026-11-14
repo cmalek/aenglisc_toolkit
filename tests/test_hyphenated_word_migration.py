@@ -1,20 +1,20 @@
 """Unit tests for hyphenated word migration."""
 
-
-from oeapp.models.token import Token
+from oeapp.db import get_runtime_session
+from oeapp.models.annotation import Annotation
 from oeapp.models.project import Project
 from oeapp.models.sentence import Sentence
-from oeapp.models.annotation import Annotation
+from oeapp.models.token import Token
 
 
 def _run_migration(session):
     """Run the migration logic manually for testing."""
+    import sqlalchemy as sa
     from oeapp.models.alembic.versions.merge_hyphenated_words import (
         _find_hyphenated_words,
         _map_tokens_to_positions,
         _merge_tokens_for_hyphenated_word,
     )
-    import sqlalchemy as sa
 
     conn = session.connection()
 
@@ -39,7 +39,7 @@ def _run_migration(session):
                 WHERE sentence_id = :sentence_id
                 ORDER BY order_index
             """),
-            {"sentence_id": sentence_id}
+            {"sentence_id": sentence_id},
         )
         tokens = [
             {"id": row[0], "order_index": row[1], "surface": row[2]}
@@ -74,15 +74,17 @@ def _run_migration(session):
                 WHERE sentence_id = :sentence_id
                 ORDER BY order_index
             """),
-            {"sentence_id": sentence_id}
+            {"sentence_id": sentence_id},
         )
         remaining_tokens = [row[0] for row in tokens_result.fetchall()]
 
         # Update order_index to be sequential (0, 1, 2, ...)
         for new_index, token_id in enumerate(remaining_tokens):
             conn.execute(
-                sa.text("UPDATE tokens SET order_index = :order_index WHERE id = :token_id"),
-                {"order_index": new_index, "token_id": token_id}
+                sa.text(
+                    "UPDATE tokens SET order_index = :order_index WHERE id = :token_id"
+                ),
+                {"order_index": new_index, "token_id": token_id},
             )
 
     session.commit()
@@ -93,14 +95,16 @@ class TestHyphenatedWordMigration:
 
     def test_migration_simple_hyphenated_word(self, db_session):
         """Test merging ġe + wāt → ġe-wāt."""
+        session = get_runtime_session()
         # Create project and sentence with split tokens
         project = Project(name="Test Project")
         db_session.add(project)
         db_session.flush()
-        
+
         from oeapp.models.chapter import Chapter
-        from oeapp.models.section import Section
         from oeapp.models.paragraph import Paragraph
+        from oeapp.models.section import Section
+
         chapter = Chapter(project_id=project.id, number=1)
         db_session.add(chapter)
         db_session.flush()
@@ -115,43 +119,37 @@ class TestHyphenatedWordMigration:
             project_id=project.id,
             display_order=1,
             text_oe="ġe-wāt",
-            paragraph_id=paragraph.id
+            paragraph_id=paragraph.id,
         )
         db_session.add(sentence)
         db_session.flush()
 
         # Create tokens as if they were split (old behavior)
-        token1 = Token(
-            sentence_id=sentence.id,
-            order_index=0,
-            surface="ġe"
-        )
+        token1 = Token(sentence_id=sentence.id, order_index=0, surface="ġe")
         token1.save(commit=False)
-        token2 = Token(
-            sentence_id=sentence.id,
-            order_index=1,
-            surface="wāt"
-        )
+        token2 = Token(sentence_id=sentence.id, order_index=1, surface="wāt")
         token2.save()
 
         # Run migration
         _run_migration(db_session)
 
         # Verify tokens were merged
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         assert len(tokens) == 1
         assert tokens[0].surface == "ġe-wāt"
         assert tokens[0].order_index == 0
 
     def test_migration_multiple_identical_hyphenated_words(self, db_session):
         """Test multiple occurrences of same hyphenated word."""
+        session = get_runtime_session()
         project = Project(name="Test Project")
         db_session.add(project)
         db_session.flush()
 
         from oeapp.models.chapter import Chapter
-        from oeapp.models.section import Section
         from oeapp.models.paragraph import Paragraph
+        from oeapp.models.section import Section
+
         chapter = Chapter(project_id=project.id, number=1)
         db_session.add(chapter)
         db_session.flush()
@@ -166,20 +164,16 @@ class TestHyphenatedWordMigration:
             project_id=project.id,
             display_order=1,
             text_oe="ġe-wāt and ġe-wāt",
-            paragraph_id=paragraph.id
+            paragraph_id=paragraph.id,
         )
         db_session.add(sentence)
         db_session.flush()
 
         # Create split tokens
-        tokens_data = [
-            (0, "ġe"), (1, "wāt"), (2, "and"), (3, "ġe"), (4, "wāt")
-        ]
+        tokens_data = [(0, "ġe"), (1, "wāt"), (2, "and"), (3, "ġe"), (4, "wāt")]
         for order_index, surface in tokens_data:
             token = Token(
-                sentence_id=sentence.id,
-                order_index=order_index,
-                surface=surface
+                sentence_id=sentence.id, order_index=order_index, surface=surface
             )
             token.save(commit=False)
         db_session.commit()
@@ -188,7 +182,7 @@ class TestHyphenatedWordMigration:
         _run_migration(db_session)
 
         # Verify both hyphenated words were merged
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         assert len(tokens) == 3
         assert tokens[0].surface == "ġe-wāt"
         assert tokens[1].surface == "and"
@@ -196,6 +190,7 @@ class TestHyphenatedWordMigration:
 
     def test_migration_no_hyphenated_words(self, db_session):
         """Test sentences with no hyphenated words (should skip)."""
+        session = get_runtime_session()
         project = Project(name="Test Project")
         db_session.add(project)
         db_session.flush()
@@ -203,17 +198,18 @@ class TestHyphenatedWordMigration:
         sentence = Sentence.create(
             project_id=project.id,
             display_order=1,
-            text_oe="Se cyning wæs"
+            text_oe="Se cyning wæs",
+            session=session,
         )
 
-        original_tokens = Token.list(sentence.id)
+        original_tokens = Token.list(sentence.id, session=session)
         original_count = len(original_tokens)
 
         # Run migration
         _run_migration(db_session)
 
         # Verify tokens unchanged
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         assert len(tokens) == original_count
         assert tokens[0].surface == "Se"
         assert tokens[1].surface == "cyning"
@@ -221,13 +217,15 @@ class TestHyphenatedWordMigration:
 
     def test_migration_preserves_main_token_annotation(self, db_session):
         """Test annotation preserved on main word."""
+        session = get_runtime_session()
         project = Project(name="Test Project")
         db_session.add(project)
         db_session.flush()
 
         from oeapp.models.chapter import Chapter
-        from oeapp.models.section import Section
         from oeapp.models.paragraph import Paragraph
+        from oeapp.models.section import Section
+
         chapter = Chapter(project_id=project.id, number=1)
         db_session.add(chapter)
         db_session.flush()
@@ -242,51 +240,42 @@ class TestHyphenatedWordMigration:
             project_id=project.id,
             display_order=1,
             text_oe="ġe-wāt",
-            paragraph_id=paragraph.id
+            paragraph_id=paragraph.id,
         )
         db_session.add(sentence)
         db_session.flush()
 
         # Create tokens with annotation on main word
-        token1 = Token(
-            sentence_id=sentence.id,
-            order_index=0,
-            surface="ġe"
-        )
+        token1 = Token(sentence_id=sentence.id, order_index=0, surface="ġe")
         token1.save(commit=False)
 
-        token2 = Token(
-            sentence_id=sentence.id,
-            order_index=1,
-            surface="wāt"
-        )
+        token2 = Token(sentence_id=sentence.id, order_index=1, surface="wāt")
         token2.save(commit=False)
 
         # Add annotation to main word token
-        annotation = Annotation(
-            token_id=token2.id,
-            pos="V"
-        )
+        annotation = Annotation(token_id=token2.id, pos="V")
         annotation.save()
 
         # Run migration
         _run_migration(db_session)
 
         # Verify annotation is preserved
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         assert len(tokens) == 1
         assert tokens[0].annotation is not None
         assert tokens[0].annotation.pos == "V"
 
     def test_migration_discards_prefix_annotation(self, db_session):
         """Test prefix annotation is discarded."""
+        session = get_runtime_session()
         project = Project(name="Test Project")
         db_session.add(project)
         db_session.flush()
 
         from oeapp.models.chapter import Chapter
-        from oeapp.models.section import Section
         from oeapp.models.paragraph import Paragraph
+        from oeapp.models.section import Section
+
         chapter = Chapter(project_id=project.id, number=1)
         db_session.add(chapter)
         db_session.flush()
@@ -301,30 +290,22 @@ class TestHyphenatedWordMigration:
             project_id=project.id,
             display_order=1,
             text_oe="ġe-wāt",
-            paragraph_id=paragraph.id
+            paragraph_id=paragraph.id,
         )
         db_session.add(sentence)
         db_session.flush()
 
         # Create tokens with annotation on prefix
-        token1 = Token(
-            sentence_id=sentence.id,
-            order_index=0,
-            surface="ġe"
-        )
+        token1 = Token(sentence_id=sentence.id, order_index=0, surface="ġe")
         token1.save(commit=False)
 
-        token2 = Token(
-            sentence_id=sentence.id,
-            order_index=1,
-            surface="wāt"
-        )
+        token2 = Token(sentence_id=sentence.id, order_index=1, surface="wāt")
         token2.save(commit=False)
 
         # Add annotation to prefix token (should be discarded)
         annotation = Annotation(
             token_id=token1.id,
-            pos="N"  # Use valid POS value
+            pos="N",  # Use valid POS value
         )
         annotation.save()
 
@@ -332,20 +313,22 @@ class TestHyphenatedWordMigration:
         _run_migration(db_session)
 
         # Verify prefix token and its annotation are gone
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         assert len(tokens) == 1
         # Annotation should not exist (was on deleted token)
         assert tokens[0].annotation is None
 
     def test_migration_reorders_token_indices(self, db_session):
         """Test order_index values are correctly reordered."""
+        session = get_runtime_session()
         project = Project(name="Test Project")
         db_session.add(project)
         db_session.flush()
 
         from oeapp.models.chapter import Chapter
-        from oeapp.models.section import Section
         from oeapp.models.paragraph import Paragraph
+        from oeapp.models.section import Section
+
         chapter = Chapter(project_id=project.id, number=1)
         db_session.add(chapter)
         db_session.flush()
@@ -360,20 +343,16 @@ class TestHyphenatedWordMigration:
             project_id=project.id,
             display_order=1,
             text_oe="Se ġe-wāt cyning",
-            paragraph_id=paragraph.id
+            paragraph_id=paragraph.id,
         )
         db_session.add(sentence)
         db_session.flush()
 
         # Create tokens: Se, ġe, wāt, cyning
-        tokens_data = [
-            (0, "Se"), (1, "ġe"), (2, "wāt"), (3, "cyning")
-        ]
+        tokens_data = [(0, "Se"), (1, "ġe"), (2, "wāt"), (3, "cyning")]
         for order_index, surface in tokens_data:
             token = Token(
-                sentence_id=sentence.id,
-                order_index=order_index,
-                surface=surface
+                sentence_id=sentence.id, order_index=order_index, surface=surface
             )
             token.save(commit=False)
         db_session.commit()
@@ -382,20 +361,22 @@ class TestHyphenatedWordMigration:
         _run_migration(db_session)
 
         # Verify order_index is sequential
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         assert len(tokens) == 3
         for i, token in enumerate(tokens):
             assert token.order_index == i
 
     def test_migration_multiple_hyphenated_words_in_sentence(self, db_session):
         """Test multiple different hyphenated words."""
+        session = get_runtime_session()
         project = Project(name="Test Project")
         db_session.add(project)
         db_session.flush()
 
         from oeapp.models.chapter import Chapter
-        from oeapp.models.section import Section
         from oeapp.models.paragraph import Paragraph
+        from oeapp.models.section import Section
+
         chapter = Chapter(project_id=project.id, number=1)
         db_session.add(chapter)
         db_session.flush()
@@ -410,20 +391,16 @@ class TestHyphenatedWordMigration:
             project_id=project.id,
             display_order=1,
             text_oe="ġe-wāt be-bode",
-            paragraph_id=paragraph.id
+            paragraph_id=paragraph.id,
         )
         db_session.add(sentence)
         db_session.flush()
 
         # Create split tokens
-        tokens_data = [
-            (0, "ġe"), (1, "wāt"), (2, "be"), (3, "bode")
-        ]
+        tokens_data = [(0, "ġe"), (1, "wāt"), (2, "be"), (3, "bode")]
         for order_index, surface in tokens_data:
             token = Token(
-                sentence_id=sentence.id,
-                order_index=order_index,
-                surface=surface
+                sentence_id=sentence.id, order_index=order_index, surface=surface
             )
             token.save(commit=False)
         db_session.commit()
@@ -432,20 +409,22 @@ class TestHyphenatedWordMigration:
         _run_migration(db_session)
 
         # Verify both hyphenated words were merged
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         assert len(tokens) == 2
         assert tokens[0].surface == "ġe-wāt"
         assert tokens[1].surface == "be-bode"
 
     def test_migration_hyphenated_word_at_start(self, db_session):
         """Test hyphenated word at sentence start."""
+        session = get_runtime_session()
         project = Project(name="Test Project")
         db_session.add(project)
         db_session.flush()
 
         from oeapp.models.chapter import Chapter
-        from oeapp.models.section import Section
         from oeapp.models.paragraph import Paragraph
+        from oeapp.models.section import Section
+
         chapter = Chapter(project_id=project.id, number=1)
         db_session.add(chapter)
         db_session.flush()
@@ -460,7 +439,7 @@ class TestHyphenatedWordMigration:
             project_id=project.id,
             display_order=1,
             text_oe="ġe-wāt cyning",
-            paragraph_id=paragraph.id
+            paragraph_id=paragraph.id,
         )
         db_session.add(sentence)
         db_session.flush()
@@ -468,29 +447,29 @@ class TestHyphenatedWordMigration:
         tokens_data = [(0, "ġe"), (1, "wāt"), (2, "cyning")]
         for order_index, surface in tokens_data:
             token = Token(
-                sentence_id=sentence.id,
-                order_index=order_index,
-                surface=surface
+                sentence_id=sentence.id, order_index=order_index, surface=surface
             )
             token.save(commit=False)
         db_session.commit()
 
         _run_migration(db_session)
 
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         assert len(tokens) == 2
         assert tokens[0].surface == "ġe-wāt"
         assert tokens[1].surface == "cyning"
 
     def test_migration_hyphenated_word_at_end(self, db_session):
         """Test hyphenated word at sentence end."""
+        session = get_runtime_session()
         project = Project(name="Test Project")
         db_session.add(project)
         db_session.flush()
 
         from oeapp.models.chapter import Chapter
-        from oeapp.models.section import Section
         from oeapp.models.paragraph import Paragraph
+        from oeapp.models.section import Section
+
         chapter = Chapter(project_id=project.id, number=1)
         db_session.add(chapter)
         db_session.flush()
@@ -505,7 +484,7 @@ class TestHyphenatedWordMigration:
             project_id=project.id,
             display_order=1,
             text_oe="Se cyning ġe-wāt",
-            paragraph_id=paragraph.id
+            paragraph_id=paragraph.id,
         )
         db_session.add(sentence)
         db_session.flush()
@@ -513,16 +492,14 @@ class TestHyphenatedWordMigration:
         tokens_data = [(0, "Se"), (1, "cyning"), (2, "ġe"), (3, "wāt")]
         for order_index, surface in tokens_data:
             token = Token(
-                sentence_id=sentence.id,
-                order_index=order_index,
-                surface=surface
+                sentence_id=sentence.id, order_index=order_index, surface=surface
             )
             token.save(commit=False)
         db_session.commit()
 
         _run_migration(db_session)
 
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         assert len(tokens) == 3
         assert tokens[0].surface == "Se"
         assert tokens[1].surface == "cyning"
@@ -530,13 +507,15 @@ class TestHyphenatedWordMigration:
 
     def test_migration_with_en_dash(self, db_session):
         """Test en-dash (–) handling."""
+        session = get_runtime_session()
         project = Project(name="Test Project")
         db_session.add(project)
         db_session.flush()
 
         from oeapp.models.chapter import Chapter
-        from oeapp.models.section import Section
         from oeapp.models.paragraph import Paragraph
+        from oeapp.models.section import Section
+
         chapter = Chapter(project_id=project.id, number=1)
         db_session.add(chapter)
         db_session.flush()
@@ -551,7 +530,7 @@ class TestHyphenatedWordMigration:
             project_id=project.id,
             display_order=1,
             text_oe="ġe–wāt",
-            paragraph_id=paragraph.id
+            paragraph_id=paragraph.id,
         )
         db_session.add(sentence)
         db_session.flush()
@@ -559,28 +538,28 @@ class TestHyphenatedWordMigration:
         tokens_data = [(0, "ġe"), (1, "wāt")]
         for order_index, surface in tokens_data:
             token = Token(
-                sentence_id=sentence.id,
-                order_index=order_index,
-                surface=surface
+                sentence_id=sentence.id, order_index=order_index, surface=surface
             )
             token.save(commit=False)
         db_session.commit()
 
         _run_migration(db_session)
 
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         assert len(tokens) == 1
         assert tokens[0].surface == "ġe–wāt"
 
     def test_migration_with_em_dash(self, db_session):
         """Test em-dash (—) handling."""
+        session = get_runtime_session()
         project = Project(name="Test Project")
         db_session.add(project)
         db_session.flush()
 
         from oeapp.models.chapter import Chapter
-        from oeapp.models.section import Section
         from oeapp.models.paragraph import Paragraph
+        from oeapp.models.section import Section
+
         chapter = Chapter(project_id=project.id, number=1)
         db_session.add(chapter)
         db_session.flush()
@@ -595,7 +574,7 @@ class TestHyphenatedWordMigration:
             project_id=project.id,
             display_order=1,
             text_oe="ġe—wāt",
-            paragraph_id=paragraph.id
+            paragraph_id=paragraph.id,
         )
         db_session.add(sentence)
         db_session.flush()
@@ -603,15 +582,13 @@ class TestHyphenatedWordMigration:
         tokens_data = [(0, "ġe"), (1, "wāt")]
         for order_index, surface in tokens_data:
             token = Token(
-                sentence_id=sentence.id,
-                order_index=order_index,
-                surface=surface
+                sentence_id=sentence.id, order_index=order_index, surface=surface
             )
             token.save(commit=False)
         db_session.commit()
 
         _run_migration(db_session)
 
-        tokens = Token.list(sentence.id)
+        tokens = Token.list(sentence.id, session=session)
         assert len(tokens) == 1
         assert tokens[0].surface == "ġe—wāt"

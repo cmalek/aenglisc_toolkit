@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 
+from oeapp.db import get_runtime_session
 from oeapp.models.mixins import SessionMixin
 from oeapp.models.note import Note
 from oeapp.models.sentence import Sentence
@@ -75,6 +76,7 @@ class AddNoteCommand(SessionMixin, Command):
             True if successful, False otherwise
 
         """
+        session = get_runtime_session()
         # Get next note number
         if self.note_number is None:
             self.note_number = self._get_next_note_number()
@@ -91,6 +93,7 @@ class AddNoteCommand(SessionMixin, Command):
             end_token_id=end_token_id,
             note_text_md=self.note_text,
             note_type="span",
+            session=session,
         )
         self.note_id = note.id
         return True
@@ -103,10 +106,11 @@ class AddNoteCommand(SessionMixin, Command):
             True if successful, False otherwise
 
         """
+        session = get_runtime_session()
         if self.note_id is None:
             return False
 
-        note = Note.get(self.note_id)
+        note = Note.get(self.note_id, session=session)
         if note is None:
             return False
 
@@ -158,7 +162,8 @@ class AddNoteCommand(SessionMixin, Command):
             Next note number
 
         """
-        sentence = Sentence.get(self.sentence_id)
+        session = get_runtime_session()
+        sentence = Sentence.get(self.sentence_id, session=session)
         if sentence is None:
             return 1
 
@@ -188,11 +193,8 @@ class AddNoteCommand(SessionMixin, Command):
             Note number (1-based)
 
         """
-        # Avoid circular import
-        from oeapp.db import get_runtime_session  # noqa: PLC0415
-
         session = get_runtime_session()
-        sentence = Sentence.get(sentence_id)
+        sentence = Sentence.get(sentence_id, session=session)
         if sentence is None:
             return 1
 
@@ -270,7 +272,8 @@ class UpdateNoteCommand(SessionMixin, Command):
             True if successful, False otherwise
 
         """
-        note = Note.get(self.note_id)
+        session = get_runtime_session()
+        note = Note.get(self.note_id, session=session)
         if note is None:
             return False
 
@@ -294,7 +297,8 @@ class UpdateNoteCommand(SessionMixin, Command):
             True if successful, False otherwise
 
         """
-        note = Note.get(self.note_id)
+        session = get_runtime_session()
+        note = Note.get(self.note_id, session=session)
         if note is None:
             return False
 
@@ -386,7 +390,8 @@ class DeleteNoteCommand(SessionMixin, Command):
             True if successful, False otherwise
 
         """
-        note = Note.get(self.note_id)
+        session = get_runtime_session()
+        note = Note.get(self.note_id, session=session)
         if note is None:
             return False
 
@@ -414,6 +419,7 @@ class DeleteNoteCommand(SessionMixin, Command):
             True if successful, False otherwise
 
         """
+        session = get_runtime_session()
         if (
             self.sentence_id is None
             or self.start_token_id is None
@@ -428,6 +434,7 @@ class DeleteNoteCommand(SessionMixin, Command):
             end_token_id=self.end_token_id,
             note_text_md=self.note_text,
             note_type="span",
+            session=session,
         )
         self.note_id = note.id
         return True

@@ -17,9 +17,9 @@ from sqlalchemy import (
     select,
     text,
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
+from sqlalchemy.orm import Mapped, Session, mapped_column, relationship, validates
 
-from oeapp.db import Base
+from oeapp.db import Base, get_runtime_session
 from oeapp.mixins import AnnotationTextualMixin
 from oeapp.utils import (
     normalize_old_english,
@@ -71,9 +71,7 @@ class RememberedAnnotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
         CheckConstraint(
             "gender IN ('m','f','n')", name="ck_remembered_annotations_gender"
         ),
-        CheckConstraint(
-            "number IN ('s','p')", name="ck_remembered_annotations_number"
-        ),
+        CheckConstraint("number IN ('s','p')", name="ck_remembered_annotations_number"),
         CheckConstraint(
             "\"case\" IN ('n','a','g','d','i')",
             name="ck_remembered_annotations_case",
@@ -247,22 +245,27 @@ class RememberedAnnotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
     )
 
     @classmethod
-    def get(cls, remembered_annotation_id: int) -> RememberedAnnotation | None:
+    def get(
+        cls, remembered_annotation_id: int, *, session: Session
+    ) -> RememberedAnnotation | None:
         """
         Get a remembered annotation by ID.
 
         Args:
             remembered_annotation_id: Remembered annotation id.
 
+        Keyword Args:
+            session: Runtime SQLAlchemy session.
+
         Returns:
             The computed value.
 
         """
-        return cls._get_session().get(cls, remembered_annotation_id)
+        return session.get(cls, remembered_annotation_id)
 
     @classmethod
     def get_for_scope(
-        cls, token_text: str, project_id: int | None
+        cls, token_text: str, project_id: int | None, *, session: Session
     ) -> RememberedAnnotation | None:
         """
         Get a remembered annotation for one exact token/scope pair.
@@ -271,11 +274,13 @@ class RememberedAnnotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
             token_text: Token text.
             project_id: Project id.
 
+        Keyword Args:
+            session: Runtime SQLAlchemy session.
+
         Returns:
             The computed value.
 
         """
-        session = cls._get_session()
         stmt = select(cls).where(cls.token_text == token_text)
         stmt = (
             stmt.where(cls.project_id.is_(None))
@@ -286,7 +291,7 @@ class RememberedAnnotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
 
     @classmethod
     def list_for_scope(
-        cls, project_id: int | None
+        cls, project_id: int | None, *, session: Session
     ) -> builtins.list[RememberedAnnotation]:
         """
         List remembered annotations for one explicit scope.
@@ -294,11 +299,13 @@ class RememberedAnnotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
         Args:
             project_id: Project id.
 
+        Keyword Args:
+            session: Runtime SQLAlchemy session.
+
         Returns:
             The computed value.
 
         """
-        session = cls._get_session()
         stmt = select(cls)
         stmt = (
             stmt.where(cls.project_id.is_(None))
@@ -309,7 +316,7 @@ class RememberedAnnotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
 
     @classmethod
     def matches_in_scope(
-        cls, token_text: str, project_id: int | None
+        cls, token_text: str, project_id: int | None, *, session: Session
     ) -> builtins.list[RememberedAnnotation]:
         """
         Return entries in one scope with this partially normalized spelling.
@@ -317,6 +324,9 @@ class RememberedAnnotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
         Args:
             token_text: Surface spelling to compare.
             project_id: Project id, or ``None`` for global scope.
+
+        Keyword Args:
+            session: Runtime SQLAlchemy session.
 
         Returns:
             Matching remembered entries, ordered by saved spelling.
@@ -327,7 +337,7 @@ class RememberedAnnotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
             return []
         matches = [
             entry
-            for entry in cls.list_for_scope(project_id)
+            for entry in cls.list_for_scope(project_id, session=session)
             if (partially_normalize_old_english(entry.token_text) or "") == key
         ]
         matches.sort(key=lambda entry: (entry.token_text, entry.id or 0))
@@ -335,7 +345,7 @@ class RememberedAnnotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
 
     @classmethod
     def ambiguous_groups_for_scope(
-        cls, project_id: int | None
+        cls, project_id: int | None, *, session: Session
     ) -> builtins.list[builtins.list[RememberedAnnotation]]:
         """
         Return same-scope groups that share one partially normalized spelling.
@@ -343,16 +353,21 @@ class RememberedAnnotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
         Args:
             project_id: Project id, or ``None`` for global scope.
 
+        Keyword Args:
+            session: Runtime SQLAlchemy session.
+
         Returns:
             Conflicting groups, each ordered by saved spelling.
 
         """
-        groups = cls._group_by_partial_spelling(cls.list_for_scope(project_id))
+        groups = cls._group_by_partial_spelling(
+            cls.list_for_scope(project_id, session=session)
+        )
         return [group for group in groups.values() if len(group) > 1]
 
     @classmethod
     def resolve_for_project(
-        cls, project_id: int
+        cls, project_id: int, *, session: Session
     ) -> tuple[
         dict[str, RememberedAnnotation],
         builtins.list[builtins.list[RememberedAnnotation]],
@@ -366,12 +381,19 @@ class RememberedAnnotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
         Args:
             project_id: Project id.
 
+        Keyword Args:
+            session: Runtime SQLAlchemy session.
+
         Returns:
             Applicable entries keyed by partial spelling, and conflicting groups.
 
         """
-        project_groups = cls._group_by_partial_spelling(cls.list_for_scope(project_id))
-        global_groups = cls._group_by_partial_spelling(cls.list_for_scope(None))
+        project_groups = cls._group_by_partial_spelling(
+            cls.list_for_scope(project_id, session=session)
+        )
+        global_groups = cls._group_by_partial_spelling(
+            cls.list_for_scope(None, session=session)
+        )
         applicable: dict[str, RememberedAnnotation] = {}
         ambiguous: builtins.list[builtins.list[RememberedAnnotation]] = []
         cls._collect_scope_group(project_groups, applicable, ambiguous)
@@ -387,7 +409,7 @@ class RememberedAnnotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
 
     @classmethod
     def upsert_from_token_annotation(
-        cls, token: Token, project_id: int | None
+        cls, token: Token, project_id: int | None, *, session: Session
     ) -> RememberedAnnotation:
         """
         Upsert a remembered entry from a live token annotation.
@@ -395,6 +417,9 @@ class RememberedAnnotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
         Args:
             token: Token.
             project_id: Project id.
+
+        Keyword Args:
+            session: Runtime SQLAlchemy session.
 
         Returns:
             The saved remembered entry.
@@ -408,13 +433,14 @@ class RememberedAnnotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
         if token.annotation is None:
             msg = "Cannot remember a token without an annotation"
             raise ValueError(msg)
-        matches = cls.matches_in_scope(token.surface, project_id)
+        matches = cls.matches_in_scope(token.surface, project_id, session=session)
         if len(matches) > 1:
             raise AmbiguousRememberedSpellingError(matches)
         return cls.upsert_fields(
             token_text=token.surface,
             project_id=project_id,
             field_data=cls._sanitize_annotation_data(token.annotation.to_json()),
+            session=session,
         )
 
     @classmethod
@@ -423,6 +449,8 @@ class RememberedAnnotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
         token_text: str,
         project_id: int | None,
         field_data: dict[str, Any],
+        *,
+        session: Session,
     ) -> RememberedAnnotation:
         """
         Upsert a remembered entry from sanitized field data.
@@ -432,6 +460,9 @@ class RememberedAnnotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
             project_id: Project id.
             field_data: Field data.
 
+        Keyword Args:
+            session: Runtime SQLAlchemy session.
+
         Returns:
             The saved remembered entry.
 
@@ -440,9 +471,9 @@ class RememberedAnnotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
                 matches do.
 
         """
-        remembered = cls.get_for_scope(token_text, project_id)
+        remembered = cls.get_for_scope(token_text, project_id, session=session)
         if remembered is None:
-            matches = cls.matches_in_scope(token_text, project_id)
+            matches = cls.matches_in_scope(token_text, project_id, session=session)
             if len(matches) > 1:
                 raise AmbiguousRememberedSpellingError(matches)
             remembered = (
@@ -471,7 +502,10 @@ class RememberedAnnotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
             The computed value.
 
         """
-        remembered = cls.get_for_scope(remembered_data["token_text"], project_id)
+        session = get_runtime_session()
+        remembered = cls.get_for_scope(
+            remembered_data["token_text"], project_id, session=session
+        )
         if remembered is None:
             remembered = cls(
                 project_id=project_id, token_text=remembered_data["token_text"]
@@ -484,7 +518,7 @@ class RememberedAnnotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
 
     @classmethod
     def matching_tokens(
-        cls, project_id: int, partial_keys: builtins.list[str]
+        cls, project_id: int, partial_keys: builtins.list[str], *, session: Session
     ) -> builtins.list[Token]:
         """
         Return project tokens whose partial spelling is one of the keys.
@@ -492,6 +526,9 @@ class RememberedAnnotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
         Args:
             project_id: Project id.
             partial_keys: Partially normalized spellings to match.
+
+        Keyword Args:
+            session: Runtime SQLAlchemy session.
 
         Returns:
             Matching tokens in display order.
@@ -503,7 +540,6 @@ class RememberedAnnotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
         from oeapp.models.sentence import Sentence  # noqa: PLC0415
         from oeapp.models.token import Token  # noqa: PLC0415
 
-        session = cls._get_session()
         stmt = (
             select(Token)
             .join(Sentence)
@@ -649,9 +685,7 @@ class RememberedAnnotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
                 "verb_requires_infinitive", False
             ),
             "verb_impersonal": annotation_data.get("verb_impersonal", False),
-            "verb_transitivity": annotation_data.get(
-                "verb_transitivity", "transitive"
-            ),
+            "verb_transitivity": annotation_data.get("verb_transitivity", "transitive"),
             "prep_case": annotation_data.get("prep_case"),
             "adjective_inflection": annotation_data.get("adjective_inflection"),
             "adjective_degree": annotation_data.get("adjective_degree"),

@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from oeapp.db import get_runtime_session
 from oeapp.models import RememberedAnnotation
 from oeapp.models.remembered_annotation import AmbiguousRememberedSpellingError
 from oeapp.services.remembered_annotation_service import RememberedAnnotationService
@@ -113,7 +114,8 @@ class RememberedAnnotationsDialog(QDialog):
 
     def _reload_entries(self) -> None:
         """Reload remembered entries for the current scope into the table."""
-        entries = RememberedAnnotation.list_for_scope(self.project_id)
+        session = get_runtime_session()
+        entries = RememberedAnnotation.list_for_scope(self.project_id, session=session)
         self.table.setRowCount(len(entries))
         for row, entry in enumerate(entries):
             summary = " ".join(
@@ -148,6 +150,7 @@ class RememberedAnnotationsDialog(QDialog):
             is selected.
 
         """
+        session = get_runtime_session()
         current_row = self.table.currentRow()
         if current_row < 0:
             return None
@@ -157,10 +160,11 @@ class RememberedAnnotationsDialog(QDialog):
         entry_id = item.data(1)
         if not isinstance(entry_id, int):
             return None
-        return RememberedAnnotation.get(entry_id)
+        return RememberedAnnotation.get(entry_id, session=session)
 
     def _create_new(self) -> None:
         """Create a new remembered annotation entry."""
+        session = get_runtime_session()
         token_text, accepted = QInputDialog.getText(
             self,
             "Remembered Token",
@@ -173,7 +177,9 @@ class RememberedAnnotationsDialog(QDialog):
         if not token_text:
             QMessageBox.warning(self, "Invalid Token", "Token text cannot be empty.")
             return
-        matches = RememberedAnnotation.matches_in_scope(token_text, self.project_id)
+        matches = RememberedAnnotation.matches_in_scope(
+            token_text, self.project_id, session=session
+        )
         if len(matches) > 1:
             spellings = " / ".join(entry.token_text for entry in matches)
             QMessageBox.warning(

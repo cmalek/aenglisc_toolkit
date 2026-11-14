@@ -6,6 +6,7 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QPalette
 
 from oeapp.commands import EditSentenceCommand, UndoCommand
+from oeapp.db import get_runtime_session
 from oeapp.models.sentence import Sentence
 
 if TYPE_CHECKING:
@@ -105,11 +106,12 @@ class UndoPresenter:
             card's Old English editor.
 
         """
+        session = get_runtime_session()
         if self._card_for(sentence_id) is not None:
             if step():
                 self.apply_translation(sentence_id, blink=False)
             return
-        sentence = Sentence.get(sentence_id)
+        sentence = Sentence.get(sentence_id, session=session)
         card = None
         if sentence is not None:
             card = self.main_window.project_ui.show_section_of(sentence)
@@ -157,8 +159,9 @@ class UndoPresenter:
             and flashes the editor when ``blink`` is set.
 
         """
+        session = get_runtime_session()
         card = self._card_for(sentence_id)
-        sentence = Sentence.get(sentence_id)
+        sentence = Sentence.get(sentence_id, session=session)
         if card is None or sentence is None:
             return
         card.set_translation_text(sentence.text_modern or "")

@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import QApplication, QMenu
 
+from oeapp.db import get_runtime_session
 from oeapp.help.topics import HELP_TOPICS
 from oeapp.models.project import Project
 from oeapp.ui.dialogs import (
@@ -147,12 +148,13 @@ class WindowMenu:
         """
         Event handler for full translation menu item: Show the full translation window.
         """
+        session = get_runtime_session()
         project_id = self.main_window.app_context.current_project_id
         if not project_id:
             self.main_window.messages.show_warning("No project open")
             return
 
-        project = Project.get(project_id)
+        project = Project.get(project_id, session=session)
         if not project:
             self.main_window.messages.show_error("Could not load project")
             return
@@ -490,13 +492,16 @@ class ProjectMenu:
             main_window: Main window.
 
         """
+        session = get_runtime_session()
         #: Main window instance
         self.main_window = main_window
         #: Main menu instance
         self.main_menu = main_menu
         self.populate()
         project_id = main_window.app_context.current_project_id
-        current_project = Project.get(project_id) if project_id else None
+        current_project = (
+            Project.get(project_id, session=session) if project_id else None
+        )
         self.update_reading_export_enabled(current_project)
 
     def populate(self) -> None:
@@ -563,9 +568,7 @@ class ProjectMenu:
 
         #: Exports the current project's Old English reading text as UTF-8
         #: ``.txt``. Disabled when the project has no sentences.
-        self.export_old_english_action = QAction(
-            "&Old English...", self.export_submenu
-        )
+        self.export_old_english_action = QAction("&Old English...", self.export_submenu)
         self.export_old_english_action.triggered.connect(
             self.main_window.action_service.export_old_english_text
         )
@@ -573,9 +576,7 @@ class ProjectMenu:
 
         #: Exports the current project's translation reading text as UTF-8
         #: ``.txt``. Disabled when the project has no translated sentences.
-        self.export_translation_action = QAction(
-            "&Translation...", self.export_submenu
-        )
+        self.export_translation_action = QAction("&Translation...", self.export_submenu)
         self.export_translation_action.triggered.connect(
             self.main_window.action_service.export_translation_text
         )
@@ -663,6 +664,7 @@ class HelpMenu:
 
         """
         self.help_menu.addSeparator()
+
         def show_help_topic(topic_title: str) -> None:
             self.main_window.show_help(topic=topic_title)
 

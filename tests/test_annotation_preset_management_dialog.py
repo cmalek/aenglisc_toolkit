@@ -1,7 +1,7 @@
 """Unit tests for AnnotationPresetManagementDialog."""
 
-import pytest
 
+from oeapp.db import get_runtime_session
 from oeapp.models.annotation_preset import AnnotationPreset
 
 
@@ -27,12 +27,17 @@ class TestAnnotationPresetManagementDialog:
     def test_dialog_initialization_save_mode(self, qapp, db_session):
         """Test dialog initialization with save_mode=True."""
         from pathlib import Path
-        file_path = Path(__file__).parent.parent / "oeapp" / "ui" / "dialogs" / "annotation_preset_management.py"
+
+        file_path = (
+            Path(__file__).parent.parent
+            / "oeapp"
+            / "ui"
+            / "dialogs"
+            / "annotation_preset_management.py"
+        )
         from oeapp.ui.dialogs import AnnotationPresetManagementDialog
 
-        dialog = AnnotationPresetManagementDialog(
-            save_mode=True, initial_pos="N"
-        )
+        dialog = AnnotationPresetManagementDialog(save_mode=True, initial_pos="N")
         assert dialog.save_mode
         assert dialog.initial_pos == "N"
         assert hasattr(dialog, "name_edit")
@@ -40,17 +45,23 @@ class TestAnnotationPresetManagementDialog:
     def test_dialog_initialization_with_initial_pos(self, qapp, db_session):
         """Test dialog initialization with initial_pos parameter."""
         import oeapp.ui.dialogs.annotation_preset_management as apm_module
+
         AnnotationPresetManagementDialog = apm_module.AnnotationPresetManagementDialog
 
-        dialog = AnnotationPresetManagementDialog(
-            initial_pos="V"
-        )
+        dialog = AnnotationPresetManagementDialog(initial_pos="V")
         assert dialog.initial_pos == "V"
 
     def test_dialog_initialization_with_initial_field_values(self, qapp, db_session):
         """Test dialog initialization with initial_field_values parameter."""
         from pathlib import Path
-        file_path = Path(__file__).parent.parent / "oeapp" / "ui" / "dialogs" / "annotation_preset_management.py"
+
+        file_path = (
+            Path(__file__).parent.parent
+            / "oeapp"
+            / "ui"
+            / "dialogs"
+            / "annotation_preset_management.py"
+        )
         from oeapp.ui.dialogs import AnnotationPresetManagementDialog
 
         field_values = {"gender": "m", "number": "s"}
@@ -64,24 +75,37 @@ class TestAnnotationPresetManagementDialog:
     def test_save_mode_hides_tabs(self, qapp, db_session):
         """Test save mode hides tabs and shows only form."""
         from pathlib import Path
-        file_path = Path(__file__).parent.parent / "oeapp" / "ui" / "dialogs" / "annotation_preset_management.py"
+
+        file_path = (
+            Path(__file__).parent.parent
+            / "oeapp"
+            / "ui"
+            / "dialogs"
+            / "annotation_preset_management.py"
+        )
         from oeapp.ui.dialogs import AnnotationPresetManagementDialog
 
-        dialog = AnnotationPresetManagementDialog(
-            save_mode=True, initial_pos="N"
-        )
+        dialog = AnnotationPresetManagementDialog(save_mode=True, initial_pos="N")
         # In save mode, tab_widget should not exist
         assert not hasattr(dialog, "tab_widget") or dialog.tab_widget is None
 
     def test_load_presets_for_pos_loads_into_list(self, qapp, db_session):
         """Test _load_presets_for_pos() loads presets into list widget."""
+        session = get_runtime_session()
         from pathlib import Path
-        file_path = Path(__file__).parent.parent / "oeapp" / "ui" / "dialogs" / "annotation_preset_management.py"
+
+        file_path = (
+            Path(__file__).parent.parent
+            / "oeapp"
+            / "ui"
+            / "dialogs"
+            / "annotation_preset_management.py"
+        )
         from oeapp.ui.dialogs import AnnotationPresetManagementDialog
 
         # Create test presets
-        AnnotationPreset.create(name="Preset 1", pos="N")
-        AnnotationPreset.create(name="Preset 2", pos="N")
+        AnnotationPreset.create(name="Preset 1", pos="N", session=session)
+        AnnotationPreset.create(name="Preset 2", pos="N", session=session)
 
         dialog = AnnotationPresetManagementDialog()
         dialog._load_presets_for_pos("N")
@@ -93,12 +117,17 @@ class TestAnnotationPresetManagementDialog:
     def test_validate_preset_name_required(self, qapp, db_session):
         """Test form validation (name required)."""
         from pathlib import Path
-        file_path = Path(__file__).parent.parent / "oeapp" / "ui" / "dialogs" / "annotation_preset_management.py"
+
+        file_path = (
+            Path(__file__).parent.parent
+            / "oeapp"
+            / "ui"
+            / "dialogs"
+            / "annotation_preset_management.py"
+        )
         from oeapp.ui.dialogs import AnnotationPresetManagementDialog
 
-        dialog = AnnotationPresetManagementDialog(
-            save_mode=True, initial_pos="N"
-        )
+        dialog = AnnotationPresetManagementDialog(save_mode=True, initial_pos="N")
         dialog.name_edit.setText("")  # Empty name
 
         is_valid, error_msg = dialog._validate_preset()
@@ -107,16 +136,22 @@ class TestAnnotationPresetManagementDialog:
 
     def test_validate_preset_checks_duplicates(self, qapp, db_session):
         """Test form validation checks for duplicate names."""
+        session = get_runtime_session()
         from pathlib import Path
-        file_path = Path(__file__).parent.parent / "oeapp" / "ui" / "dialogs" / "annotation_preset_management.py"
+
+        file_path = (
+            Path(__file__).parent.parent
+            / "oeapp"
+            / "ui"
+            / "dialogs"
+            / "annotation_preset_management.py"
+        )
         from oeapp.ui.dialogs import AnnotationPresetManagementDialog
 
         # Create existing preset
-        AnnotationPreset.create(name="Existing", pos="N")
+        AnnotationPreset.create(name="Existing", pos="N", session=session)
 
-        dialog = AnnotationPresetManagementDialog(
-            save_mode=True, initial_pos="N"
-        )
+        dialog = AnnotationPresetManagementDialog(save_mode=True, initial_pos="N")
         dialog.name_edit.setText("Existing")  # Duplicate name
 
         is_valid, error_msg = dialog._validate_preset()
@@ -127,9 +162,7 @@ class TestAnnotationPresetManagementDialog:
         """Test that empty is first and 'Clear' is second in combo boxes."""
         from oeapp.ui.dialogs import AnnotationPresetManagementDialog
 
-        dialog = AnnotationPresetManagementDialog(
-            save_mode=True, initial_pos="N"
-        )
+        dialog = AnnotationPresetManagementDialog(save_mode=True, initial_pos="N")
         gender_combo = _field(dialog, "gender")
 
         assert gender_combo.count() > 1
@@ -141,9 +174,7 @@ class TestAnnotationPresetManagementDialog:
         from oeapp.ui.dialogs import AnnotationPresetManagementDialog
         from oeapp.ui.dialogs.annotation_preset_management import CLEAR_SENTINEL
 
-        dialog = AnnotationPresetManagementDialog(
-            save_mode=True, initial_pos="N"
-        )
+        dialog = AnnotationPresetManagementDialog(save_mode=True, initial_pos="N")
         gender_combo = _field(dialog, "gender")
         number_combo = _field(dialog, "number")
         case_combo = _field(dialog, "case")
@@ -166,11 +197,10 @@ class TestAnnotationPresetManagementDialog:
 
     def test_save_preset_with_clear_values(self, qapp, db_session):
         """Test saving a preset with 'Clear' selected for some fields."""
+        session = get_runtime_session()
         from oeapp.ui.dialogs import AnnotationPresetManagementDialog
 
-        dialog = AnnotationPresetManagementDialog(
-            save_mode=True, initial_pos="N"
-        )
+        dialog = AnnotationPresetManagementDialog(save_mode=True, initial_pos="N")
         gender_combo = _field(dialog, "gender")
         number_combo = _field(dialog, "number")
 
@@ -185,7 +215,8 @@ class TestAnnotationPresetManagementDialog:
 
         # Verify preset was created
         from oeapp.models.annotation_preset import AnnotationPreset
-        presets = AnnotationPreset.get_all_by_pos("N")
+
+        presets = AnnotationPreset.get_all_by_pos("N", session=session)
         preset = next((p for p in presets if p.name == "Test Clear Preset"), None)
         assert preset is not None
         assert preset.gender is None
@@ -194,6 +225,7 @@ class TestAnnotationPresetManagementDialog:
 
     def test_save_mode_verb_metadata_defaults_are_persisted(self, qapp, db_session):
         """Verb preset save mode should persist new verb metadata defaults."""
+        session = get_runtime_session()
         from oeapp.ui.dialogs import AnnotationPresetManagementDialog
 
         dialog = AnnotationPresetManagementDialog(save_mode=True, initial_pos="V")
@@ -201,7 +233,7 @@ class TestAnnotationPresetManagementDialog:
         dialog._save_preset()
         db_session.commit()
 
-        presets = AnnotationPreset.get_all_by_pos("V")
+        presets = AnnotationPreset.get_all_by_pos("V", session=session)
         preset = next((p for p in presets if p.name == "Verb Metadata Defaults"), None)
         assert preset is not None
         assert preset.verb_requires_infinitive is False

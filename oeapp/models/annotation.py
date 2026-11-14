@@ -14,9 +14,9 @@ from sqlalchemy import (
     select,
     text,
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
+from sqlalchemy.orm import Mapped, Session, mapped_column, relationship, validates
 
-from oeapp.db import Base
+from oeapp.db import Base, get_runtime_session
 from oeapp.mixins import AnnotationTextualMixin
 from oeapp.utils import from_utc_iso, normalize_old_english, to_utc_iso
 
@@ -211,7 +211,13 @@ class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
     idiom: Mapped["Idiom"] = relationship("Idiom", back_populates="annotation")
 
     @classmethod
-    def exists(cls, token_id: int | None = None, idiom_id: int | None = None) -> bool:
+    def exists(
+        cls,
+        token_id: int | None = None,
+        idiom_id: int | None = None,
+        *,
+        session: Session,
+    ) -> bool:
         """
         Check if an annotation exists for a token or idiom.
 
@@ -219,11 +225,13 @@ class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
             token_id: Token id.
             idiom_id: Idiom id.
 
+        Keyword Args:
+            session: Runtime SQLAlchemy session.
+
         Returns:
             The computed value.
 
         """
-        session = cls._get_session()
         stmt = select(cls)
         if token_id is not None:
             stmt = stmt.where(cls.token_id == token_id)
@@ -234,48 +242,54 @@ class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
         return session.scalar(stmt) is not None
 
     @classmethod
-    def get(cls, annotation_id: int) -> "Annotation | None":
+    def get(cls, annotation_id: int, *, session: Session) -> "Annotation | None":
         """
         Get an annotation by ID.
 
         Args:
             annotation_id: Annotation id.
 
+        Keyword Args:
+            session: Runtime SQLAlchemy session.
+
         Returns:
             The computed value.
 
         """
-        session = cls._get_session()
         return session.get(cls, annotation_id)
 
     @classmethod
-    def get_by_token(cls, token_id: int) -> "Annotation | None":
+    def get_by_token(cls, token_id: int, *, session: Session) -> "Annotation | None":
         """
         Get an annotation by token ID.
 
         Args:
             token_id: Token id.
 
+        Keyword Args:
+            session: Runtime SQLAlchemy session.
+
         Returns:
             The computed value.
 
         """
-        session = cls._get_session()
         return session.scalar(select(cls).where(cls.token_id == token_id))
 
     @classmethod
-    def get_by_idiom(cls, idiom_id: int) -> "Annotation | None":
+    def get_by_idiom(cls, idiom_id: int, *, session: Session) -> "Annotation | None":
         """
         Get an annotation by idiom ID.
 
         Args:
             idiom_id: Idiom id.
 
+        Keyword Args:
+            session: Runtime SQLAlchemy session.
+
         Returns:
             The computed value.
 
         """
-        session = cls._get_session()
         return session.scalar(select(cls).where(cls.idiom_id == idiom_id))
 
     def to_json(self) -> dict:
@@ -466,6 +480,7 @@ class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
             Annotation
 
         """
+        session = get_runtime_session()
         # Import here to avoid circular import
         from oeapp.services.logs import get_logger  # noqa: PLC0415
 
@@ -479,9 +494,9 @@ class Annotation(AnnotationTextualMixin, SaveDeleteMixin, Base):
             msg = "Either token_id or idiom_id must be provided"
             raise ValueError(msg)
         if token_id is not None:
-            annotation = Annotation.get_by_token(token_id)
+            annotation = Annotation.get_by_token(token_id, session=session)
         if annotation is None and idiom_id is not None:
-            annotation = Annotation.get_by_idiom(idiom_id)
+            annotation = Annotation.get_by_idiom(idiom_id, session=session)
         if annotation is None:
             annotation = cls(
                 token_id=token_id,

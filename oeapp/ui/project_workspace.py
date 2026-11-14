@@ -8,6 +8,7 @@ from PySide6.QtCore import QTimer
 from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import QComboBox, QVBoxLayout, QWidget
 
+from oeapp.db import get_runtime_session
 from oeapp.models.project import Project
 from oeapp.ui.sentence_card import SentenceCard
 
@@ -132,10 +133,11 @@ class ProjectUI:
             chapter_id: Chapter whose sections should populate the combo.
 
         """
+        session = get_runtime_session()
         # Import here to avoid circular import
         from oeapp.models.chapter import Chapter  # noqa: PLC0415
 
-        chapter = Chapter.get(chapter_id)
+        chapter = Chapter.get(chapter_id, session=session)
         if not chapter:
             return
 
@@ -229,10 +231,11 @@ class ProjectUI:
             section_id: Section whose sentences should be shown.
 
         """
+        session = get_runtime_session()
         # Import here to avoid circular import
         from oeapp.models.section import Section  # noqa: PLC0415
 
-        section = Section.get(section_id)
+        section = Section.get(section_id, session=session)
         if not section:
             return
 
@@ -334,11 +337,12 @@ class ProjectUI:
             Loaded sentence card when found, else ``None``.
 
         """
+        session = get_runtime_session()
         # Import here to avoid circular import
         from oeapp.models.chapter import Chapter  # noqa: PLC0415
 
         if self.main_window.section_combo.currentData() != section_id:
-            chapter = Chapter.get(chapter_id)
+            chapter = Chapter.get(chapter_id, session=session)
             if chapter is None:
                 return None
             self.app_context.typed_run.end()
@@ -427,9 +431,7 @@ class ProjectUI:
             ``True`` when session and current project id are available.
 
         """
-        return (
-            bool(self.app_context.session) and self.app_context.has_current_project()
-        )
+        return bool(self.app_context.session) and self.app_context.has_current_project()
 
     def _reload_after_structure_change(
         self,
@@ -448,6 +450,7 @@ class ProjectUI:
             ``True`` when reload completed, else ``False``.
 
         """
+        session = get_runtime_session()
         if not self._can_reload_current_project():
             return False
 
@@ -455,7 +458,7 @@ class ProjectUI:
         if project_id is None:
             return False
 
-        project = Project.get(project_id)
+        project = Project.get(project_id, session=session)
         if project is None:
             return False
 

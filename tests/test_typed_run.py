@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from oeapp.commands import EditSentenceCommand, UndoCommand, push_command
+from oeapp.db import get_runtime_session
 from oeapp.models.project import Project
 from oeapp.state import AppContext
 from oeapp.ui.main_window import MainWindow
@@ -29,8 +30,11 @@ def mock_services():
 @pytest.fixture
 def main_window(qapp, db_session, mock_services):
     """Show a MainWindow with a two-sentence project loaded."""
+    session = get_runtime_session()
     project = Project.create(
-        text="Se cyning cōm. Hē wæs gōd.", name=f"Typed Run {id(db_session)}"
+        text="Se cyning cōm. Hē wæs gōd.",
+        name=f"Typed Run {id(db_session)}",
+        session=session,
     )
     window = MainWindow(app_context=AppContext(session=db_session))
     window.app_context.current_project_id = project.id

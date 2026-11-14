@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QTableWidget, QTableWidgetItem
 
+from oeapp.db import get_runtime_session
 from oeapp.models.project import Project
 
 if TYPE_CHECKING:
@@ -28,11 +29,12 @@ def load_projects_into_table(
         List of Project objects that were loaded
 
     """
+    session = get_runtime_session()
     # Disable sorting while populating to avoid issues
     project_table.setSortingEnabled(False)
     project_table.setRowCount(0)
 
-    projects = Project.list()
+    projects = Project.list(session=session)
     # Sort projects by updated_at in descending order.  We don't expect there
     # to be thousands of projects, so this is a simple list sort.  If we
     # ever need to sort by updated_at in a more efficient way, we can use a

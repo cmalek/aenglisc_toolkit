@@ -13,6 +13,7 @@ from oeapp.ui.main_window import MainWindowActions
 from oeapp.ui.sentence_card import SentenceCard
 
 from tests.conftest import create_test_project, create_test_sentence
+from oeapp.db import get_runtime_session
 
 
 def _actions(mock_main_window) -> MainWindowActions:
@@ -44,8 +45,9 @@ class TestAnnotationPropagationService:
     def test_plan_surface_propagation_matches_normalized_surface_across_project(
         self, db_session
     ):
+        session = get_runtime_session()
         project = Project.create(
-            name="Surface Match", text="Sē cyning. Se cyning. sē eorl."
+            name="Surface Match", text="Sē cyning. Se cyning. sē eorl.", session=session
         )
         tokens = [token for sentence in project.sentences for token in sentence.tokens]
         source_token = next(token for token in tokens if token.surface == "Sē")
@@ -150,7 +152,6 @@ class TestAnnotationPropagationService:
         assert plan.command.after[target_token.id]["modern_english_meaning"] == "king"
         assert plan.command.after[target_token.id]["sense"] == "dative use"
         assert plan.command.after[target_token.id]["case"] == "d"
-
 
     def test_plan_meaning_propagation_keeps_length_marks(self, db_session):
         """A root with a macron does not overwrite the same letters without one."""
@@ -290,9 +291,7 @@ class TestAnnotationPropagationMenu:
         self, db_session, qapp, mock_main_window
     ):
         del qapp
-        project = create_test_project(
-            db_session, name="Menu Surface", text="Sē cyning"
-        )
+        project = create_test_project(db_session, name="Menu Surface", text="Sē cyning")
         token = project.sentences[0].tokens[0]
         token.annotation.pos = "D"
         token.annotation.root = "se"
@@ -356,9 +355,7 @@ class TestAnnotationPropagationMenu:
         self, db_session, qapp, mock_main_window
     ):
         del qapp
-        project = create_test_project(
-            db_session, name="Menu Disable", text="Sē cyning"
-        )
+        project = create_test_project(db_session, name="Menu Disable", text="Sē cyning")
         token = project.sentences[0].tokens[0]
         token.annotation.pos = "D"
         token.annotation.save()
@@ -502,9 +499,7 @@ class TestAnnotationPropagationMenu:
                     patch.object(
                         text_edit, "createStandardContextMenu", return_value=menu
                     ),
-                    patch.object(
-                        text_edit, "cursorForPosition", return_value=cursor
-                    ),
+                    patch.object(text_edit, "cursorForPosition", return_value=cursor),
                 ):
                     event = MagicMock()
                     event.pos.return_value = QPoint(0, 0)

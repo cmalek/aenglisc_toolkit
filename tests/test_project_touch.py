@@ -1,19 +1,25 @@
 import time
 from datetime import UTC, datetime
 
-from oeapp.models import Annotation, Note, Project, Sentence, Token
+from oeapp.db import get_runtime_session
+from oeapp.models import Note, Project, Sentence
 
 
 def test_project_updated_at_on_sentence_create(db_session):
     """Test that creating a sentence updates the project's updated_at."""
-    project = Project.create(text="Initial text.", name="Test Project Create Sentence")
+    session = get_runtime_session()
+    project = Project.create(
+        text="Initial text.", name="Test Project Create Sentence", session=session
+    )
     db_session.commit()
     initial_updated_at = project.updated_at
 
     # Wait a bit to ensure timestamp will be different
     time.sleep(0.1)
 
-    Sentence.create(project_id=project.id, display_order=2, text_oe="New sentence.")
+    Sentence.create(
+        project_id=project.id, display_order=2, text_oe="New sentence.", session=session
+    )
     db_session.commit()
 
     db_session.refresh(project)
@@ -22,7 +28,10 @@ def test_project_updated_at_on_sentence_create(db_session):
 
 def test_project_updated_at_on_sentence_update(db_session):
     """Test that updating a sentence updates the project's updated_at."""
-    project = Project.create(text="Initial text.", name="Test Project Update Sentence")
+    session = get_runtime_session()
+    project = Project.create(
+        text="Initial text.", name="Test Project Update Sentence", session=session
+    )
     db_session.commit()
     sentence = project.sentences[0]
     initial_updated_at = project.updated_at
@@ -38,8 +47,11 @@ def test_project_updated_at_on_sentence_update(db_session):
 
 def test_project_updated_at_on_sentence_delete(db_session):
     """Test that deleting a sentence updates the project's updated_at."""
+    session = get_runtime_session()
     project = Project.create(
-        text="Sentence 1. Sentence 2.", name="Test Project Delete Sentence"
+        text="Sentence 1. Sentence 2.",
+        name="Test Project Delete Sentence",
+        session=session,
     )
     db_session.commit()
     sentence_to_delete = project.sentences[1]
@@ -55,7 +67,10 @@ def test_project_updated_at_on_sentence_delete(db_session):
 
 def test_project_updated_at_on_token_update(db_session):
     """Test that updating a token updates the project's updated_at."""
-    project = Project.create(text="Se cyning.", name="Test Project Update Token")
+    session = get_runtime_session()
+    project = Project.create(
+        text="Se cyning.", name="Test Project Update Token", session=session
+    )
     db_session.commit()
     sentence = project.sentences[0]
     token = sentence.tokens[0]
@@ -72,7 +87,10 @@ def test_project_updated_at_on_token_update(db_session):
 
 def test_project_updated_at_on_annotation_update(db_session):
     """Test that updating an annotation updates the project's updated_at."""
-    project = Project.create(text="Se cyning.", name="Test Project Update Annotation")
+    session = get_runtime_session()
+    project = Project.create(
+        text="Se cyning.", name="Test Project Update Annotation", session=session
+    )
     db_session.commit()
     sentence = project.sentences[0]
     token = sentence.tokens[0]
@@ -90,7 +108,10 @@ def test_project_updated_at_on_annotation_update(db_session):
 
 def test_project_updated_at_on_note_create(db_session):
     """Test that creating a note updates the project's updated_at."""
-    project = Project.create(text="Se cyning.", name="Test Project Create Note")
+    session = get_runtime_session()
+    project = Project.create(
+        text="Se cyning.", name="Test Project Create Note", session=session
+    )
     db_session.commit()
     sentence = project.sentences[0]
     initial_updated_at = project.updated_at
@@ -106,7 +127,10 @@ def test_project_updated_at_on_note_create(db_session):
 
 def test_project_updated_at_on_note_delete(db_session):
     """Test that deleting a note updates the project's updated_at."""
-    project = Project.create(text="Se cyning.", name="Test Project Delete Note")
+    session = get_runtime_session()
+    project = Project.create(
+        text="Se cyning.", name="Test Project Delete Note", session=session
+    )
     db_session.commit()
     sentence = project.sentences[0]
     note = Note(sentence_id=sentence.id, note_text_md="Test note")
@@ -126,11 +150,11 @@ def test_project_updated_at_on_note_delete(db_session):
 
 def test_timestamps_are_utc(db_session):
     """Test that timestamps are close to UTC now."""
-    project = Project.create(text="Test", name="Test Timestamps UTC")
+    session = get_runtime_session()
+    project = Project.create(text="Test", name="Test Timestamps UTC", session=session)
     db_session.commit()
     now_utc = datetime.now(UTC).replace(tzinfo=None)
 
     # Should be within a small delta of now_utc
     assert abs((project.updated_at - now_utc).total_seconds()) < 5
     assert abs((project.created_at - now_utc).total_seconds()) < 5
-

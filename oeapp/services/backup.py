@@ -11,7 +11,7 @@ from sqlalchemy import Engine, create_engine
 from sqlalchemy.exc import SQLAlchemyError
 
 from oeapp import __version__
-from oeapp.db import get_project_db_path, read_alembic_revision
+from oeapp.db import get_project_db_path, get_runtime_session, read_alembic_revision
 from oeapp.exc import BackupFailed
 from oeapp.models.project import Project
 
@@ -167,6 +167,7 @@ class BackupService(QObject):
             One dict per project, or an empty list when projects cannot be read
 
         """
+        session = get_runtime_session()
         try:
             return [
                 {
@@ -175,7 +176,7 @@ class BackupService(QObject):
                     "last_updated": project.updated_at.isoformat(),
                     "token_count": project.total_token_count(),
                 }
-                for project in Project.list()
+                for project in Project.list(session=session)
             ]
         except SQLAlchemyError as e:
             self.logger.warning("backup.projects.failed", error=e)

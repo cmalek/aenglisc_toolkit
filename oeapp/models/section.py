@@ -6,7 +6,7 @@ import builtins
 from typing import TYPE_CHECKING
 
 from sqlalchemy import Boolean, ForeignKey, Index, Integer, String, select
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, Session, mapped_column, relationship
 from sqlalchemy.sql import func
 
 from oeapp.db import Base
@@ -27,9 +27,7 @@ class Section(SaveDeleteMixin, Base):
     #: Tablename  .
     __tablename__ = "sections"
     #: Table args  .
-    __table_args__ = (
-        Index("idx_sections_chapter_number", "chapter_id", "number"),
-    )
+    __table_args__ = (Index("idx_sections_chapter_number", "chapter_id", "number"),)
 
     #: The section ID.
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -55,18 +53,20 @@ class Section(SaveDeleteMixin, Base):
     )
 
     @classmethod
-    def get(cls, section_id: int) -> Section | None:
+    def get(cls, section_id: int, *, session: Session) -> Section | None:
         """
         Get a section by ID.
 
         Args:
             section_id: Section id.
 
+        Keyword Args:
+            session: Runtime SQLAlchemy session.
+
         Returns:
             The computed value.
 
         """
-        session = cls._get_session()
         return session.get(cls, section_id)
 
     @classmethod
@@ -78,6 +78,8 @@ class Section(SaveDeleteMixin, Base):
         title_auto: bool = False,
         paragraphs: list[Paragraph] | None = None,
         commit: bool = True,
+        *,
+        session: Session,
     ) -> Section:
         """
         Create a new section.
@@ -89,6 +91,7 @@ class Section(SaveDeleteMixin, Base):
             title_auto: Whether the title was auto-generated
 
         Keyword Args:
+            session: Runtime SQLAlchemy session.
             paragraphs: The paragraphs to add to the section
             commit: Whether to commit the changes to the database
 
@@ -96,7 +99,6 @@ class Section(SaveDeleteMixin, Base):
             The new :class:`~oeapp.models.section.Section` object
 
         """
-        session = cls._get_session()
         section = cls(
             chapter_id=chapter_id,
             number=number,
@@ -114,7 +116,9 @@ class Section(SaveDeleteMixin, Base):
         return section
 
     @classmethod
-    def list(cls, chapter_id: int | None = None) -> Sequence[Section]:
+    def list(
+        cls, chapter_id: int | None = None, *, session: Session
+    ) -> Sequence[Section]:
         """
         Get all sections.  If ``chapter_id`` is provided, return sections in the
         chapter.
@@ -122,11 +126,13 @@ class Section(SaveDeleteMixin, Base):
         Args:
             chapter_id: Chapter ID
 
+        Keyword Args:
+            session: Runtime SQLAlchemy session.
+
         Returns:
             List of sections ordered by (Chapter.number, Section.number)
 
         """
-        session = cls._get_session()
         if chapter_id:
             stmt = select(cls).where(cls.chapter_id == chapter_id).order_by(cls.number)
         else:
@@ -135,7 +141,12 @@ class Section(SaveDeleteMixin, Base):
 
     @classmethod
     def get_sections_after(
-        cls, chapter_id: int, number: int, exclude_section_id: int | None = None
+        cls,
+        chapter_id: int,
+        number: int,
+        exclude_section_id: int | None = None,
+        *,
+        session: Session,
     ) -> Sequence[Section]:
         """
         Get the subsequent sections by chapter ID and number.
@@ -145,13 +156,13 @@ class Section(SaveDeleteMixin, Base):
             number: Section number
 
         Keyword Args:
+            session: Runtime SQLAlchemy session.
             exclude_section_id: Section ID to exclude
 
         Returns:
             List of subsequent sections
 
         """
-        session = cls._get_session()
         if exclude_section_id:
             stmt = select(cls).where(
                 cls.chapter_id == chapter_id,
@@ -163,7 +174,9 @@ class Section(SaveDeleteMixin, Base):
         return session.scalars(stmt.order_by(cls.number)).all()
 
     @classmethod
-    def previous_section(cls, chapter_id: int, number: int) -> Section | None:
+    def previous_section(
+        cls, chapter_id: int, number: int, *, session: Session
+    ) -> Section | None:
         """
         Get the section with the given number - 1 in the same chapter.
 
@@ -171,11 +184,13 @@ class Section(SaveDeleteMixin, Base):
             chapter_id: Chapter ID
             number: Section number
 
+        Keyword Args:
+            session: Runtime SQLAlchemy session.
+
         Returns:
             The previous section or None if not found
 
         """
-        session = cls._get_session()
         return session.scalar(
             select(cls)
             .where(cls.chapter_id == chapter_id, cls.number == number - 1)
@@ -272,6 +287,8 @@ class Section(SaveDeleteMixin, Base):
         chapter_id: int,
         section_data: dict,
         commit: bool = True,
+        *,
+        session: Session,
     ) -> Section:
         """
         Create section (and nested paragraphs) from JSON import data.
@@ -281,6 +298,7 @@ class Section(SaveDeleteMixin, Base):
             section_data: Section data dictionary from JSON
 
         Keyword Args:
+            session: Runtime SQLAlchemy session.
             commit: Whether to commit changes
 
         Returns:
@@ -290,7 +308,6 @@ class Section(SaveDeleteMixin, Base):
         # Import here to avoid circular import
         from oeapp.models.paragraph import Paragraph  # noqa: PLC0415
 
-        session = cls._get_session()
         section = cls(
             chapter_id=chapter_id,
             number=section_data["number"],
@@ -301,7 +318,9 @@ class Section(SaveDeleteMixin, Base):
         session.flush()
 
         for paragraph_data in section_data.get("paragraphs", []):
-            Paragraph.from_json(section.id, paragraph_data, commit=False)
+            Paragraph.from_json(
+                section.id, paragraph_data, commit=False, session=session
+            )
 
         if commit:
             session.commit()

@@ -6,6 +6,7 @@ from typing import Any
 from sqlalchemy import inspect
 from sqlalchemy.orm import make_transient
 
+from oeapp.db import get_runtime_session
 from oeapp.models.annotation import Annotation
 from oeapp.models.idiom import Idiom
 from oeapp.models.mixins import SessionMixin
@@ -38,10 +39,11 @@ class TokenBatchLocators(Command):
             Fills :attr:`token_sentence` for the tokens not yet recorded.
 
         """
+        session = get_runtime_session()
         for token_id in self.token_ids:
             if token_id in self.token_sentence:
                 continue
-            token = Token.get(token_id)
+            token = Token.get(token_id, session=session)
             if token is not None:
                 self.token_sentence[token_id] = token.sentence_id
 
@@ -116,10 +118,11 @@ class AnnotateTokenCommand(SessionMixin, Command):
             Annotation or None if not found
 
         """
+        session = get_runtime_session()
         if self.token_id:
-            return Annotation.get_by_token(self.token_id)
+            return Annotation.get_by_token(self.token_id, session=session)
         if self.idiom_id:
-            return Annotation.get_by_idiom(self.idiom_id)
+            return Annotation.get_by_idiom(self.idiom_id, session=session)
         return None
 
     def execute(self) -> bool:
@@ -184,7 +187,7 @@ class AnnotateTokenCommand(SessionMixin, Command):
         annotation.from_json(annotation.token_id, self.after, annotation.idiom_id)
 
         if self.idiom_id is not None and self.sentence_id is not None:
-            sentence = Sentence.get(self.sentence_id)
+            sentence = Sentence.get(self.sentence_id, session=session)
             if sentence is not None:
                 session.refresh(sentence, ["tokens", "idioms"])
         if self.sentence_id is None:
@@ -200,11 +203,12 @@ class AnnotateTokenCommand(SessionMixin, Command):
             The sentence id, or ``None`` when neither target exists.
 
         """
+        session = get_runtime_session()
         if self.token_id is not None:
-            token = Token.get(self.token_id)
+            token = Token.get(self.token_id, session=session)
             return token.sentence_id if token is not None else None
         if self.idiom_id is not None:
-            idiom = Idiom.get(self.idiom_id)
+            idiom = Idiom.get(self.idiom_id, session=session)
             return idiom.sentence_id if idiom is not None else None
         return None
 
@@ -253,7 +257,7 @@ class AnnotateTokenCommand(SessionMixin, Command):
         if self.new_idiom is not None:
             if self.idiom_id is not None:
                 session = self._get_session()
-                idiom = Idiom.get(self.idiom_id)
+                idiom = Idiom.get(self.idiom_id, session=session)
                 if idiom is not None:
                     session.delete(idiom)
                     session.commit()

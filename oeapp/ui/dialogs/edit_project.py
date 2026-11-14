@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from oeapp.db import get_runtime_session
 from oeapp.models.project import Project
 
 if TYPE_CHECKING:
@@ -117,6 +118,7 @@ class EditProjectDialog:
         - Catch any exceptions and show an error message
 
         """
+        session = get_runtime_session()
         title = self.title_edit.text().strip()
         if not title:
             self.app_context.show_error("Please enter a project title.")
@@ -127,10 +129,8 @@ class EditProjectDialog:
         notes = self.notes_edit.toPlainText().strip() or None
 
         # Check if title changed and if new title already exists
-        if title != self.project.name and Project.exists(title):
-            self.app_context.show_error(
-                f'Project with title "{title}" already exists.'
-            )
+        if title != self.project.name and Project.exists(title, session=session):
+            self.app_context.show_error(f'Project with title "{title}" already exists.')
             return
 
         self.project.name = title

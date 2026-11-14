@@ -1,15 +1,17 @@
-import pytest
-from PySide6.QtCore import QPoint, Qt
-from PySide6.QtGui import QUndoStack
-from oeapp.ui.sentence_card import SentenceCard
-from oeapp.models.token import Token
+from oeapp.db import get_runtime_session
 from oeapp.models.note import Note
-from tests.conftest import create_test_project, create_test_sentence
+from oeapp.ui.sentence_card import SentenceCard
+from PySide6.QtGui import QUndoStack
+
+from tests.conftest import create_test_project
+
 
 class TestTokenSelectionRobustness:
     """Test cases for robust token selection."""
 
-    def test_token_selection_with_notes_and_spaces(self, db_session, qapp, qtbot, mock_main_window):
+    def test_token_selection_with_notes_and_spaces(
+        self, db_session, qapp, qtbot, mock_main_window
+    ):
         """
         Test that tokens are correctly selected even with superscripts and extra spaces.
         This reproduces the problematic sentence provided by the user.
@@ -25,8 +27,18 @@ class TestTokenSelectionRobustness:
         of_token = tokens[32]
         ure_token = tokens[28]
 
-        note1 = Note(sentence_id=sentence.id, start_token=of_token.id, end_token=of_token.id, note_text_md="Note on of")
-        note2 = Note(sentence_id=sentence.id, start_token=ure_token.id, end_token=ure_token.id, note_text_md="Note on ure")
+        note1 = Note(
+            sentence_id=sentence.id,
+            start_token=of_token.id,
+            end_token=of_token.id,
+            note_text_md="Note on of",
+        )
+        note2 = Note(
+            sentence_id=sentence.id,
+            start_token=ure_token.id,
+            end_token=ure_token.id,
+            note_text_md="Note on ure",
+        )
         db_session.add(note1)
         db_session.add(note2)
         db_session.commit()
@@ -71,8 +83,9 @@ class TestTokenSelectionRobustness:
         """
         Test that selecting a token in one card clears selections in other cards.
         """
-        from oeapp.ui.main_window import MainWindow
+        session = get_runtime_session()
         from oeapp.models.project import Project
+        from oeapp.ui.main_window import MainWindow
 
         window = MainWindow()
         window.app_context.session = db_session
@@ -87,7 +100,7 @@ class TestTokenSelectionRobustness:
         db_session.commit()
         db_session.refresh(project)
 
-        project = Project.get(project.id)
+        project = Project.get(project.id, session=session)
         window.load_project(project)
         window.show()
         qtbot.addWidget(window)

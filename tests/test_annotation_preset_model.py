@@ -1,11 +1,11 @@
 """Unit tests for AnnotationPreset model."""
 
-import pytest
 from datetime import datetime
 
-from sqlalchemy.exc import IntegrityError
-
+import pytest
+from oeapp.db import get_runtime_session
 from oeapp.models.annotation_preset import AnnotationPreset
+from sqlalchemy.exc import IntegrityError
 
 
 class TestAnnotationPreset:
@@ -56,11 +56,9 @@ class TestAnnotationPreset:
 
     def test_create_class_method(self, db_session):
         """Test create() class method."""
+        session = get_runtime_session()
         preset = AnnotationPreset.create(
-            name="Created Preset",
-            pos="A",
-            gender="f",
-            number="p",
+            name="Created Preset", pos="A", gender="f", number="p", session=session
         )
 
         assert preset.id is not None
@@ -71,53 +69,59 @@ class TestAnnotationPreset:
 
     def test_create_validates_empty_name(self):
         """Test create() rejects empty name."""
+        session = get_runtime_session()
         with pytest.raises(ValueError, match="Preset name cannot be empty"):
-            AnnotationPreset.create(name="", pos="N")
+            AnnotationPreset.create(name="", pos="N", session=session)
 
     def test_create_validates_invalid_pos(self):
         """Test create() rejects invalid POS."""
+        session = get_runtime_session()
         with pytest.raises(ValueError, match="Invalid POS"):
-            AnnotationPreset.create(name="Test", pos="X")
+            AnnotationPreset.create(name="Test", pos="X", session=session)
 
     def test_get_class_method(self, db_session):
         """Test get() class method."""
+        session = get_runtime_session()
         preset = AnnotationPreset.create(
-            name="Get Test", pos="N", gender="m"
+            name="Get Test", pos="N", gender="m", session=session
         )
 
-        retrieved = AnnotationPreset.get(preset.id)
+        retrieved = AnnotationPreset.get(preset.id, session=session)
         assert retrieved is not None
         assert retrieved.id == preset.id
         assert retrieved.name == "Get Test"
 
     def test_get_returns_none_for_nonexistent(self, db_session):
         """Test get() returns None for nonexistent preset."""
-        result = AnnotationPreset.get(99999)
+        session = get_runtime_session()
+        result = AnnotationPreset.get(99999, session=session)
         assert result is None
 
     def test_get_all_by_pos_filters_correctly(self, db_session):
         """Test get_all_by_pos() filters correctly by POS."""
-        AnnotationPreset.create(name="Noun 1", pos="N")
-        AnnotationPreset.create(name="Noun 2", pos="N")
-        AnnotationPreset.create(name="Verb 1", pos="V")
+        session = get_runtime_session()
+        AnnotationPreset.create(name="Noun 1", pos="N", session=session)
+        AnnotationPreset.create(name="Noun 2", pos="N", session=session)
+        AnnotationPreset.create(name="Verb 1", pos="V", session=session)
 
-        nouns = AnnotationPreset.get_all_by_pos("N")
+        nouns = AnnotationPreset.get_all_by_pos("N", session=session)
         assert len(nouns) == 2
         assert all(p.pos == "N" for p in nouns)
         assert nouns[0].name == "Noun 1"  # Ordered by name
         assert nouns[1].name == "Noun 2"
 
-        verbs = AnnotationPreset.get_all_by_pos("V")
+        verbs = AnnotationPreset.get_all_by_pos("V", session=session)
         assert len(verbs) == 1
         assert verbs[0].pos == "V"
 
     def test_get_all_by_pos_orders_by_name(self, db_session):
         """Test get_all_by_pos() orders by name."""
-        AnnotationPreset.create(name="Zebra", pos="N")
-        AnnotationPreset.create(name="Alpha", pos="N")
-        AnnotationPreset.create(name="Beta", pos="N")
+        session = get_runtime_session()
+        AnnotationPreset.create(name="Zebra", pos="N", session=session)
+        AnnotationPreset.create(name="Alpha", pos="N", session=session)
+        AnnotationPreset.create(name="Beta", pos="N", session=session)
 
-        presets = AnnotationPreset.get_all_by_pos("N")
+        presets = AnnotationPreset.get_all_by_pos("N", session=session)
         assert len(presets) == 3
         assert presets[0].name == "Alpha"
         assert presets[1].name == "Beta"
@@ -125,12 +129,13 @@ class TestAnnotationPreset:
 
     def test_update_class_method(self, db_session):
         """Test update() class method."""
+        session = get_runtime_session()
         preset = AnnotationPreset.create(
-            name="Original", pos="N", gender="m"
+            name="Original", pos="N", gender="m", session=session
         )
 
         updated = AnnotationPreset.update(
-            preset.id, name="Updated", gender="f"
+            preset.id, name="Updated", gender="f", session=session
         )
 
         assert updated is not None
@@ -140,21 +145,24 @@ class TestAnnotationPreset:
 
     def test_update_returns_none_for_nonexistent(self, db_session):
         """Test update() returns None for nonexistent preset."""
-        result = AnnotationPreset.update(99999, name="Test")
+        session = get_runtime_session()
+        result = AnnotationPreset.update(99999, name="Test", session=session)
         assert result is None
 
     def test_delete_class_method(self, db_session):
         """Test delete() class method."""
-        preset = AnnotationPreset.create(name="To Delete", pos="N")
+        session = get_runtime_session()
+        preset = AnnotationPreset.create(name="To Delete", pos="N", session=session)
         preset_id = preset.id
 
         preset.delete()
-        assert AnnotationPreset.get(preset_id) is None
+        assert AnnotationPreset.get(preset_id, session=session) is None
 
     def test_to_json_method(self, db_session):
         """Test to_dict() method."""
+        session = get_runtime_session()
         preset = AnnotationPreset.create(
-            name="Dict Test", pos="R", pronoun_type="p", gender="m"
+            name="Dict Test", pos="R", pronoun_type="p", gender="m", session=session
         )
 
         data = preset.to_json()
@@ -171,6 +179,7 @@ class TestAnnotationPreset:
 
     def test_from_json_method(self, db_session):
         """Test from_json() creates a preset."""
+        session = get_runtime_session()
         preset_data = {
             "name": "Imported Preset",
             "pos": "N",
@@ -182,7 +191,7 @@ class TestAnnotationPreset:
             "verb_transitivity": "intransitive",
         }
 
-        preset = AnnotationPreset.from_json(preset_data)
+        preset = AnnotationPreset.from_json(preset_data, session=session)
         assert preset.id is not None
         assert preset.name == "Imported Preset"
         assert preset.pos == "N"
@@ -201,18 +210,20 @@ class TestAnnotationPreset:
 
     def test_unique_constraint_prevents_duplicates(self, db_session):
         """Test unique constraint prevents duplicate names per POS."""
-        AnnotationPreset.create(name="Duplicate", pos="N")
+        session = get_runtime_session()
+        AnnotationPreset.create(name="Duplicate", pos="N", session=session)
 
         # Same name, same POS should fail
         with pytest.raises(IntegrityError):
-            AnnotationPreset.create(name="Duplicate", pos="N")
+            AnnotationPreset.create(name="Duplicate", pos="N", session=session)
 
     def test_unique_constraint_allows_same_name_different_pos(self, db_session):
         """Test unique constraint allows same name for different POS."""
-        AnnotationPreset.create(name="Same Name", pos="N")
+        session = get_runtime_session()
+        AnnotationPreset.create(name="Same Name", pos="N", session=session)
 
         # Same name, different POS should succeed
-        preset2 = AnnotationPreset.create(name="Same Name", pos="V")
+        preset2 = AnnotationPreset.create(name="Same Name", pos="V", session=session)
         assert preset2.id is not None
 
     def test_nullable_fields_allow_none(self, db_session):
@@ -232,8 +243,11 @@ class TestAnnotationPreset:
 
     def test_timestamps_set_correctly(self, db_session):
         """Test timestamps are set correctly."""
+        session = get_runtime_session()
         before = datetime.now()
-        preset = AnnotationPreset.create(name="Timestamp Test", pos="A")
+        preset = AnnotationPreset.create(
+            name="Timestamp Test", pos="A", session=session
+        )
         after = datetime.now()
 
         assert before <= preset.created_at <= after
@@ -244,13 +258,15 @@ class TestAnnotationPreset:
 
     def test_updated_at_changes_on_update(self, db_session):
         """Test updated_at changes on update."""
-        preset = AnnotationPreset.create(name="Update Test", pos="N")
+        session = get_runtime_session()
+        preset = AnnotationPreset.create(name="Update Test", pos="N", session=session)
         original_updated = preset.updated_at
 
         import time
+
         time.sleep(0.01)  # Small delay to ensure timestamp difference
 
-        AnnotationPreset.update(preset.id, name="Updated Name")
+        AnnotationPreset.update(preset.id, name="Updated Name", session=session)
         db_session.refresh(preset)
 
         assert preset.updated_at > original_updated

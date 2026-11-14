@@ -1,11 +1,10 @@
 """Unit tests for DOCXExporter."""
 
-
 from docx import Document
-
+from oeapp.db import get_runtime_session
 from oeapp.services.export_docx import DOCXExporter
-from tests.conftest import create_test_project, create_test_sentence
 
+from tests.conftest import create_test_project, create_test_sentence
 
 
 class TestDOCXExporter:
@@ -13,7 +12,9 @@ class TestDOCXExporter:
 
     def test_export_creates_document(self, db_session, tmp_path):
         """Test export() creates a DOCX file."""
-        project = create_test_project(db_session, name="Test Project", text="Se cyning.")
+        project = create_test_project(
+            db_session, name="Test Project", text="Se cyning."
+        )
 
         exporter = DOCXExporter()
         output_path = tmp_path / "test.docx"
@@ -61,7 +62,9 @@ class TestDOCXExporter:
 
     def test_export_includes_sentence_numbers(self, db_session, tmp_path):
         """Test export() includes paragraph and sentence numbers."""
-        project = create_test_project(db_session, name="Test", text="Se cyning. Þæt scip.")
+        project = create_test_project(
+            db_session, name="Test", text="Se cyning. Þæt scip."
+        )
 
         exporter = DOCXExporter()
         output_path = tmp_path / "test.docx"
@@ -78,18 +81,18 @@ class TestDOCXExporter:
     def test_export_includes_paragraph_breaks(self, db_session, tmp_path):
         """Test export() adds extra blank lines for paragraph starts."""
         project = create_test_project(db_session, name="Test", text="")
-        
+
         from oeapp.models.chapter import Chapter
-        from oeapp.models.section import Section
         from oeapp.models.paragraph import Paragraph
-        
+        from oeapp.models.section import Section
+
         chapter = Chapter(project_id=project.id, number=1)
         db_session.add(chapter)
         db_session.flush()
         section = Section(chapter_id=chapter.id, number=1)
         db_session.add(section)
         db_session.flush()
-        
+
         p1 = Paragraph(section_id=section.id, order=1)
         p2 = Paragraph(section_id=section.id, order=2)
         db_session.add(p1)
@@ -98,10 +101,18 @@ class TestDOCXExporter:
 
         # Create sentences with paragraph breaks
         sentence1 = create_test_sentence(
-            db_session, project_id=project.id, text="First paragraph.", display_order=1, paragraph_id=p1.id
+            db_session,
+            project_id=project.id,
+            text="First paragraph.",
+            display_order=1,
+            paragraph_id=p1.id,
         )
         sentence2 = create_test_sentence(
-            db_session, project_id=project.id, text="Second paragraph.", display_order=2, paragraph_id=p2.id
+            db_session,
+            project_id=project.id,
+            text="Second paragraph.",
+            display_order=2,
+            paragraph_id=p2.id,
         )
 
         exporter = DOCXExporter()
@@ -149,6 +160,7 @@ class TestDOCXExporter:
         self, db_session, tmp_path
     ):
         """DOCX export should hide auto titles and add verse 5-line markers."""
+        session = get_runtime_session()
         from oeapp.models.chapter import Chapter
         from oeapp.models.paragraph import Paragraph
         from oeapp.models.project import Project
@@ -163,6 +175,7 @@ class TestDOCXExporter:
             title="Official Chapter",
             title_auto=False,
             commit=False,
+            session=session,
         )
         section1 = Section.create(
             chapter_id=chapter1.id,
@@ -170,6 +183,7 @@ class TestDOCXExporter:
             title="Official Section",
             title_auto=False,
             commit=False,
+            session=session,
         )
         paragraph1 = Paragraph(section_id=section1.id, order=1)
         db_session.add(paragraph1)
@@ -182,6 +196,7 @@ class TestDOCXExporter:
             verse_line_start=1,
             verse_line_end=5,
             commit=False,
+            session=session,
         )
         chapter2 = Chapter.create(
             project_id=project.id,
@@ -189,6 +204,7 @@ class TestDOCXExporter:
             title="Auto Chapter ....",
             title_auto=True,
             commit=False,
+            session=session,
         )
         section2 = Section.create(
             chapter_id=chapter2.id,
@@ -196,6 +212,7 @@ class TestDOCXExporter:
             title="Lines 6-10",
             title_auto=True,
             commit=False,
+            session=session,
         )
         paragraph2 = Paragraph(section_id=section2.id, order=1)
         db_session.add(paragraph2)
@@ -206,6 +223,7 @@ class TestDOCXExporter:
             text_oe="prose",
             paragraph_id=paragraph2.id,
             commit=False,
+            session=session,
         )
         db_session.commit()
 
@@ -233,6 +251,7 @@ class TestDOCXExporter:
             annotation = token.annotation
         else:
             from oeapp.models.annotation import Annotation
+
             annotation = Annotation(token_id=token.id)
             db_session.add(annotation)
             db_session.flush()
@@ -271,6 +290,7 @@ class TestDOCXExporter:
             annotation = token.annotation
         else:
             from oeapp.models.annotation import Annotation
+
             annotation = Annotation(token_id=token.id)
             db_session.add(annotation)
             db_session.flush()
@@ -307,11 +327,12 @@ class TestDOCXExporter:
 
         # Create a note
         from oeapp.models.note import Note
+
         note = Note(
             sentence_id=sentence.id,
             start_token=token.id,
             end_token=token.id,
-            note_text_md="This is a test note"
+            note_text_md="This is a test note",
         )
         note.save()
 
@@ -335,17 +356,18 @@ class TestDOCXExporter:
 
         # Create notes in reverse order
         from oeapp.models.note import Note
+
         note2 = Note(
             sentence_id=sentence.id,
             start_token=tokens[2].id,
             end_token=tokens[2].id,
-            note_text_md="Note on third token"
+            note_text_md="Note on third token",
         )
         note1 = Note(
             sentence_id=sentence.id,
             start_token=tokens[0].id,
             end_token=tokens[0].id,
-            note_text_md="Note on first token"
+            note_text_md="Note on first token",
         )
         note2.save(commit=False)
         note1.save()
@@ -400,11 +422,11 @@ class TestDOCXExporter:
         project = create_test_project(db_session, name="Test", text="")
 
         # Create sentence manually without tokens
-        from oeapp.models.sentence import Sentence
         from oeapp.models.chapter import Chapter
-        from oeapp.models.section import Section
         from oeapp.models.paragraph import Paragraph
-        
+        from oeapp.models.section import Section
+        from oeapp.models.sentence import Sentence
+
         chapter = Chapter(project_id=project.id, number=1)
         db_session.add(chapter)
         db_session.flush()
@@ -419,7 +441,7 @@ class TestDOCXExporter:
             project_id=project.id,
             display_order=1,
             text_oe="Test sentence",
-            paragraph_id=paragraph.id
+            paragraph_id=paragraph.id,
         )
         db_session.add(sentence)
         db_session.commit()
@@ -461,7 +483,7 @@ class TestDOCXExporter:
             text="Sentence one.",
             source="Side Source",
             translator="Side Translator",
-            notes="Side Project Notes"
+            notes="Side Project Notes",
         )
 
         exporter = DOCXExporter()
@@ -573,7 +595,6 @@ class TestDOCXExporter:
         exporter.export_side_by_side(project.id, output_path)
 
         doc = Document(str(output_path))
-        from oeapp.services.export_docx import qn
 
         # Check for hyperlinks in the main document
         table = doc.tables[0]
@@ -595,10 +616,11 @@ class TestDOCXExporter:
         )
         # Create a second paragraph and move the second sentence to it
         from oeapp.models.paragraph import Paragraph
+
         p2 = Paragraph(section_id=project.chapters[0].sections[0].id, order=2)
         db_session.add(p2)
         db_session.flush()
-        
+
         project.sentences[1].paragraph_id = p2.id
         db_session.commit()
 
