@@ -1,26 +1,34 @@
-import pytest
-from unittest.mock import MagicMock
 from pathlib import Path
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QTextCursor
-from PySide6.QtWidgets import QScrollArea, QVBoxLayout, QLabel
+from unittest.mock import MagicMock
 
-from oeapp.ui.full_translation_window import FullTranslationWindow, NOTE_HIGHLIGHT_PROPERTY, FullProjectNotesArea
+import pytest
+from oeapp.db import get_runtime_session
 from oeapp.models.chapter import Chapter
+from oeapp.models.note import Note
 from oeapp.models.paragraph import Paragraph
 from oeapp.models.project import Project
 from oeapp.models.section import Section
 from oeapp.models.sentence import Sentence
-from oeapp.models.note import Note
-from oeapp.models.token import Token
+from oeapp.ui.full_translation_window import (
+    NOTE_HIGHLIGHT_PROPERTY,
+    FullProjectNotesArea,
+    FullTranslationWindow,
+)
 from oeapp.ui.highlighting import SearchHighlighter
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QLabel
+
 
 @pytest.fixture
 def full_window(qapp, db_session, mock_main_window):
     """Fixture to create a FullTranslationWindow instance."""
-    project = Project.create(name="Test Project", text="First sentence. Second sentence.")
+    session = get_runtime_session()
+    project = Project.create(
+        name="Test Project", text="First sentence. Second sentence.", session=session
+    )
     window = FullTranslationWindow(project, mock_main_window)
     return window
+
 
 class TestFullTranslationWindow:
     def test_initialization(self, full_window):
@@ -42,22 +50,40 @@ class TestFullTranslationWindow:
 
     def test_note_collection_and_numbering(self, db_session, mock_main_window):
         """Test that notes are collected and numbered correctly across sentences."""
-        project = Project.create(name="Note Project", text="Sentence one. Sentence two.")
+        session = get_runtime_session()
+        project = Project.create(
+            name="Note Project", text="Sentence one. Sentence two.", session=session
+        )
         s1 = project.sentences[0]
         s2 = project.sentences[1]
 
         # Add notes to sentence 1
         t1_1 = s1.tokens[0]
-        n1 = Note(sentence_id=s1.id, start_token=t1_1.id, end_token=t1_1.id, note_text_md="Note 1")
+        n1 = Note(
+            sentence_id=s1.id,
+            start_token=t1_1.id,
+            end_token=t1_1.id,
+            note_text_md="Note 1",
+        )
         n1.save()
 
         t1_2 = s1.tokens[1]
-        n2 = Note(sentence_id=s1.id, start_token=t1_2.id, end_token=t1_2.id, note_text_md="Note 2")
+        n2 = Note(
+            sentence_id=s1.id,
+            start_token=t1_2.id,
+            end_token=t1_2.id,
+            note_text_md="Note 2",
+        )
         n2.save()
 
         # Add note to sentence 2
         t2_1 = s2.tokens[0]
-        n3 = Note(sentence_id=s2.id, start_token=t2_1.id, end_token=t2_1.id, note_text_md="Note 3")
+        n3 = Note(
+            sentence_id=s2.id,
+            start_token=t2_1.id,
+            end_token=t2_1.id,
+            note_text_md="Note 3",
+        )
         n3.save()
 
         db_session.refresh(s1)
@@ -82,14 +108,21 @@ class TestFullTranslationWindow:
         # Add a note for testing
         s1 = full_window.project.sentences[0]
         t1 = s1.tokens[0]
-        note = Note(sentence_id=s1.id, start_token=t1.id, end_token=t1.id, note_text_md="Test Note")
+        note = Note(
+            sentence_id=s1.id,
+            start_token=t1.id,
+            end_token=t1.id,
+            note_text_md="Test Note",
+        )
         note.save()
         db_session.refresh(s1)
 
         # Re-initialize to pick up the note
         full_window._collect_project_notes()
         full_window.oe_edit.render_readonly_text()
-        full_window.notes_area = FullProjectNotesArea(full_window.project_notes, full_window)
+        full_window.notes_area = FullProjectNotesArea(
+            full_window.project_notes, full_window
+        )
         full_window.notes_area.note_clicked.connect(full_window._on_note_clicked)
 
         note_num = full_window.project_notes[0][0]
@@ -103,7 +136,11 @@ class TestFullTranslationWindow:
 
         # Verify OE edit has note highlights
         selections = full_window.oe_edit.extraSelections()
-        note_highlights = [s for s in selections if s.format.property(NOTE_HIGHLIGHT_PROPERTY) == note.id]
+        note_highlights = [
+            s
+            for s in selections
+            if s.format.property(NOTE_HIGHLIGHT_PROPERTY) == note.id
+        ]
         assert len(note_highlights) > 0
 
         # Click again to unhighlight
@@ -135,12 +172,16 @@ class TestFullTranslationWindow:
         """Test that searching highlights text in notes."""
         s1 = full_window.project.sentences[0]
         t1 = s1.tokens[0]
-        note = Note(sentence_id=s1.id, start_token=t1.id, end_token=t1.id, note_text_md="FindMe")
+        note = Note(
+            sentence_id=s1.id, start_token=t1.id, end_token=t1.id, note_text_md="FindMe"
+        )
         note.save()
         db_session.refresh(s1)
 
         full_window._collect_project_notes()
-        full_window.notes_area = FullProjectNotesArea(full_window.project_notes, full_window)
+        full_window.notes_area = FullProjectNotesArea(
+            full_window.project_notes, full_window
+        )
 
         # Search for "FindMe"
         full_window._on_search_changed("FindMe")
@@ -148,18 +189,28 @@ class TestFullTranslationWindow:
         # Check if the label in the note widget contains the highlight span
         note_num = full_window.project_notes[0][0]
         label_text = full_window.notes_area.note_widgets[note_num].label.text()
-        assert '<span style="background-color: #ffeb3b; color: black;">FindMe</span>' in label_text
+        assert (
+            '<span style="background-color: #ffeb3b; color: black;">FindMe</span>'
+            in label_text
+        )
 
     def test_note_deselection_on_token_click(self, full_window, db_session):
         """Test that selecting a token deselects any active note."""
         s1 = full_window.project.sentences[0]
         t1 = s1.tokens[0]
-        note = Note(sentence_id=s1.id, start_token=t1.id, end_token=t1.id, note_text_md="Test Note")
+        note = Note(
+            sentence_id=s1.id,
+            start_token=t1.id,
+            end_token=t1.id,
+            note_text_md="Test Note",
+        )
         note.save()
         db_session.refresh(s1)
 
         full_window._collect_project_notes()
-        full_window.notes_area = FullProjectNotesArea(full_window.project_notes, full_window)
+        full_window.notes_area = FullProjectNotesArea(
+            full_window.project_notes, full_window
+        )
         full_window.notes_area.note_clicked.connect(full_window._on_note_clicked)
 
         note_num = full_window.project_notes[0][0]
@@ -174,19 +225,30 @@ class TestFullTranslationWindow:
         # Verify note is deselected
         assert not full_window.notes_area.note_widgets[note_num].is_selected
         selections = full_window.oe_edit.extraSelections()
-        note_highlights = [s for s in selections if s.format.property(NOTE_HIGHLIGHT_PROPERTY) == note.id]
+        note_highlights = [
+            s
+            for s in selections
+            if s.format.property(NOTE_HIGHLIGHT_PROPERTY) == note.id
+        ]
         assert len(note_highlights) == 0
 
     def test_note_deselection_on_mode_sentence_click(self, full_window, db_session):
         """Test that selecting a modern English sentence deselects any active note."""
         s1 = full_window.project.sentences[0]
         t1 = s1.tokens[0]
-        note = Note(sentence_id=s1.id, start_token=t1.id, end_token=t1.id, note_text_md="Test Note")
+        note = Note(
+            sentence_id=s1.id,
+            start_token=t1.id,
+            end_token=t1.id,
+            note_text_md="Test Note",
+        )
         note.save()
         db_session.refresh(s1)
 
         full_window._collect_project_notes()
-        full_window.notes_area = FullProjectNotesArea(full_window.project_notes, full_window)
+        full_window.notes_area = FullProjectNotesArea(
+            full_window.project_notes, full_window
+        )
         full_window.notes_area.note_clicked.connect(full_window._on_note_clicked)
 
         note_num = full_window.project_notes[0][0]
@@ -201,12 +263,19 @@ class TestFullTranslationWindow:
         # Verify note is deselected
         assert not full_window.notes_area.note_widgets[note_num].is_selected
         selections = full_window.oe_edit.extraSelections()
-        note_highlights = [s for s in selections if s.format.property(NOTE_HIGHLIGHT_PROPERTY) == note.id]
+        note_highlights = [
+            s
+            for s in selections
+            if s.format.property(NOTE_HIGHLIGHT_PROPERTY) == note.id
+        ]
         assert len(note_highlights) == 0
 
     def test_no_notes(self, db_session, mock_main_window):
         """Test the window with a project that has no notes."""
-        project = Project.create(name="No Note Project", text="Sentence one.")
+        session = get_runtime_session()
+        project = Project.create(
+            name="No Note Project", text="Sentence one.", session=session
+        )
         window = FullTranslationWindow(project, mock_main_window)
 
         assert len(window.project_notes) == 0
@@ -222,27 +291,34 @@ class TestFullTranslationWindow:
 
     def test_project_metadata_banner(self, db_session, mock_main_window):
         """Test that source/translator metadata appears in the banner, but notes do not."""
+        session = get_runtime_session()
         project = Project.create(
             name="Metadata Project",
             text="Sentence one.",
             source="Test Source",
             translator="Test Translator",
-            notes="These are some project notes that should be long enough to wrap and be limited in width."
+            notes="These are some project notes that should be long enough to wrap and be limited in width.",
+            session=session,
         )
         window = FullTranslationWindow(project, mock_main_window)
 
         assert hasattr(window, "source_banner")
         assert window.source_label.text() == "<b>Source:</b> Test Source"
-        assert window.translator_label.text() == "<b>Translator:</b> <i>Test Translator</i>"
+        assert (
+            window.translator_label.text()
+            == "<b>Translator:</b> <i>Test Translator</i>"
+        )
         assert not hasattr(window, "notes_label")
         assert window.show_notes_btn.isEnabled() is True
 
     def test_banner_visibility_with_only_notes(self, db_session, mock_main_window):
         """Notes-only projects should not render a body banner."""
+        session = get_runtime_session()
         project = Project.create(
             name="Notes Only Project",
             text="Sentence one.",
-            notes="Only notes here."
+            notes="Only notes here.",
+            session=session,
         )
         window = FullTranslationWindow(project, mock_main_window)
 
@@ -252,22 +328,28 @@ class TestFullTranslationWindow:
     def test_show_notes_button_is_left_of_show_details(self, full_window):
         """Show notes button should appear before Show Details in the toolbar."""
         notes_index = full_window.toolbar_layout.indexOf(full_window.show_notes_btn)
-        details_index = full_window.toolbar_layout.indexOf(full_window.toggle_sidebar_btn)
+        details_index = full_window.toolbar_layout.indexOf(
+            full_window.toggle_sidebar_btn
+        )
         assert notes_index < details_index
 
     def test_show_notes_dialog_non_modal(self, db_session, mock_main_window):
         """Show notes should open a non-modal dialog with project notes text."""
+        session = get_runtime_session()
         project = Project.create(
             name="Dialog Notes Project",
             text="Sentence one.",
-            notes="Line one.\nLine two."
+            notes="Line one.\nLine two.",
+            session=session,
         )
         window = FullTranslationWindow(project, mock_main_window)
         window._show_project_notes()
 
         assert window.project_notes_dialog is not None
         assert window.project_notes_dialog.isModal() is False
-        assert window.project_notes_dialog.windowModality() == Qt.WindowModality.NonModal
+        assert (
+            window.project_notes_dialog.windowModality() == Qt.WindowModality.NonModal
+        )
         assert window.project_notes_dialog.isVisible() is True
         assert window.project_notes_dialog_text is not None
         assert window.project_notes_dialog_text.toPlainText() == project.notes
@@ -368,6 +450,7 @@ class TestFullTranslationWindow:
         self, db_session, mock_main_window
     ):
         """Official titles render while auto titles are suppressed; verse stays gapless."""
+        session = get_runtime_session()
         project = Project(name="Verse Layout")
         project.save()
         chapter1 = Chapter.create(
@@ -376,6 +459,7 @@ class TestFullTranslationWindow:
             title="Official Chapter",
             title_auto=False,
             commit=False,
+            session=session,
         )
         section1 = Section.create(
             chapter_id=chapter1.id,
@@ -383,6 +467,7 @@ class TestFullTranslationWindow:
             title="Official Section",
             title_auto=False,
             commit=False,
+            session=session,
         )
         p1 = Paragraph(section_id=section1.id, order=1)
         p2 = Paragraph(section_id=section1.id, order=2)
@@ -396,6 +481,7 @@ class TestFullTranslationWindow:
             verse_line_start=1,
             verse_line_end=5,
             commit=False,
+            session=session,
         )
         Sentence.create(
             project_id=project.id,
@@ -405,6 +491,7 @@ class TestFullTranslationWindow:
             verse_line_start=6,
             verse_line_end=10,
             commit=False,
+            session=session,
         )
 
         chapter2 = Chapter.create(
@@ -413,6 +500,7 @@ class TestFullTranslationWindow:
             title="Auto Chapter ....",
             title_auto=True,
             commit=False,
+            session=session,
         )
         section2 = Section.create(
             chapter_id=chapter2.id,
@@ -420,6 +508,7 @@ class TestFullTranslationWindow:
             title="Lines 11-15",
             title_auto=True,
             commit=False,
+            session=session,
         )
         p3 = Paragraph(section_id=section2.id, order=1)
         db_session.add(p3)
@@ -430,6 +519,7 @@ class TestFullTranslationWindow:
             text_oe="prose sentence",
             paragraph_id=p3.id,
             commit=False,
+            session=session,
         )
         db_session.commit()
 

@@ -284,7 +284,6 @@ class FullProjectOldEnglishTextEdit(ThemeMixin, OldEnglishTextEdit):
         Returns:
             Whether insertion ends at start-of-line.
 
-
         Keyword Args:
             cursor: Cursor.
             segment: Segment.
@@ -1339,9 +1338,7 @@ class FullTranslationWindow(QMainWindow):
                 f"Project Notes - {self.project.name}"
             )
             self.project_notes_dialog.setModal(False)
-            self.project_notes_dialog.setWindowModality(
-                Qt.WindowModality.NonModal
-            )
+            self.project_notes_dialog.setWindowModality(Qt.WindowModality.NonModal)
             self.project_notes_dialog.resize(700, 450)
             layout = QVBoxLayout(self.project_notes_dialog)
             self.project_notes_dialog_text = QTextEdit()

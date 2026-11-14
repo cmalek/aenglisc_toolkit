@@ -7,8 +7,10 @@ import re
 import subprocess
 from pathlib import Path
 
+from oeapp.db import get_runtime_session
 from oeapp.models.note import Note
 from oeapp.services.export_pdf import FullTranslationPDFExporter
+from oeapp.services.glossary import Glossary
 from oeapp.services.import_export import ProjectImporter
 
 FIXTURES_DIR = Path(__file__).resolve().parents[1] / "texts"
@@ -152,7 +154,9 @@ class TestFullTranslationPDFExporter:
         """Attested forms should use short DB-code annotations."""
         from tests.conftest import create_test_project
 
-        project = create_test_project(db_session, name="Glossary Project", text="Ic singe.")
+        project = create_test_project(
+            db_session, name="Glossary Project", text="Ic singe."
+        )
         sentence = project.sentences[0]
 
         noun = sentence.tokens[0]
@@ -177,7 +181,7 @@ class TestFullTranslationPDFExporter:
         verb.annotation.save()
 
         exporter = FullTranslationPDFExporter()
-        entries = exporter._build_glossary_entries(project)
+        entries = Glossary().entries(project)
 
         noun_entry = next(entry for entry in entries if entry.root == "ic")
         verb_entry = next(entry for entry in entries if entry.root == "singan")
@@ -210,7 +214,9 @@ class TestFullTranslationPDFExporter:
         )
         assert expected in latex
 
-    def test_glossary_examples_keep_unique_code_combinations_for_same_form(self, db_session):
+    def test_glossary_examples_keep_unique_code_combinations_for_same_form(
+        self, db_session
+    ):
         """Same lowercase form should keep distinct morphology codes for N/A/R."""
         from tests.conftest import create_test_project
 
@@ -221,7 +227,9 @@ class TestFullTranslationPDFExporter:
         )
         sentence = project.sentences[0]
         word_tokens = [token for token in sentence.tokens if token.surface.isalpha()]
-        token_noun, token_noun_2, token_adj, token_adj_2, token_pro, token_pro_2 = word_tokens[:6]
+        token_noun, token_noun_2, token_adj, token_adj_2, token_pro, token_pro_2 = (
+            word_tokens[:6]
+        )
 
         # Duplicate noun form with different case/number.
         token_noun.annotation.pos = "N"
@@ -277,11 +285,17 @@ class TestFullTranslationPDFExporter:
         token_pro_2.annotation.save()
 
         exporter = FullTranslationPDFExporter()
-        entries = exporter._build_glossary_entries(project)
+        entries = Glossary().entries(project)
 
-        noun_entry = next(entry for entry in entries if entry.root == "word" and entry.pos == "N")
-        adj_entry = next(entry for entry in entries if entry.root == "swift" and entry.pos == "A")
-        pro_entry = next(entry for entry in entries if entry.root == "he" and entry.pos == "R")
+        noun_entry = next(
+            entry for entry in entries if entry.root == "word" and entry.pos == "N"
+        )
+        adj_entry = next(
+            entry for entry in entries if entry.root == "swift" and entry.pos == "A"
+        )
+        pro_entry = next(
+            entry for entry in entries if entry.root == "he" and entry.pos == "R"
+        )
 
         assert ("word", "ns", None) in noun_entry.examples
         assert ("word", "dp", None) in noun_entry.examples
@@ -296,7 +310,9 @@ class TestFullTranslationPDFExporter:
         """Attested forms should include italicized sense only when present."""
         from tests.conftest import create_test_project
 
-        project = create_test_project(db_session, name="Sense Render", text="Se cyning.")
+        project = create_test_project(
+            db_session, name="Sense Render", text="Se cyning."
+        )
         sentence = project.sentences[0]
         token_with_sense, token_without_sense = sentence.tokens[:2]
 
@@ -319,12 +335,12 @@ class TestFullTranslationPDFExporter:
         latex = exporter._build_document_tex(project)
 
         assert r"\textit{ruler in this line}" in latex
-        assert (
-            r"\textit{ruler in this line} \textcolor[HTML]{666666}{[ns]}" in latex
-        )
+        assert r"\textit{ruler in this line} \textcolor[HTML]{666666}{[ns]}" in latex
         assert "()" not in latex
 
-    def test_conjunction_has_no_classification_or_bracketed_attested_code(self, db_session):
+    def test_conjunction_has_no_classification_or_bracketed_attested_code(
+        self, db_session
+    ):
         """Conjunction entries omit classification and bracketed attested-form codes."""
         from tests.conftest import create_test_project
 
@@ -381,6 +397,7 @@ class TestFullTranslationPDFExporter:
     def test_render_two_columns_keeps_paragraph_boundaries_separate(self, db_session):
         """Sentences from different paragraphs must not be merged together."""
         from oeapp.models.paragraph import Paragraph
+
         from tests.conftest import create_test_project
 
         project = create_test_project(
@@ -408,6 +425,7 @@ class TestFullTranslationPDFExporter:
 
     def test_render_two_columns_hides_auto_titles_and_numbers_verse(self, db_session):
         """Two-column output should suppress auto titles and add 5-line markers."""
+        session = get_runtime_session()
         from oeapp.models.chapter import Chapter
         from oeapp.models.paragraph import Paragraph
         from oeapp.models.project import Project
@@ -422,6 +440,7 @@ class TestFullTranslationPDFExporter:
             title="Official Chapter",
             title_auto=False,
             commit=False,
+            session=session,
         )
         section = Section.create(
             chapter_id=chapter.id,
@@ -429,6 +448,7 @@ class TestFullTranslationPDFExporter:
             title="Official Section",
             title_auto=False,
             commit=False,
+            session=session,
         )
         p1 = Paragraph(section_id=section.id, order=1)
         p2 = Paragraph(section_id=section.id, order=2)
@@ -442,6 +462,7 @@ class TestFullTranslationPDFExporter:
             verse_line_start=1,
             verse_line_end=5,
             commit=False,
+            session=session,
         )
         Sentence.create(
             project_id=project.id,
@@ -451,6 +472,7 @@ class TestFullTranslationPDFExporter:
             verse_line_start=6,
             verse_line_end=10,
             commit=False,
+            session=session,
         )
         hidden_chapter = Chapter.create(
             project_id=project.id,
@@ -458,6 +480,7 @@ class TestFullTranslationPDFExporter:
             title="Auto Chapter ....",
             title_auto=True,
             commit=False,
+            session=session,
         )
         hidden_section = Section.create(
             chapter_id=hidden_chapter.id,
@@ -465,6 +488,7 @@ class TestFullTranslationPDFExporter:
             title="Lines 11-15",
             title_auto=True,
             commit=False,
+            session=session,
         )
         p3 = Paragraph(section_id=hidden_section.id, order=1)
         db_session.add(p3)
@@ -475,6 +499,7 @@ class TestFullTranslationPDFExporter:
             text_oe="Prose.",
             paragraph_id=p3.id,
             commit=False,
+            session=session,
         )
         db_session.commit()
 
@@ -503,7 +528,9 @@ class TestFullTranslationPDFExporter:
         """ModE column should use the same fixed wide-gap normalization."""
         from tests.conftest import create_test_project
 
-        project = create_test_project(db_session, name="Spacing Project", text="Se cyning.")
+        project = create_test_project(
+            db_session, name="Spacing Project", text="Se cyning."
+        )
         sentence = project.sentences[0]
         sentence.text_modern = "The   king."
 
@@ -531,7 +558,9 @@ class TestFullTranslationPDFExporter:
         from tests.conftest import create_test_project
 
         project = create_test_project(db_session, name="Prep Split", text="In in.")
-        first, second = [token for token in project.sentences[0].tokens if token.surface.isalpha()][:2]
+        first, second = [
+            token for token in project.sentences[0].tokens if token.surface.isalpha()
+        ][:2]
 
         first.annotation.pos = "E"
         first.annotation.root = "in"
@@ -546,8 +575,10 @@ class TestFullTranslationPDFExporter:
         second.annotation.save()
 
         exporter = FullTranslationPDFExporter()
-        entries = exporter._build_glossary_entries(project)
-        in_entries = [entry for entry in entries if entry.root == "in" and entry.pos == "E"]
+        entries = Glossary().entries(project)
+        in_entries = [
+            entry for entry in entries if entry.root == "in" and entry.pos == "E"
+        ]
 
         assert len(in_entries) == 2
         assert {entry.prep_case for entry in in_entries} == {"a", "d"}
@@ -557,8 +588,12 @@ class TestFullTranslationPDFExporter:
         """Roots that normalize the same should be deduped and variant-listed."""
         from tests.conftest import create_test_project
 
-        project = create_test_project(db_session, name="Norm Roots", text="Hæðen Hæþen.")
-        first, second = [token for token in project.sentences[0].tokens if token.surface.isalpha()][:2]
+        project = create_test_project(
+            db_session, name="Norm Roots", text="Hæðen Hæþen."
+        )
+        first, second = [
+            token for token in project.sentences[0].tokens if token.surface.isalpha()
+        ][:2]
 
         first.annotation.pos = "N"
         first.annotation.root = "Hæð-en"
@@ -577,19 +612,23 @@ class TestFullTranslationPDFExporter:
         second.annotation.save()
 
         exporter = FullTranslationPDFExporter()
-        entries = exporter._build_glossary_entries(project)
+        entries = Glossary().entries(project)
         noun_entries = [entry for entry in entries if entry.pos == "N"]
 
         assert len(noun_entries) == 1
         assert noun_entries[0].root == "Hæð-en"
         assert "Hæþen" in noun_entries[0].root_variants
 
-    def test_glossary_preposition_classifier_and_dash_attestation_behavior(self, db_session):
+    def test_glossary_preposition_classifier_and_dash_attestation_behavior(
+        self, db_session
+    ):
         """Prepositions show case classifier and omit bracketed ``[-]`` attestations."""
         from tests.conftest import create_test_project
 
         project = create_test_project(db_session, name="Prep Display", text="Be in.")
-        first, second = [token for token in project.sentences[0].tokens if token.surface.isalpha()][:2]
+        first, second = [
+            token for token in project.sentences[0].tokens if token.surface.isalpha()
+        ][:2]
 
         first.annotation.pos = "E"
         first.annotation.root = "be"
@@ -612,27 +651,23 @@ class TestFullTranslationPDFExporter:
 
     def test_oe_sort_key_handles_special_letters_and_dotted_ge_prefix(self):
         """OE sort key should intermix ċ/c, ġ/g, ð/þ and ignore dotted-ġe for N/V."""
-        exporter = FullTranslationPDFExporter()
+        glossary = Glossary()
 
-        assert exporter._oe_glossary_sort_key("ċild", "N") == exporter._oe_glossary_sort_key(
-            "cild", "N"
-        )
-        assert exporter._oe_glossary_sort_key("ðorn", "N") == exporter._oe_glossary_sort_key(
-            "þorn", "N"
-        )
-        assert exporter._oe_glossary_sort_key("ġeard", "N") < exporter._oe_glossary_sort_key(
-            "geard", "N"
-        )
+        assert glossary.sort_key("ċild", "N") == glossary.sort_key("cild", "N")
+        assert glossary.sort_key("ðorn", "N") == glossary.sort_key("þorn", "N")
+        assert glossary.sort_key("ġeard", "N") < glossary.sort_key("geard", "N")
 
         roots = ["b", "æ", "a"]
-        sorted_roots = sorted(roots, key=lambda root: exporter._oe_glossary_sort_key(root, "N"))
+        sorted_roots = sorted(roots, key=lambda root: glossary.sort_key(root, "N"))
         assert sorted_roots == ["a", "æ", "b"]
 
     def test_glossary_legend_shows_only_used_codes(self, db_session):
         """Legend should include full glossary codebooks in five columns."""
         from tests.conftest import create_test_project
 
-        project = create_test_project(db_session, name="Legend Used Only", text="Cyning.")
+        project = create_test_project(
+            db_session, name="Legend Used Only", text="Cyning."
+        )
         token = project.sentences[0].tokens[0]
         token.annotation.pos = "N"
         token.annotation.root = "cyning"
@@ -672,7 +707,9 @@ class TestFullTranslationPDFExporter:
         exporter = FullTranslationPDFExporter()
         latex = exporter._build_document_tex(project)
 
-        assert latex.index(r"\end{multicols}") < latex.index("How to Decode Annotations")
+        assert latex.index(r"\end{multicols}") < latex.index(
+            "How to Decode Annotations"
+        )
 
     def test_fixture_seafarer_tex_contains_new_layout_and_long_ash(self, db_session):
         """Seafarer fixture output should include new layout and preserve long ash."""
@@ -697,7 +734,9 @@ class TestFullTranslationPDFExporter:
         from tests.conftest import create_test_project
 
         project = create_test_project(db_session, name="Adj Adv", text="Swift quickly.")
-        tokens = [token for token in project.sentences[0].tokens if token.surface.isalpha()]
+        tokens = [
+            token for token in project.sentences[0].tokens if token.surface.isalpha()
+        ]
         adj_token, adv_token = tokens[:2]
 
         adj_token.annotation.pos = "A"
@@ -724,7 +763,9 @@ class TestFullTranslationPDFExporter:
         assert r"\textbf{swiftlice} adv:" in latex
         assert r"\textbf{swiftlice} adv: \textit{" not in latex
 
-    def test_fixture_caedmon_splits_in_by_case_and_legend_is_used_only(self, db_session, tmp_path):
+    def test_fixture_caedmon_splits_in_by_case_and_legend_is_used_only(
+        self, db_session, tmp_path
+    ):
         """Cædmon fixture should split ``in`` prepositions by case and build used-only legend."""
         project = _import_fixture_project(
             "The_Story_of_Cædmon.json",
@@ -733,8 +774,10 @@ class TestFullTranslationPDFExporter:
         )
         exporter = FullTranslationPDFExporter()
 
-        entries = exporter._build_glossary_entries(project)
-        in_entries = [entry for entry in entries if entry.root == "in" and entry.pos == "E"]
+        entries = Glossary().entries(project)
+        in_entries = [
+            entry for entry in entries if entry.root == "in" and entry.pos == "E"
+        ]
         assert {entry.prep_case for entry in in_entries} >= {"a", "d"}
 
         latex = exporter._build_document_tex(project)
@@ -747,11 +790,15 @@ class TestFullTranslationPDFExporter:
         """Successful compile should produce a PDF at destination path."""
         from tests.conftest import create_test_project
 
-        project = create_test_project(db_session, name="Compile Project", text="Se cyning.")
+        project = create_test_project(
+            db_session, name="Compile Project", text="Se cyning."
+        )
         output_path = tmp_path / "compiled.pdf"
         exporter = FullTranslationPDFExporter()
 
-        def fake_compile(tex_path: Path, output_dir: Path) -> subprocess.CompletedProcess[str]:
+        def fake_compile(
+            tex_path: Path, output_dir: Path
+        ) -> subprocess.CompletedProcess[str]:
             (output_dir / "full_translation.pdf").write_bytes(b"%PDF-1.4\n%fake\n")
             return subprocess.CompletedProcess(
                 args=[str(tex_path)],
@@ -760,21 +807,31 @@ class TestFullTranslationPDFExporter:
                 stderr="",
             )
 
-        monkeypatch.setattr("oeapp.services.export_pdf.compile_latex_with_tectonic", fake_compile)
+        monkeypatch.setattr(
+            "oeapp.services.export_pdf.compile_latex_with_tectonic", fake_compile
+        )
 
         assert exporter.export_side_by_side_pdf(project.id, output_path) is True
         assert output_path.exists()
 
-    def test_export_failure_copies_debug_artifacts(self, db_session, tmp_path, monkeypatch):
+    def test_export_failure_copies_debug_artifacts(
+        self, db_session, tmp_path, monkeypatch
+    ):
         """Failed compile should preserve .tex/.log artifacts near output path."""
         from tests.conftest import create_test_project
 
-        project = create_test_project(db_session, name="Fail Project", text="Se cyning.")
+        project = create_test_project(
+            db_session, name="Fail Project", text="Se cyning."
+        )
         output_path = tmp_path / "failed.pdf"
         exporter = FullTranslationPDFExporter()
 
-        def fake_compile(tex_path: Path, output_dir: Path) -> subprocess.CompletedProcess[str]:
-            (output_dir / "full_translation.log").write_text("compile failed", encoding="utf-8")
+        def fake_compile(
+            tex_path: Path, output_dir: Path
+        ) -> subprocess.CompletedProcess[str]:
+            (output_dir / "full_translation.log").write_text(
+                "compile failed", encoding="utf-8"
+            )
             return subprocess.CompletedProcess(
                 args=[str(tex_path)],
                 returncode=1,
@@ -782,7 +839,9 @@ class TestFullTranslationPDFExporter:
                 stderr="bad compile",
             )
 
-        monkeypatch.setattr("oeapp.services.export_pdf.compile_latex_with_tectonic", fake_compile)
+        monkeypatch.setattr(
+            "oeapp.services.export_pdf.compile_latex_with_tectonic", fake_compile
+        )
 
         assert exporter.export_side_by_side_pdf(project.id, output_path) is False
         assert output_path.with_suffix(".tex").exists()
@@ -795,11 +854,15 @@ class TestFullTranslationPDFExporter:
         """Unexpected engine invocation errors should fail gracefully."""
         from tests.conftest import create_test_project
 
-        project = create_test_project(db_session, name="Engine Error", text="Se cyning.")
+        project = create_test_project(
+            db_session, name="Engine Error", text="Se cyning."
+        )
         output_path = tmp_path / "engine-error.pdf"
         exporter = FullTranslationPDFExporter()
 
-        def failing_compile(tex_path: Path, output_dir: Path) -> subprocess.CompletedProcess[str]:  # noqa: ARG001
+        def failing_compile(
+            tex_path: Path, output_dir: Path
+        ) -> subprocess.CompletedProcess[str]:
             msg = "permission denied"
             raise OSError(msg)
 

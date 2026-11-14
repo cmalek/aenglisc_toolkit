@@ -39,8 +39,9 @@
 | Action | Shortcut |
 |--------|----------|
 | Save Project | **Ctrl+S** |
-| Undo | **Ctrl+Z** |
-| Redo | **Ctrl+Y** or **Ctrl+Shift+Z** |
+| **Undo** (Edit > Undo) | **Ctrl+Z** or **Alt+Backspace** |
+| **Redo** (Edit > Redo) | **Ctrl+Y** or **Ctrl+Shift+Z** or **Alt+Shift+Backspace** |
+| **Find** (Edit > Find): focus the search box | **Ctrl+F** |
 | Export to DOCX | **Ctrl+E** |
 
 ## Help
@@ -61,7 +62,7 @@
 
 ## Undo Support
 
-> **Undo support:** Many in-editor operations are undoable with `Ctrl+Z` (and redo with `Ctrl+R` / `Ctrl+Shift+R`), but project-level destructive actions are not always undoable. When in doubt, create a backup or JSON export first.
+> **Undo support:** Many in-editor operations are undoable with `Ctrl+Z` or `Alt+Backspace` (and redo with `Ctrl+Y`, `Ctrl+Shift+Z`, or `Alt+Shift+Backspace`), but project-level destructive actions are not always undoable. When in doubt, create a backup or JSON export first.
 
 ## Back to Start Here
 
