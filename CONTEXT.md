@@ -252,10 +252,10 @@ _Avoid_: keystroke, edit session, merge
 ### Reading and export concepts
 
 **Glossary**:
-The inventory of annotated forms and roots, grouped for reading, scoped to one
-project or to all projects. It is viewed live in a window or exported (especially
-in PDF); it is not the annotation store itself.
-_Avoid_: Dictionary, lexicon, vocabulary list (unless marketing copy)
+The reading inventory of one project's annotations in the exported Full
+Translation: one entry per Root under its Normalized Form and part of speech,
+and for a preposition also per case it governs.
+_Avoid_: Dictionary, lexicon, vocabulary list, live glossary, Meaning Conflict
 
 **Meaning Conflict**:
 Two or more annotations of the same Root, part of speech, and (for nouns)

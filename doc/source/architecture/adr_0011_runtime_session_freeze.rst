@@ -6,7 +6,7 @@ ADR 0011: Freeze runtime-session lookups at today's call sites
 
 :Status: Accepted
 :Date: 2026-10-26
-:Revised: 2026-11-01
+:Revised: 2026-11-02
 
 Context
 =======
@@ -29,8 +29,12 @@ the dialect's default pool is ``QueuePool``. The finding rejects adding a
 pool as the remedy for the shared session. The engine already has the
 dialect default.
 
-Model classmethods, ``save`` and ``delete``, and commands reach the runtime
-session through ``SessionMixin._get_session``.
+Model classmethods reached the runtime session through
+``SessionMixin._get_session`` until
+:ref:`adr_0012_explicit_runtime_session`. That decision, not this freeze,
+passes the session in. ``save``, ``delete``, and the command and service
+methods that decision does not cover keep calling
+``SessionMixin._get_session``.
 ``AnnotationPropagationService._meaning_targets`` and
 ``AnnotationPropagationService._project_tokens`` call
 ``Annotation._get_session``, which is that mixin method, so the count sits
@@ -86,9 +90,11 @@ D2 — Today's lookups stay
 
 Existing lookups stay where they are, including ``_get_session``,
 ``get_runtime_session``, and the ``app_context.session`` reads listed
-above. ``SessionMixin._get_session`` remains the lookup model classmethods
-and commands use. This decision adds no session parameter. ``note_dialog``
-keeps the optional session it already has.
+above. ``SessionMixin._get_session`` remains the lookup for the call
+sites :ref:`adr_0012_explicit_runtime_session` does not convert. This
+freeze adds no session parameter. ``note_dialog`` keeps the optional
+session it already has. D5 names where the classmethod parameter is
+decided.
 
 D3 — A pytest allowlist freezes each function's lookup counts
 -------------------------------------------------------------
@@ -125,10 +131,10 @@ disagree. A removal updates that function's count in the same change.
 Removing its last lookup drops the function from the allowlist. The test
 cannot see why a count changed. It goes green when the dict matches,
 including a dict edited to permit a new lookup, to move one into another
-function, or to raise a count. D5 is the later exception, and only for a
-caller that must obtain the runtime session in order to pass it on. The
-test cannot see that the classmethod lookup was removed in that same
-change.
+function, or to raise a count. D5 raised counts only where a caller had to
+obtain the runtime session in order to pass it on, and the same change
+removed that classmethod's ``_get_session``. The test cannot see that
+pairing.
 
 On 2026-10-28 every allowlisted function had one call of each kind it
 listed. The test does not cap a count at 1. A second call of a kind in
@@ -140,11 +146,11 @@ The scan does not enter ``tests/``. The scanner does not resolve
 spellings is invisible. The test stays green without an allowlist edit.
 
 A call from UI code into a model classmethod is not a counted lookup.
-The ``_get_session`` call stays inside the classmethod, at that
-classmethod's existing count. A UI call into a model classmethod, such as
-the controller's ``Annotation.get_by_token``, does not change the
-allowlist. A session already stored on ``self.session`` is not a lookup
-either.
+The classmethod no longer calls ``_get_session``. When the UI caller has
+to obtain the runtime session in order to pass it, that
+``get_runtime_session`` call is the counted lookup. The controller's
+``Annotation.get_by_token`` is not itself a lookup. A session already
+stored on ``self.session`` is not a lookup either.
 
 D4 — Pass a session already in hand; do not pretend the models use it
 ---------------------------------------------------------------------
@@ -156,22 +162,21 @@ function's current count for that kind.
 
 The F8 card asked new and changed services and commands to take an
 injected session. This decision does not require a constructor session on
-the next edit of a command or service. A session parameter added before
-D5 does not change model classmethods. They still call ``_get_session``.
-An edit that leaves every function's kind counts unchanged passes.
+the next edit of a command or service. Before D5, a session parameter did
+not change model classmethods. They called ``_get_session``. An edit that
+leaves every function's kind counts unchanged passes.
 
-D5 — Model classmethods are a later migration
----------------------------------------------
+D5 — Model classmethods are a separate ADR
+------------------------------------------
 
-Explicit session arguments on existing model classmethods are a separate
-change, tracked as the F8 follow-up card. Callers will pass the runtime
-session. ``SessionMixin._get_session`` stays for the call sites that
-migration does not cover. Until that migration, D4 is how new code obtains
-the session object for refresh and rollback. That migration may raise a
-count only where a caller has to obtain the runtime session in order to
-pass it, and it removes the classmethod lookups in the same change. This
-freeze does not grant that raise. The allowlist test accepts the raise
-once the dict matches, whether or not the classmethod lookup was removed.
+Explicit session arguments on model classmethods are
+:ref:`adr_0012_explicit_runtime_session`, not a decision of this freeze.
+This freeze allows that migration to raise a lookup count only where a
+caller has to obtain the runtime session in order to pass it, and only
+when the same change removes the classmethod's ``_get_session`` call.
+The test cannot see that pairing. ADR 0012 is accepted. The allowlist
+matches the tree. The test still cannot show that each added count was
+one the caller had to make.
 
 D6 — This freeze lands before F1 and F7
 ---------------------------------------
@@ -212,8 +217,8 @@ Consequences
   ``get_runtime_session``, or hiding ``set_runtime_session`` behind a
   deleted ``_get_session``, changes the dict. On 2026-10-28 no enclosing
   function had two calls of one kind. The test does not cap a count at 1.
-  ``Sentence.from_json`` calls ``_get_session`` once and uses that
-  session to commit or flush. ``ProjectUI._on_annotation_applied`` loads
+  ``Sentence.from_json`` receives the session and uses it to commit or
+  flush. ``ProjectUI._on_annotation_applied`` loads
   ``app_context.session`` once and refreshes with that object. A second
   call of a kind in a function raises that function's count, and passes
   once the dict records the new count.
@@ -222,23 +227,24 @@ Consequences
   the session they already fetched.
 - An alias, ``getattr``, or ``ctx.session`` after ``ctx = self.app_context``
   is not counted. Adding one leaves the test green.
-- A UI call to a model classmethod is not counted. The classmethod's
-  existing ``_get_session`` stays the counted call.
+- A UI call to a model classmethod is not counted. When that caller has
+  to obtain the runtime session, the counted call is its
+  ``get_runtime_session``. A session it already holds is not a new lookup.
 - Tests stay outside the scan. A new test may call ``get_runtime_session``,
   ``set_runtime_session``, or ``SessionLocal``. The test half of finding
   F8 is not frozen. ``db_session`` remains how a test installs the runtime
   session.
 - Stale identity-map behavior after commands, which the audit named as the
   likely symptom, is unchanged. The census stops unnoticed drift in the
-  spellings it counts. Each command still uses the one runtime session,
-  because model classmethods still look it up.
+  spellings it counts. Commands and classmethods still use the one runtime
+  session. Classmethods receive it as an argument.
 - F1 and F7 landed under the freeze and added no lookup kind. A new
   ``app_context.session`` read fails the test until the dict matches.
 - No help text changes. The runtime session is not a term in ``CONTEXT.md``.
-- D5 is the later exception for a raised count, and only where a caller
-  has to obtain the runtime session in order to pass it on and the same
-  change removes the classmethod lookup. The test does not check that
-  pairing.
+- D5 points at ADR 0012. That migration may raise a count only where a
+  caller has to obtain the runtime session in order to pass it on, and
+  the same change removes the classmethod lookup. The test does not
+  check that pairing.
 
 Alternatives considered
 =======================
@@ -259,8 +265,9 @@ Alternatives considered
   Rejected: model classmethods would keep calling ``_get_session``. The
   parameter would not be the session those methods use. That injection
   waits for D5.
-- **Pass a session into every model classmethod now.** Rejected: that is
-  the follow-up card.
+- **Pass a session into every model classmethod now.** Rejected for the
+  2026-10-26 freeze. That work is
+  :ref:`adr_0012_explicit_runtime_session`.
 - **Finish F1 and F7 before the freeze.** Rejected: lookups those cards
   added, including further ``app_context.session`` reads, would be
   grandfathered.
@@ -293,8 +300,8 @@ Related
 =======
 
 - Trello card 97, finding F8: https://trello.com/c/RqmuEu67
-- F8 follow-up, explicit session arguments on model classmethods:
-  https://trello.com/c/dNaoAIwU
+- :ref:`adr_0012_explicit_runtime_session` is the accepted F8 follow-up.
+  The card is https://trello.com/c/dNaoAIwU
 - F1 landed under this freeze. The audit had listed it earlier, at
   resolve order 8: https://trello.com/c/TavvhWiE
 - F7 landed under this freeze. The audit had listed it earlier, at resolve

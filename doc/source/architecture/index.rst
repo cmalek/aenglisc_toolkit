@@ -24,3 +24,5 @@ writing instructions.
    adr_0009_project_scoped_qundostack
    adr_0010_typed_run_undo
    adr_0011_runtime_session_freeze
+   adr_0012_explicit_runtime_session
+   adr_0013_pdf_glossary_aggregation
