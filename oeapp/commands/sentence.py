@@ -243,7 +243,48 @@ class MergeSentenceCommand(RefusalMixin, SessionMixin, Command):
         ):
             return False
 
-        # Store next sentence data for undo
+        next_tokens, next_notes = self._record_next_sentence(next_sentence)
+        token_ids_before = _token_ids(current_sentence.id) | _token_ids(
+            next_sentence.id
+        )
+        self._move_children(current_sentence, next_sentence, next_tokens, next_notes)
+        self._merge_texts(current_sentence, next_sentence)
+
+        # Store next sentence's display_order before deletion
+        next_display_order = next_sentence.display_order
+        next_project_id = next_sentence.project_id
+
+        # Delete next sentence FIRST to avoid unique constraint violation
+        # when updating display_order of subsequent sentences
+        next_sentence.delete(commit=False)
+        self._close_gap(next_project_id, next_display_order, session)
+
+        session.commit()
+        self.last_adjustment = StackAdjustment(
+            obsolete_sentence_ids={self.next_sentence_id},
+            token_sentence=self._moved_tokens(current_sentence.id),
+            obsolete_token_ids=token_ids_before - _token_ids(current_sentence.id),
+        )
+
+        return True
+
+    def _record_next_sentence(
+        self, next_sentence: Sentence
+    ) -> tuple[list[Token], list[Note]]:
+        """
+        Store the next sentence's data, tokens, notes, and idioms for undo.
+
+        Args:
+            next_sentence: The sentence about to be folded into the current one.
+
+        Side Effects:
+            Sets :attr:`next_sentence_data`, :attr:`next_sentence_tokens`,
+            :attr:`next_sentence_notes`, and :attr:`next_sentence_idioms`.
+
+        Returns:
+            The next sentence's tokens and notes, before they are moved.
+
+        """
         self.next_sentence_data = {
             "id": next_sentence.id,
             "project_id": next_sentence.project_id,
@@ -252,8 +293,6 @@ class MergeSentenceCommand(RefusalMixin, SessionMixin, Command):
             "text_modern": next_sentence.text_modern,
             "paragraph_id": next_sentence.paragraph_id,
         }
-
-        # Store tokens from next sentence (before moving them)
         next_tokens = list(next_sentence.tokens)
         self.next_sentence_tokens = [
             {
@@ -265,8 +304,6 @@ class MergeSentenceCommand(RefusalMixin, SessionMixin, Command):
             }
             for token in next_tokens
         ]
-
-        # Store notes from next sentence
         next_notes = list(next_sentence.notes)
         self.next_sentence_notes = [
             {
@@ -279,8 +316,6 @@ class MergeSentenceCommand(RefusalMixin, SessionMixin, Command):
             }
             for note in next_notes
         ]
-
-        # Store idioms from next sentence
         self.next_sentence_idioms = [
             {
                 "id": idiom.id,
@@ -290,71 +325,90 @@ class MergeSentenceCommand(RefusalMixin, SessionMixin, Command):
             }
             for idiom in next_sentence.idioms
         ]
+        return next_tokens, next_notes
 
-        # Get current sentence token count
-        current_token_count = len(current_sentence.tokens)
-        token_ids_before = _token_ids(current_sentence.id) | _token_ids(
-            next_sentence.id
-        )
+    @staticmethod
+    def _move_children(
+        current: Sentence,
+        following: Sentence,
+        tokens: list[Token],
+        notes: list[Note],
+    ) -> None:
+        """
+        Move the next sentence's tokens, notes, and idioms to the current one.
 
-        # Move all tokens from next sentence to current sentence
-        # CRITICAL: Update sentence_id and order_index, but keep token IDs the same
-        # This preserves annotations which are linked by token_id
-        for idx, token in enumerate(next_tokens):
-            token.sentence_id = current_sentence.id
+        Token ids stay the same, so annotations, which hang off token ids,
+        survive.
+
+        Args:
+            current: The sentence that receives the children.
+            following: The sentence that gives them up.
+            tokens: The next sentence's tokens.
+            notes: The next sentence's notes.
+
+        Side Effects:
+            Sets ``sentence_id`` (and, for tokens, ``order_index``) on each
+            child. Does not commit.
+
+        """
+        current_token_count = len(current.tokens)
+        for idx, token in enumerate(tokens):
+            token.sentence_id = current.id
             token.order_index = current_token_count + idx
             token.save(commit=False)
-
-        # Move all notes from next sentence to current sentence
-        for note in next_notes:
-            note.sentence_id = current_sentence.id
+        for note in notes:
+            note.sentence_id = current.id
             note.save(commit=False)
-
-        # Move all idioms from next sentence to current sentence
-        for idiom in next_sentence.idioms:
-            idiom.sentence_id = current_sentence.id
+        for idiom in following.idioms:
+            idiom.sentence_id = current.id
             idiom.save(commit=False)
 
-        # Merge texts
-        merged_text_oe = current_sentence.text_oe + " " + next_sentence.text_oe
-        current_modern = current_sentence.text_modern or ""
-        next_modern = next_sentence.text_modern or ""
+    @staticmethod
+    def _merge_texts(current: Sentence, following: Sentence) -> None:
+        """
+        Join the two sentences' texts onto the current sentence.
+
+        Args:
+            current: The sentence that keeps its place.
+            following: The sentence folded into it.
+
+        Side Effects:
+            Re-tokenizes ``current`` with the joined Old English and sets its
+            translation. Does not commit.
+
+        """
+        merged_text_oe = current.text_oe + " " + following.text_oe
+        current_modern = current.text_modern or ""
+        next_modern = following.text_modern or ""
         merged_text_modern = (current_modern + " " + next_modern).strip() or None
+        # This re-tokenizes and matches the existing tokens.
+        current.update(merged_text_oe)
+        current.text_modern = merged_text_modern
+        current.save(commit=False)
 
-        # Update current sentence text (this will re-tokenize and match existing tokens)
-        current_sentence.update(merged_text_oe)
-        current_sentence.text_modern = merged_text_modern
-        current_sentence.save(commit=False)
+    def _close_gap(self, project_id: int, deleted_order: int, session: Session) -> None:
+        """
+        Move the sentences after a folded-away sentence up by one.
 
-        # Store next sentence's display_order before deletion
-        next_display_order = next_sentence.display_order
-        next_project_id = next_sentence.project_id
+        Args:
+            project_id: The project the sentence belonged to.
+            deleted_order: The ``display_order`` the deleted sentence had.
+            session: The session the command runs in.
 
-        # Delete next sentence FIRST to avoid unique constraint violation
-        # when updating display_order of subsequent sentences
-        next_sentence.delete(commit=False)
+        Side Effects:
+            Decrements ``display_order`` of later sentences and appends each
+            change to :attr:`display_order_changes`. Does not commit.
 
-        # Update display_order for all subsequent sentences
-        # Query using stored values since next_sentence is now deleted
-        subsequent_sentences = Sentence.subsequent_sentences(
-            next_project_id, next_display_order, session=session
-        )
-        for sentence in subsequent_sentences:
+        """
+        for sentence in Sentence.subsequent_sentences(
+            project_id, deleted_order, session=session
+        ):
             old_order = sentence.display_order
             sentence.display_order -= 1
             self.display_order_changes.append(
                 (sentence.id, old_order, sentence.display_order)
             )
             sentence.save(commit=False)
-
-        session.commit()
-        self.last_adjustment = StackAdjustment(
-            obsolete_sentence_ids={self.next_sentence_id},
-            token_sentence=self._moved_tokens(current_sentence.id),
-            obsolete_token_ids=token_ids_before - _token_ids(current_sentence.id),
-        )
-
-        return True
 
     @staticmethod
     def _keeps_headings_legal(current: Sentence, following: Sentence) -> bool:
@@ -565,31 +619,9 @@ class AddSentenceCommand(RefusalMixin, SessionMixin, Command):
         else:  # "after"
             target_order = reference_sentence.display_order + 1
 
-        # Get all sentences that need display_order updates
-        if self.position == "before":
-            # For "before", we need sentences with display_order >= target_order
-            # Query sentences with display_order >= target_order
-            affected_sentences = list(
-                session.scalars(
-                    select(Sentence)
-                    .where(
-                        Sentence.project_id == self.project_id,
-                        Sentence.display_order >= target_order,
-                    )
-                    .order_by(Sentence.display_order.desc())
-                ).all()
-            )
-        else:  # "after"
-            # For "after", we need sentences with display_order > reference_order
-            affected_sentences = list(
-                Sentence.subsequent_sentences(
-                    self.project_id, reference_sentence.display_order, session=session
-                )
-            )
-            # Sort descending for processing
-            affected_sentences = sorted(
-                affected_sentences, key=lambda s: s.display_order, reverse=True
-            )
+        affected_sentences = self._sentences_to_shift(
+            reference_sentence, target_order, session
+        )
 
         # Phase 1: Update display_orders safely
         if affected_sentences:
@@ -611,6 +643,37 @@ class AddSentenceCommand(RefusalMixin, SessionMixin, Command):
         self.last_adjustment = StackAdjustment()
 
         return True
+
+    def _sentences_to_shift(
+        self, reference: Sentence, target_order: int, session: Session
+    ) -> list[Sentence]:
+        """
+        Find the sentences whose ``display_order`` the insert pushes down.
+
+        Args:
+            reference: The sentence the new one goes next to.
+            target_order: The ``display_order`` the new sentence will take.
+            session: The session the command runs in.
+
+        Returns:
+            The sentences from the insert point on, last first.
+
+        """
+        if self.position == "before":
+            return list(
+                session.scalars(
+                    select(Sentence)
+                    .where(
+                        Sentence.project_id == self.project_id,
+                        Sentence.display_order >= target_order,
+                    )
+                    .order_by(Sentence.display_order.desc())
+                ).all()
+            )
+        later = Sentence.subsequent_sentences(
+            self.project_id, reference.display_order, session=session
+        )
+        return sorted(later, key=lambda s: s.display_order, reverse=True)
 
     def undo(self) -> bool:
         """
@@ -774,15 +837,106 @@ class DeleteSentenceCommand(SessionMixin, Command):
         sentence = Sentence.get(self.sentence_id, session=session)
         if sentence is None:
             return False
+        section = self._prepare_heading_revert(sentence)
+        deleted_display_order = sentence.display_order
+        project_id = sentence.project_id
+        sentence_tokens = self._record_sentence(sentence)
+        self.last_adjustment = StackAdjustment(
+            obsolete_sentence_ids={self.sentence_id},
+            obsolete_token_ids={token.id for token in sentence_tokens},
+            obsolete_idiom_ids=_idiom_ids(sentence),
+        )
+
+        # Delete sentence (cascade will delete tokens and notes)
+        sentence.delete()
+        self._close_gap(project_id, deleted_display_order, session)
+        Sentence.recalculate_project_structure(project_id, session=session)
+        self._recheck_section(section, session)
+        return True
+
+    def _prepare_heading_revert(self, sentence: Sentence) -> Section | None:
+        """
+        Snapshot the titles and revert the deleted sentence's division title.
+
+        Args:
+            sentence: The sentence about to be deleted.
+
+        Side Effects:
+            Sets :attr:`previous_titles` and resets :attr:`cleared_headings`.
+            Rewrites the chapter or section title when the sentence is a
+            ``chapter`` or ``section`` heading.
+
+        Returns:
+            The sentence's section, or ``None`` when it has no paragraph.
+
+        """
         self.previous_titles = _snapshot_titles(sentence)
         section = sentence.paragraph.section if sentence.paragraph else None
         _revert_heading(sentence)
         self.cleared_headings = []
+        return section
 
-        # Store sentence's display_order before deletion
-        deleted_display_order = sentence.display_order
-        project_id = sentence.project_id
+    def _recheck_section(self, section: Section | None, session: Session) -> None:
+        """
+        Clear the headings the delete left outside their legal slots.
 
+        Only the section the sentence belonged to is checked.
+
+        Args:
+            section: The deleted sentence's section, or ``None``.
+            session: The session the command runs in.
+
+        Side Effects:
+            Sets :attr:`cleared_headings`, reverts generated titles, clears
+            roles, and commits.
+
+        """
+        if section is None:
+            return
+        session.expire_all()
+        self.cleared_headings = _clear_illegal_headings(section)
+        session.commit()
+
+    def _close_gap(self, project_id: int, deleted_order: int, session: Session) -> None:
+        """
+        Move the sentences after the deleted one up by one.
+
+        Uses a two-phase renumber to avoid unique constraint violations.
+
+        Args:
+            project_id: The project the sentence belonged to.
+            deleted_order: The ``display_order`` the deleted sentence had.
+            session: The session the command runs in.
+
+        Side Effects:
+            Sets :attr:`display_order_changes` and renumbers later sentences.
+
+        """
+        subsequent_sentences = Sentence.subsequent_sentences(
+            project_id, deleted_order, session=session
+        )
+        if subsequent_sentences:
+            self.display_order_changes = Sentence.renumber_sentences(
+                list(subsequent_sentences),
+                order_function=lambda s: s.display_order - 1,
+                session=session,
+            )
+
+    def _record_sentence(self, sentence: Sentence) -> list[Token]:
+        """
+        Store the sentence, its tokens, notes, and idioms for undo.
+
+        Args:
+            sentence: The sentence about to be deleted.
+
+        Side Effects:
+            Sets :attr:`sentence_data`, :attr:`sentence_tokens`,
+            :attr:`sentence_notes`, and :attr:`sentence_idioms`.
+
+        Returns:
+            The sentence's tokens, before deletion.
+
+        """
         # Store sentence data for undo
         self.sentence_data = {
             "id": sentence.id,
@@ -809,6 +963,23 @@ class DeleteSentenceCommand(SessionMixin, Command):
             for token in sentence_tokens
         ]
 
+        self._record_notes_and_idioms(sentence, sentence_tokens)
+        return sentence_tokens
+
+    def _record_notes_and_idioms(
+        self, sentence: Sentence, sentence_tokens: list[Token]
+    ) -> None:
+        """
+        Store the sentence's notes and idioms for undo, by token position.
+
+        Args:
+            sentence: The sentence about to be deleted.
+            sentence_tokens: The sentence's tokens.
+
+        Side Effects:
+            Sets :attr:`sentence_notes` and :attr:`sentence_idioms`.
+
+        """
         # Store notes from sentence (store by order_index instead of token_id)
         sentence_notes = list(sentence.notes)
         self.sentence_notes = []
@@ -845,39 +1016,6 @@ class DeleteSentenceCommand(SessionMixin, Command):
                 }
             )
 
-        # Store sentence's display_order before deletion
-        deleted_display_order = sentence.display_order
-        project_id = sentence.project_id
-        self.last_adjustment = StackAdjustment(
-            obsolete_sentence_ids={self.sentence_id},
-            obsolete_token_ids={token.id for token in sentence_tokens},
-            obsolete_idiom_ids=_idiom_ids(sentence),
-        )
-
-        # Delete sentence (cascade will delete tokens and notes)
-        sentence.delete()
-
-        # Update display_order for all subsequent sentences (decrement by 1)
-        # Use two-phase approach to avoid unique constraint violations
-        subsequent_sentences = Sentence.subsequent_sentences(
-            project_id, deleted_display_order, session=session
-        )
-        if subsequent_sentences:
-            self.display_order_changes = Sentence.renumber_sentences(
-                list(subsequent_sentences),
-                order_function=lambda s: s.display_order - 1,
-                session=session,
-            )
-
-        # Recalculate project structure after deletion
-        Sentence.recalculate_project_structure(project_id, session=session)
-        if section is not None:
-            session.expire_all()
-            self.cleared_headings = _clear_illegal_headings(section)
-            session.commit()
-
-        return True
-
     def undo(self) -> bool:
         """
         Undo delete operation.
@@ -894,6 +1032,30 @@ class DeleteSentenceCommand(SessionMixin, Command):
 
         """
         session = self._get_session()
+        restored_sentence = self._recreate_sentence(session)
+        self._restore_children(restored_sentence)
+        self.sentence_id = restored_sentence.id
+        self._restore_headings(restored_sentence, session)
+        self.last_adjustment = StackAdjustment()
+        return True
+
+    def _recreate_sentence(self, session: Session) -> Sentence:
+        """
+        Put the deleted sentence's row back and re-tokenize it.
+
+        CRITICAL: Restores ``display_order`` of later sentences first, to
+        avoid unique constraint violations.
+
+        Args:
+            session: The session the undo runs in.
+
+        Side Effects:
+            Adds the sentence, which gets a new id, and its new tokens.
+
+        Returns:
+            The recreated sentence.
+
+        """
         # CRITICAL: Restore display_order for subsequent sentences FIRST
         # This must happen before recreating the sentence to avoid
         # unique constraint violations
@@ -917,7 +1079,20 @@ class DeleteSentenceCommand(SessionMixin, Command):
         restored_sentence.update(self.sentence_data["text_oe"])
         session.add(restored_sentence)
         session.flush()
+        return restored_sentence
 
+    def _restore_children(self, restored_sentence: Sentence) -> None:
+        """
+        Restore annotations, notes, and idioms onto the recreated sentence.
+
+        Args:
+            restored_sentence: The sentence recreated by the undo.
+
+        Side Effects:
+            Creates annotations, notes, and idioms, matching tokens by
+            ``order_index``.
+
+        """
         # Build mapping of order_index to new token IDs
         restored_tokens = list(restored_sentence.tokens)
         order_index_to_token_id: dict[int, int] = {}
@@ -934,6 +1109,23 @@ class DeleteSentenceCommand(SessionMixin, Command):
                 # Create annotation with new token_id
                 Annotation.from_json(new_token_id, annotation_data)
 
+        self._restore_notes(restored_sentence, order_index_to_token_id)
+        self._restore_idioms(restored_sentence, order_index_to_token_id)
+
+    def _restore_notes(
+        self, restored_sentence: Sentence, order_index_to_token_id: dict[int, int]
+    ) -> None:
+        """
+        Recreate the deleted sentence's notes.
+
+        Args:
+            restored_sentence: The sentence recreated by the undo.
+            order_index_to_token_id: Maps a token's ``order_index`` to its new id.
+
+        Side Effects:
+            Creates and saves the notes.
+
+        """
         # Restore notes using order_index mapping
         for note_data in self.sentence_notes:
             start_order = note_data.get("start_token_order_index")
@@ -958,6 +1150,20 @@ class DeleteSentenceCommand(SessionMixin, Command):
             )
             restored_note.save()
 
+    def _restore_idioms(
+        self, restored_sentence: Sentence, order_index_to_token_id: dict[int, int]
+    ) -> None:
+        """
+        Recreate the deleted sentence's idioms and their annotations.
+
+        Args:
+            restored_sentence: The sentence recreated by the undo.
+            order_index_to_token_id: Maps a token's ``order_index`` to its new id.
+
+        Side Effects:
+            Creates and saves the idioms and their annotations.
+
+        """
         # Restore idioms
         for idiom_data in self.sentence_idioms:
             start_order = idiom_data.get("start_token_order_index")
@@ -978,11 +1184,6 @@ class DeleteSentenceCommand(SessionMixin, Command):
                     Annotation.from_json(
                         None, idiom_data["annotation"], idiom_id=restored_idiom.id
                     )
-
-        self.sentence_id = restored_sentence.id
-        self._restore_headings(restored_sentence, session)
-        self.last_adjustment = StackAdjustment()
-        return True
 
     def _restore_headings(self, restored: Sentence, session: Session) -> None:
         """

@@ -777,6 +777,102 @@ class TestRefusedMoves:
         assert command.execute() is True
 
 
+class TestMovedHeadingTitles:
+    """A legal move of a heading onto another division moves its title too."""
+
+    def test_split_section_names_the_new_section_after_its_heading(self, db_session):
+        chapter, sections = _build(db_session, [[False, False, False]])
+        first, second, third = sections[0]
+        section = first.paragraph.section
+        later = Paragraph(section_id=section.id, order=2)
+        db_session.add(later)
+        db_session.flush()
+        second.paragraph_id = later.id
+        third.paragraph_id = later.id
+        db_session.commit()
+        db_session.refresh(section)
+        _mark(db_session, first, "chapter")
+        _mark(db_session, second, "section")
+        command = SplitSectionCommand(paragraph_id=later.id)
+        _hit(command, db_session)
+        new_section = Section.get(command.new_section_id, session=db_session)
+        assert second.heading_role == "section"
+        assert second.paragraph.section_id == new_section.id
+        assert (new_section.title, new_section.title_auto) == ("Sentence 2", False)
+        assert (section.title, section.title_auto) == ("Section 1", True)
+        assert chapter.title == "Sentence 1"
+
+    def test_split_section_undo_restores_the_original_title(self, db_session):
+        _, sections = _build(db_session, [[False, False]])
+        first, second = sections[0]
+        section = first.paragraph.section
+        later = Paragraph(section_id=section.id, order=2)
+        db_session.add(later)
+        db_session.flush()
+        second.paragraph_id = later.id
+        db_session.commit()
+        db_session.refresh(section)
+        _mark(db_session, first, "chapter")
+        _mark(db_session, second, "section")
+        command = SplitSectionCommand(paragraph_id=later.id)
+        _hit(command, db_session)
+        assert command.undo() is True
+        db_session.expire_all()
+        assert (section.title, section.title_auto) == ("Sentence 2", False)
+        assert second.paragraph.section_id == section.id
+
+    def test_split_section_leaves_titles_alone_when_no_heading_moves(self, db_session):
+        _, sections = _build(db_session, [[False, False, False]])
+        section = sections[0][0].paragraph.section
+        later = Paragraph(section_id=section.id, order=2)
+        db_session.add(later)
+        db_session.flush()
+        sections[0][2].paragraph_id = later.id
+        section.title = "Kept"
+        db_session.commit()
+        db_session.refresh(section)
+        command = SplitSectionCommand(paragraph_id=later.id)
+        _hit(command, db_session)
+        new_section = Section.get(command.new_section_id, session=db_session)
+        assert section.title == "Kept"
+        assert new_section.title is None
+
+    def _merge_setup(self, db_session):
+        chapter, sections = _build(db_session, [[False], [False, False]])
+        first = sections[0][0]
+        head = sections[1][0]
+        opening = first.paragraph.section
+        opening.title = "Section 1"
+        opening.title_auto = True
+        _mark(db_session, first, "chapter")
+        _mark(db_session, head, "section")
+        return chapter, opening, head
+
+    def test_merge_section_names_the_receiving_section_after_the_heading(
+        self, db_session
+    ):
+        chapter, opening, head = self._merge_setup(db_session)
+        removed_id = head.paragraph.section_id
+        _hit(MergeSectionCommand(paragraph_id=head.paragraph_id), db_session)
+        assert head.heading_role == "section"
+        assert head.paragraph.section_id == opening.id
+        assert (opening.title, opening.title_auto) == ("Sentence 2", False)
+        assert Section.get(removed_id, session=db_session) is None
+        assert chapter.title == "Sentence 1"
+
+    def test_merge_section_undo_restores_both_titles(self, db_session):
+        _, opening, head = self._merge_setup(db_session)
+        command = MergeSectionCommand(paragraph_id=head.paragraph_id)
+        _hit(command, db_session)
+        assert command.undo() is True
+        db_session.expire_all()
+        assert (opening.title, opening.title_auto) == ("Section 1", True)
+        restored = head.paragraph.section
+        assert restored.id != opening.id
+        assert (restored.title, restored.title_auto) == ("Sentence 2", False)
+        assert head.heading_role == "section"
+
+
 class TestGuardMatchesSlotRules:
     """The predicted layout agrees with ``allowed_role`` on real data."""
 

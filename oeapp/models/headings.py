@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, cast
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
+
+    from sqlalchemy.orm import Session
 
     from oeapp.models.chapter import Chapter
     from oeapp.models.paragraph import Paragraph
@@ -190,7 +192,23 @@ def apply_generated_title(sentence: Sentence) -> None:
     division = _division_for(sentence)
     if division is None:
         return
-    label = "Chapter" if sentence.heading_role == HeadingRole.CHAPTER else "Section"
+    _write_generated_title(division, sentence.heading_role)
+
+
+def _write_generated_title(division: Chapter | Section, role: str | None) -> None:
+    """
+    Write a generated ``Chapter {n}`` or ``Section {n}`` title.
+
+    Args:
+        division: The chapter or section to name
+        role: The ``heading_role`` that titled it; ``chapter`` gives a chapter
+            name and anything else a section name
+
+    Side Effects:
+        Sets ``title`` and ``title_auto`` (true) on ``division``.
+
+    """
+    label = "Chapter" if role == HeadingRole.CHAPTER else "Section"
     division.title = f"{label} {division.number}"
     division.title_auto = True
 
@@ -379,6 +397,60 @@ class RefusalMixin:
         """
         self.refused = not legal
         return self.refused
+
+
+class HeadingTitleMove:
+    """
+    Keep division titles in step when a move puts a heading on another division.
+
+    Build it before the move, from the sections whose sentences may change
+    division, then call :meth:`apply` once the move is written and committed.
+    A ``chapter`` or ``section`` heading that now belongs to a different
+    division names that division with its Old English text. A division that
+    lost the heading and still exists gets its generated name back.
+
+    Args:
+        sections: The sections whose sentences may move to another division
+
+    """
+
+    def __init__(self, sections: Iterable[Section]) -> None:
+        """
+        Record which division each division-titling heading belongs to.
+
+        Args:
+            sections: The sections whose sentences may move to another division
+
+        """
+        #: Each titling heading with the type and id of its division before the move.
+        self._before: list[tuple[Sentence, type[Chapter | Section], int]] = []
+        for section in sections:
+            for sentence in _section_sentences(section):
+                division = _division_for(sentence)
+                if division is not None:
+                    self._before.append((sentence, type(division), division.id))
+
+    def apply(self, session: Session) -> None:
+        """
+        Retitle the divisions whose heading moved.
+
+        Args:
+            session: The session the move ran in. Its objects must be expired
+                or refreshed so each sentence reads its new division.
+
+        Side Effects:
+            Sets ``title`` and ``title_auto`` on the receiving and the losing
+            division. Does not commit.
+
+        """
+        for sentence, kind, old_id in self._before:
+            division = _division_for(sentence)
+            if division is None or division.id == old_id:
+                continue
+            apply_heading_title(sentence)
+            lost = cast("Chapter | Section | None", session.get(kind, old_id))
+            if lost is not None:
+                _write_generated_title(lost, sentence.heading_role)
 
 
 class HeadingMoveGuard:

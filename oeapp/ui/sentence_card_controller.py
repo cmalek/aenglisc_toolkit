@@ -260,26 +260,7 @@ class SentenceCardController:
             )
             return
 
-        message = (
-            f"Merge sentence {card.sentence.display_order} "
-            f"with sentence {next_sentence.display_order}?\n\n"
-            f"This will combine the Old English text, Modern English translation, "
-            f"tokens, annotations, and notes from both sentences."
-        )
-        msg_box = QMessageBox(
-            QMessageBox.Icon.Question,
-            "Confirm Merge",
-            message,
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            card,
-        )
-        msg_box.setDefaultButton(QMessageBox.StandardButton.No)
-        logo_pixmap = get_logo_pixmap(75)
-        if logo_pixmap:
-            msg_box.setIconPixmap(logo_pixmap)
-        reply = msg_box.exec()
-
-        if reply != QMessageBox.StandardButton.Yes:
+        if not self._confirm_merge(next_sentence):
             return
 
         before_text_oe = card.sentence.text_oe
@@ -301,6 +282,38 @@ class SentenceCardController:
                 "Merge Failed",
                 "Failed to merge sentences. Please try again.",
             )
+
+    def _confirm_merge(self, next_sentence: Sentence) -> bool:
+        """
+        Ask the user to confirm merging with the next sentence.
+
+        Args:
+            next_sentence: The sentence that would be folded in.
+
+        Returns:
+            ``True`` when the user answered Yes.
+
+        """
+        card = self.card
+        message = (
+            f"Merge sentence {card.sentence.display_order} "
+            f"with sentence {next_sentence.display_order}?\n\n"
+            f"This will combine the Old English text, Modern English translation, "
+            f"tokens, annotations, and notes from both sentences."
+        )
+        msg_box = QMessageBox(
+            QMessageBox.Icon.Question,
+            "Confirm Merge",
+            message,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            card,
+        )
+        msg_box.setDefaultButton(QMessageBox.StandardButton.No)
+        logo_pixmap = get_logo_pixmap(75)
+        if logo_pixmap:
+            msg_box.setIconPixmap(logo_pixmap)
+        reply = msg_box.exec()
+        return reply == QMessageBox.StandardButton.Yes
 
     def on_add_sentence_before_clicked(self) -> None:
         """

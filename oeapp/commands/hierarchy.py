@@ -3,9 +3,10 @@
 from dataclasses import dataclass, field
 
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from oeapp.models.chapter import Chapter
-from oeapp.models.headings import HeadingMoveGuard, RefusalMixin
+from oeapp.models.headings import HeadingMoveGuard, HeadingTitleMove, RefusalMixin
 from oeapp.models.mixins import SessionMixin
 from oeapp.models.paragraph import Paragraph
 from oeapp.models.section import Section
@@ -25,6 +26,8 @@ class SplitSectionCommand(RefusalMixin, SessionMixin, Command):
     original_section_id: int | None = None
     #: List of paragraph IDs that were moved to the new section.
     moved_paragraph_ids: list[int] = field(default_factory=list)
+    #: The original section's title and ``title_auto`` before the split.
+    original_title: tuple[str | None, bool] | None = None
 
     @property
     def needs_full_reload(self) -> bool:
@@ -60,19 +63,15 @@ class SplitSectionCommand(RefusalMixin, SessionMixin, Command):
             return False
 
         self.original_section_id = original_section.id
-        chapter_id = original_section.chapter_id
 
         # Get all paragraphs in the original section, ordered by order
         paragraphs = Paragraph.list(section_id=original_section.id, session=session)
         paragraphs = sorted(paragraphs, key=lambda p: p.order)
 
         # Find index of paragraph to split at
-        split_index = -1
-        for i, p in enumerate(paragraphs):
-            if p.id == self.paragraph_id:
-                split_index = i
-                break
-
+        split_index = next(
+            (i for i, p in enumerate(paragraphs) if p.id == self.paragraph_id), -1
+        )
         if split_index <= 0:
             # Not found or already at start of section
             return False
@@ -84,26 +83,10 @@ class SplitSectionCommand(RefusalMixin, SessionMixin, Command):
         # Paragraphs to move
         paragraphs_to_move = paragraphs[split_index:]
         self.moved_paragraph_ids = [p.id for p in paragraphs_to_move]
+        self.original_title = (original_section.title, original_section.title_auto)
+        title_moves = HeadingTitleMove([original_section])
 
-        # Create new section
-        new_section = Section.create(
-            chapter_id=chapter_id,
-            number=original_section.number + 1,
-            commit=False,
-            session=session,
-        )
-        self.new_section_id = new_section.id
-
-        # Shift subsequent sections in the same chapter
-        subsequent_sections = Section.get_sections_after(
-            chapter_id=chapter_id,
-            number=original_section.number,
-            exclude_section_id=self.new_section_id,
-            session=session,
-        )
-        for s in subsequent_sections:
-            s.number += 1
-            s.save(commit=False)
+        new_section = self._create_following_section(original_section, session)
 
         # Move paragraphs to new section and reset their order
         for i, p in enumerate(paragraphs_to_move, 1):
@@ -113,7 +96,43 @@ class SplitSectionCommand(RefusalMixin, SessionMixin, Command):
 
         session.commit()
         session.expire_all()
+        title_moves.apply(session)
+        session.commit()
         return True
+
+    def _create_following_section(self, original: Section, session: Session) -> Section:
+        """
+        Create the section after ``original`` and shift the later numbers.
+
+        Args:
+            original: The section being split.
+            session: The session the command runs in.
+
+        Side Effects:
+            Sets :attr:`new_section_id`, adds the section, and increments the
+            number of every later section in the chapter. Does not commit.
+
+        Returns:
+            The new section.
+
+        """
+        new_section = Section.create(
+            chapter_id=original.chapter_id,
+            number=original.number + 1,
+            commit=False,
+            session=session,
+        )
+        self.new_section_id = new_section.id
+        subsequent_sections = Section.get_sections_after(
+            chapter_id=original.chapter_id,
+            number=original.number,
+            exclude_section_id=self.new_section_id,
+            session=session,
+        )
+        for s in subsequent_sections:
+            s.number += 1
+            s.save(commit=False)
+        return new_section
 
     def undo(self) -> bool:
         """
@@ -167,6 +186,8 @@ class SplitSectionCommand(RefusalMixin, SessionMixin, Command):
 
         # Delete the new section
         new_section.delete(commit=False)
+        if self.original_title is not None:
+            original_section.title, original_section.title_auto = self.original_title
         session.commit()
         session.expire_all()
         return True
@@ -196,6 +217,10 @@ class MergeSectionCommand(RefusalMixin, SessionMixin, Command):
     moved_paragraph_ids: list[int] = field(default_factory=list)
     #: Original number of the removed section.
     original_number: int | None = None
+    #: The removed section's title and ``title_auto`` before the merge.
+    removed_title: tuple[str | None, bool] | None = None
+    #: The receiving section's title and ``title_auto`` before the merge.
+    target_title: tuple[str | None, bool] | None = None
 
     @property
     def needs_full_reload(self) -> bool:
@@ -251,33 +276,71 @@ class MergeSectionCommand(RefusalMixin, SessionMixin, Command):
             return False
 
         self.target_section_id = prev_section.id
-        last_order = prev_section.last_paragraph_number()
-
-        # Move all paragraphs from current to previous section
-        paragraphs_to_move = list(current_section.paragraphs)
-        self.moved_paragraph_ids = [p.id for p in paragraphs_to_move]
-        for i, p in enumerate(sorted(paragraphs_to_move, key=lambda x: x.order), 1):
-            p.section_id = prev_section.id
-            p.order = last_order + i
-            p.save(commit=False)
-
-        session.flush()
-        session.refresh(current_section, attribute_names=["paragraphs"])
+        self.removed_title = (current_section.title, current_section.title_auto)
+        self.target_title = (prev_section.title, prev_section.title_auto)
+        title_moves = HeadingTitleMove([current_section])
+        self._move_paragraphs(current_section, prev_section, session)
 
         # Delete current section
         current_section.delete(commit=False)
 
-        # Shift subsequent sections back
+        self._close_number_gap(chapter_id, self.original_number, session)
+
+        session.commit()
+        session.expire_all()
+        title_moves.apply(session)
+        session.commit()
+        return True
+
+    @staticmethod
+    def _close_number_gap(
+        chapter_id: int, removed_number: int, session: Session
+    ) -> None:
+        """
+        Shift the sections after a removed one back by one number.
+
+        Args:
+            chapter_id: The chapter the section belonged to.
+            removed_number: The number the removed section had.
+            session: The session the command runs in.
+
+        Side Effects:
+            Decrements ``number`` of every later section. Does not commit.
+
+        """
         subsequent_sections = Section.get_sections_after(
-            chapter_id=chapter_id, number=self.original_number, session=session
+            chapter_id=chapter_id, number=removed_number, session=session
         )
         for s in subsequent_sections:
             s.number -= 1
             s.save(commit=False)
 
-        session.commit()
-        session.expire_all()
-        return True
+    def _move_paragraphs(
+        self, current: Section, previous: Section, session: Session
+    ) -> None:
+        """
+        Move every paragraph of ``current`` to the end of ``previous``.
+
+        Args:
+            current: The section being merged away.
+            previous: The section that receives the paragraphs.
+            session: The session the command runs in.
+
+        Side Effects:
+            Sets :attr:`moved_paragraph_ids` and each paragraph's
+            ``section_id`` and ``order``. Flushes and refreshes ``current``.
+
+        """
+        last_order = previous.last_paragraph_number()
+        paragraphs_to_move = list(current.paragraphs)
+        self.moved_paragraph_ids = [p.id for p in paragraphs_to_move]
+        for i, p in enumerate(sorted(paragraphs_to_move, key=lambda x: x.order), 1):
+            p.section_id = previous.id
+            p.order = last_order + i
+            p.save(commit=False)
+
+        session.flush()
+        session.refresh(current, attribute_names=["paragraphs"])
 
     def undo(self) -> bool:
         """
@@ -332,6 +395,10 @@ class MergeSectionCommand(RefusalMixin, SessionMixin, Command):
             p.order = i
             p.save(commit=False)
 
+        if self.removed_title is not None:
+            new_s.title, new_s.title_auto = self.removed_title
+        if self.target_title is not None:
+            target_section.title, target_section.title_auto = self.target_title
         session.commit()
         session.expire_all()
         return True
@@ -389,7 +456,6 @@ class SplitChapterCommand(RefusalMixin, SessionMixin, Command):
             return False
 
         self.original_chapter_id = original_chapter.id
-        project_id = original_chapter.project_id
 
         # Get all sections in the original chapter, ordered by number
         sections = sorted(
@@ -414,25 +480,7 @@ class SplitChapterCommand(RefusalMixin, SessionMixin, Command):
             return False
         self.moved_section_ids = [s.id for s in sections_to_move]
 
-        # Create new chapter
-        new_chapter = Chapter.create(
-            project_id=project_id,
-            number=original_chapter.number + 1,
-            commit=False,
-            session=session,
-        )
-        self.new_chapter_id = new_chapter.id
-
-        # Shift subsequent chapters in the same project
-        subsequent_chapters = Chapter.get_chapters_after(
-            project_id=project_id,
-            number=original_chapter.number,
-            exclude_chapter_id=self.new_chapter_id,
-            session=session,
-        )
-        for c in subsequent_chapters:
-            c.number += 1
-            c.save(commit=False)
+        new_chapter = self._create_following_chapter(original_chapter, session)
 
         # Move sections to new chapter and reset their number
         for i, s in enumerate(sections_to_move, 1):
@@ -443,6 +491,40 @@ class SplitChapterCommand(RefusalMixin, SessionMixin, Command):
         session.commit()
         session.expire_all()
         return True
+
+    def _create_following_chapter(self, original: Chapter, session: Session) -> Chapter:
+        """
+        Create the chapter after ``original`` and shift the later numbers.
+
+        Args:
+            original: The chapter being split.
+            session: The session the command runs in.
+
+        Side Effects:
+            Sets :attr:`new_chapter_id`, adds the chapter, and increments the
+            number of every later chapter in the project. Does not commit.
+
+        Returns:
+            The new chapter.
+
+        """
+        new_chapter = Chapter.create(
+            project_id=original.project_id,
+            number=original.number + 1,
+            commit=False,
+            session=session,
+        )
+        self.new_chapter_id = new_chapter.id
+        subsequent_chapters = Chapter.get_chapters_after(
+            project_id=original.project_id,
+            number=original.number,
+            exclude_chapter_id=self.new_chapter_id,
+            session=session,
+        )
+        for c in subsequent_chapters:
+            c.number += 1
+            c.save(commit=False)
+        return new_chapter
 
     def undo(self) -> bool:
         """
@@ -573,18 +655,7 @@ class MergeChapterCommand(RefusalMixin, SessionMixin, Command):
             return False
 
         self.target_chapter_id = prev_chapter.id
-        last_number = prev_chapter.last_section_number()
-
-        # Move all sections from current to previous chapter
-        sections_to_move = list(current_chapter.sections)
-        self.moved_section_ids = [s.id for s in sections_to_move]
-        for i, s in enumerate(sorted(sections_to_move, key=lambda x: x.number), 1):
-            s.chapter_id = prev_chapter.id
-            s.number = last_number + i
-            s.save(commit=False)
-
-        session.flush()
-        session.refresh(current_chapter, attribute_names=["sections"])
+        self._move_sections(current_chapter, prev_chapter, session)
 
         # Delete current chapter
         current_chapter.delete(commit=False)
@@ -600,6 +671,33 @@ class MergeChapterCommand(RefusalMixin, SessionMixin, Command):
         session.commit()
         session.expire_all()
         return True
+
+    def _move_sections(
+        self, current: Chapter, previous: Chapter, session: Session
+    ) -> None:
+        """
+        Move every section of ``current`` to the end of ``previous``.
+
+        Args:
+            current: The chapter being merged away.
+            previous: The chapter that receives the sections.
+            session: The session the command runs in.
+
+        Side Effects:
+            Sets :attr:`moved_section_ids` and each section's ``chapter_id``
+            and ``number``. Flushes and refreshes ``current``.
+
+        """
+        last_number = previous.last_section_number()
+        sections_to_move = list(current.sections)
+        self.moved_section_ids = [s.id for s in sections_to_move]
+        for i, s in enumerate(sorted(sections_to_move, key=lambda x: x.number), 1):
+            s.chapter_id = previous.id
+            s.number = last_number + i
+            s.save(commit=False)
+
+        session.flush()
+        session.refresh(current, attribute_names=["sections"])
 
     def undo(self) -> bool:
         """
