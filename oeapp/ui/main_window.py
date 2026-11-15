@@ -908,12 +908,16 @@ class MainWindow(QMainWindow):
         self.token_details_sidebar.show_empty()
         self.main_menu.project_menu.update_reading_export_enabled(project)
 
-    def reload_project(self) -> None:
+    def reload_project(self, sentence_id: int | None = None) -> None:
         """
         Reload the entire project structure from database.
 
         This is needed after structural changes like merge/undo merge
         that change the number of sentences.
+
+        Args:
+            sentence_id: When set, reopen this sentence's section instead of
+                the first section.
 
         Side Effects:
             Refreshes the Old English/Translation export enablement, since
@@ -921,7 +925,7 @@ class MainWindow(QMainWindow):
 
         """
         session = get_runtime_session()
-        self.project_ui.reload()
+        self.project_ui.reload(sentence_id=sentence_id)
         project_id = self.app_context.current_project_id
         if project_id is not None:
             project = Project.get(project_id, session=session)

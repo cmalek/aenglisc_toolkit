@@ -84,13 +84,23 @@ class ProjectUI:
         """
         return self.main_window.autosave_service
 
-    def load(self, project: Project, clear_search: bool = True) -> None:
+    def load(
+        self,
+        project: Project,
+        clear_search: bool = True,
+        *,
+        sentence_id: int | None = None,
+    ) -> None:
         """
         Build the project.
 
         Args:
             project: Project to load
             clear_search: Whether to clear the search toolbar
+
+        Keyword Args:
+            sentence_id: When set, open this sentence's section instead of the
+                first section of the first chapter.
 
         """
         # Clear or re-apply search
@@ -114,23 +124,100 @@ class ProjectUI:
             self.main_window.chapter_combo.addItem(chapter.display_title, chapter.id)
         self.main_window.chapter_combo.blockSignals(False)  # noqa: FBT003
 
-        # Select first chapter if available
+        location = (
+            self._chapter_and_section_ids(sentence_id)
+            if sentence_id is not None
+            else None
+        )
+        if location is not None and self._open_at(*location):
+            return
+        self._open_first_section(project)
+
+    def _open_first_section(self, project: Project) -> None:
+        """
+        Show the first section of the first chapter.
+
+        Args:
+            project: Project whose chapters were just listed in the combo.
+
+        Side Effects:
+            Selecting the chapter runs the chapter-change handler, which loads
+            the first section and focuses its first sentence.
+
+        """
         if project.chapters:
             self.main_window.chapter_combo.setCurrentIndex(0)
             chapter_id = project.chapters[0].id
             self.app_context.current_chapter_id = chapter_id
             self.update_sections_for_chapter(chapter_id)
-        else:
-            # Handle empty project (should not happen with new logic)
-            self.main_window.section_combo.clear()
-            self._clear_content()
+            return
+        self.main_window.section_combo.clear()
+        self._clear_content()
 
-    def update_sections_for_chapter(self, chapter_id: int) -> None:
+    def _open_at(self, chapter_id: int, section_id: int) -> bool:
+        """
+        Show one section without focusing its first sentence.
+
+        Args:
+            chapter_id: Chapter to select.
+            section_id: Section to load.
+
+        Side Effects:
+            Moves the chapter combo with its signal blocked, so the
+            chapter-change handler does not load the first section.
+
+        Returns:
+            ``False`` when ``chapter_id`` is not in the chapter combo.
+
+        """
+        combo = self.main_window.chapter_combo
+        combo.blockSignals(True)  # noqa: FBT003
+        found = self._set_combo_to_data(combo, chapter_id)
+        combo.blockSignals(False)  # noqa: FBT003
+        if not found:
+            return False
+        self.app_context.current_chapter_id = chapter_id
+        self.update_sections_for_chapter(chapter_id, section_id=section_id)
+        return True
+
+    def _chapter_and_section_ids(self, sentence_id: int) -> tuple[int, int] | None:
+        """
+        Get the chapter and section that contain a sentence.
+
+        Args:
+            sentence_id: Sentence to locate.
+
+        Returns:
+            ``(chapter_id, section_id)``, or ``None`` when the sentence or its
+            section is missing.
+
+        """
+        session = get_runtime_session()
+        from oeapp.models.sentence import Sentence  # noqa: PLC0415
+
+        sentence = Sentence.get(sentence_id, session=session)
+        paragraph = sentence.paragraph if sentence is not None else None
+        section = paragraph.section if paragraph is not None else None
+        chapter = section.chapter if section is not None else None
+        if (
+            section is None
+            or chapter is None
+            or section.id is None
+            or chapter.id is None
+        ):
+            return None
+        return chapter.id, section.id
+
+    def update_sections_for_chapter(
+        self, chapter_id: int, section_id: int | None = None
+    ) -> None:
         """
         Update section dropdown for the given chapter.
 
         Args:
             chapter_id: Chapter whose sections should populate the combo.
+            section_id: Section to show. The first section is shown when this
+                is omitted or not in the chapter.
 
         """
         session = get_runtime_session()
@@ -143,13 +230,40 @@ class ProjectUI:
 
         self._fill_section_combo(chapter)
 
+        if section_id is not None and self._open_section(section_id):
+            return
         if chapter.sections:
             self.main_window.section_combo.setCurrentIndex(0)
-            section_id = chapter.sections[0].id
-            self.app_context.current_section_id = section_id
-            self.load_section(section_id)
+            first_id = chapter.sections[0].id
+            self.app_context.current_section_id = first_id
+            self.load_section(first_id)
         else:
             self._clear_content()
+
+    def _open_section(self, section_id: int) -> bool:
+        """
+        Load a section that is already listed in the section combo.
+
+        Args:
+            section_id: Section to show.
+
+        Side Effects:
+            Moves the section combo with its signal blocked, so the
+            section-change handler does not focus the first sentence.
+
+        Returns:
+            ``False`` when ``section_id`` is not in the combo.
+
+        """
+        combo = self.main_window.section_combo
+        combo.blockSignals(True)  # noqa: FBT003
+        found = self._set_combo_to_data(combo, section_id)
+        combo.blockSignals(False)  # noqa: FBT003
+        if not found:
+            return False
+        self.app_context.current_section_id = section_id
+        self.load_section(section_id)
+        return True
 
     def _fill_section_combo(self, chapter: Chapter) -> None:
         """
@@ -438,6 +552,7 @@ class ProjectUI:
         *,
         clear_search: bool,
         message: str | None = None,
+        sentence_id: int | None = None,
     ) -> bool:
         """
         Reload project structure after merge/add/delete while preserving undo.
@@ -445,6 +560,7 @@ class ProjectUI:
         Keyword Args:
             clear_search: Whether to clear search state before reload.
             message: Optional status message shown after reload.
+            sentence_id: When set, reopen this sentence's section.
 
         Returns:
             ``True`` when reload completed, else ``False``.
@@ -462,7 +578,7 @@ class ProjectUI:
         if project is None:
             return False
 
-        self.load(project, clear_search=clear_search)
+        self.load(project, clear_search=clear_search, sentence_id=sentence_id)
 
         self.main_window.reload_main_window()
 
@@ -470,14 +586,19 @@ class ProjectUI:
             self.show_message(message, duration=2000)
         return True
 
-    def reload(self) -> None:
+    def reload(self, sentence_id: int | None = None) -> None:
         """
         Reload the entire project structure from database.
 
         This is needed after structural changes like merge/undo merge
         that change the number of sentences.
+
+        Args:
+            sentence_id: When set, reopen this sentence's section instead of
+                the first section.
+
         """
-        self._reload_after_structure_change(clear_search=False)
+        self._reload_after_structure_change(clear_search=False, sentence_id=sentence_id)
 
     def refresh(self) -> None:
         """
@@ -609,7 +730,9 @@ class ProjectUI:
             sentence_id: ID of the sentence whose hierarchy context changed
 
         """
-        if not self._reload_after_structure_change(clear_search=True):
+        if not self._reload_after_structure_change(
+            clear_search=True, sentence_id=sentence_id
+        ):
             return
 
         card = self.find_sentence_card(sentence_id)

@@ -15,6 +15,7 @@ if TYPE_CHECKING:
 
     from oeapp.models.chapter import Chapter
     from oeapp.models.paragraph import Paragraph
+    from oeapp.models.project import Project
     from oeapp.models.section import Section
     from oeapp.models.sentence import Sentence
 
@@ -134,7 +135,10 @@ def allowed_role(sentence: Sentence) -> HeadingRole | None:
     """
     Return the heading role this sentence's slot allows.
 
-    The sentence's own current ``heading_role`` is ignored.
+    The sentence's own current ``heading_role`` is ignored. A verse project
+    never allows a section heading. Its chapter headings are named in order:
+    a later chapter allows one only after every earlier chapter has a chapter
+    heading on the first sentence of its first section.
 
     Args:
         sentence: The sentence to check
@@ -148,10 +152,133 @@ def allowed_role(sentence: Sentence) -> HeadingRole | None:
     section = sentence.paragraph.section
     index = section_index(sentence)
     if is_opening_section(sentence):
-        return _opening_slot_role(section, index)
-    if index == 1:
-        return None if is_verse_section(section) else HeadingRole.SECTION
-    return HeadingRole.SUBSECTION
+        role = _opening_slot_role(section, index)
+    elif index == 1:
+        role = None if is_verse_section(section) else HeadingRole.SECTION
+    else:
+        role = HeadingRole.SUBSECTION
+    return _verse_project_role(section, role)
+
+
+def _verse_project_role(
+    section: Section, role: HeadingRole | None
+) -> HeadingRole | None:
+    """
+    Apply verse-project limits to a role the section slot would otherwise allow.
+
+    Args:
+        section: The sentence's section
+        role: The role the section slot allows before the project limits
+
+    Returns:
+        ``role``, or ``None`` when a verse project forbids it
+
+    """
+    if role is None:
+        return None
+    policy = _policy_for(section)
+    if policy.verse_project and role is HeadingRole.SECTION:
+        return None
+    if role is HeadingRole.CHAPTER and not policy.chapter_heading_allowed:
+        return None
+    return role
+
+
+def _policy_for(section: Section) -> _SlotPolicy:
+    """
+    Return the verse-project limits for the section's chapter.
+
+    Args:
+        section: The section whose chapter is checked
+
+    Returns:
+        The limits ``allowed_role`` and the move guard share
+
+    """
+    verse_project = _is_verse_project(section.chapter.project)
+    allowed = (not verse_project) or _earlier_chapters_named(section.chapter)
+    return _SlotPolicy(verse_project=verse_project, chapter_heading_allowed=allowed)
+
+
+def _policy_for_new_chapter(source: Chapter) -> _SlotPolicy:
+    """
+    Return the limits for a chapter split off after ``source``.
+
+    Args:
+        source: The chapter that keeps its opening section
+
+    Returns:
+        Limits for the new chapter. It may be named only when ``source`` and
+        every chapter before ``source`` already have chapter headings.
+
+    """
+    verse_project = _is_verse_project(source.project)
+    allowed = (not verse_project) or (
+        _chapter_is_named(source) and _earlier_chapters_named(source)
+    )
+    return _SlotPolicy(verse_project=verse_project, chapter_heading_allowed=allowed)
+
+
+def _is_verse_project(project: Project) -> bool:
+    """
+    Return whether a project is entirely verse.
+
+    A project that mixes prose and verse is a prose project. A chapter
+    heading at the start of a section does not count as prose: that sentence
+    may have no verse lines.
+
+    Args:
+        project: The project to check
+
+    Returns:
+        ``True`` when the project has sentences and every section that has
+        sentences is a verse section
+
+    """
+    sections = [
+        section
+        for chapter in project.chapters
+        for section in chapter.sections
+        if _section_sentences(section)
+    ]
+    return bool(sections) and all(is_verse_section(section) for section in sections)
+
+
+def _earlier_chapters_named(chapter: Chapter) -> bool:
+    """
+    Return whether every chapter before this one has a chapter heading.
+
+    Args:
+        chapter: The chapter that would be named next
+
+    Returns:
+        ``True`` when each lower-numbered chapter is named in its first section
+
+    """
+    return all(
+        _chapter_is_named(earlier)
+        for earlier in chapter.project.chapters
+        if earlier.number < chapter.number
+    )
+
+
+def _chapter_is_named(chapter: Chapter) -> bool:
+    """
+    Return whether a chapter has a chapter heading in its first section.
+
+    Args:
+        chapter: The chapter to check
+
+    Returns:
+        ``True`` when the first sentence of its opening section is a chapter
+        heading
+
+    """
+    if not chapter.sections:
+        return False
+    opening = min(chapter.sections, key=lambda item: item.number)
+    sentences = _section_sentences(opening)
+    return bool(sentences) and sentences[0].heading_role == HeadingRole.CHAPTER
 
 
 def apply_heading_title(sentence: Sentence) -> None:
@@ -470,6 +597,16 @@ def headings_illegal_after(section: Section) -> list[Sentence]:
 
 
 @dataclass(frozen=True)
+class _SlotPolicy:
+    """Verse-project limits applied on top of the per-section slot rules."""
+
+    #: Whether the project contains verse, so it has no section heading.
+    verse_project: bool
+    #: Whether this chapter may take a chapter heading on its opening sentence.
+    chapter_heading_allowed: bool
+
+
+@dataclass(frozen=True)
 class _Slot:
     """What a slot rule needs to know about one sentence in a predicted layout."""
 
@@ -531,7 +668,12 @@ def _section_is_opening(section: Section) -> bool:
 
 
 def _predicted_role(
-    slots: Sequence[_Slot], position: int, *, opening: bool, verse: bool
+    slots: Sequence[_Slot],
+    position: int,
+    *,
+    opening: bool,
+    verse: bool,
+    policy: _SlotPolicy,
 ) -> HeadingRole | None:
     """
     Return the role a slot allows in a predicted layout.
@@ -546,6 +688,7 @@ def _predicted_role(
     Keyword Args:
         opening: Whether the section is its chapter's opening section
         verse: Whether the layout is a verse section
+        policy: Verse-project limits for the chapter this layout belongs to
 
     Returns:
         The allowed role, or ``None``
@@ -554,18 +697,20 @@ def _predicted_role(
     index = position + 1
     if not opening:
         if index == 1:
-            return None if verse else HeadingRole.SECTION
+            return None if verse or policy.verse_project else HeadingRole.SECTION
         return HeadingRole.SUBSECTION
     if index == 1:
-        return HeadingRole.CHAPTER
+        return HeadingRole.CHAPTER if policy.chapter_heading_allowed else None
     if index > _SECTION_HEADING_INDEX:
         return HeadingRole.SUBSECTION
-    if verse or slots[0].role != HeadingRole.CHAPTER:
+    if verse or policy.verse_project or slots[0].role != HeadingRole.CHAPTER:
         return None
     return HeadingRole.SECTION
 
 
-def _layout_is_legal(slots: Sequence[_Slot], *, opening: bool) -> bool:
+def _layout_is_legal(
+    slots: Sequence[_Slot], *, opening: bool, policy: _SlotPolicy
+) -> bool:
     """
     Return whether every heading in a predicted layout sits in a legal slot.
 
@@ -574,6 +719,7 @@ def _layout_is_legal(slots: Sequence[_Slot], *, opening: bool) -> bool:
 
     Keyword Args:
         opening: Whether the section is its chapter's opening section
+        policy: Verse-project limits for the chapter this layout belongs to
 
     Returns:
         ``True`` when each set role equals the role its slot allows
@@ -582,7 +728,8 @@ def _layout_is_legal(slots: Sequence[_Slot], *, opening: bool) -> bool:
     verse = _layout_is_verse(slots)
     return all(
         slot.role is None
-        or slot.role == _predicted_role(slots, i, opening=opening, verse=verse)
+        or slot.role
+        == _predicted_role(slots, i, opening=opening, verse=verse, policy=policy)
         for i, slot in enumerate(slots)
     )
 
@@ -703,7 +850,9 @@ class HeadingMoveGuard:
         )
         slots = _slots_of(sentences)
         slots.insert(at if position == "before" else at + 1, _NEW_SLOT)
-        return _layout_is_legal(slots, opening=_section_is_opening(section))
+        return _layout_is_legal(
+            slots, opening=_section_is_opening(section), policy=_policy_for(section)
+        )
 
     @staticmethod
     def allows_removal(sentence: Sentence) -> bool:
@@ -722,7 +871,9 @@ class HeadingMoveGuard:
         section = sentence.paragraph.section
         remaining = [s for s in _section_sentences(section) if s.id != sentence.id]
         return _layout_is_legal(
-            _slots_of(remaining), opening=_section_is_opening(section)
+            _slots_of(remaining),
+            opening=_section_is_opening(section),
+            policy=_policy_for(section),
         )
 
     @staticmethod
@@ -742,9 +893,10 @@ class HeadingMoveGuard:
         split_at = next(i for i, p in enumerate(paragraphs) if p.id == paragraph.id)
         kept = _slots_of(_paragraph_sentences(paragraphs[:split_at]))
         moved = _slots_of(_paragraph_sentences(paragraphs[split_at:]))
+        policy = _policy_for(section)
         return _layout_is_legal(
-            kept, opening=_section_is_opening(section)
-        ) and _layout_is_legal(moved, opening=False)
+            kept, opening=_section_is_opening(section), policy=policy
+        ) and _layout_is_legal(moved, opening=False, policy=policy)
 
     @staticmethod
     def allows_merge_section(section: Section, previous: Section) -> bool:
@@ -762,7 +914,11 @@ class HeadingMoveGuard:
         joined = _slots_of(_section_sentences(previous)) + _slots_of(
             _section_sentences(section)
         )
-        return _layout_is_legal(joined, opening=_section_is_opening(previous))
+        return _layout_is_legal(
+            joined,
+            opening=_section_is_opening(previous),
+            policy=_policy_for(previous),
+        )
 
     @staticmethod
     def allows_split_chapter(moved_sections: Sequence[Section]) -> bool:
@@ -777,8 +933,15 @@ class HeadingMoveGuard:
             first one now being the opening section
 
         """
+        if not moved_sections:
+            return True
+        policy = _policy_for_new_chapter(moved_sections[0].chapter)
         return all(
-            _layout_is_legal(_slots_of(_section_sentences(section)), opening=i == 0)
+            _layout_is_legal(
+                _slots_of(_section_sentences(section)),
+                opening=i == 0,
+                policy=policy,
+            )
             for i, section in enumerate(moved_sections)
         )
 
@@ -796,7 +959,11 @@ class HeadingMoveGuard:
 
         """
         return all(
-            _layout_is_legal(_slots_of(_section_sentences(section)), opening=False)
+            _layout_is_legal(
+                _slots_of(_section_sentences(section)),
+                opening=False,
+                policy=_policy_for(section),
+            )
             for section in sections
         )
 

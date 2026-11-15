@@ -5,7 +5,12 @@ from typing import TYPE_CHECKING, Final
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QPalette
 
-from oeapp.commands import EditSentenceCommand, UndoCommand
+from oeapp.commands import (
+    ClearHeadingCommand,
+    EditSentenceCommand,
+    SetHeadingCommand,
+    UndoCommand,
+)
 from oeapp.db import get_runtime_session
 from oeapp.models.sentence import Sentence
 
@@ -40,6 +45,44 @@ def blink_translation(editor: "QTextEdit") -> None:
     rule = f"QTextEdit {{ background-color: {color.name(color.NameFormat.HexArgb)}; }}"
     editor.setStyleSheet(f"{base}\n{rule}" if base else rule)
     QTimer.singleShot(BLINK_MS, editor, lambda: editor.setStyleSheet(base))
+
+
+def _heading_sentence_id(command: object) -> int | None:
+    """
+    Get the sentence a heading mark or clear should keep on screen.
+
+    Args:
+        command: The command inside an undo-stack entry.
+
+    Returns:
+        That sentence's id, or ``None`` for every other command.
+
+    """
+    if not isinstance(command, (SetHeadingCommand, ClearHeadingCommand)):
+        return None
+    return next(iter(command.locators().sentence_ids), None)
+
+
+def _scroll_when_laid_out(main_window: "MainWindow", sentence_id: int | None) -> None:
+    """
+    Scroll a sentence's card into view once the reloaded cards are shown.
+
+    Args:
+        main_window: Window whose project workspace holds the cards.
+        sentence_id: Sentence to reveal. Nothing is scrolled when this is
+            ``None`` or the card is not loaded.
+
+    Side Effects:
+        Schedules :meth:`~oeapp.ui.main_window.MainWindow.ensure_visible` on
+        the next event-loop turn.
+
+    """
+    if sentence_id is None:
+        return
+    card = main_window.project_ui.find_sentence_card(sentence_id)
+    if card is None:
+        return
+    QTimer.singleShot(0, lambda: main_window.ensure_visible(card))
 
 
 class UndoPresenter:
@@ -136,11 +179,15 @@ class UndoPresenter:
 
         Side Effects:
             Calls ``reload_project`` or ``refresh_project`` on the main window.
+            A heading mark or clear reopens that sentence's section and scrolls
+            its card into view.
 
         """
         inner = command.command if isinstance(command, UndoCommand) else None
+        sentence_id = _heading_sentence_id(inner)
         if inner is not None and inner.needs_full_reload:
-            self.main_window.reload_project()
+            self.main_window.reload_project(sentence_id=sentence_id)
+            _scroll_when_laid_out(self.main_window, sentence_id)
         else:
             self.main_window.refresh_project()
 

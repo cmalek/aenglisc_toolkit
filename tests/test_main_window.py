@@ -515,6 +515,8 @@ class TestMainWindowActions:
         ):
             project_ui._on_structure_changed(42)
 
+            reload = project_ui._reload_after_structure_change
+            reload.assert_called_once_with(clear_search=True, sentence_id=42)
             mock_single_shot.assert_called_once()
             scheduled_delay, scheduled_callback = mock_single_shot.call_args.args
             assert scheduled_delay == 0
@@ -523,6 +525,28 @@ class TestMainWindowActions:
             mock_ensure_visible.assert_called_once_with(target_card)
             target_card.enter_edit_mode.assert_not_called()
             target_card.flash_added.assert_not_called()
+
+    def test_load_opens_the_changed_sentences_section(self, main_window):
+        """A reload that names a sentence opens that section, not the first."""
+        project_ui = main_window.project_ui
+        project = MagicMock()
+        project.id = 3
+        chapter = MagicMock()
+        chapter.id = 1
+        chapter.display_title = "Chapter 1"
+        project.chapters = [chapter]
+
+        with (
+            patch.object(project_ui, "_chapter_and_section_ids", return_value=(4, 9)),
+            patch.object(project_ui, "_open_at", return_value=True) as open_at,
+            patch.object(project_ui, "_open_first_section") as open_first,
+            patch.object(main_window, "_clear_search_without_focus_restore"),
+        ):
+            project_ui.load(project, sentence_id=15)
+
+        open_at.assert_called_once_with(4, 9)
+        open_first.assert_not_called()
+        assert main_window.app_context.current_project_id == 3
 
     def test_reload_after_structure_change_preserves_undo_history(self, main_window):
         """Structural reload keeps the same undo stack and its history."""

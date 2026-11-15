@@ -69,7 +69,7 @@ def test_old_sentence_json_without_heading_role_imports(db_session) -> None:
     assert imported.heading_role is None
 
 
-def _build(session, layout, chapter_number=1):
+def _build(session, layout, chapter_number=1, project=None):
     """
     Build a chapter whose sections hold the sentences described by ``layout``.
 
@@ -80,16 +80,26 @@ def _build(session, layout, chapter_number=1):
 
     Keyword Args:
         chapter_number: The chapter number
+        project: An existing project to add the chapter to. A new project is
+            created when this is omitted.
 
     Returns:
         The chapter and a list of sentence lists, one per section
 
     """
-    project = Project.create(text="", name=f"Headings {id(layout)}", session=session)
+    if project is None:
+        project = Project.create(
+            text="", name=f"Headings {id(layout)}", session=session
+        )
+        order = 0
+    else:
+        session.expire(project, ["sentences"])
+        order = max(
+            (sentence.display_order for sentence in project.sentences), default=0
+        )
     chapter = Chapter(project_id=project.id, number=chapter_number)
     session.add(chapter)
     session.flush()
-    order = 0
     result = []
     for number, flags in enumerate(layout, 1):
         section = Section(chapter_id=chapter.id, number=number)
@@ -187,6 +197,46 @@ class TestSlotRules:
         first, second = sections[1]
         assert allowed_role(first) == HeadingRole.SECTION
         assert allowed_role(second) == HeadingRole.SUBSECTION
+
+    def test_mixed_project_keeps_prose_heading_rules(self, db_session):
+        chapter, _sections = _build(db_session, [[True]])
+        _, later = _build(
+            db_session, [[False], [False]], chapter_number=2, project=chapter.project
+        )
+        assert allowed_role(later[0][0]) == HeadingRole.CHAPTER
+        assert allowed_role(later[1][0]) == HeadingRole.SECTION
+
+    def test_chapter_heading_keeps_a_fully_verse_project(self, db_session):
+        chapter, _sections = _build(db_session, [[True]])
+        _, later = _build(
+            db_session, [[True, True]], chapter_number=2, project=chapter.project
+        )
+        heading, second = later[0]
+        heading.heading_role = "chapter"
+        heading.verse_line_start = None
+        heading.verse_line_end = None
+        assert allowed_role(heading) is None
+        assert allowed_role(second) is None
+
+    def test_verse_project_names_chapters_in_order(self, db_session):
+        chapter, sections = _build(db_session, [[True]])
+        project = chapter.project
+        _, second = _build(db_session, [[True]], chapter_number=2, project=project)
+        _, third = _build(db_session, [[True]], chapter_number=3, project=project)
+        assert allowed_role(second[0][0]) is None
+        assert allowed_role(third[0][0]) is None
+        sections[0][0].heading_role = "chapter"
+        assert allowed_role(second[0][0]) == HeadingRole.CHAPTER
+        assert allowed_role(third[0][0]) is None
+        second[0][0].heading_role = "chapter"
+        assert allowed_role(third[0][0]) == HeadingRole.CHAPTER
+
+    def test_prose_project_can_name_a_later_chapter_first(self, db_session):
+        chapter, _sections = _build(db_session, [[False]])
+        _, later = _build(
+            db_session, [[False]], chapter_number=2, project=chapter.project
+        )
+        assert allowed_role(later[0][0]) == HeadingRole.CHAPTER
 
     def test_heading_is_legal(self, db_session):
         _, sections = _build(db_session, [[False, False]])
