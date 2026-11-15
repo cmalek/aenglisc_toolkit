@@ -203,3 +203,138 @@ def test_on_merge_paragraph_clicked_failure_leaves_stack_empty(
 
     assert card.controller.on_merge_paragraph_clicked() is False
     assert undo_stack.count() == 0
+
+
+def _action_texts(card):
+    return [a.text() for a in card.paragraph_menu.actions()]
+
+
+def test_first_sentence_menu_offers_chapter_heading(
+    qtbot, db_session, hierarchy_project, mock_main_window
+):
+    project, s1, s2, s3 = hierarchy_project
+    card = SentenceCard(s1, undo_stack=QUndoStack(), main_window=mock_main_window)
+    qtbot.addWidget(card)
+    card.show()
+
+    assert card.toggle_paragraph_button.isVisible()
+    assert _action_texts(card) == ["Chapter heading"]
+
+
+def test_first_sentence_menu_stays_hidden_when_no_heading_is_allowed(
+    qtbot, db_session, hierarchy_project, mock_main_window
+):
+    project, s1, s2, s3 = hierarchy_project
+    s1.display_order = 1
+    s2.display_order = 2
+    db_session.commit()
+    # Move s1 to a later section so index 1 of a non-opening verse section
+    # allows no heading.
+    chapter = s1.paragraph.section.chapter
+    sec2 = Section(chapter_id=chapter.id, number=2)
+    db_session.add(sec2)
+    db_session.flush()
+    p2 = Paragraph(section_id=sec2.id, order=1)
+    db_session.add(p2)
+    db_session.flush()
+    s1.paragraph_id = p2.id
+    s1.verse_line_start = 1
+    s1.verse_line_end = 1
+    db_session.commit()
+    db_session.refresh(s1)
+
+    card = SentenceCard(s1, undo_stack=QUndoStack(), main_window=mock_main_window)
+    qtbot.addWidget(card)
+    card.show()
+
+    assert not card.toggle_paragraph_button.isVisible()
+
+
+def test_marked_heading_menu_offers_not_a_heading(
+    qtbot, db_session, hierarchy_project, mock_main_window
+):
+    from oeapp.commands import ClearHeadingCommand
+
+    project, s1, s2, s3 = hierarchy_project
+    s1.heading_role = "chapter"
+    db_session.commit()
+    undo_stack = QUndoStack()
+    card = SentenceCard(s1, undo_stack=undo_stack, main_window=mock_main_window)
+    qtbot.addWidget(card)
+    card.show()
+
+    texts = _action_texts(card)
+    assert texts == ["Not a heading"]
+    next(a for a in card.paragraph_menu.actions() if a.text() == "Not a heading").trigger()
+
+    assert undo_stack.count() == 1
+    assert isinstance(undo_stack.command(0).command, ClearHeadingCommand)
+    db_session.refresh(s1)
+    assert s1.heading_role is None
+
+
+def test_later_sentence_menu_offers_its_legal_heading(
+    qtbot, db_session, hierarchy_project, mock_main_window
+):
+    project, s1, s2, s3 = hierarchy_project
+    card = SentenceCard(s3, undo_stack=QUndoStack(), main_window=mock_main_window)
+    qtbot.addWidget(card)
+
+    assert _action_texts(card) == ["Paragraph Start", "Subsection heading"]
+
+
+def test_choosing_a_heading_pushes_set_heading_command(
+    qtbot, db_session, hierarchy_project, mock_main_window
+):
+    from oeapp.commands import SetHeadingCommand
+
+    project, s1, s2, s3 = hierarchy_project
+    undo_stack = QUndoStack()
+    card = SentenceCard(s1, undo_stack=undo_stack, main_window=mock_main_window)
+    qtbot.addWidget(card)
+    next(a for a in card.paragraph_menu.actions() if a.text() == "Chapter heading").trigger()
+
+    assert isinstance(undo_stack.command(0).command, SetHeadingCommand)
+    db_session.refresh(s1)
+    assert s1.heading_role == "chapter"
+
+
+def test_not_a_heading_on_chapter_shows_cascade_dialog(
+    qtbot, db_session, hierarchy_project, mock_main_window, monkeypatch
+):
+    project, s1, s2, s3 = hierarchy_project
+    s1.heading_role = "chapter"
+    s2.heading_role = "section"
+    db_session.commit()
+    shown = []
+    monkeypatch.setattr(
+        "oeapp.ui.sentence_card.QMessageBox.information",
+        lambda *args: shown.append(args[1:]),
+    )
+    card = SentenceCard(s1, undo_stack=QUndoStack(), main_window=mock_main_window)
+    qtbot.addWidget(card)
+    next(a for a in card.paragraph_menu.actions() if a.text() == "Not a heading").trigger()
+
+    assert len(shown) == 1
+    assert shown[0][-1] == (
+        'The section heading on "Sentence 2" was also cleared. '
+        "That section is now named Section 1."
+    )
+
+
+def test_not_a_heading_on_subsection_shows_no_dialog(
+    qtbot, db_session, hierarchy_project, mock_main_window, monkeypatch
+):
+    project, s1, s2, s3 = hierarchy_project
+    s3.heading_role = "subsection"
+    db_session.commit()
+    shown = []
+    monkeypatch.setattr(
+        "oeapp.ui.sentence_card.QMessageBox.information",
+        lambda *args: shown.append(args),
+    )
+    card = SentenceCard(s3, undo_stack=QUndoStack(), main_window=mock_main_window)
+    qtbot.addWidget(card)
+    next(a for a in card.paragraph_menu.actions() if a.text() == "Not a heading").trigger()
+
+    assert shown == []

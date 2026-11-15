@@ -8,6 +8,7 @@ from sqlalchemy import select
 
 from oeapp.db import get_runtime_session
 from oeapp.models.annotation import Annotation
+from oeapp.models.headings import HeadingRole, apply_heading_title
 from oeapp.models.idiom import Idiom
 from oeapp.models.mixins import SessionMixin
 from oeapp.models.note import Note
@@ -124,11 +125,29 @@ class EditSentenceCommand(SessionMixin, Command):
         token_ids = _token_ids(sentence.id)
         idiom_ids = _idiom_ids(sentence)
         messages = sentence.update(text_oe)
+        self._retitle_heading(sentence)
         self.last_adjustment = StackAdjustment(
             obsolete_token_ids=token_ids - _token_ids(sentence.id),
             obsolete_idiom_ids=idiom_ids - _idiom_ids(sentence),
         )
         return messages
+
+    def _retitle_heading(self, sentence: Sentence) -> None:
+        """
+        Copy the sentence's text into its division's title when it is a heading.
+
+        Args:
+            sentence: The sentence whose text was just written.
+
+        Side Effects:
+            For a ``chapter`` or ``section`` heading, sets the chapter or
+            section title and commits.
+
+        """
+        if sentence.heading_role not in (HeadingRole.CHAPTER, HeadingRole.SECTION):
+            return
+        apply_heading_title(sentence)
+        sentence.save()
 
     def locators(self) -> CommandLocators:
         """

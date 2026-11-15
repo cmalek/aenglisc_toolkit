@@ -4,6 +4,7 @@ from .annotation import (
     ApplyAnnotationPropagationCommand,
     ApplyRememberedAnnotationsCommand,
 )
+from .heading import ClearHeadingCommand, SetHeadingCommand
 from .note import AddNoteCommand, DeleteNoteCommand, UpdateNoteCommand
 from .paragraph import MergeParagraphCommand, SplitParagraphCommand
 from .sentence import (
@@ -21,12 +22,14 @@ __all__ = [
     "AnnotateTokenCommand",
     "ApplyAnnotationPropagationCommand",
     "ApplyRememberedAnnotationsCommand",
+    "ClearHeadingCommand",
     "Command",
     "DeleteNoteCommand",
     "DeleteSentenceCommand",
     "EditSentenceCommand",
     "MergeParagraphCommand",
     "MergeSentenceCommand",
+    "SetHeadingCommand",
     "SplitParagraphCommand",
     "UndoCommand",
     "UpdateNoteCommand",

@@ -258,6 +258,12 @@ ALLOWLIST: dict[str, dict[str, dict[str, int]]] = {
         "SplitSectionCommand.execute": {"_get_session": 1},
         "SplitSectionCommand.undo": {"_get_session": 1},
     },
+    "oeapp/commands/heading.py": {
+        "ClearHeadingCommand.execute": {"_get_session": 1},
+        "ClearHeadingCommand.undo": {"_get_session": 1},
+        "SetHeadingCommand.execute": {"_get_session": 1},
+        "SetHeadingCommand.undo": {"_get_session": 1},
+    },
     "oeapp/commands/note.py": {
         "AddNoteCommand._get_next_note_number": {"get_runtime_session": 1},
         "AddNoteCommand.execute": {"get_runtime_session": 1},

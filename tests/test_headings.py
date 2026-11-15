@@ -3,6 +3,11 @@
 from __future__ import annotations
 
 import pytest
+from oeapp.commands import (
+    ClearHeadingCommand,
+    EditSentenceCommand,
+    SetHeadingCommand,
+)
 from oeapp.models.chapter import Chapter
 from oeapp.models.headings import (
     HeadingRole,
@@ -242,3 +247,195 @@ class TestTitleWrites:
         apply_heading_title(sentence)
         assert chapter.title is None
         assert sentence.paragraph.section.title is None
+
+
+def _hit(command, session):
+    """Execute a command and expire the session so reads see its writes."""
+    assert command.execute() is True
+    session.expire_all()
+
+
+def test_set_heading_copies_oe_and_clears_auto(db_session) -> None:
+    """Marking a chapter heading names the chapter after its Old English text."""
+    chapter, sections = _build(db_session, [[False, False]])
+    chapter.title = "Chapter 1"
+    chapter.title_auto = True
+    first = sections[0][0]
+    first.text_oe = "Be ðēodwitan"
+    db_session.commit()
+    command = SetHeadingCommand(sentence_id=first.id, role="chapter")
+    _hit(command, db_session)
+    assert first.heading_role == "chapter"
+    assert chapter.title == "Be ðēodwitan"
+    assert chapter.title_auto is False
+
+
+def test_set_heading_writes_the_allowed_role(db_session) -> None:
+    """The stored role is the slot's allowed role, not the declared one."""
+    _, sections = _build(db_session, [[False], [False, False]])
+    sentence = sections[1][0]
+    _hit(SetHeadingCommand(sentence_id=sentence.id, role="chapter"), db_session)
+    assert sentence.heading_role == "section"
+
+
+def test_set_heading_refuses_when_slot_allows_nothing(db_session) -> None:
+    """A slot that allows no heading is refused and nothing changes."""
+    _, sections = _build(db_session, [[False, False]])
+    second = sections[0][1]
+    command = SetHeadingCommand(sentence_id=second.id, role="section")
+    assert command.execute() is False
+    assert second.heading_role is None
+
+
+def test_set_heading_undo_restores_role_and_title(db_session) -> None:
+    """Undo puts back the previous role, title, and title_auto."""
+    chapter, sections = _build(db_session, [[False]])
+    chapter.title = "Chapter 1"
+    chapter.title_auto = True
+    db_session.commit()
+    command = SetHeadingCommand(sentence_id=sections[0][0].id, role="chapter")
+    _hit(command, db_session)
+    assert command.undo() is True
+    db_session.expire_all()
+    assert sections[0][0].heading_role is None
+    assert chapter.title == "Chapter 1"
+    assert chapter.title_auto is True
+
+
+def test_clear_chapter_heading_also_clears_section_heading(db_session) -> None:
+    """Clearing a chapter heading drops the section heading on index 2."""
+    chapter, sections = _build(db_session, [[False, False, False]])
+    first, second, _third = sections[0]
+    section = first.paragraph.section
+    first.heading_role = "chapter"
+    second.heading_role = "section"
+    chapter.title = first.text_oe
+    chapter.title_auto = False
+    section.title = second.text_oe
+    section.title_auto = False
+    db_session.commit()
+    command = ClearHeadingCommand(sentence_id=first.id)
+    _hit(command, db_session)
+    assert first.heading_role is None
+    assert second.heading_role is None
+    assert chapter.title == "Chapter 1"
+    assert chapter.title_auto is True
+    assert section.title == "Section 1"
+    assert section.title_auto is True
+    assert command.cleared_section_heading_id == second.id
+    assert command.cleared_section_text_oe == "Sentence 2"
+    assert command.cleared_section_number == 1
+
+
+def test_clear_chapter_heading_undo_restores_both_roles(db_session) -> None:
+    """Undo restores both roles and both titles."""
+    chapter, sections = _build(db_session, [[False, False]])
+    first, second = sections[0]
+    section = first.paragraph.section
+    first.heading_role = "chapter"
+    second.heading_role = "section"
+    chapter.title = "Sentence 1"
+    section.title = "Sentence 2"
+    db_session.commit()
+    command = ClearHeadingCommand(sentence_id=first.id)
+    _hit(command, db_session)
+    assert command.undo() is True
+    db_session.expire_all()
+    assert first.heading_role == "chapter"
+    assert second.heading_role == "section"
+    assert chapter.title == "Sentence 1"
+    assert chapter.title_auto is False
+    assert section.title == "Sentence 2"
+
+
+def test_clear_chapter_heading_in_verse_section_keeps_lines_title(db_session) -> None:
+    """A verse opening section keeps its Lines title and no cascade runs."""
+    chapter, sections = _build(db_session, [[True, True, True]])
+    first, second, _third = sections[0]
+    section = first.paragraph.section
+    first.heading_role = "chapter"
+    second.heading_role = "section"
+    chapter.title = "Sentence 1"
+    section.title = "Lines 1-3"
+    section.title_auto = True
+    db_session.commit()
+    command = ClearHeadingCommand(sentence_id=first.id)
+    _hit(command, db_session)
+    assert command.cleared_section_heading_id is None
+    assert second.heading_role == "section"
+    assert chapter.title == "Chapter 1"
+    assert section.title == "Lines 1-3"
+    assert section.title_auto is True
+
+
+def test_clear_section_heading_restores_section_n(db_session) -> None:
+    """A section heading cleared alone restores ``Section {number}``."""
+    chapter, sections = _build(db_session, [[False], [False, False]])
+    sentence = sections[1][0]
+    section = sentence.paragraph.section
+    sentence.heading_role = "section"
+    section.title = sentence.text_oe
+    section.title_auto = False
+    chapter.title = "Kept"
+    db_session.commit()
+    command = ClearHeadingCommand(sentence_id=sentence.id)
+    _hit(command, db_session)
+    assert sentence.heading_role is None
+    assert section.title == "Section 2"
+    assert section.title_auto is True
+    assert chapter.title == "Kept"
+    assert command.cleared_section_heading_id is None
+
+
+def test_clear_subsection_heading_writes_no_title(db_session) -> None:
+    """A subsection clear only clears the role."""
+    chapter, sections = _build(db_session, [[False, False, False]])
+    sentence = sections[0][2]
+    sentence.heading_role = "subsection"
+    chapter.title = "Kept"
+    db_session.commit()
+    _hit(ClearHeadingCommand(sentence_id=sentence.id), db_session)
+    assert sentence.heading_role is None
+    assert chapter.title == "Kept"
+    assert sentence.paragraph.section.title is None
+
+
+def test_clear_heading_refuses_a_plain_sentence(db_session) -> None:
+    """A sentence with no heading role cannot be cleared."""
+    _, sections = _build(db_session, [[False]])
+    assert ClearHeadingCommand(sentence_id=sections[0][0].id).execute() is False
+
+
+def test_edit_oe_updates_chapter_title(db_session) -> None:
+    """Editing a chapter heading's Old English text renames the chapter."""
+    chapter, sections = _build(db_session, [[False]])
+    first = sections[0][0]
+    first.heading_role = "chapter"
+    chapter.title = first.text_oe
+    chapter.title_auto = False
+    db_session.commit()
+    command = EditSentenceCommand(
+        sentence_id=first.id,
+        field="text_oe",
+        before=first.text_oe,
+        after="Beowulf",
+    )
+    _hit(command, db_session)
+    assert chapter.title == "Beowulf"
+    assert chapter.title_auto is False
+    assert command.undo() is True
+    db_session.expire_all()
+    assert chapter.title == "Sentence 1"
+
+
+def test_edit_oe_leaves_titles_of_a_plain_sentence(db_session) -> None:
+    """Editing a non-heading sentence does not touch titles."""
+    chapter, sections = _build(db_session, [[False, False]])
+    chapter.title = "Kept"
+    db_session.commit()
+    second = sections[0][1]
+    command = EditSentenceCommand(
+        sentence_id=second.id, field="text_oe", before="Sentence 2", after="Other"
+    )
+    _hit(command, db_session)
+    assert chapter.title == "Kept"

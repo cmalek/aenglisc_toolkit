@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (
 
 from oeapp.mixins import TokenOccurrenceMixin
 from oeapp.models import Annotation
+from oeapp.models.headings import HeadingRole, allowed_role
 from oeapp.models.sentence import Sentence
 from oeapp.ui.dialogs import NoteDialog
 from oeapp.ui.highlighting import SearchHighlighter, WholeSentenceHighlighter
@@ -481,9 +482,6 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, QWidget):
         self.paragraph_menu = QMenu(self)
         self.toggle_paragraph_button.setMenu(self.paragraph_menu)
         self._update_paragraph_button_state()
-        # Hide toggle button for first sentence (must always be paragraph start)
-        if self.sentence.display_order == 1:
-            self.toggle_paragraph_button.setVisible(False)
         self.merge_button = QPushButton("Merge with next")
         self.merge_button.clicked.connect(self._on_merge_clicked)
         self.delete_button = QPushButton("Delete")
@@ -904,15 +902,18 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, QWidget):
             self.toggle_paragraph_button.setVisible(False)
             return
 
-        # Hide button for first sentence of project
-        if self.sentence.display_order == 1:
+        offered = allowed_role(self.sentence)
+        is_first = self.sentence.display_order == 1
+        if is_first and offered is None and self.sentence.heading_role is None:
             self.toggle_paragraph_button.setVisible(False)
             return
 
         self.paragraph_menu.clear()
         position = self.controller.get_hierarchy_position(self.sentence)
         self.toggle_paragraph_button.setVisible(True)
-        self._build_paragraph_menu(position)
+        if not is_first:
+            self._build_paragraph_menu(position)
+        self._build_heading_actions(offered)
 
     def _build_paragraph_menu(self, position: HierarchyPosition) -> None:
         """
@@ -949,9 +950,65 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, QWidget):
             action_not_c = self.paragraph_menu.addAction("Not Chapter Start")
             action_not_c.triggered.connect(self._on_merge_chapter_clicked)
 
+    def _build_heading_actions(self, offered: HeadingRole | None) -> None:
+        """
+        Add the heading actions to the paragraph dropdown menu.
+
+        Args:
+            offered: The role this sentence's slot allows, or ``None``.
+
+        Side Effects:
+            Adds a ``<Role> heading`` action when ``offered`` is not ``None``
+            and the sentence does not already hold that role, and a
+            ``Not a heading`` action when the sentence has a heading role.
+
+        """
+        if offered is not None and self.sentence.heading_role != offered.value:
+            label = f"{offered.value.capitalize()} heading"
+            action = self.paragraph_menu.addAction(label)
+            action.triggered.connect(self._on_set_heading_clicked)
+        if self.sentence.heading_role is not None:
+            action_clear = self.paragraph_menu.addAction("Not a heading")
+            action_clear.triggered.connect(self._on_clear_heading_clicked)
+
     # -------------------------------------------------------------------------
     # Paragraph related event handlers
     # -------------------------------------------------------------------------
+
+    def _on_set_heading_clicked(self) -> None:
+        """Handle the ``<Role> heading`` action."""
+        offered = allowed_role(self.sentence)
+        if offered is None:
+            return
+        self._run_hierarchy_action(
+            lambda: self.controller.on_set_heading_clicked(offered.value)
+        )
+
+    def _on_clear_heading_clicked(self) -> None:
+        """
+        Handle the ``Not a heading`` action.
+
+        Side Effects:
+            Shows an information dialog when the clear also dropped the
+            section heading below a chapter heading.
+
+        """
+        self.end_typed_run()
+        executed = self.controller.on_clear_heading_clicked()
+        command = self.controller.last_clear_heading
+        if (
+            executed
+            and command is not None
+            and command.cleared_section_heading_id is not None
+        ):
+            QMessageBox.information(
+                self,
+                "Heading cleared",
+                f'The section heading on "{command.cleared_section_text_oe}" was '
+                f"also cleared. That section is now named Section "
+                f"{command.cleared_section_number}.",
+            )
+        self._finish_hierarchy_action(executed)
 
     def _on_split_paragraph_clicked(self) -> None:
         """Handle Split Paragraph action."""

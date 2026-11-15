@@ -10,9 +10,11 @@ from PySide6.QtWidgets import QMessageBox
 
 from oeapp.commands import (
     AddSentenceCommand,
+    ClearHeadingCommand,
     DeleteSentenceCommand,
     EditSentenceCommand,
     MergeSentenceCommand,
+    SetHeadingCommand,
     UndoCommand,
     push_command,
 )
@@ -81,6 +83,8 @@ class SentenceCardController:
         self.card = card
         #: Builds the undoable command for an annotation modal result.
         self.annotation_apply = annotation_apply or AnnotationApplyService()
+        #: The last successful clear-heading command, for the card's dialog.
+        self.last_clear_heading: ClearHeadingCommand | None = None
 
     def on_edit_oe_clicked(self) -> None:
         """
@@ -403,6 +407,47 @@ class SentenceCardController:
             card.undo_stack,
             MergeParagraphCommand(sentence_id=card.sentence.id),
         )
+
+    def on_set_heading_clicked(self, role: str) -> bool:
+        """
+        Execute a mark-heading command for the current sentence.
+
+        Args:
+            role: The heading role the menu offered.
+
+        Returns:
+            True if the command executed successfully, else False.
+
+        """
+        card = self.card
+        if not card.sentence.id:
+            return False
+        return push_command(
+            card.undo_stack,
+            SetHeadingCommand(sentence_id=card.sentence.id, role=role),
+        )
+
+    def on_clear_heading_clicked(self) -> bool:
+        """
+        Execute a clear-heading command for the current sentence.
+
+        Side Effects:
+            Sets :attr:`last_clear_heading` to the command on success, and to
+            ``None`` otherwise.
+
+        Returns:
+            True if the command executed successfully, else False.
+
+        """
+        card = self.card
+        self.last_clear_heading = None
+        if not card.sentence.id:
+            return False
+        command = ClearHeadingCommand(sentence_id=card.sentence.id)
+        executed = push_command(card.undo_stack, command)
+        if executed:
+            self.last_clear_heading = command
+        return executed
 
     def on_split_section_clicked(self) -> bool:
         """
