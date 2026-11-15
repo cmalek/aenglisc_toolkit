@@ -5,17 +5,27 @@ from dataclasses import field as dataclass_field
 from typing import Any, Literal
 
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from oeapp.db import get_runtime_session
 from oeapp.models.annotation import Annotation
-from oeapp.models.headings import HeadingRole, apply_heading_title
+from oeapp.models.headings import (
+    HeadingMoveGuard,
+    HeadingRole,
+    RefusalMixin,
+    apply_generated_title,
+    apply_heading_title,
+    headings_illegal_after,
+)
 from oeapp.models.idiom import Idiom
 from oeapp.models.mixins import SessionMixin
 from oeapp.models.note import Note
+from oeapp.models.section import Section
 from oeapp.models.sentence import Sentence
 from oeapp.models.token import Token
 
 from .abstract import Command, CommandLocators, StackAdjustment
+from .heading import _restore_titles, _snapshot_titles
 
 
 def _token_ids(sentence_id: int) -> set[int]:
@@ -184,8 +194,13 @@ class EditSentenceCommand(SessionMixin, Command):
 
 
 @dataclass
-class MergeSentenceCommand(SessionMixin, Command):
-    """Command for merging a sentence with the next sentence."""
+class MergeSentenceCommand(RefusalMixin, SessionMixin, Command):
+    """
+    Command for merging a sentence with the next sentence.
+
+    The merge is refused, and nothing is written, when either sentence is a
+    heading or when a later heading in the section would leave its legal slot.
+    """
 
     #: The current sentence ID.
     current_sentence_id: int
@@ -222,6 +237,10 @@ class MergeSentenceCommand(SessionMixin, Command):
         next_sentence = Sentence.get(self.next_sentence_id, session=session)
 
         if current_sentence is None or next_sentence is None:
+            return False
+        if self.refuse_unless(
+            self._keeps_headings_legal(current_sentence, next_sentence)
+        ):
             return False
 
         # Store next sentence data for undo
@@ -336,6 +355,25 @@ class MergeSentenceCommand(SessionMixin, Command):
         )
 
         return True
+
+    @staticmethod
+    def _keeps_headings_legal(current: Sentence, following: Sentence) -> bool:
+        """
+        Check that merging two sentences leaves every heading legal.
+
+        Args:
+            current: The sentence that keeps its place
+            following: The sentence that is folded into it
+
+        Returns:
+            ``False`` when either sentence is a heading, because the stored
+            title would become the joined Old English, or when a later heading
+            in the folded sentence's section would move out of its legal slot
+
+        """
+        if current.heading_role is not None or following.heading_role is not None:
+            return False
+        return HeadingMoveGuard.allows_removal(following)
 
     def undo(self) -> bool:
         """
@@ -478,8 +516,13 @@ class MergeSentenceCommand(SessionMixin, Command):
 
 
 @dataclass
-class AddSentenceCommand(SessionMixin, Command):
-    """Command for adding a new sentence before or after an existing sentence."""
+class AddSentenceCommand(RefusalMixin, SessionMixin, Command):
+    """
+    Command for adding a new sentence before or after an existing sentence.
+
+    The insert is refused, and nothing is written, when it would push a
+    heading out of its legal slot.
+    """
 
     #: The project ID.
     project_id: int
@@ -510,6 +553,10 @@ class AddSentenceCommand(SessionMixin, Command):
         session = self._get_session()
         reference_sentence = Sentence.get(self.reference_sentence_id, session=session)
         if reference_sentence is None:
+            return False
+        if self.refuse_unless(
+            HeadingMoveGuard.allows_insert(reference_sentence, self.position)
+        ):
             return False
 
         # Calculate target display_order
@@ -622,9 +669,58 @@ class AddSentenceCommand(SessionMixin, Command):
         return "Add sentence"
 
 
+def _revert_heading(sentence: Sentence) -> None:
+    """
+    Give a ``chapter`` or ``section`` heading's division its generated title.
+
+    Args:
+        sentence: The sentence about to be deleted or cleared
+
+    Side Effects:
+        Sets the chapter or section title to ``Chapter {n}`` or
+        ``Section {n}``. Other roles do nothing.
+
+    """
+    if sentence.heading_role in (HeadingRole.CHAPTER, HeadingRole.SECTION):
+        apply_generated_title(sentence)
+
+
+def _clear_illegal_headings(section: Section) -> list[tuple[int, str, str]]:
+    """
+    Clear every heading in a section that no longer sits in a legal slot.
+
+    Args:
+        section: The section a sentence was just deleted from
+
+    Side Effects:
+        Reverts the generated title of each cleared ``chapter`` or ``section``
+        heading and sets its ``heading_role`` to ``None``.
+
+    Returns:
+        The id, role, and Old English text of each cleared heading, in display
+        order
+
+    """
+    cleared: list[tuple[int, str, str]] = []
+    for sentence in headings_illegal_after(section):
+        role = sentence.heading_role
+        if role is None:
+            continue
+        cleared.append((sentence.id, role, sentence.text_oe))
+        _revert_heading(sentence)
+        sentence.heading_role = None
+    return cleared
+
+
 @dataclass
 class DeleteSentenceCommand(SessionMixin, Command):
-    """Command for deleting a sentence."""
+    """
+    Command for deleting a sentence.
+
+    Deleting a heading reverts its division title. Headings in the same section
+    that the delete leaves outside their legal slot are cleared, and undo
+    restores them along with the sentence.
+    """
 
     #: The sentence ID to delete.
     sentence_id: int
@@ -640,10 +736,35 @@ class DeleteSentenceCommand(SessionMixin, Command):
     )
     #: Before state: idioms from sentence
     sentence_idioms: list[dict[str, Any]] = dataclass_field(default_factory=list)
+    #: Before state: the chapter and section titles, with their ``title_auto``.
+    previous_titles: tuple[str | None, bool, str | None, bool] | None = None
+    #: After state: the id, role, and Old English text of each heading cleared
+    #: because the delete moved it out of its legal slot, in display order.
+    cleared_headings: list[tuple[int, str, str]] = dataclass_field(default_factory=list)
+
+    @property
+    def needs_full_reload(self) -> bool:
+        """
+        Whether the project structure must be reloaded after the command.
+
+        Returns:
+            ``True``, because a delete can clear the headings of neighbors
+
+        """
+        return True
 
     def execute(self) -> bool:
         """
         Execute delete operation.
+
+        The deleted sentence's division title is reverted first when it was a
+        ``chapter`` or ``section`` heading. After the delete and renumbering,
+        every heading in the same section that no longer sits in a legal slot
+        is cleared and recorded in :attr:`cleared_headings`.
+
+        Side Effects:
+            Deletes the sentence, renumbers later sentences, and may rewrite
+            titles and clear heading roles in the sentence's section. Commits.
 
         Returns:
             True if successful, False otherwise
@@ -653,6 +774,10 @@ class DeleteSentenceCommand(SessionMixin, Command):
         sentence = Sentence.get(self.sentence_id, session=session)
         if sentence is None:
             return False
+        self.previous_titles = _snapshot_titles(sentence)
+        section = sentence.paragraph.section if sentence.paragraph else None
+        _revert_heading(sentence)
+        self.cleared_headings = []
 
         # Store sentence's display_order before deletion
         deleted_display_order = sentence.display_order
@@ -666,6 +791,7 @@ class DeleteSentenceCommand(SessionMixin, Command):
             "text_oe": sentence.text_oe,
             "text_modern": sentence.text_modern,
             "paragraph_id": sentence.paragraph_id,
+            "heading_role": sentence.heading_role,
         }
 
         # Store tokens from sentence (before deletion)
@@ -745,6 +871,10 @@ class DeleteSentenceCommand(SessionMixin, Command):
 
         # Recalculate project structure after deletion
         Sentence.recalculate_project_structure(project_id, session=session)
+        if section is not None:
+            session.expire_all()
+            self.cleared_headings = _clear_illegal_headings(section)
+            session.commit()
 
         return True
 
@@ -778,6 +908,7 @@ class DeleteSentenceCommand(SessionMixin, Command):
             paragraph_id=self.sentence_data["paragraph_id"],
             text_oe=self.sentence_data["text_oe"],
             text_modern=self.sentence_data["text_modern"],
+            heading_role=self.sentence_data.get("heading_role"),
         )
         session.add(restored_sentence)
         session.flush()  # Get the new ID
@@ -849,8 +980,29 @@ class DeleteSentenceCommand(SessionMixin, Command):
                     )
 
         self.sentence_id = restored_sentence.id
+        self._restore_headings(restored_sentence, session)
         self.last_adjustment = StackAdjustment()
         return True
+
+    def _restore_headings(self, restored: Sentence, session: Session) -> None:
+        """
+        Put back the division titles and the heading roles the delete cleared.
+
+        Args:
+            restored: The sentence recreated by the undo
+            session: The session the undo runs in
+
+        Side Effects:
+            Sets chapter and section titles and ``heading_role`` on the
+            cleared sentences. Commits.
+
+        """
+        _restore_titles(restored, self.previous_titles)
+        for sentence_id, role, _text_oe in self.cleared_headings:
+            cleared = Sentence.get(sentence_id, session=session)
+            if cleared is not None:
+                cleared.heading_role = role
+        session.commit()
 
     def locators(self) -> CommandLocators:
         """

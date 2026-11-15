@@ -27,15 +27,30 @@ from oeapp.commands.hierarchy import (
 from oeapp.commands.paragraph import MergeParagraphCommand, SplitParagraphCommand
 from oeapp.db import get_runtime_session
 from oeapp.models import Annotation, Idiom
+from oeapp.models.headings import RefusalMixin
 from oeapp.models.sentence import Sentence
 from oeapp.services.annotation_apply import AnnotationApplyService
 from oeapp.ui.dialogs import AnnotationModal
 from oeapp.utils import get_logo_pixmap
 
 if TYPE_CHECKING:
+    from oeapp.commands.abstract import Command
     from oeapp.models import AnnotationEdit
     from oeapp.models.token import Token
     from oeapp.ui.sentence_card import SentenceCard
+
+
+#: Warning shown when a move would leave a heading outside its legal slot.
+REFUSED_MOVE_TEXT = (
+    "Clear the heading with Not a heading before changing the structure around it."
+)
+
+#: Menu label of each heading role, as used in the delete dialog.
+_HEADING_LABELS = {
+    "chapter": "Chapter heading",
+    "section": "Section heading",
+    "subsection": "Subsection heading",
+}
 
 
 @dataclass(frozen=True)
@@ -85,6 +100,46 @@ class SentenceCardController:
         self.annotation_apply = annotation_apply or AnnotationApplyService()
         #: The last successful clear-heading command, for the card's dialog.
         self.last_clear_heading: ClearHeadingCommand | None = None
+        #: Whether the last guarded command was refused to protect a heading.
+        self.last_move_refused: bool = False
+
+    def take_move_refusal(self) -> bool:
+        """
+        Read and reset :attr:`last_move_refused`.
+
+        Side Effects:
+            Sets :attr:`last_move_refused` to ``False``.
+
+        Returns:
+            ``True`` when the last guarded command was refused
+
+        """
+        refused = self.last_move_refused
+        self.last_move_refused = False
+        return refused
+
+    def _push_guarded(self, command: Command) -> bool:
+        """
+        Push a command that refuses moves which would strand a heading.
+
+        Args:
+            command: A command that may refuse to protect a heading
+
+        Side Effects:
+            Sets :attr:`last_move_refused`. Shows the refused-move warning when
+            the command refused.
+
+        Returns:
+            True if the command executed successfully, else False.
+
+        """
+        card = self.card
+        self.last_move_refused = False
+        executed = push_command(card.undo_stack, command)
+        if not executed and isinstance(command, RefusalMixin) and command.refused:
+            self.last_move_refused = True
+            QMessageBox.warning(card, "Heading in the way", REFUSED_MOVE_TEXT)
+        return executed
 
     def on_edit_oe_clicked(self) -> None:
         """
@@ -237,10 +292,10 @@ class SentenceCardController:
             before_text_modern=before_text_modern,
         )
 
-        if push_command(card.undo_stack, command):
+        if self._push_guarded(command):
             if card.sentence.id:
                 card.sentence_merged.emit(card.sentence.id)
-        else:
+        elif not self.take_move_refusal():
             QMessageBox.warning(
                 card,
                 "Merge Failed",
@@ -277,10 +332,10 @@ class SentenceCardController:
             position=position,
         )
 
-        if push_command(card.undo_stack, command):
+        if self._push_guarded(command):
             if command.new_sentence_id:
                 card.sentence_added.emit(command.new_sentence_id)
-        else:
+        elif not self.take_move_refusal():
             QMessageBox.warning(
                 card,
                 "Add Sentence Failed",
@@ -322,6 +377,7 @@ class SentenceCardController:
         )
 
         if push_command(card.undo_stack, command):
+            self._show_cleared_headings(command)
             if card.sentence.id:
                 card.sentence_deleted.emit(card.sentence.id)
         else:
@@ -330,6 +386,28 @@ class SentenceCardController:
                 "Delete Failed",
                 "Failed to delete sentence. Please try again.",
             )
+
+    def _show_cleared_headings(self, command: DeleteSentenceCommand) -> None:
+        """
+        Tell the user which headings a delete cleared.
+
+        Args:
+            command: The delete command that just ran
+
+        Side Effects:
+            Shows an information dialog when ``command`` cleared any heading.
+
+        """
+        if not command.cleared_headings:
+            return
+        lines = [
+            f'- {_HEADING_LABELS[role]} on "{text_oe}"'
+            for _id, role, text_oe in command.cleared_headings
+        ]
+        header = "These headings no longer sit in a legal place, so they were cleared:"
+        QMessageBox.information(
+            self.card, "Headings cleared", "\n".join([header, *lines])
+        )
 
     def get_hierarchy_position(self, sentence: Sentence) -> HierarchyPosition:
         """
@@ -460,9 +538,8 @@ class SentenceCardController:
         card = self.card
         if not card.sentence.paragraph:
             return False
-        return push_command(
-            card.undo_stack,
-            SplitSectionCommand(paragraph_id=card.sentence.paragraph.id),
+        return self._push_guarded(
+            SplitSectionCommand(paragraph_id=card.sentence.paragraph.id)
         )
 
     def on_merge_section_clicked(self) -> bool:
@@ -476,9 +553,8 @@ class SentenceCardController:
         card = self.card
         if not card.sentence.paragraph:
             return False
-        return push_command(
-            card.undo_stack,
-            MergeSectionCommand(paragraph_id=card.sentence.paragraph.id),
+        return self._push_guarded(
+            MergeSectionCommand(paragraph_id=card.sentence.paragraph.id)
         )
 
     def on_split_chapter_clicked(self) -> bool:
@@ -492,9 +568,8 @@ class SentenceCardController:
         card = self.card
         if not card.sentence.paragraph or not card.sentence.paragraph.section:
             return False
-        return push_command(
-            card.undo_stack,
-            SplitChapterCommand(section_id=card.sentence.paragraph.section.id),
+        return self._push_guarded(
+            SplitChapterCommand(section_id=card.sentence.paragraph.section.id)
         )
 
     def on_merge_chapter_clicked(self) -> bool:
@@ -508,9 +583,8 @@ class SentenceCardController:
         card = self.card
         if not card.sentence.paragraph or not card.sentence.paragraph.section:
             return False
-        return push_command(
-            card.undo_stack,
-            MergeChapterCommand(section_id=card.sentence.paragraph.section.id),
+        return self._push_guarded(
+            MergeChapterCommand(section_id=card.sentence.paragraph.section.id)
         )
 
     def open_annotation_modal(self) -> None:

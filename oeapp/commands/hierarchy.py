@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from sqlalchemy import select
 
 from oeapp.models.chapter import Chapter
+from oeapp.models.headings import HeadingMoveGuard, RefusalMixin
 from oeapp.models.mixins import SessionMixin
 from oeapp.models.paragraph import Paragraph
 from oeapp.models.section import Section
@@ -13,7 +14,7 @@ from .abstract import Command
 
 
 @dataclass
-class SplitSectionCommand(SessionMixin, Command):
+class SplitSectionCommand(RefusalMixin, SessionMixin, Command):
     """Command for splitting a section at a specific paragraph."""
 
     #: The paragraph ID that will start the new section.
@@ -74,6 +75,10 @@ class SplitSectionCommand(SessionMixin, Command):
 
         if split_index <= 0:
             # Not found or already at start of section
+            return False
+        if self.refuse_unless(
+            HeadingMoveGuard.allows_split_section(original_section, paragraph)
+        ):
             return False
 
         # Paragraphs to move
@@ -178,7 +183,7 @@ class SplitSectionCommand(SessionMixin, Command):
 
 
 @dataclass
-class MergeSectionCommand(SessionMixin, Command):
+class MergeSectionCommand(RefusalMixin, SessionMixin, Command):
     """Command for merging a section with the previous one."""
 
     #: The paragraph ID that is currently the start of a section.
@@ -239,6 +244,10 @@ class MergeSectionCommand(SessionMixin, Command):
             chapter_id, current_section.number, session=session
         )
         if not prev_section:
+            return False
+        if self.refuse_unless(
+            HeadingMoveGuard.allows_merge_section(current_section, prev_section)
+        ):
             return False
 
         self.target_section_id = prev_section.id
@@ -339,7 +348,7 @@ class MergeSectionCommand(SessionMixin, Command):
 
 
 @dataclass
-class SplitChapterCommand(SessionMixin, Command):
+class SplitChapterCommand(RefusalMixin, SessionMixin, Command):
     """Command for splitting a chapter at a specific section."""
 
     #: The section ID that will start the new chapter.
@@ -401,6 +410,8 @@ class SplitChapterCommand(SessionMixin, Command):
 
         # Sections to move
         sections_to_move = sections[split_index:]
+        if self.refuse_unless(HeadingMoveGuard.allows_split_chapter(sections_to_move)):
+            return False
         self.moved_section_ids = [s.id for s in sections_to_move]
 
         # Create new chapter
@@ -498,7 +509,7 @@ class SplitChapterCommand(SessionMixin, Command):
 
 
 @dataclass
-class MergeChapterCommand(SessionMixin, Command):
+class MergeChapterCommand(RefusalMixin, SessionMixin, Command):
     """Command for merging a chapter with the previous one."""
 
     #: The section ID that is currently the start of a chapter.
@@ -555,6 +566,10 @@ class MergeChapterCommand(SessionMixin, Command):
             project_id, current_chapter.number, session=session
         )
         if not prev_chapter:
+            return False
+        if self.refuse_unless(
+            HeadingMoveGuard.allows_merge_chapter(current_chapter.sections)
+        ):
             return False
 
         self.target_chapter_id = prev_chapter.id

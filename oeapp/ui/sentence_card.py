@@ -1056,13 +1056,17 @@ class SentenceCard(AnnotationLookupsMixin, TokenOccurrenceMixin, QWidget):
         Args:
             executed: Whether the controller reported successful execution.
 
+        Side Effects:
+            Shows a failure warning unless the controller already showed the
+            refused-move warning.
+
         """
         if executed:
             self._update_paragraph_button_state()
             self.sentence_number_label.setText(self._line_reference_text())
             if self.sentence.id:
                 self.structure_changed.emit(self.sentence.id)
-        else:
+        elif not self.controller.take_move_refusal():
             QMessageBox.warning(
                 self,
                 "Action Failed",
