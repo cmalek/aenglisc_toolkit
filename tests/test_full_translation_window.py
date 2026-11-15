@@ -617,7 +617,7 @@ class TestHeadingRendering:
             db_session, ["chapter", None, "chapter"], second_chapter_at=2
         )
         window = FullTranslationWindow(project, mock_main_window)
-        heading, _body, second = project.sentences
+        heading, body, second = project.sentences
 
         assert window.oe_edit.toPlainText().count("Head0") == 1
         assert window.mode_edit.toPlainText().startswith("Head0")
@@ -628,6 +628,10 @@ class TestHeadingRendering:
             assert char.fontWeight() == QFont.Weight.Bold
             assert block.topMargin() == 4
             assert block.bottomMargin() == 16
+            body_block, body_char = _range_format(edit, body.id)
+            assert body_block.topMargin() == 0
+            assert body_block.bottomMargin() == 0
+            assert body_char.fontCapitalization() == QFont.Capitalization.MixedCase
             second_block, second_char = _range_format(edit, second.id)
             assert second_block.topMargin() == 22
             assert second_block.bottomMargin() == 16
@@ -649,9 +653,11 @@ class TestHeadingRendering:
 
     def test_section_and_subsection_styling(self, db_session, mock_main_window):
         """Section is bold in own case; subsection is italic, not bold."""
-        project = _heading_project(db_session, ["chapter", "section", "subsection"])
+        project = _heading_project(
+            db_session, ["chapter", "section", "subsection", None]
+        )
         window = FullTranslationWindow(project, mock_main_window)
-        _head, section, subsection = project.sentences
+        _head, section, subsection, body = project.sentences
 
         for edit in (window.oe_edit, window.mode_edit):
             block, char = _range_format(edit, section.id)
@@ -663,6 +669,9 @@ class TestHeadingRendering:
             assert char.fontWeight() != QFont.Weight.Bold
             assert char.fontCapitalization() == QFont.Capitalization.MixedCase
             assert (block.topMargin(), block.bottomMargin()) == (6, 6)
+            block, char = _range_format(edit, body.id)
+            assert (block.topMargin(), block.bottomMargin()) == (0, 0)
+            assert not char.fontItalic()
 
     def test_translated_heading_and_plain_sentence_bodies(
         self, db_session, mock_main_window

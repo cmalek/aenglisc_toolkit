@@ -218,6 +218,29 @@ class HeadingStyle:
         return gap
 
     @staticmethod
+    def insert_gap(cursor: QTextCursor, gap: str) -> None:
+        """
+        Insert a sentence separator, giving every new block a default format.
+
+        ``QTextCursor.insertText`` copies the current block's format into any
+        block it creates, so a heading's margins would leak into the blocks
+        that follow it.
+
+        Args:
+            cursor: Cursor at the insertion point.
+            gap: The separator from :meth:`separator`.
+
+        Side Effects:
+            Inserts text and blocks at the cursor.
+
+        """
+        for index, part in enumerate(gap.split("\n")):
+            if index:
+                cursor.insertBlock(QTextBlockFormat(), QTextCharFormat())
+            if part:
+                cursor.insertText(part)
+
+    @staticmethod
     def modern_text(sentence: "Sentence") -> str:
         """
         Return the Modern English body for a sentence.
@@ -309,8 +332,7 @@ class FullProjectOldEnglishTextEdit(ThemeMixin, OldEnglishTextEdit):
         for sentence in self.project.sentences:
             sentence_id = cast("int", sentence.id)
             gap = HeadingStyle.separator(previous_sentence, sentence)
-            if gap:
-                cursor.insertText(gap)
+            HeadingStyle.insert_gap(cursor, gap)
 
             sentence_start = cursor.position()
 
@@ -741,8 +763,7 @@ class FullProjectModernEnglishTextEdit(ThemeMixin, QTextEdit):
         for sentence in self.project.sentences:
             sentence_id = cast("int", sentence.id)
             gap = HeadingStyle.separator(previous_sentence, sentence)
-            if gap:
-                cursor.insertText(gap)
+            HeadingStyle.insert_gap(cursor, gap)
 
             start = cursor.position()
             fmt = QTextCharFormat()
