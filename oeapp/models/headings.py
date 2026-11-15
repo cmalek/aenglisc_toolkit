@@ -326,17 +326,61 @@ def _shift_from(first: Sentence, *, session: Session) -> None:
     )
 
 
+def _title_sentence_for(
+    chapter: Chapter, opening: Section, paragraph: Paragraph, *, session: Session
+) -> Sentence:
+    """
+    Find or create the sentence that carries a chapter's official title.
+
+    Args:
+        chapter: The chapter being promoted
+        opening: The chapter's opening section
+        paragraph: The opening section's first paragraph
+
+    Keyword Args:
+        session: The session to read and write through
+
+    Side Effects:
+        May shift display orders and add a sentence. Does not commit, except
+        that ``Sentence.renumber_sentences`` commits when it shifts.
+
+    Returns:
+        The opening section's first sentence when its ``text_oe`` equals the
+        title exactly; otherwise a new sentence holding the title. The new
+        sentence takes the display order of the chapter's first existing
+        sentence, or the next project order when the chapter has none.
+
+    """
+    opening_sentences = _section_sentences(opening)
+    if opening_sentences and opening_sentences[0].text_oe == chapter.title:
+        return opening_sentences[0]
+    existing = sorted(
+        (s for section in chapter.sections for s in _section_sentences(section)),
+        key=lambda s: s.display_order,
+    )
+    if not existing:
+        order = _next_project_order(chapter, session=session)
+        return _insert_title_sentence(chapter, paragraph, order, session=session)
+    first = existing[0]
+    order = first.display_order
+    target = first.paragraph if opening_sentences else paragraph
+    _shift_from(first, session=session)
+    return _insert_title_sentence(chapter, target, order, session=session)
+
+
 def promote_official_chapter_title(chapter: Chapter, *, session: Session) -> None:
     """
     Turn a chapter's official title into its chapter heading sentence.
 
     Does nothing when any sentence in the chapter already has a
     ``heading_role``, when the title is generated, or when it is missing or
-    blank. Otherwise it looks at the opening section. An empty section gets the
-    title as a new first sentence at the end of the project's display order. A
-    first sentence whose ``text_oe`` equals the title exactly (no case folding,
-    no stripping) becomes the chapter heading. Any other first sentence is
-    pushed down one display order and the title is inserted before it.
+    blank, or when the chapter has no sections. Otherwise it looks at the opening
+    section. A first sentence there whose ``text_oe`` equals the title exactly
+    (no case folding, no stripping) becomes the chapter heading. Otherwise the
+    title is inserted as a new sentence in the opening section's first
+    paragraph, at the display order of the chapter's first sentence, which
+    moves down one along with every later project sentence. A chapter with no
+    sentences gets it at the end of the project's display order.
 
     Args:
         chapter: The chapter to promote
@@ -353,24 +397,15 @@ def promote_official_chapter_title(chapter: Chapter, *, session: Session) -> Non
     """
     session.flush()
     session.expire(chapter, ["sections"])
-    if not _needs_official_title(chapter):
+    if not chapter.sections or not _needs_official_title(chapter):
         return
+    for section in chapter.sections:
+        session.expire(section, ["paragraphs"])
     opening = min(chapter.sections, key=lambda s: s.number)
-    session.expire(opening, ["paragraphs"])
     paragraphs = sorted(opening.paragraphs, key=lambda p: p.order)
     if not paragraphs:
         return
-    sentences = _section_sentences(opening)
-    if not sentences:
-        order = _next_project_order(chapter, session=session)
-        heading = _insert_title_sentence(chapter, paragraphs[0], order, session=session)
-    elif sentences[0].text_oe == chapter.title:
-        heading = sentences[0]
-    else:
-        first = sentences[0]
-        order, paragraph = first.display_order, first.paragraph
-        _shift_from(first, session=session)
-        heading = _insert_title_sentence(chapter, paragraph, order, session=session)
+    heading = _title_sentence_for(chapter, opening, paragraphs[0], session=session)
     heading.heading_role = HeadingRole.CHAPTER.value
     session.flush()
     session.refresh(heading)

@@ -1173,3 +1173,59 @@ def test_migration_promotes_official_chapter_titles(tmp_path) -> None:
         title = connection.exec_driver_sql("SELECT title FROM chapters").scalar()
     assert rows == [(1, "Beowulf.", "chapter"), (2, "Hwæt we Gardena", None)]
     assert title == "Beowulf."
+
+
+class TestPromoteOfficialChapterTitleEdges:
+    """Chapters with no sections, or an empty opening section."""
+
+    def test_chapter_without_sections_is_left_alone(self, db_session) -> None:
+        project = Project.create(text="", name="No sections", session=db_session)
+        chapter = Chapter(project_id=project.id, number=1, title="Beowulf")
+        chapter.title_auto = False
+        db_session.add(chapter)
+        db_session.commit()
+        promote_official_chapter_title(chapter, session=db_session)
+        db_session.commit()
+        assert chapter.sections == []
+        assert project.sentences == []
+
+    def test_empty_opening_section_inserts_before_later_section_sentence(
+        self, db_session
+    ) -> None:
+        chapter, sections = _build(db_session, [[], [False, False]])
+        chapter.title = "Beowulf"
+        chapter.title_auto = False
+        project = chapter.project
+        later = Chapter(project_id=project.id, number=2, title="Later")
+        db_session.add(later)
+        db_session.flush()
+        section = Section(chapter_id=later.id, number=1)
+        db_session.add(section)
+        db_session.flush()
+        paragraph = Paragraph(section_id=section.id, order=1)
+        db_session.add(paragraph)
+        db_session.flush()
+        db_session.add(
+            Sentence(
+                project_id=project.id,
+                paragraph_id=paragraph.id,
+                display_order=3,
+                text_oe="Þæt",
+            )
+        )
+        db_session.commit()
+        promote_official_chapter_title(chapter, session=db_session)
+        db_session.commit()
+        heading = next(s for s in project.sentences if s.heading_role == "chapter")
+        opening = min(chapter.sections, key=lambda s: s.number)
+        assert heading.text_oe == "Beowulf"
+        assert heading.display_order == 1
+        assert heading.paragraph_id == opening.paragraphs[0].id
+        assert [s.text_oe for s in _chapter_sentences(chapter)] == [
+            "Beowulf",
+            "Sentence 1",
+            "Sentence 2",
+        ]
+        assert sorted(s.display_order for s in project.sentences) == [1, 2, 3, 4]
+        assert [s.text_oe for s in _chapter_sentences(later)] == ["Þæt"]
+        assert _chapter_sentences(later)[0].display_order == 4
