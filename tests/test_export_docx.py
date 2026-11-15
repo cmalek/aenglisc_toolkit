@@ -638,3 +638,124 @@ class TestDOCXExporter:
         oe_cell = table.rows[0].cells[0]
         # At least 2 paragraphs (the two sentences)
         assert len(oe_cell.paragraphs) >= 2
+
+
+class TestDOCXHeadingExport:
+    """Test cases for heading sentences in DOCXExporter.export()."""
+
+    @staticmethod
+    def _export(project, tmp_path):
+        """Export a project and return the reopened document."""
+        output_path = tmp_path / "headings.docx"
+        assert DOCXExporter().export(project.id, output_path) is True
+        return Document(str(output_path))
+
+    @staticmethod
+    def _glossed_chapter_project(db_session):
+        """Build a project with two chapter headings and a glossed first token."""
+        from oeapp.models.annotation import Annotation
+
+        project = create_test_project(
+            db_session, name="Headings", text="Aaa. Bbb. Ccc. Ddd."
+        )
+        first = project.sentences[0]
+        second = project.sentences[2]
+        first.text_oe = "Beowulf"
+        first.heading_role = "chapter"
+        first.text_modern = ""
+        second.text_oe = "Beowulf"
+        second.heading_role = "chapter"
+        second.text_modern = None
+        annotation = Annotation(token_id=first.tokens[0].id)
+        db_session.add(annotation)
+        db_session.flush()
+        annotation.pos = "R"
+        annotation.pronoun_type = "d"
+        annotation.save()
+        db_session.commit()
+        return project
+
+    def test_chapter_heading_is_bold_all_caps_then_translation(
+        self, db_session, tmp_path
+    ):
+        """A chapter heading is two paragraphs with no number or annotations."""
+        project = self._glossed_chapter_project(db_session)
+        doc = self._export(project, tmp_path)
+
+        texts = [p.text for p in doc.paragraphs]
+        index = texts.index("Beowulf")
+        heading, translation = doc.paragraphs[index], doc.paragraphs[index + 1]
+        assert heading.runs[0].bold is True
+        assert heading.runs[0].font.all_caps is True
+        assert heading.runs[0].text == "Beowulf"
+        assert translation.text == "Beowulf"
+        assert not any("¶[" in text for text in texts[: index + 2])
+        assert not any(
+            run.font.superscript or run.font.subscript
+            for para in (heading, translation)
+            for run in para.runs
+        )
+
+    def test_later_chapter_heading_starts_a_new_page(self, db_session, tmp_path):
+        """Only a chapter heading that is not the first sentence breaks the page."""
+        project = self._glossed_chapter_project(db_session)
+        doc = self._export(project, tmp_path)
+
+        headings = [
+            p for p in doc.paragraphs if p.runs and p.runs[0].font.all_caps is True
+        ]
+        assert len(headings) == 2
+        assert headings[0].paragraph_format.page_break_before is False
+        assert headings[1].paragraph_format.page_break_before is True
+        for heading in headings:
+            assert heading.paragraph_format.space_before.pt == 4
+            assert heading.paragraph_format.space_after.pt == 16
+
+    def test_translated_heading_shows_translation_not_old_english(
+        self, db_session, tmp_path
+    ):
+        """A translated heading's second paragraph is the Modern English."""
+        project = create_test_project(db_session, name="Translated", text="Hwæt.")
+        sentence = project.sentences[0]
+        sentence.text_oe = "Hlyst"
+        sentence.heading_role = "chapter"
+        sentence.text_modern = "Listen"
+        db_session.commit()
+
+        doc = self._export(project, tmp_path)
+        texts = [p.text for p in doc.paragraphs]
+        index = texts.index("Hlyst")
+        assert doc.paragraphs[index].runs[0].bold is True
+        assert texts[index + 1] == "Listen"
+        assert texts.count("Hlyst") == 1
+
+    def test_section_and_subsection_styles_and_spacing(self, db_session, tmp_path):
+        """Section is bold, subsection is italic, with the PDF spacing."""
+        project = create_test_project(db_session, name="Roles", text="Aaa. Bbb. Ccc.")
+        section, subsection, body = project.sentences[:3]
+        section.text_oe = "Se cyning"
+        section.heading_role = "section"
+        subsection.text_oe = "Hwæt we"
+        subsection.heading_role = "subsection"
+        body.text_modern = "Body."
+        db_session.commit()
+
+        doc = self._export(project, tmp_path)
+        by_text: dict = {}
+        for para in doc.paragraphs:
+            by_text.setdefault(para.text, para)
+        sec = by_text["Se cyning"]
+        sub = by_text["Hwæt we"]
+        assert sec.runs[0].bold is True
+        assert not sec.runs[0].font.all_caps
+        assert sec.paragraph_format.page_break_before is not True
+        assert (
+            sec.paragraph_format.space_before.pt,
+            sec.paragraph_format.space_after.pt,
+        ) == (12, 12)
+        assert sub.runs[0].italic is True
+        assert not sub.runs[0].bold
+        assert (
+            sub.paragraph_format.space_before.pt,
+            sub.paragraph_format.space_after.pt,
+        ) == (6, 6)

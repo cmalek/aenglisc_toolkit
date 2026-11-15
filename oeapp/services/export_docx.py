@@ -1,6 +1,6 @@
 """DOCX export service for Ænglisc Toolkit."""
 
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Final, cast
 
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -9,6 +9,7 @@ from docx.oxml.ns import qn
 from docx.shared import Inches, Pt, RGBColor
 
 from oeapp.mixins import AnnotationTextualMixin, TokenOccurrenceMixin
+from oeapp.models.headings import HeadingRole
 from oeapp.models.mixins import SessionMixin
 from oeapp.models.project import Project
 
@@ -28,6 +29,14 @@ class DOCXExporter(SessionMixin, AnnotationTextualMixin, TokenOccurrenceMixin):
     Exports annotated Old English text to DOCX format.
 
     """
+
+    #: Space above and below a heading paragraph, in points, keyed by heading
+    #: role. A chapter heading always sits at the top of its page.
+    _HEADING_SPACING_PT: Final[dict[HeadingRole, tuple[int, int]]] = {
+        HeadingRole.CHAPTER: (4, 16),
+        HeadingRole.SECTION: (12, 12),
+        HeadingRole.SUBSECTION: (6, 6),
+    }
 
     def __init__(self) -> None:
         """
@@ -237,6 +246,51 @@ class DOCXExporter(SessionMixin, AnnotationTextualMixin, TokenOccurrenceMixin):
             titles.append(current_section.title)
         return titles
 
+    def _add_heading_sentence(
+        self,
+        doc: "DocumentObject",
+        sentence: "Sentence",
+        role: HeadingRole,
+        *,
+        is_first: bool,
+    ) -> None:
+        """
+        Add a heading sentence as a styled heading plus its translation.
+
+        The heading paragraph shows the stored Old English text, bold and
+        all-caps for a chapter, bold for a section, italic for a subsection.
+        All-caps is the run's property, so the stored text is unchanged. A
+        chapter heading that is not the project's first sentence starts a new
+        page. The translation paragraph follows, and the sentence's notes
+        follow that. No sentence number or token annotations are written.
+
+        Args:
+            doc: Document to add to
+            sentence: Heading sentence to add
+            role: The sentence's heading role
+
+        Keyword Args:
+            is_first: Whether the sentence is the project's first sentence
+
+        Side Effects:
+            Appends paragraphs to ``doc``.
+
+        """
+        above, below = self._HEADING_SPACING_PT[role]
+        heading_para = doc.add_paragraph()
+        heading_run = heading_para.add_run(sentence.text_oe)
+        heading_run.bold = role in {HeadingRole.CHAPTER, HeadingRole.SECTION}
+        heading_run.italic = role == HeadingRole.SUBSECTION
+        if role == HeadingRole.CHAPTER:
+            heading_run.font.all_caps = True
+            heading_para.paragraph_format.page_break_before = not is_first
+        heading_para.paragraph_format.space_before = Pt(above)
+        heading_para.paragraph_format.space_after = Pt(below)
+
+        modern = sentence.text_modern
+        doc.add_paragraph(modern if modern and modern.strip() else sentence.text_oe)
+        self._add_notes(doc, sentence)
+
     def export(self, project_id: int, output_path: "Path") -> bool:  # noqa: PLR0912, PLR0915
         """
         Export project to DOCX file.
@@ -278,6 +332,17 @@ class DOCXExporter(SessionMixin, AnnotationTextualMixin, TokenOccurrenceMixin):
 
         previous_sentence = None
         for sentence in project.sentences:
+            heading_role = sentence.heading_role
+            if heading_role:
+                self._add_heading_sentence(
+                    doc,
+                    sentence,
+                    HeadingRole(heading_role),
+                    is_first=previous_sentence is None,
+                )
+                previous_sentence = sentence
+                continue
+
             text_modern = sentence.text_modern
 
             titles = self._visible_titles(previous_sentence, sentence)
