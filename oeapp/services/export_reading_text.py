@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING, Final
 from oeapp.models.text_flow import (
     plain_text_separator,
     sentence_separator_kind,
-    visible_titles,
 )
 
 if TYPE_CHECKING:
@@ -22,7 +21,8 @@ class ReadingTextExporter:
     Build UTF-8 reading-text strings from persisted project sentences.
 
     Rendering uses ``Project.sentences`` and ``oeapp.models.text_flow``. Notes
-    and Full Translation widgets are not consulted.
+    and Full Translation widgets are not consulted. Chapter and section titles
+    are not emitted as separate lines; heading sentences are ordinary bodies.
     """
 
     #: Emit a running verse-line number after this many verse lines.
@@ -104,12 +104,7 @@ class ReadingTextExporter:
         verse_line_count = 0
         sentences = sorted(project.sentences, key=lambda s: s.display_order)
         for sentence in sentences:
-            titles = visible_titles(previous, sentence)
-            if titles:
-                if parts:
-                    parts.append("\n\n")
-                parts.append("\n".join(titles) + "\n")
-            kind = sentence_separator_kind(previous, sentence, bool(titles))
+            kind = sentence_separator_kind(previous, sentence, has_titles=False)
             parts.append(plain_text_separator(kind))
             body = (sentence.text_modern or "") if translation else sentence.text_oe
             if sentence.is_verse and body:

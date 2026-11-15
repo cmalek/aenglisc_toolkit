@@ -42,7 +42,7 @@ class TestReadingTextExporter:
         assert "Hwæt" in text
         assert "should not appear" not in text
 
-    def test_omits_auto_titles_includes_manual(self, db_session) -> None:
+    def test_omits_auto_titles_and_title_line(self, db_session) -> None:
         session = get_runtime_session()
         project = Project.create(name="Titles", text="Line one.", session=session)
         sentence = project.sentences[0]
@@ -63,7 +63,28 @@ class TestReadingTextExporter:
         section.title_auto = False
         db_session.commit()
         text = ReadingTextExporter().render_old_english(project)
-        assert text.startswith("Beowulf\nThe opening\n")
+        assert "Beowulf" not in text
+        assert "The opening" not in text
+        assert "Line one" in text
+
+    def test_title_line_replaced_by_untranslated_heading(self, db_session) -> None:
+        session = get_runtime_session()
+        project = Project.create(name="Heading", text="Hwæt.", session=session)
+        sentence = project.sentences[0]
+        chapter = sentence.paragraph.section.chapter
+        chapter.title = "Her onginneð"
+        chapter.title_auto = False
+        sentence.text_oe = "Hwæt"
+        sentence.text_modern = None
+        sentence.heading_role = "chapter"
+        db_session.commit()
+        exporter = ReadingTextExporter()
+        old_english = exporter.render_old_english(project)
+        assert "Hwæt" in old_english
+        assert "Her onginneð" not in old_english
+        translation = exporter.render_translation(project)
+        assert "Hwæt" not in translation
+        assert "Her onginneð" not in translation
 
     def test_verse_indent_and_every_five_numbers(self, db_session) -> None:
         session = get_runtime_session()
