@@ -40,13 +40,18 @@ _Avoid_: Notes (unscoped — see Note), description, comments
 ### Text hierarchy
 
 **Chapter**:
-A top-level division of a project's text, ordered within the project and often
-titled.
+A top-level division of a project's text, ordered within the project. When it
+has a Chapter Heading, its title is that sentence's Old English Text. Clearing
+that heading sets the title to the generated name `Chapter N`, which is not
+an official title.
 _Avoid_: Book, part (unless you truly mean a larger unit above chapter)
 
 **Section**:
-A division within a chapter, ordered within that chapter and often titled.
-_Avoid_: Subsection (unless nested further), heading
+A division within a chapter, ordered within that chapter. When it has a
+Section Heading, its title is that sentence's Old English Text. Clearing that
+heading sets the title to the generated name `Section N`, which is not an
+official title.
+_Avoid_: Subsection (a Subsection Heading is not a further division), heading
 
 **Paragraph**:
 A prose block within a section that groups one or more sentences.
@@ -57,6 +62,42 @@ The primary unit of parallel Old English and Modern English text: ordered OE
 wording, optional Modern English translation, and ownership of its tokens,
 idioms, and notes.
 _Avoid_: Line (unscoped), unit, card (UI only)
+
+**Heading Sentence**:
+A Sentence the translator has designated as a Chapter Heading, a Section
+Heading, or a Subsection Heading. It is still a Sentence.
+_Avoid_: Title, rubric, caption
+
+**Chapter Heading**:
+The one Heading Sentence that opens a chapter: the first sentence of that
+chapter's first section. In a verse project, a later chapter offers this only
+after every earlier chapter already has one.
+_Avoid_: Chapter title, section heading
+
+**Section Heading**:
+The one Heading Sentence that opens a section. It is the first sentence of
+the section, except in the section that opens a chapter, where it may be the
+second sentence, and only while the first sentence is the Chapter Heading.
+A verse project, one in which every sentence is verse, has no Section
+Heading. A text that mixes prose and verse is a prose project, so its prose
+sections may have one.
+_Avoid_: Section title, chapter heading, subsection heading
+
+**Subsection Heading**:
+A Heading Sentence that names a part inside a section and is not that
+section's Section Heading. A section may have several. It is not the first
+sentence of a section, and in the section that opens a chapter it is not the
+second sentence either.
+_Avoid_: Section, subsection (as its own division)
+
+**Verse Section**:
+A section whose sentences are verse. It may have Subsection Headings. Its
+name in the section menu is the line range `Lines N-M`. A Chapter Heading
+does not replace that name. A verse project is one in which every sentence
+is verse. A chapter heading at the start of a section does not count as
+prose. A text that mixes prose and verse, such as Cædmon's Hymn, is a prose
+project.
+_Avoid_: Section N, section heading
 
 **Verse Line**:
 A poetic line number (or inclusive range) associated with a sentence when the

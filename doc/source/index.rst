@@ -18,6 +18,7 @@
 
    overview/projects
    overview/project_organization
+   overview/headings
    overview/annotation
    overview/presets
    overview/remembered_annotations

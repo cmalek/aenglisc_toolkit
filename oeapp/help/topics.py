@@ -40,6 +40,7 @@ HELP_TOPICS: Final[tuple[HelpTopic, ...]] = (
         "full-translation-window.md",
         "full-translation-window.html",
     ),
+    HelpTopic("Headings", "headings.md", "headings.html"),
     HelpTopic("Export Formatting", "export-formatting.md", "export-formatting.html"),
     HelpTopic(
         "Project Export/Import",

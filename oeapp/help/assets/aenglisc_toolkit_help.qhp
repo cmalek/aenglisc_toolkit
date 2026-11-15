@@ -19,6 +19,7 @@
     <section title="Notes Guide" ref="notes-guide.html" />
     <section title="Search Guide" ref="search-guide.html" />
     <section title="Full Translation Window" ref="full-translation-window.html" />
+    <section title="Headings" ref="headings.html" />
     <section title="Export Formatting" ref="export-formatting.html" />
     <section title="Project Export/Import" ref="project-export-import.html" />
     <section title="Automatic Backups" ref="automatic-backups.html" />
@@ -38,6 +39,7 @@
 <keyword name="Notes Guide" id="notes-guide" ref="notes-guide.html" />
 <keyword name="Search Guide" id="search-guide" ref="search-guide.html" />
 <keyword name="Full Translation Window" id="full-translation-window" ref="full-translation-window.html" />
+<keyword name="Headings" id="headings" ref="headings.html" />
 <keyword name="Export Formatting" id="export-formatting" ref="export-formatting.html" />
 <keyword name="Project Export/Import" id="project-export-import" ref="project-export-import.html" />
 <keyword name="Automatic Backups" id="automatic-backups" ref="automatic-backups.html" />
@@ -56,6 +58,7 @@
 <file>notes-guide.html</file>
 <file>search-guide.html</file>
 <file>full-translation-window.html</file>
+<file>headings.html</file>
 <file>export-formatting.html</file>
 <file>project-export-import.html</file>
 <file>automatic-backups.html</file>

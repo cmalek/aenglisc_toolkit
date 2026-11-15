@@ -19,6 +19,8 @@ The window title is `Full Translation - <project name>`.
 - Right pane: full Modern English translation.
 - Scrolling is synchronized.
 
+Chapter, section, and subsection headings are sentences in that flow. They are not printed again as a separate title. See **Headings** for which sentence can be which heading, and for capitals, weight, and page breaks.
+
 ### Search Across the Full Project
 
 - Use the toolbar search field to highlight matches in:

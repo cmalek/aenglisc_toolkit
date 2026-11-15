@@ -25,8 +25,10 @@ Which item is listed depends on the current sentence's position in the hierarchy
 
 These toggle whether the current sentence begins a new paragraph, section,
 or chapter. All of these split/merge actions are undoable with **Ctrl+Z**.
-(The dropdown is hidden on a project's very first sentence, since it's
-always the start of everything.)
+The first sentence of a project has no earlier boundary to merge into, but
+**Mark as ...** is still there so you can mark it as a chapter heading.
+In a verse project a later chapter's heading waits until every earlier
+chapter has one. See :doc:`/overview/headings`.
 
 Navigating the hierarchy
 ========================
@@ -93,5 +95,6 @@ See :doc:`/overview/backups` for more details on backups.
 Next steps
 ==========
 
+- :doc:`/overview/headings` — chapter, section, and subsection headings
 - :doc:`/overview/annotation` — annotating tokens and idioms
 - :doc:`/overview/translation` — writing the translation and exporting

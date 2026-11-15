@@ -33,6 +33,24 @@ Your work
    optional Modern English translation, and owns its tokens, idioms, and
    notes.
 
+**Heading sentence**
+   A sentence you have marked as the chapter heading, the section heading,
+   or a subsection heading. It is still a sentence. See
+   :doc:`/overview/headings`.
+
+**Verse project**
+   A project in which every sentence is verse. A chapter heading at the
+   start of a section does not count as prose. A text that mixes prose and
+   verse, such as Cædmon's Hymn, is a prose project. A verse project has no
+   section heading. Its chapters are named from the start of the text: a
+   later chapter offers a chapter heading only after every earlier chapter
+   has one on the first sentence of its first section.
+
+**Verse section**
+   A section whose sentences are verse. It may have subsection headings.
+   Its name in the section menu is the line range, ``Lines N-M``. A
+   chapter heading does not replace that name.
+
 **Verse Line**
    A poetic line number (or range) attached to a sentence, when the source
    is verse rather than prose.

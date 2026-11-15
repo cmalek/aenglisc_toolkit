@@ -22,6 +22,10 @@ The application has two formatted document exports:
 
     - Left: Old English
     - Right: Modern English translation
+    - A chapter heading is bold and in capitals, and starts a new page for both columns unless it is the first sentence of the text
+    - A section heading is bold, in its own case
+    - A subsection heading is italic, in its own case
+    - An untranslated heading shows its Old English on the right as well
 
 - Real footnotes in the Old English flow from sentence notes
 - Optional **About this text** section from project notes
@@ -49,7 +53,12 @@ The application has two formatted document exports:
 ## DOCX Export (File Menu)
 
 The File menu export creates a Microsoft Word (.docx) document with annotated
-sentence formatting.
+sentence formatting. A heading sentence is the heading text only: no sentence
+number and no annotation glosses. Chapter headings are bold and in capitals,
+and start a new page unless the heading is the first sentence of the text.
+Section headings are bold, in their own case. Subsection headings are italic,
+in their own case. An untranslated heading repeats its Old English in the
+translation.
 
 ## Accessing Export
 
