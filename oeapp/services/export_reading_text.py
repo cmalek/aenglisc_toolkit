@@ -22,7 +22,8 @@ class ReadingTextExporter:
 
     Rendering uses ``Project.sentences`` and ``oeapp.models.text_flow``. Notes
     and Full Translation widgets are not consulted. Chapter and section titles
-    are not emitted as separate lines; heading sentences are ordinary bodies.
+    are not emitted as separate lines; heading sentences are unstyled bodies
+    that end their line.
     """
 
     #: Emit a running verse-line number after this many verse lines.
@@ -104,8 +105,8 @@ class ReadingTextExporter:
         verse_line_count = 0
         sentences = sorted(project.sentences, key=lambda s: s.display_order)
         for sentence in sentences:
-            kind = sentence_separator_kind(previous, sentence, has_titles=False)
-            parts.append(plain_text_separator(kind))
+            if any(parts):
+                parts.append(self._separator(previous, sentence))
             body = (sentence.text_modern or "") if translation else sentence.text_oe
             if sentence.is_verse and body:
                 body = self._indent_verse_body(body)
@@ -124,6 +125,27 @@ class ReadingTextExporter:
                 parts.append(marker)
             previous = sentence
         return "".join(parts)
+
+    def _separator(self, previous: Sentence | None, sentence: Sentence) -> str:
+        """
+        Return the gap written before a sentence.
+
+        A heading sentence ends its line, so the sentence after it starts on a
+        new line even when the two would otherwise share one.
+
+        Args:
+            previous: The sentence before this one, or ``None``.
+            sentence: The sentence the gap precedes.
+
+        Returns:
+            The plain-text gap.
+
+        """
+        kind = sentence_separator_kind(previous, sentence, has_titles=False)
+        separator = plain_text_separator(kind)
+        if previous is not None and previous.heading_role and "\n" not in separator:
+            return "\n"
+        return separator
 
     def _indent_verse_body(self, body: str) -> str:
         """

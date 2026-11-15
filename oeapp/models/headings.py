@@ -96,7 +96,7 @@ def is_verse_section(section: Section) -> bool:
     Return whether a section is verse.
 
     A section is verse when it has at least one sentence and every sentence
-    is verse.
+    other than a chapter heading at index 1 is verse.
 
     Args:
         section: The section to check
@@ -105,8 +105,7 @@ def is_verse_section(section: Section) -> bool:
         ``True`` when the section is verse
 
     """
-    sentences = _section_sentences(section)
-    return bool(sentences) and all(s.is_verse for s in sentences)
+    return _layout_is_verse(_slots_of(_section_sentences(section)))
 
 
 def _opening_slot_role(section: Section, index: int) -> HeadingRole | None:
@@ -498,6 +497,24 @@ def _slots_of(sentences: Iterable[Sentence]) -> list[_Slot]:
     return [_Slot(s.heading_role, s.is_verse) for s in sentences]
 
 
+def _layout_is_verse(slots: Sequence[_Slot]) -> bool:
+    """
+    Return whether a layout is a verse section.
+
+    A chapter heading at index 1 has no verse lines, so it is skipped.
+
+    Args:
+        slots: The section's layout, in display order
+
+    Returns:
+        ``True`` when the layout has at least one slot and every slot other
+        than a chapter heading at index 1 is verse
+
+    """
+    body = slots[1:] if slots and slots[0].role == HeadingRole.CHAPTER else slots
+    return bool(slots) and all(slot.is_verse for slot in body)
+
+
 def _section_is_opening(section: Section) -> bool:
     """
     Return whether a section is its chapter's opening section.
@@ -528,7 +545,7 @@ def _predicted_role(
 
     Keyword Args:
         opening: Whether the section is its chapter's opening section
-        verse: Whether every slot in the layout is verse
+        verse: Whether the layout is a verse section
 
     Returns:
         The allowed role, or ``None``
@@ -562,7 +579,7 @@ def _layout_is_legal(slots: Sequence[_Slot], *, opening: bool) -> bool:
         ``True`` when each set role equals the role its slot allows
 
     """
-    verse = bool(slots) and all(slot.is_verse for slot in slots)
+    verse = _layout_is_verse(slots)
     return all(
         slot.role is None
         or slot.role == _predicted_role(slots, i, opening=opening, verse=verse)

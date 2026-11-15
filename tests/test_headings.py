@@ -1097,6 +1097,23 @@ class TestPromoteOfficialChapterTitle:
         assert sentences[0].text_oe == "Beowulf"
         assert sentences[0].heading_role == "chapter"
 
+    def test_promoted_title_keeps_a_verse_opening_section_verse(
+        self, db_session
+    ) -> None:
+        chapter, _ = _titled(db_session, [[True, True, True]], title="Beowulf.")
+        promote_official_chapter_title(chapter, session=db_session)
+        db_session.commit()
+        db_session.refresh(chapter)
+        heading, first, _, last = _chapter_sentences(chapter)
+        assert heading.heading_role == "chapter"
+        assert not heading.is_verse
+        assert is_verse_section(first.paragraph.section)
+        assert allowed_role(first) is None
+        first.heading_role = "section"
+        db_session.commit()
+        assert not heading_is_legal(first)
+        assert not HeadingMoveGuard.allows_removal(last)
+
     def test_insert_shifts_later_chapters_display_order(self, db_session) -> None:
         chapter, sections = _titled(db_session, [[False, False]], title="Beowulf.")
         project = chapter.project

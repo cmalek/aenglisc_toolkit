@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from oeapp.db import get_runtime_session
+from oeapp.models.headings import promote_official_chapter_title
 from oeapp.models.note import Note
 from oeapp.models.project import Project
 from oeapp.models.sentence import Sentence
@@ -85,6 +86,31 @@ class TestReadingTextExporter:
         translation = exporter.render_translation(project)
         assert "Hwæt" not in translation
         assert "Her onginneð" not in translation
+
+    def test_promoted_prose_heading_ends_its_line(self, db_session) -> None:
+        session = get_runtime_session()
+        project = Project.create(
+            name="Promoted", text="Se cyning rad.", session=session
+        )
+        chapter = project.sentences[0].paragraph.section.chapter
+        chapter.title = "Be ðǣm cyninge"
+        chapter.title_auto = False
+        project.sentences[0].text_modern = "The king rode."
+        db_session.commit()
+        promote_official_chapter_title(chapter, session=session)
+        db_session.commit()
+        db_session.refresh(project)
+        heading = project.sentences[0]
+        assert heading.heading_role == "chapter"
+        assert heading.text_modern is None
+
+        exporter = ReadingTextExporter()
+        lines = exporter.render_old_english(project).split("\n")
+        assert lines[0] == "Be ðǣm cyninge"
+        assert "Se cyning rad." in lines[1:]
+        translation = exporter.render_translation(project)
+        assert translation == "The king rode."
+        assert not translation.startswith(" ")
 
     def test_verse_indent_and_every_five_numbers(self, db_session) -> None:
         session = get_runtime_session()

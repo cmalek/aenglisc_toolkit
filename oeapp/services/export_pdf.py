@@ -15,7 +15,6 @@ from oeapp.models.project import Project
 from oeapp.models.text_flow import (
     latex_separator,
     sentence_separator_kind,
-    visible_titles,
 )
 from oeapp.services.glossary import Glossary
 from oeapp.services.logs import get_logger
@@ -499,16 +498,6 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
             Appends to ``oe_parts`` and ``mode_parts``.
 
         """
-        titles = visible_titles(previous_sentence, sentence)
-        if titles:
-            if oe_parts:
-                oe_parts.append(r"\par ")
-                mode_parts.append(r"\par ")
-            for title in titles:
-                escaped_title = self._latex_escape(title)
-                oe_parts.append(r"\textbf{" + escaped_title + r"}\newline ")
-                mode_parts.append(r"\textbf{" + escaped_title + r"}\newline ")
-
         after_heading = previous_sentence is not None and bool(
             previous_sentence.heading_role
         )
@@ -516,7 +505,7 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
             sentence_separator_kind(
                 previous_sentence,
                 sentence,
-                has_titles=bool(titles) or after_heading,
+                has_titles=after_heading,
             )
         )
         if sep:
@@ -564,21 +553,38 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
         """
         modern = sentence.text_modern
         modern_text = modern if modern and modern.strip() else sentence.text_oe
-        oe_parts.append(self._render_heading(role, sentence.text_oe, bool(oe_parts)))
-        mode_parts.append(self._render_heading(role, modern_text, bool(mode_parts)))
-        oe_parts.extend(
+        footnotes = "".join(
             self._render_footnote(sentence, note) for note in sentence.sorted_notes
         )
+        oe_parts.append(
+            self._render_heading(
+                role, sentence.text_oe, bool(oe_parts), footnotes=footnotes
+            )
+        )
+        mode_parts.append(self._render_heading(role, modern_text, bool(mode_parts)))
 
-    def _render_heading(self, role: HeadingRole, text: str, follows_text: bool) -> str:
+    def _render_heading(
+        self,
+        role: HeadingRole,
+        text: str,
+        follows_text: bool,
+        *,
+        footnotes: str = "",
+    ) -> str:
         """
         Render one heading as spacing, a styled wrapper, and spacing.
+
+        Footnotes sit right after the wrapper and before the paragraph break,
+        so their marks stay on the heading line without taking its style.
 
         Args:
             role: The heading's role.
             text: The plain heading text.
             follows_text: Whether text precedes the heading in the column, so the
                 heading needs a paragraph break before its vertical space.
+
+        Keyword Args:
+            footnotes: Rendered footnote commands for the heading.
 
         Returns:
             The LaTeX for the heading.
@@ -591,6 +597,7 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
             (r"\par " if follows_text else "")
             + rf"\vspace{{{above}pt}}"
             + rf"\{wrapper}{{{self._latex_escape(shown)}}}"
+            + footnotes
             + r"\par "
             + rf"\vspace{{{below}pt}}"
         )

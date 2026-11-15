@@ -233,8 +233,10 @@ class TestDOCXExporter:
         doc = Document(str(output_path))
         text = "\n".join([para.text for para in doc.paragraphs])
 
-        assert "Official Chapter" in text
-        assert "Official Section" in text
+        assert "Official Chapter" not in text
+        assert "Official Section" not in text
+        assert "l1\nl2\nl3\nl4\nl5" in text
+        assert "prose" in text
         assert "Auto Chapter ...." not in text
         assert "Lines 6-10" not in text
         assert "\n5\n" in f"\n{text}\n"

@@ -345,14 +345,6 @@ class DOCXExporter(SessionMixin, AnnotationTextualMixin, TokenOccurrenceMixin):
 
             text_modern = sentence.text_modern
 
-            titles = self._visible_titles(previous_sentence, sentence)
-            if titles:
-                if previous_sentence is not None:
-                    doc.add_paragraph()
-                for title in titles:
-                    title_para = doc.add_paragraph()
-                    title_para.add_run(title).bold = True
-
             # Add sentence number with paragraph and sentence numbers
             sentence_num_para = doc.add_paragraph()
             paragraph_num = sentence.paragraph.order if sentence.paragraph else 0

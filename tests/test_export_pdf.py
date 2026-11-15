@@ -506,8 +506,10 @@ class TestFullTranslationPDFExporter:
         exporter = FullTranslationPDFExporter()
         latex = exporter._render_two_columns(project)
 
-        assert "Official Chapter" in latex
-        assert "Official Section" in latex
+        assert "Official Chapter" not in latex
+        assert "Official Section" not in latex
+        assert "a1" in latex
+        assert "Prose." in latex
         assert "Auto Chapter" not in latex
         assert "Lines 11-15" not in latex
         assert r"\hspace*{2.00em}a1" in latex
@@ -961,3 +963,29 @@ class TestPDFHeadingPageBreak:
         assert r"\textbf{7}" not in latex
         assert r"\hspace*" not in latex
         assert r"\footnote" not in latex
+
+    def test_heading_footnote_stays_on_the_heading_line(self, db_session):
+        """A heading's footnote follows the wrapper, before the paragraph break."""
+        from tests.conftest import create_test_project
+
+        project = create_test_project(
+            db_session, name="Heading Note", text="Se cyning. Body."
+        )
+        heading = project.sentences[0]
+        heading.heading_role = "chapter"
+        token = heading.tokens[0]
+        Note(
+            sentence_id=heading.id,
+            start_token=token.id,
+            end_token=token.id,
+            note_text_md="A heading note.",
+        ).save()
+        db_session.refresh(heading)
+
+        latex = FullTranslationPDFExporter()._render_two_columns(project)
+
+        assert (
+            r"\textbf{SE CYNING.}\footnote{\emph{Se} --- A heading note.}"
+            r"\par \vspace{16pt}"
+        ) in latex
+        assert r"\textbf{SE CYNING.\footnote" not in latex
