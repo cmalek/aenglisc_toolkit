@@ -18,6 +18,7 @@ from PySide6.QtGui import (
     QDesktopServices,
     QFont,
     QMouseEvent,
+    QTextBlockFormat,
     QTextCharFormat,
     QTextCursor,
     QTextFormat,
@@ -38,11 +39,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from oeapp.models.text_flow import (
-    plain_text_separator,
-    sentence_separator_kind,
-    visible_titles,
-)
+from oeapp.models.headings import HeadingRole
+from oeapp.models.text_flow import plain_text_separator, sentence_separator_kind
 from oeapp.services.export_pdf import FullTranslationPDFExporter
 from oeapp.ui.highlighting import SearchHighlighter
 from oeapp.ui.mixins import ThemeMixin
@@ -53,6 +51,7 @@ from oeapp.ui.widgets import HorizontalSeparatorWidget
 if TYPE_CHECKING:
     from oeapp.models import Idiom, Note
     from oeapp.models.project import Project
+    from oeapp.models.sentence import Sentence
     from oeapp.models.token import Token
     from oeapp.ui.main_window import MainWindow
 
@@ -83,6 +82,157 @@ def _indent_multiline_plain(text: str, spaces: int = 4) -> str:
     indent = " " * spaces
     lines = text.split("\n")
     return "\n".join(f"{indent}{line}" if line else line for line in lines)
+
+
+class HeadingStyle:
+    """
+    Formats heading sentences in the Full Translation columns.
+
+    Both columns style a heading's characters and block the same way, so the
+    rules live here. Stored text is never changed: capitals are a render flag.
+    """
+
+    #: Top margin of a chapter heading that is the project's first sentence.
+    FIRST_CHAPTER_TOP: Final[float] = 4
+    #: Top margin of every other chapter heading.
+    CHAPTER_TOP: Final[float] = 22
+    #: Bottom margin of a chapter heading.
+    CHAPTER_BOTTOM: Final[float] = 16
+    #: Top and bottom margin of a section heading.
+    SECTION_MARGIN: Final[float] = 12
+    #: Top and bottom margin of a subsection heading.
+    SUBSECTION_MARGIN: Final[float] = 6
+
+    @classmethod
+    def char_format(cls, role: str) -> QTextCharFormat:
+        """
+        Build the character format for a heading role.
+
+        Args:
+            role: A ``Sentence.heading_role`` value.
+
+        Returns:
+            Bold capitals for a chapter, bold for a section, italic for a
+            subsection.
+
+        """
+        fmt = QTextCharFormat()
+        if role == HeadingRole.CHAPTER:
+            fmt.setFontCapitalization(QFont.Capitalization.AllUppercase)
+            fmt.setFontWeight(QFont.Weight.Bold)
+        elif role == HeadingRole.SECTION:
+            fmt.setFontWeight(QFont.Weight.Bold)
+        else:
+            fmt.setFontItalic(True)
+        return fmt
+
+    @classmethod
+    def block_format(cls, role: str, *, is_first: bool) -> QTextBlockFormat:
+        """
+        Build the block format for a heading role.
+
+        Args:
+            role: A ``Sentence.heading_role`` value.
+
+        Keyword Args:
+            is_first: Whether the heading is the project's first sentence.
+
+        Returns:
+            The block format carrying the heading's top and bottom margins.
+
+        """
+        fmt = QTextBlockFormat()
+        if role == HeadingRole.CHAPTER:
+            fmt.setTopMargin(cls.FIRST_CHAPTER_TOP if is_first else cls.CHAPTER_TOP)
+            fmt.setBottomMargin(cls.CHAPTER_BOTTOM)
+        else:
+            margin = (
+                cls.SECTION_MARGIN
+                if role == HeadingRole.SECTION
+                else cls.SUBSECTION_MARGIN
+            )
+            fmt.setTopMargin(margin)
+            fmt.setBottomMargin(margin)
+        return fmt
+
+    @classmethod
+    def apply(
+        cls,
+        cursor: QTextCursor,
+        sentence: "Sentence",
+        start: int,
+        end: int,
+        *,
+        is_first: bool,
+    ) -> None:
+        """
+        Style a heading sentence's inserted range, if it is a heading.
+
+        Args:
+            cursor: Cursor on the document; its position is restored.
+            sentence: The sentence just inserted.
+            start: Document position where the sentence begins.
+            end: Document position where the sentence ends.
+
+        Keyword Args:
+            is_first: Whether the sentence is the project's first sentence.
+
+        Side Effects:
+            Merges character and block formats into the document.
+
+        """
+        role = sentence.heading_role
+        if role is None:
+            return
+        resume = cursor.position()
+        cursor.setPosition(start)
+        cursor.setBlockFormat(cls.block_format(role, is_first=is_first))
+        cursor.setPosition(end, QTextCursor.MoveMode.KeepAnchor)
+        cursor.mergeCharFormat(cls.char_format(role))
+        cursor.setPosition(resume)
+
+    @staticmethod
+    def separator(previous: "Sentence | None", sentence: "Sentence") -> str:
+        """
+        Return the gap inserted before a sentence.
+
+        A heading owns its block, so a gap next to a heading always contains
+        a line break.
+
+        Args:
+            previous: The previous rendered sentence, if any.
+            sentence: The sentence about to be inserted.
+
+        Returns:
+            The plain-text separator for the pair.
+
+        """
+        kind = sentence_separator_kind(previous, sentence, has_titles=False)
+        gap = plain_text_separator(kind)
+        if (
+            previous is not None
+            and "\n" not in gap
+            and (previous.heading_role or sentence.heading_role)
+        ):
+            return "\n"
+        return gap
+
+    @staticmethod
+    def modern_text(sentence: "Sentence") -> str:
+        """
+        Return the Modern English body for a sentence.
+
+        Args:
+            sentence: The sentence to render.
+
+        Returns:
+            ``text_modern`` when it has non-blank text, else ``text_oe`` for a
+            heading, else ``[...]``.
+
+        """
+        if sentence.text_modern and sentence.text_modern.strip():
+            return sentence.text_modern
+        return sentence.text_oe if sentence.heading_role else "[...]"
 
 
 class FullProjectOldEnglishTextEdit(ThemeMixin, OldEnglishTextEdit):
@@ -144,7 +294,7 @@ class FullProjectOldEnglishTextEdit(ThemeMixin, OldEnglishTextEdit):
             self.token_deselected.connect(sidebar._on_token_deselected)
             self.idiom_selection.connect(sidebar._on_idiom_selected)
 
-    def render_readonly_text(self) -> None:  # noqa: PLR0912, PLR0915
+    def render_readonly_text(self) -> None:  # noqa: PLR0915
         """
         Render the entire project's OE text.
         """
@@ -158,16 +308,7 @@ class FullProjectOldEnglishTextEdit(ThemeMixin, OldEnglishTextEdit):
         previous_sentence = None
         for sentence in self.project.sentences:
             sentence_id = cast("int", sentence.id)
-            titles = visible_titles(previous_sentence, sentence)
-            if titles:
-                if cursor.position() > 0:
-                    cursor.insertText("\n\n")
-                cursor.insertText("\n".join(titles))
-                cursor.insertText("\n")
-
-            gap = plain_text_separator(
-                sentence_separator_kind(previous_sentence, sentence, bool(titles))
-            )
+            gap = HeadingStyle.separator(previous_sentence, sentence)
             if gap:
                 cursor.insertText(gap)
 
@@ -260,6 +401,13 @@ class FullProjectOldEnglishTextEdit(ThemeMixin, OldEnglishTextEdit):
 
             sentence_end = cursor.position()
             self.sentence_positions[sentence_id] = (sentence_start, sentence_end)
+            HeadingStyle.apply(
+                cursor,
+                sentence,
+                sentence_start,
+                sentence_end,
+                is_first=previous_sentence is None,
+            )
             previous_sentence = sentence
 
     def _insert_with_verse_indent(
@@ -592,16 +740,7 @@ class FullProjectModernEnglishTextEdit(ThemeMixin, QTextEdit):
         previous_sentence = None
         for sentence in self.project.sentences:
             sentence_id = cast("int", sentence.id)
-            titles = visible_titles(previous_sentence, sentence)
-            if titles:
-                if cursor.position() > 0:
-                    cursor.insertText("\n\n")
-                cursor.insertText("\n".join(titles))
-                cursor.insertText("\n")
-
-            gap = plain_text_separator(
-                sentence_separator_kind(previous_sentence, sentence, bool(titles))
-            )
+            gap = HeadingStyle.separator(previous_sentence, sentence)
             if gap:
                 cursor.insertText(gap)
 
@@ -609,7 +748,7 @@ class FullProjectModernEnglishTextEdit(ThemeMixin, QTextEdit):
             fmt = QTextCharFormat()
             fmt.setProperty(SENTENCE_ID_PROPERTY, sentence_id)
 
-            text = sentence.text_modern or "[...]"
+            text = HeadingStyle.modern_text(sentence)
             if sentence.is_verse:
                 text = _indent_multiline_plain(text, spaces=4)
             cursor.insertText(text, fmt)
@@ -618,6 +757,9 @@ class FullProjectModernEnglishTextEdit(ThemeMixin, QTextEdit):
             end = cursor.position()
 
             self.sentence_positions[sentence_id] = (start, end)
+            HeadingStyle.apply(
+                cursor, sentence, start, end, is_first=previous_sentence is None
+            )
             previous_sentence = sentence
 
     def mousePressEvent(self, event: QMouseEvent) -> None:  # noqa: N802

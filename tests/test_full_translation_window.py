@@ -16,6 +16,7 @@ from oeapp.ui.full_translation_window import (
 )
 from oeapp.ui.highlighting import SearchHighlighter
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QFont, QTextCursor
 from PySide6.QtWidgets import QLabel
 
 
@@ -527,12 +528,155 @@ class TestFullTranslationWindow:
         oe_text = window.oe_edit.toPlainText()
         mode_text = window.mode_edit.toPlainText()
 
-        assert "Official Chapter" in oe_text
-        assert "Official Section" in oe_text
+        assert "Official Chapter" not in oe_text
+        assert "Official Section" not in oe_text
         assert "Auto Chapter ...." not in oe_text
         assert "Lines 11-15" not in oe_text
         assert "    a1" in oe_text
         assert "a5\n5\n    b1" in oe_text
         assert "a5\n5\n\n    b1" not in oe_text
-        assert "Official Chapter" in mode_text
+        assert "Official Chapter" not in mode_text
         assert "    [...]" in mode_text
+
+
+def _heading_project(session, roles, *, second_chapter_at=None):
+    """
+    Build a project whose sentence ``i`` has ``roles[i]`` as its heading role.
+
+    Args:
+        session: Runtime session.
+        roles: One heading role (or ``None``) per sentence, in display order.
+
+    Keyword Args:
+        second_chapter_at: Sentence index that opens a second chapter.
+
+    Returns:
+        The saved project.
+
+    """
+    project = Project(name="Heading Layout")
+    project.save()
+    chapter = Chapter.create(
+        project_id=project.id, number=1, commit=False, session=session
+    )
+    section = Section.create(
+        chapter_id=chapter.id, number=1, commit=False, session=session
+    )
+    paragraph = Paragraph(section_id=section.id, order=1)
+    session.add(paragraph)
+    session.flush()
+    for index, role in enumerate(roles):
+        if index == second_chapter_at:
+            chapter = Chapter.create(
+                project_id=project.id, number=2, commit=False, session=session
+            )
+            section = Section.create(
+                chapter_id=chapter.id, number=1, commit=False, session=session
+            )
+            paragraph = Paragraph(section_id=section.id, order=1)
+            session.add(paragraph)
+            session.flush()
+        sentence = Sentence.create(
+            project_id=project.id,
+            display_order=index + 1,
+            text_oe=f"Word{index}" if role is None else f"Head{index}",
+            paragraph_id=paragraph.id,
+            commit=False,
+            session=session,
+        )
+        sentence.heading_role = role
+    session.commit()
+    return project
+
+
+def _range_format(edit, sentence_id):
+    """
+    Return the block and character format at the start of a sentence's range.
+
+    Args:
+        edit: A full-translation text edit.
+        sentence_id: Sentence to look up.
+
+    Returns:
+        ``(block_format, char_format)`` for the first character of the range.
+
+    """
+    start, end = edit.sentence_positions[sentence_id]
+    doc = edit.document()
+    cursor = QTextCursor(doc)
+    cursor.setPosition(start + 1)
+    return doc.findBlock(start).blockFormat(), cursor.charFormat()
+
+
+class TestHeadingRendering:
+    def test_first_chapter_heading_is_styled_in_both_columns(
+        self, db_session, mock_main_window
+    ):
+        """A first-sentence chapter heading is bold capitals with a 4pt top margin."""
+        project = _heading_project(
+            db_session, ["chapter", None, "chapter"], second_chapter_at=2
+        )
+        window = FullTranslationWindow(project, mock_main_window)
+        heading, _body, second = project.sentences
+
+        assert window.oe_edit.toPlainText().count("Head0") == 1
+        assert window.mode_edit.toPlainText().startswith("Head0")
+        assert "[...]" in window.mode_edit.toPlainText()
+        for edit in (window.oe_edit, window.mode_edit):
+            block, char = _range_format(edit, heading.id)
+            assert char.fontCapitalization() == QFont.Capitalization.AllUppercase
+            assert char.fontWeight() == QFont.Weight.Bold
+            assert block.topMargin() == 4
+            assert block.bottomMargin() == 16
+            second_block, second_char = _range_format(edit, second.id)
+            assert second_block.topMargin() == 22
+            assert second_block.bottomMargin() == 16
+            assert second_char.fontCapitalization() == QFont.Capitalization.AllUppercase
+        assert "HEAD0" not in window.oe_edit.toPlainText()
+
+    def test_later_chapter_heading_in_first_chapter_uses_22pt(
+        self, db_session, mock_main_window
+    ):
+        """A chapter heading that is not the first sentence uses 22pt above."""
+        project = _heading_project(db_session, [None, "chapter", None])
+        window = FullTranslationWindow(project, mock_main_window)
+        heading = project.sentences[1]
+
+        for edit in (window.oe_edit, window.mode_edit):
+            block, _char = _range_format(edit, heading.id)
+            assert block.topMargin() == 22
+            assert block.bottomMargin() == 16
+
+    def test_section_and_subsection_styling(self, db_session, mock_main_window):
+        """Section is bold in own case; subsection is italic, not bold."""
+        project = _heading_project(db_session, ["chapter", "section", "subsection"])
+        window = FullTranslationWindow(project, mock_main_window)
+        _head, section, subsection = project.sentences
+
+        for edit in (window.oe_edit, window.mode_edit):
+            block, char = _range_format(edit, section.id)
+            assert char.fontWeight() == QFont.Weight.Bold
+            assert char.fontCapitalization() == QFont.Capitalization.MixedCase
+            assert (block.topMargin(), block.bottomMargin()) == (12, 12)
+            block, char = _range_format(edit, subsection.id)
+            assert char.fontItalic()
+            assert char.fontWeight() != QFont.Weight.Bold
+            assert char.fontCapitalization() == QFont.Capitalization.MixedCase
+            assert (block.topMargin(), block.bottomMargin()) == (6, 6)
+
+    def test_translated_heading_and_plain_sentence_bodies(
+        self, db_session, mock_main_window
+    ):
+        """Modern text wins for a heading; body sentences keep ``[...]``."""
+        project = _heading_project(db_session, ["chapter", None])
+        project.sentences[0].text_modern = "The Beginning"
+        project.sentences[1].text_modern = "   "
+        db_session.commit()
+        window = FullTranslationWindow(project, mock_main_window)
+
+        mode_text = window.mode_edit.toPlainText()
+        assert "The Beginning" in mode_text
+        assert "Head0" not in mode_text
+        assert "[...]" in mode_text
+        assert "Word1" not in mode_text
+        assert window.oe_edit.toPlainText().startswith("Head0")
