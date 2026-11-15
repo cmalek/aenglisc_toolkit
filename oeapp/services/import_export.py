@@ -7,8 +7,10 @@ from pathlib import Path
 from typing import Any
 
 from pydantic import ValidationError
+from sqlalchemy import select
 
 from oeapp.models.chapter import Chapter
+from oeapp.models.headings import promote_official_chapter_title
 from oeapp.models.mixins import SessionMixin
 from oeapp.models.project import Project
 from oeapp.models.remembered_annotation import RememberedAnnotation
@@ -618,6 +620,30 @@ class ProjectImporter(SessionMixin):
             session=self.session,
         )
 
+    def _promote_official_titles(self, project_id: int) -> None:
+        """
+        Turn each chapter's official title into a chapter heading sentence.
+
+        Each chapter is read from the session again, because an insert shifts
+        the display order of every sentence after it.
+
+        Args:
+            project_id: ID of the project that was just imported
+
+        Side Effects:
+            May insert sentences and set ``heading_role`` on them.
+
+        """
+        chapter_ids = self.session.scalars(
+            select(Chapter.id)
+            .where(Chapter.project_id == project_id)
+            .order_by(Chapter.number)
+        ).all()
+        for chapter_id in chapter_ids:
+            chapter = self.session.get(Chapter, chapter_id)
+            if chapter is not None:
+                promote_official_chapter_title(chapter, session=self.session)
+
     def import_project_json(self, filename: str) -> tuple[Project, bool]:
         """
         Process project import from data dictionary.
@@ -669,6 +695,11 @@ class ProjectImporter(SessionMixin):
                 sentence.model_dump(),
                 paragraph_lookup=paragraph_lookup,
             )
+
+        # A file written before heading sentences has no heading_role key on
+        # any sentence; give its official chapter titles a heading sentence.
+        if not any("heading_role" in s.model_fields_set for s in payload.sentences):
+            self._promote_official_titles(project.id)
 
         # Sentence/annotation writes can touch project timestamps. Re-apply
         # exported project timestamps as the final import state.

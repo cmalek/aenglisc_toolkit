@@ -18,6 +18,7 @@ from wyrdcraeft.models import Sentence as WyrdSentence
 
 from oeapp.exc import AlreadyExists
 from oeapp.models.chapter import Chapter
+from oeapp.models.headings import promote_official_chapter_title
 from oeapp.models.mixins import SessionMixin
 from oeapp.models.paragraph import Paragraph
 from oeapp.models.project import Project
@@ -300,6 +301,7 @@ class WyrdcraeftIngestService(SessionMixin):
 
         chapter_number = chapter_start
         display_order = sentence_start
+        chapter_ids: list[int] = []
         for run in runs:
             if run.kind == "verse":
                 chapter = Chapter.create(
@@ -332,7 +334,29 @@ class WyrdcraeftIngestService(SessionMixin):
                     display_order_start=display_order,
                     project_id=project.id,
                 )
+            chapter_ids.append(chapter.id)
             chapter_number += 1
+        self._promote_official_titles(chapter_ids)
+
+    def _promote_official_titles(self, chapter_ids: list[int]) -> None:
+        """
+        Turn the official titles of just-created chapters into heading sentences.
+
+        Runs after every chapter exists, because each insert shifts the display
+        order of the sentences after it. Each chapter is read from the session
+        again so no earlier display order is reused.
+
+        Args:
+            chapter_ids: IDs of the chapters this ingest created, in order
+
+        Side Effects:
+            May insert sentences and set ``heading_role`` on them.
+
+        """
+        for chapter_id in chapter_ids:
+            chapter = self.session.get(Chapter, chapter_id)
+            if chapter is not None:
+                promote_official_chapter_title(chapter, session=self.session)
 
     def _flatten_runs(self, content: WyrdSection) -> list[CanonicalRun]:
         """

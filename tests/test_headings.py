@@ -28,6 +28,7 @@ from oeapp.models.headings import (
     headings_illegal_after,
     is_opening_section,
     is_verse_section,
+    promote_official_chapter_title,
     section_index,
 )
 from oeapp.models.paragraph import Paragraph
@@ -978,3 +979,197 @@ class TestCardDialogs:
         card.controller.on_delete_clicked()
         assert stack.count() == 1
         assert _no_dialogs["information"] == []
+
+
+def _titled(session, layout, *, title, title_auto=False):
+    """
+    Build a chapter and give it a title.
+
+    Args:
+        session: SQLAlchemy session
+        layout: Section layout as for :func:`_build`
+
+    Keyword Args:
+        title: The chapter title
+        title_auto: Whether the title is generated
+
+    Returns:
+        The chapter and a list of sentence lists, one per section
+
+    """
+    chapter, sections = _build(session, layout)
+    chapter.title = title
+    chapter.title_auto = title_auto
+    session.commit()
+    return chapter, sections
+
+
+def _chapter_sentences(chapter):
+    """
+    Return a chapter's sentences in display order.
+
+    Args:
+        chapter: The chapter to read
+
+    Returns:
+        Its sentences sorted by ``display_order``
+
+    """
+    return sorted(
+        (
+            s
+            for section in chapter.sections
+            for paragraph in section.paragraphs
+            for s in paragraph.sentences
+        ),
+        key=lambda s: s.display_order,
+    )
+
+
+class TestPromoteOfficialChapterTitle:
+    """An official chapter title becomes a chapter heading sentence."""
+
+    def test_exact_title_marks_existing_first_sentence(self, db_session) -> None:
+        chapter, sections = _titled(db_session, [[False]], title="Beowulf")
+        sections[0][0].text_oe = "Beowulf"
+        db_session.commit()
+        promote_official_chapter_title(chapter, session=db_session)
+        db_session.commit()
+        sentences = _chapter_sentences(chapter)
+        assert len(sentences) == 1
+        assert sentences[0].heading_role == "chapter"
+        assert chapter.title == "Beowulf"
+        assert chapter.title_auto is False
+
+    def test_title_punctuation_inserts_a_sentence(self, db_session) -> None:
+        chapter, sections = _titled(db_session, [[False]], title="Beowulf.")
+        sections[0][0].text_oe = "Beowulf"
+        db_session.commit()
+        promote_official_chapter_title(chapter, session=db_session)
+        db_session.commit()
+        sentences = _chapter_sentences(chapter)
+        assert [s.text_oe for s in sentences] == ["Beowulf.", "Beowulf"]
+        assert [s.display_order for s in sentences] == [1, 2]
+        assert sentences[0].heading_role == "chapter"
+        assert sentences[0].text_modern is None
+        assert sentences[1].heading_role is None
+
+    def test_generated_chapter_name_is_not_inserted(self, db_session) -> None:
+        chapter, sections = _titled(
+            db_session, [[False]], title="Chapter 2", title_auto=True
+        )
+        sections[0][0].text_oe = "Hwæt"
+        db_session.commit()
+        promote_official_chapter_title(chapter, session=db_session)
+        db_session.commit()
+        sentences = _chapter_sentences(chapter)
+        assert len(sentences) == 1
+        assert sentences[0].heading_role is None
+
+    def test_blank_title_is_not_inserted(self, db_session) -> None:
+        chapter, _ = _titled(db_session, [[False]], title="   ")
+        promote_official_chapter_title(chapter, session=db_session)
+        assert len(_chapter_sentences(chapter)) == 1
+
+    def test_existing_heading_role_stops_promotion(self, db_session) -> None:
+        chapter, sections = _titled(db_session, [[False, False]], title="Beowulf")
+        sections[0][1].heading_role = "subsection"
+        db_session.commit()
+        promote_official_chapter_title(chapter, session=db_session)
+        assert len(_chapter_sentences(chapter)) == 2
+
+    def test_match_is_case_and_whitespace_exact(self, db_session) -> None:
+        chapter, sections = _titled(db_session, [[False]], title="Beowulf")
+        sections[0][0].text_oe = "beowulf "
+        db_session.commit()
+        promote_official_chapter_title(chapter, session=db_session)
+        db_session.commit()
+        assert len(_chapter_sentences(chapter)) == 2
+
+    def test_official_title_on_an_empty_section_inserts_the_first_sentence(
+        self, db_session
+    ) -> None:
+        chapter, _ = _titled(db_session, [[]], title="Beowulf")
+        promote_official_chapter_title(chapter, session=db_session)
+        db_session.commit()
+        sentences = _chapter_sentences(chapter)
+        assert len(sentences) == 1
+        assert sentences[0].text_oe == "Beowulf"
+        assert sentences[0].heading_role == "chapter"
+
+    def test_insert_shifts_later_chapters_display_order(self, db_session) -> None:
+        chapter, sections = _titled(db_session, [[False, False]], title="Beowulf.")
+        project = chapter.project
+        second = Chapter(project_id=project.id, number=2, title="Hwæt.")
+        db_session.add(second)
+        db_session.flush()
+        section = Section(chapter_id=second.id, number=1)
+        db_session.add(section)
+        db_session.flush()
+        paragraph = Paragraph(section_id=section.id, order=1)
+        db_session.add(paragraph)
+        db_session.flush()
+        db_session.add(
+            Sentence(
+                project_id=project.id,
+                paragraph_id=paragraph.id,
+                display_order=3,
+                text_oe="Þæt",
+            )
+        )
+        db_session.commit()
+        promote_official_chapter_title(chapter, session=db_session)
+        db_session.refresh(second)
+        promote_official_chapter_title(second, session=db_session)
+        db_session.commit()
+        orders = sorted(s.display_order for s in project.sentences)
+        assert orders == [1, 2, 3, 4, 5]
+        assert [s.text_oe for s in _chapter_sentences(second)] == ["Hwæt.", "Þæt"]
+
+
+def test_migration_promotes_official_chapter_titles(tmp_path) -> None:
+    """The heading-role revision gives an official chapter title a sentence."""
+    from unittest.mock import MagicMock
+
+    from alembic import command
+    from oeapp.db import create_engine_with_path
+    from oeapp.services.migration import MigrationService
+
+    from tests.migration_baseline import build_baseline_db
+
+    db_path = tmp_path / "live.db"
+    build_baseline_db(db_path)
+    engine = create_engine_with_path(db_path)
+    service = MigrationService(
+        backup_service=MagicMock(),
+        engine=engine,
+        migration_metadata_service=MagicMock(),
+    )
+    with engine.connect() as connection:
+        connection.exec_driver_sql("PRAGMA foreign_keys=OFF")
+        config = service.config
+        config.attributes["connection"] = connection
+        command.upgrade(config, "7cd945e38aff")
+        connection.commit()
+    with engine.begin() as connection:
+        connection.exec_driver_sql(
+            "INSERT INTO chapters (id, project_id, number, title, title_auto) "
+            "VALUES (1, 1, 1, 'Beowulf.', 0)"
+        )
+        connection.exec_driver_sql(
+            "INSERT INTO sections (id, chapter_id, number, title_auto) "
+            "VALUES (1, 1, 1, 1)"
+        )
+        connection.exec_driver_sql(
+            'INSERT INTO paragraphs (id, section_id, "order") VALUES (1, 1, 1)'
+        )
+        connection.exec_driver_sql("UPDATE sentences SET paragraph_id = 1")
+    service.apply_migrations()
+    with engine.connect() as connection:
+        rows = connection.exec_driver_sql(
+            "SELECT display_order, text_oe, heading_role FROM sentences "
+            "ORDER BY display_order"
+        ).all()
+        title = connection.exec_driver_sql("SELECT title FROM chapters").scalar()
+    assert rows == [(1, "Beowulf.", "chapter"), (2, "Hwæt we Gardena", None)]
+    assert title == "Beowulf."

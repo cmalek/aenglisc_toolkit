@@ -292,6 +292,13 @@ ALLOWLIST: dict[str, dict[str, dict[str, int]]] = {
         "_token_ids": {"get_runtime_session": 1},
     },
     "oeapp/db.py": {"get_runtime_session": {"SessionLocal": 1}},
+    "oeapp/models/alembic/versions/92ac9a3a52db_add_sentence_heading_role.py": {
+        "_promote_official_chapter_titles": {
+            "clear_runtime_session": 1,
+            "get_runtime_session": 1,
+            "set_runtime_session": 2,
+        },
+    },
     "oeapp/models/annotation.py": {"Annotation.from_json": {"get_runtime_session": 1}},
     "oeapp/models/chapter.py": {"Chapter.last_section_number": {"_get_session": 1}},
     "oeapp/models/mixins.py": {

@@ -77,7 +77,11 @@ def test_ingest_mixed_creates_poem_chapter_and_prose_auto_titles(
     verse_sentences = []
     for paragraph in sorted(verse_sections[0].paragraphs, key=lambda p: p.order):
         verse_sentences.extend(sorted(paragraph.sentences, key=lambda s: s.display_order))
-    assert len(verse_sentences) == 2
+    # The official title "Embedded Poem" becomes the chapter heading sentence.
+    assert len(verse_sentences) == 3
+    assert verse_sentences[0].text_oe == "Embedded Poem"
+    assert verse_sentences[0].heading_role == "chapter"
+    verse_sentences = verse_sentences[1:]
     assert verse_sentences[0].verse_line_start == 1
     assert verse_sentences[0].verse_line_end == 5
     assert verse_sentences[0].text_oe.count("\n") == 4
@@ -116,3 +120,38 @@ def test_ingest_pure_verse_chunks_sections_by_20_stanzas(db_session, monkeypatch
         len(paragraph.sentences) for section in sections for paragraph in section.paragraphs
     )
     assert verse_sentence_count == 21
+
+
+def test_ingest_official_chapter_title_becomes_heading_sentence(
+    db_session, monkeypatch
+):
+    """An official chapter title is inserted as the chapter heading sentence."""
+    service = WyrdcraeftIngestService()
+    monkeypatch.setattr(service, "_ingest", lambda **_kwargs: _canonical_mixed())
+
+    project = service.create_project(name="Heading Ingest", text="ignored")
+    chapters = sorted(project.chapters, key=lambda c: c.number)
+
+    sentences = sorted(
+        (
+            s
+            for paragraph in chapters[1].sections[0].paragraphs
+            for s in paragraph.sentences
+        ),
+        key=lambda s: s.display_order,
+    )
+    assert sentences[0].text_oe == "Embedded Poem"
+    assert sentences[0].heading_role == "chapter"
+    assert sentences[0].text_modern is None
+    assert chapters[1].title == "Embedded Poem"
+    assert chapters[1].title_auto is False
+    assert all(s.heading_role is None for s in sentences[1:])
+    for chapter in (chapters[0], chapters[2]):
+        assert all(
+            s.heading_role is None
+            for section in chapter.sections
+            for paragraph in section.paragraphs
+            for s in paragraph.sentences
+        )
+    orders = sorted(s.display_order for s in project.sentences)
+    assert orders == list(range(1, len(orders) + 1))

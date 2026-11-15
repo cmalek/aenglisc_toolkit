@@ -644,3 +644,74 @@ class TestProjectImporter:
             side_effect=json.JSONDecodeError("msg", "doc", 0),
         ):
             assert importer._load_field_mappings() == {}
+
+    def _export_titled_project(self, db_session, tmp_path, name):
+        """
+        Export a two-sentence project whose chapter has an official title.
+
+        Args:
+            db_session: SQLAlchemy session
+            tmp_path: Directory for the export file
+            name: Project name
+
+        Returns:
+            The importer, the export file path and the exported payload
+
+        """
+        project = create_test_project(db_session, text="Se cyning. Þæt scip.", name=name)
+        chapter = project.chapters[0]
+        chapter.title = "Beowulf"
+        chapter.title_auto = False
+        db_session.commit()
+        mock_migration = MagicMock()
+        mock_migration.db_migration_version.return_value = "v1"
+        mock_migration.code_migration_version.return_value = "v1"
+        export_file = tmp_path / f"{name}.json"
+        ProjectExporter(migration_service=mock_migration).export_project_json(
+            project.id, str(export_file)
+        )
+        data = json.loads(export_file.read_text(encoding="utf-8"))
+        project.delete()
+        db_session.commit()
+        return ProjectImporter(migration_service=mock_migration), export_file, data
+
+    def test_import_without_heading_role_promotes_official_title(
+        self, db_session, tmp_path
+    ):
+        """A file with no heading_role key gets its official title promoted."""
+        importer, export_file, data = self._export_titled_project(
+            db_session, tmp_path, "Promote"
+        )
+        for sentence in data["sentences"]:
+            sentence.pop("heading_role", None)
+        export_file.write_text(json.dumps(data), encoding="utf-8")
+        project, _ = importer.import_project_json(str(export_file))
+        sentences = sorted(project.sentences, key=lambda s: s.display_order)
+        assert [s.text_oe for s in sentences][0] == "Beowulf"
+        assert sentences[0].heading_role == "chapter"
+        assert len(sentences) == 3
+
+    def test_import_with_heading_role_does_not_insert(self, db_session, tmp_path):
+        """A file that carries a heading_role is imported as written."""
+        importer, export_file, data = self._export_titled_project(
+            db_session, tmp_path, "Keyed"
+        )
+        data["sentences"][1]["heading_role"] = "section"
+        export_file.write_text(json.dumps(data), encoding="utf-8")
+        project, _ = importer.import_project_json(str(export_file))
+        sentences = sorted(project.sentences, key=lambda s: s.display_order)
+        assert len(sentences) == 2
+        assert sentences[1].heading_role == "section"
+
+    def test_import_explicit_null_heading_role_does_not_promote(
+        self, db_session, tmp_path
+    ):
+        """An explicit null heading_role still counts as having the key."""
+        importer, export_file, data = self._export_titled_project(
+            db_session, tmp_path, "Nulled"
+        )
+        for sentence in data["sentences"]:
+            sentence["heading_role"] = None
+        export_file.write_text(json.dumps(data), encoding="utf-8")
+        project, _ = importer.import_project_json(str(export_file))
+        assert len(project.sentences) == 2

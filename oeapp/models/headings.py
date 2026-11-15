@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING, Literal, cast
 
+from sqlalchemy import func, select
+
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
 
@@ -211,6 +213,169 @@ def _write_generated_title(division: Chapter | Section, role: str | None) -> Non
     label = "Chapter" if role == HeadingRole.CHAPTER else "Section"
     division.title = f"{label} {division.number}"
     division.title_auto = True
+
+
+def _needs_official_title(chapter: Chapter) -> bool:
+    """
+    Return whether a chapter has an official title with no heading sentence.
+
+    Args:
+        chapter: The chapter to check
+
+    Returns:
+        ``True`` when the title is official and non-blank and no sentence in
+        the chapter has a ``heading_role``
+
+    """
+    if chapter.title_auto or not chapter.title or not chapter.title.strip():
+        return False
+    return not any(
+        sentence.heading_role is not None
+        for section in chapter.sections
+        for sentence in _section_sentences(section)
+    )
+
+
+def _insert_title_sentence(
+    chapter: Chapter,
+    paragraph: Paragraph,
+    display_order: int,
+    *,
+    session: Session,
+) -> Sentence:
+    """
+    Create the chapter's title as a sentence.
+
+    Args:
+        chapter: The chapter whose title becomes the sentence
+        paragraph: The paragraph that receives the sentence
+        display_order: The new sentence's project display order
+
+    Keyword Args:
+        session: The session to write through
+
+    Side Effects:
+        Adds a sentence and its tokens to the session. Does not commit.
+
+    Returns:
+        The new sentence, with no heading role yet
+
+    """
+    from oeapp.models.sentence import Sentence  # noqa: PLC0415
+
+    sentence = Sentence.create(
+        project_id=chapter.project_id,
+        display_order=display_order,
+        text_oe=cast("str", chapter.title),
+        paragraph_id=paragraph.id,
+        commit=False,
+        session=session,
+    )
+    session.expire(paragraph, ["sentences"])
+    return sentence
+
+
+def _next_project_order(chapter: Chapter, *, session: Session) -> int:
+    """
+    Return the next free display order in the chapter's project.
+
+    Args:
+        chapter: A chapter of the project
+
+    Keyword Args:
+        session: The session to read through
+
+    Returns:
+        One more than the project's highest sentence display order
+
+    """
+    from oeapp.models.sentence import Sentence  # noqa: PLC0415
+
+    highest = session.scalar(
+        select(func.max(Sentence.display_order)).where(
+            Sentence.project_id == chapter.project_id
+        )
+    )
+    return (highest or 0) + 1
+
+
+def _shift_from(first: Sentence, *, session: Session) -> None:
+    """
+    Move a sentence and every later project sentence up by one display order.
+
+    Args:
+        first: The first sentence to move
+
+    Keyword Args:
+        session: The session to write through
+
+    Side Effects:
+        Renumbers sentences with ``Sentence.renumber_sentences``, which commits
+        the session's current transaction.
+
+    """
+    from oeapp.models.sentence import Sentence  # noqa: PLC0415
+
+    moving = Sentence.subsequent_sentences(
+        first.project_id, first.display_order - 1, session=session
+    )
+    Sentence.renumber_sentences(
+        list(moving),
+        order_function=lambda s: s.display_order + 1,
+        session=session,
+    )
+
+
+def promote_official_chapter_title(chapter: Chapter, *, session: Session) -> None:
+    """
+    Turn a chapter's official title into its chapter heading sentence.
+
+    Does nothing when any sentence in the chapter already has a
+    ``heading_role``, when the title is generated, or when it is missing or
+    blank. Otherwise it looks at the opening section. An empty section gets the
+    title as a new first sentence at the end of the project's display order. A
+    first sentence whose ``text_oe`` equals the title exactly (no case folding,
+    no stripping) becomes the chapter heading. Any other first sentence is
+    pushed down one display order and the title is inserted before it.
+
+    Args:
+        chapter: The chapter to promote
+
+    Keyword Args:
+        session: The session to read and write through
+
+    Side Effects:
+        May add a sentence and renumber later project sentences. Sets
+        ``heading_role`` on the heading sentence and rewrites the chapter's
+        title with ``title_auto`` false. Does not commit, except that
+        ``Sentence.renumber_sentences`` commits when it shifts display orders.
+
+    """
+    session.flush()
+    session.expire(chapter, ["sections"])
+    if not _needs_official_title(chapter):
+        return
+    opening = min(chapter.sections, key=lambda s: s.number)
+    session.expire(opening, ["paragraphs"])
+    paragraphs = sorted(opening.paragraphs, key=lambda p: p.order)
+    if not paragraphs:
+        return
+    sentences = _section_sentences(opening)
+    if not sentences:
+        order = _next_project_order(chapter, session=session)
+        heading = _insert_title_sentence(chapter, paragraphs[0], order, session=session)
+    elif sentences[0].text_oe == chapter.title:
+        heading = sentences[0]
+    else:
+        first = sentences[0]
+        order, paragraph = first.display_order, first.paragraph
+        _shift_from(first, session=session)
+        heading = _insert_title_sentence(chapter, paragraph, order, session=session)
+    heading.heading_role = HeadingRole.CHAPTER.value
+    session.flush()
+    session.refresh(heading)
+    apply_heading_title(heading)
+    session.flush()
 
 
 def heading_is_legal(sentence: Sentence) -> bool:
