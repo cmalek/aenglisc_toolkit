@@ -873,3 +873,91 @@ class TestFullTranslationPDFExporter:
 
         assert exporter.export_side_by_side_pdf(project.id, output_path) is False
         assert "Failed to run PDF engine" in (exporter.last_error or "")
+
+
+class TestPDFHeadingPageBreak:
+    """Chapter headings break both PDF columns onto a new page."""
+
+    def _two_chapter_project(self, db_session):
+        """Build a project: chapter heading, body, chapter heading, body."""
+        from tests.conftest import create_test_project
+
+        project = create_test_project(
+            db_session,
+            name="Heading Break",
+            text="Aaa. Bbb. Ccc. Ddd.",
+        )
+        first, body_one, second, body_two = project.sentences[:4]
+        first.text_oe = "ðæt"
+        first.heading_role = "chapter"
+        first.text_modern = "that"
+        body_one.text_modern = "First body."
+        second.text_oe = "ðæt twa"
+        second.heading_role = "chapter"
+        second.text_modern = None
+        body_two.text_modern = "Second body."
+        return project
+
+    def test_second_chapter_heading_breaks_both_columns(self, db_session):
+        """A later chapter heading ends the paracol, clears the page, restarts it."""
+        project = self._two_chapter_project(db_session)
+
+        latex = FullTranslationPDFExporter()._render_two_columns(project)
+
+        page_break = "\\end{paracol}\n\\clearpage\n\\begin{paracol}{2}"
+        assert latex.count(page_break) == 1
+        assert latex.count(r"\clearpage") == 1
+        assert r"\newpage" not in latex
+        assert r"\MakeUppercase" not in latex
+        assert r"\vspace*{" not in latex
+        assert latex.startswith("\\begin{paracol}{2}\n")
+        assert not latex.startswith("\\begin{paracol}{2}\n\\clearpage")
+
+        before, after = latex.split(page_break)
+        assert r"\vspace{4pt}\textbf{ÐÆT}\par \vspace{16pt}" in before
+        assert r"\textbf{ÐÆT TWA}" not in before
+        # Chapter 2: Old English side, then the Modern English side.
+        oe_side, mode_side = after.split(r"\switchcolumn")
+        assert r"\vspace{4pt}\textbf{ÐÆT TWA}\par \vspace{16pt}" in oe_side
+        # Untranslated heading repeats text_oe, uppercased, on the ModE side.
+        assert r"\vspace{4pt}\textbf{ÐÆT TWA}\par \vspace{16pt}" in mode_side
+        assert "Second body." in mode_side
+
+    def test_section_and_subsection_headings_use_their_styles(self, db_session):
+        """Section is bold in its own case; subsection is italic, no page break."""
+        from tests.conftest import create_test_project
+
+        project = create_test_project(
+            db_session, name="Heading Styles", text="Aaa. Bbb. Ccc."
+        )
+        first, second, third = project.sentences[:3]
+        first.text_oe = "Se cyning"
+        first.heading_role = "section"
+        second.text_oe = "Hwæt we"
+        second.heading_role = "subsection"
+        third.text_modern = "Body."
+
+        latex = FullTranslationPDFExporter()._render_two_columns(project)
+
+        assert r"\vspace{12pt}\textbf{Se cyning}\par \vspace{12pt}" in latex
+        assert r"\par \vspace{6pt}\textit{Hwæt we}\par \vspace{6pt}" in latex
+        assert r"\clearpage" not in latex
+        assert r"\textbf{Hw" not in latex
+
+    def test_verse_chapter_heading_has_no_line_number(self, db_session):
+        """A verse chapter heading has no indent and no verse line marker."""
+        from tests.conftest import create_test_project
+
+        project = create_test_project(db_session, name="Verse Heading", text="Aaa.")
+        heading = project.sentences[0]
+        heading.text_oe = "ðæt"
+        heading.heading_role = "chapter"
+        heading.verse_line_start = 7
+        heading.verse_line_end = 7
+
+        latex = FullTranslationPDFExporter()._render_two_columns(project)
+
+        assert r"\textbf{ÐÆT}" in latex
+        assert r"\textbf{7}" not in latex
+        assert r"\hspace*" not in latex
+        assert r"\footnote" not in latex

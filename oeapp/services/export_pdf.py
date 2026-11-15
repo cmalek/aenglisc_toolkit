@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Final
 
 from oeapp.db import get_runtime_session
 from oeapp.mixins import AnnotationTextualMixin
+from oeapp.models.headings import HeadingRole
 from oeapp.models.project import Project
 from oeapp.models.text_flow import (
     latex_separator,
@@ -109,6 +110,19 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
     _POS_ORDER: Final[list[str]] = ["N", "V", "A", "R", "D", "B", "C", "E", "I", "L"]
     #: Fixed four-space verse indent expressed in em width.
     _VERSE_INDENT_EM: Final[float] = 2.0
+    #: Space above and below a heading, in points, keyed by heading role.
+    #: A chapter heading always sits at the top of its PDF page.
+    _HEADING_SPACING_PT: Final[dict[HeadingRole, tuple[int, int]]] = {
+        HeadingRole.CHAPTER: (4, 16),
+        HeadingRole.SECTION: (12, 12),
+        HeadingRole.SUBSECTION: (6, 6),
+    }
+    #: LaTeX font command that wraps a heading, keyed by heading role.
+    _HEADING_WRAPPER: Final[dict[HeadingRole, str]] = {
+        HeadingRole.CHAPTER: "textbf",
+        HeadingRole.SECTION: "textbf",
+        HeadingRole.SUBSECTION: "textit",
+    }
 
     def __init__(self) -> None:
         """
@@ -391,6 +405,10 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
         Render OE + ModE into real parallel columns using the ``paracol`` LaTeX
         package.
 
+        A chapter heading that is not the project's first sentence ends the
+        current ``paracol``, clears the page, and opens a new one, so both
+        columns start the chapter on a fresh page.
+
         Args:
             project: The project to render.
 
@@ -398,54 +416,184 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
             The rendered two-column text.
 
         """
-        blocks = [r"\begin{paracol}{2}"]
-        oe_parts: list[str] = []
-        mode_parts: list[str] = []
+        segments: list[tuple[list[str], list[str]]] = [([], [])]
         previous_sentence: Sentence | None = None
 
         for sentence in project.sentences:
-            titles = visible_titles(previous_sentence, sentence)
-            if titles:
-                if oe_parts:
-                    oe_parts.append(r"\par ")
-                    mode_parts.append(r"\par ")
-                for title in titles:
-                    escaped_title = self._latex_escape(title)
-                    oe_parts.append(r"\textbf{" + escaped_title + r"}\newline ")
-                    mode_parts.append(r"\textbf{" + escaped_title + r"}\newline ")
-
-            sep = latex_separator(
-                sentence_separator_kind(
-                    previous_sentence, sentence, has_titles=bool(titles)
+            role = sentence.heading_role
+            if role == HeadingRole.CHAPTER and previous_sentence is not None:
+                segments.append(([], []))
+            oe_parts, mode_parts = segments[-1]
+            if role:
+                self._append_heading(HeadingRole(role), sentence, oe_parts, mode_parts)
+            else:
+                self._append_body_sentence(
+                    previous_sentence, sentence, oe_parts, mode_parts
                 )
-            )
-            if sep:
-                oe_parts.append(sep)
-                mode_parts.append(sep)
-
-            note_map = self._notes_by_end_token(sentence)
-            oe_rendered = self._render_oe_sentence(sentence, note_map)
-            mode_rendered = self._render_modern_sentence(
-                sentence.text_modern or "[...]"
-            )
-            if sentence.is_verse:
-                oe_rendered = self._indent_rendered_lines(oe_rendered)
-                mode_rendered = self._indent_rendered_lines(mode_rendered)
-            oe_parts.append(oe_rendered)
-            mode_parts.append(mode_rendered)
-
-            if sentence.is_verse and sentence.verse_line_end is not None:
-                marker = self._latex_escape(str(sentence.verse_line_end))
-                oe_parts.append(r"\newline \textbf{" + marker + r"}")
-                mode_parts.append(r"\newline \textbf{" + marker + r"}")
-
             previous_sentence = sentence
 
-        blocks.append(r"\noindent\raggedright " + "".join(oe_parts) + r"\par")
-        blocks.append(r"\switchcolumn")
-        blocks.append(r"\noindent\raggedright " + "".join(mode_parts) + r"\par")
-        blocks.append(r"\end{paracol}")
-        return "\n".join(blocks)
+        page_break = "\n" + r"\clearpage" + "\n"
+        return page_break.join(
+            self._render_paracol(oe_parts, mode_parts)
+            for oe_parts, mode_parts in segments
+        )
+
+    def _render_paracol(self, oe_parts: list[str], mode_parts: list[str]) -> str:
+        """
+        Wrap one page's worth of column parts in a ``paracol`` environment.
+
+        Args:
+            oe_parts: Old English column fragments.
+            mode_parts: Modern English column fragments.
+
+        Returns:
+            The ``paracol`` environment for those fragments.
+
+        """
+        return "\n".join(
+            [
+                r"\begin{paracol}{2}",
+                self._column_block(oe_parts),
+                r"\switchcolumn",
+                self._column_block(mode_parts),
+                r"\end{paracol}",
+            ]
+        )
+
+    def _column_block(self, parts: list[str]) -> str:
+        """
+        Join column fragments into one column body.
+
+        A column that opens with a heading starts with its vertical space, which
+        needs vertical mode, so it skips the no-indent command.
+
+        Args:
+            parts: Column fragments.
+
+        Returns:
+            The column body.
+
+        """
+        body = "".join(parts)
+        opens_with_heading = body.startswith(r"\vspace{")
+        lead = r"\raggedright " if opens_with_heading else r"\noindent\raggedright "
+        return lead + body + r"\par"
+
+    def _append_body_sentence(
+        self,
+        previous_sentence: Sentence | None,
+        sentence: Sentence,
+        oe_parts: list[str],
+        mode_parts: list[str],
+    ) -> None:
+        """
+        Append a non-heading sentence to both columns.
+
+        Args:
+            previous_sentence: The sentence rendered just before this one.
+            sentence: The sentence to append.
+            oe_parts: Old English column fragments, extended in place.
+            mode_parts: Modern English column fragments, extended in place.
+
+        Side Effects:
+            Appends to ``oe_parts`` and ``mode_parts``.
+
+        """
+        titles = visible_titles(previous_sentence, sentence)
+        if titles:
+            if oe_parts:
+                oe_parts.append(r"\par ")
+                mode_parts.append(r"\par ")
+            for title in titles:
+                escaped_title = self._latex_escape(title)
+                oe_parts.append(r"\textbf{" + escaped_title + r"}\newline ")
+                mode_parts.append(r"\textbf{" + escaped_title + r"}\newline ")
+
+        after_heading = previous_sentence is not None and bool(
+            previous_sentence.heading_role
+        )
+        sep = latex_separator(
+            sentence_separator_kind(
+                previous_sentence,
+                sentence,
+                has_titles=bool(titles) or after_heading,
+            )
+        )
+        if sep:
+            oe_parts.append(sep)
+            mode_parts.append(sep)
+
+        note_map = self._notes_by_end_token(sentence)
+        oe_rendered = self._render_oe_sentence(sentence, note_map)
+        mode_rendered = self._render_modern_sentence(sentence.text_modern or "[...]")
+        if sentence.is_verse:
+            oe_rendered = self._indent_rendered_lines(oe_rendered)
+            mode_rendered = self._indent_rendered_lines(mode_rendered)
+        oe_parts.append(oe_rendered)
+        mode_parts.append(mode_rendered)
+
+        if sentence.is_verse and sentence.verse_line_end is not None:
+            marker = self._latex_escape(str(sentence.verse_line_end))
+            oe_parts.append(r"\newline \textbf{" + marker + r"}")
+            mode_parts.append(r"\newline \textbf{" + marker + r"}")
+
+    def _append_heading(
+        self,
+        role: HeadingRole,
+        sentence: Sentence,
+        oe_parts: list[str],
+        mode_parts: list[str],
+    ) -> None:
+        """
+        Append a heading sentence to both columns.
+
+        The heading text is the escaped sentence text, not the token-based
+        sentence rendering, so it has no verse indent, no verse line marker, and
+        no footnote inside its wrapper. A chapter heading is uppercased with
+        ``str.upper()`` before escaping. Notes follow the heading.
+
+        Args:
+            role: The sentence's heading role.
+            sentence: The heading sentence.
+            oe_parts: Old English column fragments, extended in place.
+            mode_parts: Modern English column fragments, extended in place.
+
+        Side Effects:
+            Appends to ``oe_parts`` and ``mode_parts``.
+
+        """
+        modern = sentence.text_modern
+        modern_text = modern if modern and modern.strip() else sentence.text_oe
+        oe_parts.append(self._render_heading(role, sentence.text_oe, bool(oe_parts)))
+        mode_parts.append(self._render_heading(role, modern_text, bool(mode_parts)))
+        oe_parts.extend(
+            self._render_footnote(sentence, note) for note in sentence.sorted_notes
+        )
+
+    def _render_heading(self, role: HeadingRole, text: str, follows_text: bool) -> str:
+        """
+        Render one heading as spacing, a styled wrapper, and spacing.
+
+        Args:
+            role: The heading's role.
+            text: The plain heading text.
+            follows_text: Whether text precedes the heading in the column, so the
+                heading needs a paragraph break before its vertical space.
+
+        Returns:
+            The LaTeX for the heading.
+
+        """
+        above, below = self._HEADING_SPACING_PT[role]
+        shown = text.upper() if role == HeadingRole.CHAPTER else text
+        wrapper = self._HEADING_WRAPPER[role]
+        return (
+            (r"\par " if follows_text else "")
+            + rf"\vspace{{{above}pt}}"
+            + rf"\{wrapper}{{{self._latex_escape(shown)}}}"
+            + r"\par "
+            + rf"\vspace{{{below}pt}}"
+        )
 
     def _indent_rendered_lines(self, rendered: str) -> str:
         """
