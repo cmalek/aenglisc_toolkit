@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, cast
 
 from sqlalchemy import (
+    CheckConstraint,
     DateTime,
     ForeignKey,
     Index,
@@ -42,6 +43,7 @@ class Sentence(SaveDeleteMixin, Base):
     - A display order
     - An Old English text
     - A Modern English translation (optional)
+    - A heading role (optional): chapter, section, or subsection
     - A list of tokens
     - A list of notes
     - The date and time the sentence was created
@@ -61,6 +63,10 @@ class Sentence(SaveDeleteMixin, Base):
             "project_id", "display_order", name="uq_sentences_project_order"
         ),
         Index("idx_sentences_paragraph_order", "paragraph_id", "display_order"),
+        CheckConstraint(
+            "heading_role IS NULL OR heading_role IN ('chapter','section','subsection')",  # noqa: E501
+            name="ck_sentences_heading_role",
+        ),
     )
 
     #: The sentence ID.
@@ -94,6 +100,9 @@ class Sentence(SaveDeleteMixin, Base):
         onupdate=lambda: datetime.now(UTC).replace(tzinfo=None),
         nullable=False,
     )
+    #: The heading role of this sentence (``chapter``, ``section``,
+    #: ``subsection``), or ``None`` for an ordinary sentence.
+    heading_role: Mapped[str | None] = mapped_column(String(16), nullable=True)
 
     #: Relationships
     project: Mapped[Project] = relationship("Project", back_populates="sentences")
@@ -538,6 +547,7 @@ class Sentence(SaveDeleteMixin, Base):
             "text_modern": self.text_modern,
             "verse_line_start": self.verse_line_start,
             "verse_line_end": self.verse_line_end,
+            "heading_role": self.heading_role,
             "created_at": to_utc_iso(self.created_at),
             "updated_at": to_utc_iso(self.updated_at),
             "paragraph_ref": {
@@ -621,6 +631,7 @@ class Sentence(SaveDeleteMixin, Base):
             text_modern=sentence_data.get("text_modern"),
             verse_line_start=sentence_data.get("verse_line_start"),
             verse_line_end=sentence_data.get("verse_line_end"),
+            heading_role=sentence_data.get("heading_role"),
         )
         created_at = from_utc_iso(sentence_data.get("created_at"))
         if created_at:

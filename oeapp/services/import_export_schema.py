@@ -101,6 +101,8 @@ class SentenceJson(BaseModel):
     verse_line_start: int | None = None
     #: Last verse line number represented by this sentence (for stanza cards).
     verse_line_end: int | None = None
+    #: The heading role of the sentence (chapter, section, subsection), if any.
+    heading_role: str | None = None
     #: The date and time the sentence was created.
     created_at: str | None = None
     #: The date and time the sentence was last updated.
