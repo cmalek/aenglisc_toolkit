@@ -58,6 +58,7 @@
 <li>Click <strong>Export PDF</strong></li>
 <li>Choose a save location</li>
 </ol>
+<p>A progress dialog stays open while the PDF compiles. <strong>Cancel</strong> stops the compile. The window waits until the compile finishes or you cancel it. The application does not freeze.</p>
 <h3>PDF Structure</h3>
 <ul>
 <li>Landscape page orientation</li>
@@ -68,6 +69,10 @@
 <ul>
 <li>Left: Old English</li>
 <li>Right: Modern English translation</li>
+<li>A chapter heading is bold and in capitals, and starts a new page for both columns unless it is the first sentence of the text</li>
+<li>A section heading is bold, in its own case</li>
+<li>A subsection heading is italic, in its own case</li>
+<li>An untranslated heading shows its Old English on the right as well</li>
 </ul>
 </li>
 <li>
@@ -100,7 +105,12 @@
 </ul>
 <h2>DOCX Export (File Menu)</h2>
 <p>The File menu export creates a Microsoft Word (.docx) document with annotated
-sentence formatting.</p>
+sentence formatting. A heading sentence is the heading text only: no sentence
+number and no annotation glosses. Chapter headings are bold and in capitals,
+and start a new page unless the heading is the first sentence of the text.
+Section headings are bold, in their own case. Subsection headings are italic,
+in their own case. An untranslated heading repeats its Old English in the
+translation.</p>
 <h2>Accessing Export</h2>
 <ol>
 <li>Press <strong>Ctrl+E</strong> or go to File → Export</li>

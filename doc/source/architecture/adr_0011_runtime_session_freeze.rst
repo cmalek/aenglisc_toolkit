@@ -6,7 +6,7 @@ ADR 0011: Freeze runtime-session lookups at today's call sites
 
 :Status: Accepted
 :Date: 2026-10-26
-:Revised: 2026-11-02
+:Revised: 2026-11-16
 
 Context
 =======
@@ -55,7 +55,10 @@ Tests install and clear the session in ``tests/conftest.py`` (the
 ``tests/test_commands.py`` calls ``get_runtime_session`` to roll back.
 ``tests/test_db.py`` calls ``SessionLocal()`` directly.
 
-Fat ORM stays. SQLAlchemy stays. A second writer is outside the finding.
+Fat ORM stays. SQLAlchemy stays. A second registered runtime session is
+outside the finding. A pool worker may open its own session on the same
+engine. That session is not registered. The rule for it is
+:ref:`adr_0015_off_ui_thread`.
 Passing an explicit session through every model classmethod is a larger
 migration. F1 (resolve order 8) landed on 2026-11-01 in ``fd4e11e``. That
 change left the export reads on ``MainWindowActions`` as
@@ -83,7 +86,11 @@ none is registered. ``clear_runtime_session`` clears it.
 
 ``create_engine_with_path`` keeps the dialect default pool, ``QueuePool``,
 for the file database. This decision does not switch the pool and does not
-add a second registered session.
+add a second registered session. A worker session opened under
+:ref:`adr_0015_off_ui_thread` is not installed with
+``set_runtime_session``. On that thread ``get_runtime_session`` returns
+the thread-local override. The UI thread still reads the one session on
+``_RUNTIME_STATE``.
 
 D2 — Today's lookups stay
 -------------------------
@@ -308,3 +315,5 @@ Related
   order 9, and it already forbids new UI ``_get_session`` call sites:
   https://trello.com/c/rdFyWWxq
 - D7, delete ``get_session``, is done.
+- :ref:`adr_0015_off_ui_thread` is the accepted exception for a worker
+  session. It does not register a second runtime session.

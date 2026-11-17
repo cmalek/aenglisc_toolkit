@@ -14,6 +14,8 @@ Project Export JSON is Toolkit interchange format — not a **Backup** (whole-da
 
 The application offers three main export paths: File-menu DOCX, Full Translation PDF, and **Project → Export** (three items).
 
+DOCX export, project export, project import, reading-text export, and Backup Now show a progress dialog and wait until the job finishes. The application does not freeze. Automatic backup does not show a dialog.
+
 ### DOCX Export (File Menu)
 
 - **Location**: File → Export... (or **Ctrl+E**)

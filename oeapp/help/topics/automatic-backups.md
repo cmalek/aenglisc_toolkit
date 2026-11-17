@@ -12,6 +12,7 @@ The Ænglisc Toolkit automatically creates backups of your project database to p
 - The system checks every 5 minutes if a backup is needed
 - No manual action is required - backups happen in the background
 - You'll see a brief "Backup created" message when a backup is made
+- The status bar says "Backing up…" while a backup is running, and you can keep working. It waits if an export or another backup is already using the database. Unsaved edits are not written into the backup.
 
 ### Default Settings
 

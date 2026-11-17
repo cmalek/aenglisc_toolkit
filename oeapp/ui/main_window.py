@@ -1,12 +1,14 @@
 """Main application window."""
 
 import sys
+from collections.abc import Callable
 from contextlib import suppress
+from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final
 
 from pydantic import ValidationError
-from PySide6.QtCore import QPoint, QSettings, Qt, QTimer
+from PySide6.QtCore import QPoint, QSettings, Qt, QTimer, Slot
 from PySide6.QtGui import QUndoStack
 from PySide6.QtWidgets import (
     QApplication,
@@ -28,8 +30,8 @@ from oeapp.commands import (
     AnnotateTokenCommand,
     push_command,
 )
-from oeapp.db import get_runtime_session, run_pragma_optimize
-from oeapp.exc import MigrationFailed, UnknownDatabaseRevision
+from oeapp.db import get_runtime_session, run_pragma_optimize, ui_db_busy
+from oeapp.exc import BackupFailed, MigrationFailed, UnknownDatabaseRevision
 from oeapp.help.help_engine import HelpEngineError
 from oeapp.models.annotation_json import AnnotationJson
 from oeapp.models.project import Project
@@ -69,6 +71,11 @@ from oeapp.ui.menus import MainMenu
 from oeapp.ui.project_workspace import ProjectUI
 from oeapp.ui.search_controller import SearchController
 from oeapp.ui.sentence_card import SentenceCard
+from oeapp.ui.session_task import (
+    SessionTaskSignals,
+    run_session_task,
+    start_session_task,
+)
 from oeapp.ui.shortcuts import GlobalShortcuts
 from oeapp.ui.token_details_sidebar import TokenDetailsSidebar
 from oeapp.utils import get_logo_pixmap
@@ -78,6 +85,90 @@ if TYPE_CHECKING:
 
     from oeapp.models.annotation import Annotation
     from oeapp.models.token import Token
+
+
+def _export_json(project_id: int, file_path: str) -> None:
+    """
+    Export one project to JSON on the worker session.
+
+    Args:
+        project_id: Project to export.
+        file_path: Destination path.
+
+    """
+    ProjectExporter().export_project_json(project_id, file_path)
+
+
+def _import_project(file_path: str) -> tuple[int, bool]:
+    """
+    Import a project on the worker session.
+
+    Args:
+        file_path: JSON file to import.
+
+    Returns:
+        The new project's id and whether its name was changed.
+
+    """
+    project, renamed = ProjectImporter().import_project_json(file_path)
+    return int(project.id), bool(renamed)
+
+
+def _export_docx(project_id: int, file_path: str) -> bool:
+    """
+    Export one project to DOCX on the worker session.
+
+    Args:
+        project_id: Project to export.
+        file_path: Destination path.
+
+    Returns:
+        Whether the export wrote the file.
+
+    """
+    return DOCXExporter().export(project_id, Path(file_path))
+
+
+def _write_reading_text(project_id: int, file_path: str, *, translation: bool) -> None:
+    """
+    Render a reading-text file on the worker session.
+
+    Args:
+        project_id: Project to render.
+        file_path: Destination path.
+
+    Keyword Args:
+        translation: Render the modern-English text when true.
+
+    Raises:
+        ValueError: If the project is missing or the file cannot be written.
+
+    """
+    session = get_runtime_session()
+    project = Project.get(project_id, session=session)
+    if project is None:
+        msg = "Project not found"
+        raise ValueError(msg)
+    exporter = ReadingTextExporter()
+    if translation:
+        text = exporter.render_translation(project)
+    else:
+        text = exporter.render_old_english(project)
+    exporter.write_utf8(Path(file_path), text)
+
+
+def _create_backup(service: BackupService) -> Path:
+    """
+    Create a database backup on the worker session.
+
+    Args:
+        service: Backup service. The snapshot uses its own SQLite connection.
+
+    Returns:
+        The backup file. Callers use :attr:`pathlib.Path.name` in the dialog.
+
+    """
+    return service.create_backup()
 
 
 class MainWindow(QMainWindow):
@@ -118,6 +209,8 @@ class MainWindow(QMainWindow):
         self.backup_service = BackupService()
         #: Backup check timer
         self.backup_timer: QTimer | None = None
+        #: In-flight automatic backup, if one is running.
+        self._auto_backup: SessionTaskSignals | None = None
 
         # Handle migrations with backup/restore on failure
         # Note: session is created after migrations to avoid issues
@@ -754,10 +847,44 @@ class MainWindow(QMainWindow):
 
     def _check_backup(self) -> None:
         """Check if backup is needed and create one if so."""
-        if self.backup_service.should_backup():
-            backup_path = self.backup_service.create_backup()
-            if backup_path:
-                self.messages.show_message("Backup created", duration=2000)
+        if (
+            ui_db_busy()
+            or self._auto_backup is not None
+            or not self.backup_service.should_backup()
+        ):
+            return
+        self.messages.show_message("Backing up…", duration=10000)
+        self._auto_backup = start_session_task(
+            self,
+            partial(_create_backup, self.backup_service),
+            self._on_auto_backup_ok,
+            self._on_auto_backup_failed,
+        )
+
+    @Slot(object)
+    def _on_auto_backup_ok(self, backup_path: object) -> None:
+        """
+        Report a finished automatic backup.
+
+        Args:
+            backup_path: Path of the backup file.
+
+        """
+        self._auto_backup = None
+        if backup_path:
+            self.messages.show_message("Backup created", duration=2000)
+
+    @Slot(object)
+    def _on_auto_backup_failed(self, exc: object) -> None:
+        """
+        Report an automatic backup that failed.
+
+        Args:
+            exc: Exception raised while backing up.
+
+        """
+        self._auto_backup = None
+        self.messages.show_error(f"Failed to create backup.\n{exc}")
 
     def _show_startup_dialog(self) -> None:
         """
@@ -980,6 +1107,30 @@ class MainWindowActions:
         self.app_context = app_context
         #: Messages
         self.messages = main_window.messages
+
+    def _run_busy(
+        self, label: str, work: Callable[[], Any], *, refresh: bool = False
+    ) -> Any:
+        """
+        Run ``work`` off the UI thread while a progress dialog is visible.
+
+        Keyword Args:
+            refresh: Expire the UI session afterwards so it reloads commits
+                made by ``work``.
+
+        Args:
+            label: Progress text.
+            work: Callable that uses the worker's database session.
+
+        Returns:
+            Whatever ``work`` returned.
+
+        """
+        try:
+            return run_session_task(self.main_window, label, work)
+        finally:
+            if refresh:
+                get_runtime_session().expire_all()
 
     @property
     def undo_stack(self) -> QUndoStack:
@@ -1280,7 +1431,6 @@ class MainWindowActions:
         """
         Import project from JSON format.
         """
-        session = get_runtime_session()
         # Get file path from user
         file_path, _ = QFileDialog.getOpenFileName(
             self.main_window,
@@ -1294,10 +1444,19 @@ class MainWindowActions:
             return
 
         try:
-            # Import project
-            imported_project, was_renamed = ProjectImporter().import_project_json(
-                file_path
+            project_id, was_renamed = self._run_busy(
+                "Importing project…",
+                partial(_import_project, file_path),
+                refresh=True,
             )
+            session = get_runtime_session()
+            imported_project = Project.get(project_id, session=session)
+            if imported_project is None:
+                self.messages.show_error(
+                    "An error occurred during import:\nProject not found",
+                    title="Import Error",
+                )
+                return
             ambiguous_spellings = [
                 " / ".join(entry.token_text for entry in group)
                 for group in RememberedAnnotation.ambiguous_groups_for_scope(
@@ -1411,10 +1570,11 @@ class MainWindowActions:
         if not file_path:
             return False
 
-        # Export project data
-        exporter = ProjectExporter()
         try:
-            exporter.export_project_json(target_project_id, file_path)
+            self._run_busy(
+                "Exporting project…",
+                partial(_export_json, target_project_id, file_path),
+            )
         except ValueError as e:
             self.messages.show_error(str(e), title="Export Error")
             return False
@@ -1468,10 +1628,11 @@ class MainWindowActions:
         if not file_path:
             return False
 
-        reading_text_exporter = ReadingTextExporter()
-        text = reading_text_exporter.render_old_english(project)
         try:
-            reading_text_exporter.write_utf8(Path(file_path), text)
+            self._run_busy(
+                "Exporting Old English text…",
+                partial(_write_reading_text, project_id, file_path, translation=False),
+            )
         except ValueError as e:
             self.messages.show_error(str(e), title="Export Error")
             return False
@@ -1527,10 +1688,11 @@ class MainWindowActions:
         if not file_path:
             return False
 
-        reading_text_exporter = ReadingTextExporter()
-        text = reading_text_exporter.render_translation(project)
         try:
-            reading_text_exporter.write_utf8(Path(file_path), text)
+            self._run_busy(
+                "Exporting translation…",
+                partial(_write_reading_text, project_id, file_path, translation=True),
+            )
         except ValueError as e:
             self.messages.show_error(str(e), title="Export Error")
             return False
@@ -1548,8 +1710,13 @@ class MainWindowActions:
 
         Creates a backup before deletion and opens DeleteProjectDialog.
         """
-        # Create backup before any destructive action
-        backup_path = self.main_window.backup_service.create_backup()
+        try:
+            backup_path = self._run_busy(
+                "Backing up…",
+                partial(_create_backup, self.main_window.backup_service),
+            )
+        except BackupFailed:
+            backup_path = ""
         if not backup_path:
             self.messages.show_error(
                 "Failed to create backup. Deletion cancelled for safety.",
@@ -1588,6 +1755,8 @@ class MainWindowActions:
             self.messages.show_warning("No project open")
             return
 
+        self.autosave()
+
         # Get file path from user
         file_path, _ = QFileDialog.getSaveFileName(
             self.main_window,
@@ -1604,9 +1773,11 @@ class MainWindowActions:
         if not file_path.endswith(".docx"):
             file_path += ".docx"
 
-        exporter = DOCXExporter()
         try:
-            export_success = exporter.export(project_id, Path(file_path))
+            export_success = self._run_busy(
+                "Exporting Word document…",
+                partial(_export_docx, project_id, file_path),
+            )
         except PermissionError as e:
             self.messages.show_error(
                 f"Export failed: Permission denied.\n{e!s}",
@@ -1640,7 +1811,13 @@ class MainWindowActions:
         - Show a message in the status bar that the backup has been created
 
         """
-        backup_path = self.backup_service.create_backup()
+        try:
+            backup_path = self._run_busy(
+                "Backing up…", partial(_create_backup, self.backup_service)
+            )
+        except BackupFailed as exc:
+            self.messages.show_error(f"Failed to create backup.\n{exc}")
+            return
         if backup_path:
             self.messages.show_information(
                 f"Backup created successfully:\n{backup_path.name}",

@@ -1,0 +1,76 @@
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <title>Headings</title>
+          <style>
+            body {
+              margin: 0 auto;
+              max-width: 960px;
+              padding: 1.2rem 1.4rem 2.2rem;
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+              line-height: 1.6;
+            }
+            h1 {
+              border-bottom: 1px solid;
+              padding-bottom: 0.3rem;
+            }
+            table {
+              border-collapse: collapse;
+              width: 100%;
+              margin: 1rem 0;
+            }
+            th, td {
+              border: 1px solid;
+              padding-top: 8px;
+              padding-right: 8px;
+              padding-bottom: 8px;
+              padding-left: 8px;
+              text-align: left;
+              vertical-align: top;
+            }
+            th {
+              font-weight: 600;
+            }
+            code {
+              border-radius: 4px;
+              padding: 0.1rem 0.3rem;
+            }
+            pre {
+              border-radius: 6px;
+              overflow-x: auto;
+              padding: 0.75rem;
+            }
+          </style>
+        </head>
+        <body>
+          <h1>Headings</h1>
+<p>A heading is a sentence you mark from <strong>Mark as ...</strong>. Full Translation, the PDF, the DOCX export, and the plain-text exports print that sentence once. They do not print the chapter or section name again on a line of its own.</p>
+<p>The Old English side uses the sentence's Old English. The Modern English side uses the translation. If you have not translated the heading yet, the Full Translation window, the PDF, and the DOCX show the Old English on the Modern English side too, so the heading is still visible. Other empty translations still show <code>[...]</code>.</p>
+<p>The sentence card always shows the text in the case you imported or typed.</p>
+<h2>Where Each Heading Goes</h2>
+<p>A sentence has one heading role at most.</p>
+<h3>Chapter Heading</h3>
+<p>One per chapter. It has to be the first sentence of that chapter's first section. The first sentence of a project can be one. The menu is available there.</p>
+<p>In a verse project the chapters are named from the start of the text. A verse project is one in which every sentence is verse. A text that mixes prose and verse, such as Cædmon's Hymn, is a prose project and may name a later chapter first. In a verse project, a later chapter offers a chapter heading only after every earlier chapter has one on the first sentence of its first section.</p>
+<p>In the PDF and the DOCX it is bold and in capitals. A new page starts before it, unless it is the first sentence of the text, and both PDF columns start that page together. On that new page the gap above is small and the gap below is larger. In the DOCX the heading is the heading text alone: no sentence number and no annotation glosses. Full Translation does not start a new page. The first heading of the text has a small gap above. A later chapter heading has a larger gap above, so it does not sit against the previous sentence.</p>
+<h3>Section Heading</h3>
+<p>One per section, in a prose project. It is the first sentence of the section. In the section that opens a chapter, it can be the second sentence only while the first sentence is the chapter heading. You can leave that second sentence unmarked.</p>
+<p>It is bold, in its own case, with the same space above and below. A verse project does not offer a section heading. A text that mixes prose and verse, such as Cædmon's Hymn, is a prose project, so its prose sections may. A verse section can still have subsection headings, and it keeps its <code>Lines N-M</code> name in the section menu. A chapter heading does not replace that name.</p>
+<h3>Subsection Heading</h3>
+<p>A section can have several. Use one for a rubric inside a section, such as the parts of Wulfstan's <em>Be ðēodwitan</em>. It cannot be the first sentence of a section. In the section that opens a chapter, it cannot be the first or second sentence either. Verse uses the same slots.</p>
+<p>It is italic, in its own case, with a smaller equal gap above and below.</p>
+<h2>The Toolbar Name</h2>
+<p>Marking a chapter heading stores that sentence's Old English as the chapter name. Marking a section heading does the same for the section. Editing the Old English later updates the name. A subsection heading does not change the section name.</p>
+<p><strong>Not a heading</strong> clears the role. The chapter name becomes <code>Chapter N</code>, or the section name becomes <code>Section N</code>, using that division's number. Those generated names are not titles of the text, and they are not inserted as sentences later.</p>
+<p>If you clear a chapter heading, a section heading on the second sentence is cleared too, because that place is legal only while the chapter heading is there. A dialog names the sentence and the new section name. A subsection heading that is still in a legal slot stays.</p>
+<h2>Deleting and Moving</h2>
+<p>Deleting a chapter or section heading removes the sentence and resets that division's name the same way. Every heading in that same section whose place changed is checked. One that no longer sits in a legal slot is cleared, and the dialog names each of them. Headings in the next chapter stay. Ordinary sentences that slide up are unchanged.</p>
+<p>The app refuses a change that would leave a heading in the wrong slot. That includes <strong>Add Sentence → Before</strong> on a heading, merging a heading with the sentence before or after it, and <strong>Not Chapter Start</strong> or <strong>Not Section Start</strong> when the heading would no longer be first in its division. Clear the heading, then make the change.</p>
+<p>Heading marks undo with <strong>Ctrl+Z</strong>, like the other <strong>Mark as ...</strong> actions.</p>
+<h2>Import</h2>
+<p>An official chapter title is compared character for character with the first sentence's Old English. If they differ, the title is inserted as a new first sentence and marked as the chapter heading. If they are the same, that sentence is marked and nothing is inserted. A generated name, including <code>Chapter N</code> and <code>Lines N-M</code>, is not turned into a sentence. The heading role is saved in the project file. An older file with no role still gets a chapter heading from an official chapter title. Section and subsection headings are kept only when the file records them. Projects you already have are updated once, when the database migrates.</p>
+<p>Plain-text export prints the heading sentence with the other sentences. It does not add a title line, and it does not change case or weight. The Translation export leaves an untranslated heading empty.</p>
+        </body>
+        </html>

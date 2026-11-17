@@ -4,6 +4,8 @@ from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QObject, QTimer
 
+from oeapp.db import ui_db_busy
+
 from .logs import get_logger
 
 if TYPE_CHECKING:
@@ -68,6 +70,9 @@ class AutosaveService(QObject):
         save callback. If the save callback raises an exception, it is caught
         and the pending autosave is set to False.
         """
+        if ui_db_busy():
+            self.trigger()
+            return
         if self._pending:
             try:
                 self.save_callback()

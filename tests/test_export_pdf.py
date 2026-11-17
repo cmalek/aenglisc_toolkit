@@ -989,3 +989,42 @@ class TestPDFHeadingPageBreak:
             r"\par \vspace{16pt}"
         ) in latex
         assert r"\textbf{SE CYNING.\footnote" not in latex
+
+
+def test_injected_engine_covers_success_failure_and_timeout(db_session, tmp_path):
+    """A fake compile covers a written PDF, a bad exit, and a timeout."""
+    from tests.conftest import create_test_project
+
+    project = create_test_project(db_session, name="Fake Engine", text="Se cyning.")
+    output_path = tmp_path / "out.pdf"
+
+    def succeed(tex_path: Path, output_dir: Path) -> subprocess.CompletedProcess[str]:
+        del tex_path
+        (output_dir / "full_translation.pdf").write_bytes(b"%PDF")
+        return subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="ok", stderr=""
+        )
+
+    exporter = FullTranslationPDFExporter(compile_pdf=succeed)
+    assert exporter.export_side_by_side_pdf(project.id, output_path) is True
+    assert output_path.read_bytes() == b"%PDF"
+
+    def fail(tex_path: Path, output_dir: Path) -> subprocess.CompletedProcess[str]:
+        del tex_path, output_dir
+        return subprocess.CompletedProcess(
+            args=[], returncode=2, stdout="", stderr="bad tex"
+        )
+
+    exporter = FullTranslationPDFExporter(compile_pdf=fail)
+    assert exporter.export_side_by_side_pdf(project.id, output_path) is False
+    assert exporter.last_error is not None
+    assert "exit 2" in exporter.last_error
+
+    def time_out(tex_path: Path, output_dir: Path) -> subprocess.CompletedProcess[str]:
+        del tex_path, output_dir
+        raise subprocess.TimeoutExpired(cmd="tectonic", timeout=1)
+
+    exporter = FullTranslationPDFExporter(compile_pdf=time_out)
+    assert exporter.export_side_by_side_pdf(project.id, output_path) is False
+    assert exporter.last_error is not None
+    assert "timed out" in exporter.last_error

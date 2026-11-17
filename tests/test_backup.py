@@ -562,3 +562,13 @@ class TestBackupService:
             if reader is not None:
                 reader.close()
             engine.dispose()
+
+
+def test_worker_backup_keeps_the_path_name() -> None:
+    """Backup Now reads the filename off the worker's Path."""
+    from oeapp.ui.main_window import _create_backup
+
+    service = MagicMock()
+    service.create_backup.return_value = Path("/tmp/project_2026.db")
+    backup_path = _create_backup(service)
+    assert backup_path.name == "project_2026.db"

@@ -52,6 +52,8 @@ Use the **Export PDF** button in the toolbar.
 2. Choose a file location and name.
 3. Save as `.pdf`.
 
+A progress dialog stays open while the PDF compiles. **Cancel** stops the compile. This window waits until the compile finishes or you cancel it. The application does not freeze.
+
 The PDF is generated using a LaTeX-based layout pipeline for high-quality print output.
 
 ## PDF Structure

@@ -6,7 +6,7 @@ from contextlib import closing, suppress
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Final, cast
 
-from PySide6.QtCore import QObject, QSettings
+from PySide6.QtCore import QObject, QSettings, QThread
 from sqlalchemy import Engine, create_engine
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -29,6 +29,10 @@ class BackupService(QObject):
     Service for managing database backups.
 
     Handles creating backups, managing retention, and extracting metadata.
+
+    Args:
+        db_path: Database file to back up. Defaults to the project database.
+
     """
 
     def __init__(self, db_path: "Path | None" = None) -> None:
@@ -58,7 +62,9 @@ class BackupService(QObject):
             Number of backups to keep (default: 5)
 
         """
-        return cast("int", self.settings.value("backup/num_backups", 5, type=int))
+        return cast(
+            "int", self._open_settings().value("backup/num_backups", 5, type=int)
+        )
 
     def get_interval_minutes(self) -> int:
         """
@@ -69,7 +75,8 @@ class BackupService(QObject):
 
         """
         return cast(
-            "int", self.settings.value("backup/interval_minutes", 720, type=int)
+            "int",
+            self._open_settings().value("backup/interval_minutes", 720, type=int),
         )
 
     def get_last_backup_time(self) -> datetime | None:
@@ -82,7 +89,7 @@ class BackupService(QObject):
         """
         last_backup_epoch = cast(
             "float | None",
-            self.settings.value("backup/last_backup_time", None, type=float),
+            self._open_settings().value("backup/last_backup_time", None, type=float),
         )
         if last_backup_epoch is not None:
             # Convert from UNIX epoch (UTC) to local datetime
@@ -99,9 +106,26 @@ class BackupService(QObject):
             timestamp: Timestamp of the backup (will be converted to UTC epoch)
 
         """
-        # Convert datetime to UNIX epoch (UTC-based)
         epoch_seconds = timestamp.timestamp()
-        self.settings.setValue("backup/last_backup_time", epoch_seconds)
+        self._open_settings().setValue("backup/last_backup_time", epoch_seconds)
+
+    def _open_settings(self) -> QSettings:
+        """
+        Return settings the calling thread may use.
+
+        The ``QSettings`` owned by this service belongs to the UI thread.
+        A worker opens a separate instance on the same store.
+
+        Returns:
+            The service settings on its own thread, otherwise a new instance.
+
+        """
+        if QThread.currentThread() is self.thread():
+            self.settings.sync()
+            return self.settings
+        opened = QSettings()
+        opened.sync()
+        return opened
 
     def should_backup(self) -> bool:
         """

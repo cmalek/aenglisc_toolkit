@@ -102,7 +102,7 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
     #: Class-level state to remember last used values per POS type
     _last_values: ClassVar[dict[str, dict[str, int]]] = {}
 
-    def __init__(  # noqa: PLR0913
+    def __init__(  # noqa: PLR0913, PLR0917
         self,
         token: "Token | None" = None,
         idiom: Idiom | None = None,
@@ -182,10 +182,10 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         assert self.token is not None, (  # noqa: S101
             "_init_token_annotation called without self.token being set"
         )
-        if annotation:
-            self.annotation = annotation
         token = cast("Token", self.token)
-        if token.annotation:
+        if annotation is not None:
+            self.annotation = annotation
+        elif token.annotation:
             self.annotation = token.annotation
         else:
             self.annotation = Annotation(token_id=cast("int", token.id))
@@ -204,10 +204,10 @@ class AnnotationModal(AnnotationLookupsMixin, QDialog):
         assert self.idiom is not None, (  # noqa: S101
             "_init_idiom_annotation called without self.idiom being set"
         )
-        if annotation:
-            self.annotation = annotation
         idiom = cast("Idiom", self.idiom)
-        if idiom.annotation:
+        if annotation is not None:
+            self.annotation = annotation
+        elif idiom.annotation:
             self.annotation = idiom.annotation
         else:
             self.annotation = Annotation(idiom_id=cast("int", idiom.id))

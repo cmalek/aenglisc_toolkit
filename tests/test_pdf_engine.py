@@ -102,3 +102,28 @@ def test_resolve_rejects_invalid_env_bundle(monkeypatch, tmp_path):
 
     with pytest.raises(PDFEngineError, match="missing SHA256SUM"):
         resolve_tectonic_engine_paths()
+
+
+def test_compile_timeout_is_a_pdf_engine_error(monkeypatch, tmp_path):
+    """A timed-out Tectonic process surfaces as PDFEngineError."""
+    seen: dict[str, object] = {}
+
+    def fake_run(cmd, **kwargs):  # noqa: ANN001
+        seen["timeout"] = kwargs.get("timeout")
+        raise subprocess.TimeoutExpired(cmd=cmd, timeout=0.01)
+
+    monkeypatch.setattr("oeapp.services.pdf_engine.subprocess.run", fake_run)
+    monkeypatch.setattr(
+        "oeapp.services.pdf_engine.resolve_tectonic_engine_paths",
+        lambda: TectonicEnginePaths(
+            binary_path=Path("/tmp/tectonic"),
+            bundle_path=None,
+        ),
+    )
+    tex_path = tmp_path / "in.tex"
+    tex_path.write_text("x", encoding="utf-8")
+
+    with pytest.raises(PDFEngineError, match="timed out"):
+        compile_latex_with_tectonic(tex_path, tmp_path, timeout=0.01)
+
+    assert seen["timeout"] == 0.01

@@ -13,6 +13,8 @@ The application has two formatted document exports:
 2. Click **Export PDF**
 3. Choose a save location
 
+A progress dialog stays open while the PDF compiles. **Cancel** stops the compile. The window waits until the compile finishes or you cancel it. The application does not freeze.
+
 ### PDF Structure
 
 - Landscape page orientation

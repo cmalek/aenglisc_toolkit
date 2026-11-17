@@ -12,8 +12,11 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from oeapp.db import get_runtime_session
 from oeapp.exc import AlreadyExists
+from oeapp.models.project import Project
 from oeapp.services.wyrdcraeft_ingest import WyrdcraeftIngestService
+from oeapp.ui.session_task import run_session_task
 
 from .mixins import TextInputMixin
 
@@ -130,7 +133,7 @@ class NewProjectDialog(TextInputMixin):
         self.button_box.rejected.connect(self.dialog.reject)
         self.layout.addWidget(self.button_box)
 
-    def create_project(  # noqa: PLR0913
+    def create_project(  # noqa: PLR0913, PLR0917
         self,
         title: str,
         text: str | None = None,
@@ -157,14 +160,25 @@ class NewProjectDialog(TextInputMixin):
             notes: Project notes
 
         """
-        project = WyrdcraeftIngestService().create_project(
-            name=title,
-            source=source,
-            translator=translator,
-            notes=notes,
-            text=text,
-            source_path=source_path,
-        )
+
+        def work() -> int:
+            created = WyrdcraeftIngestService().create_project(
+                name=title,
+                source=source,
+                translator=translator,
+                notes=notes,
+                text=text,
+                source_path=source_path,
+            )
+            return int(created.id)
+
+        project_id = run_session_task(self.dialog, "Creating project…", work)
+        session = get_runtime_session()
+        session.expire_all()
+        project = Project.get(project_id, session=session)
+        if project is None:
+            msg = "Project creation failed."
+            raise RuntimeError(msg)
         self.main_window.load_project(project)
         self.main_window.setWindowTitle(f"Ænglisc Toolkit - {project.name}")
         self.app_context.show_message("Project created")

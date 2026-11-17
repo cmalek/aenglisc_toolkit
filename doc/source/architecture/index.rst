@@ -27,3 +27,4 @@ writing instructions.
    adr_0012_explicit_runtime_session
    adr_0013_pdf_glossary_aggregation
    adr_0014_heading_sentences
+   adr_0015_off_ui_thread

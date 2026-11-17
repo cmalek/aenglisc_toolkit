@@ -346,7 +346,9 @@ ALLOWLIST: dict[str, dict[str, dict[str, int]]] = {
     },
     "oeapp/services/export_docx.py": {"DOCXExporter.__init__": {"_get_session": 1}},
     "oeapp/services/export_pdf.py": {
-        "FullTranslationPDFExporter.export_side_by_side_pdf": {"get_runtime_session": 1}
+        "FullTranslationPDFExporter.prepare_side_by_side_tex": {
+            "get_runtime_session": 1
+        }
     },
     "oeapp/services/import_export.py": {
         "ProjectExporter.__init__": {"_get_session": 1},
@@ -375,7 +377,8 @@ ALLOWLIST: dict[str, dict[str, dict[str, int]]] = {
         "AnnotationPresetManagementDialog.__init__": {"_get_session": 1}
     },
     "oeapp/ui/dialogs/append_text.py": {
-        "AppendTextDialog.append_text": {"get_runtime_session": 1}
+        "AppendTextDialog.append_text": {"get_runtime_session": 2},
+        "AppendTextDialog.append_text.work": {"get_runtime_session": 1},
     },
     "oeapp/ui/dialogs/delete_project.py": {
         "DeleteProjectDialog._delete_project": {"get_runtime_session": 1},
@@ -383,6 +386,9 @@ ALLOWLIST: dict[str, dict[str, dict[str, int]]] = {
     },
     "oeapp/ui/dialogs/edit_project.py": {
         "EditProjectDialog.save_project": {"get_runtime_session": 1}
+    },
+    "oeapp/ui/dialogs/new_project.py": {
+        "NewProjectDialog.create_project": {"get_runtime_session": 1}
     },
     "oeapp/ui/dialogs/note_dialog.py": {
         "NoteDialog._on_delete_clicked": {"app_context.session": 1},
@@ -409,6 +415,7 @@ ALLOWLIST: dict[str, dict[str, dict[str, int]]] = {
         "MainWindowActions._refresh_reading_export_enablement_for_current_project": {
             "get_runtime_session": 1
         },
+        "MainWindowActions._run_busy": {"get_runtime_session": 1},
         "MainWindowActions.autosave": {"get_runtime_session": 1},
         "MainWindowActions.edit_project": {"get_runtime_session": 1},
         "MainWindowActions.export_old_english_text": {
@@ -426,6 +433,7 @@ ALLOWLIST: dict[str, dict[str, dict[str, int]]] = {
         },
         "MainWindowActions.import_project_json": {"get_runtime_session": 1},
         "MainWindowActions.paste_annotation": {"app_context.session": 1},
+        "_write_reading_text": {"get_runtime_session": 1},
     },
     "oeapp/ui/menus.py": {
         "ProjectMenu.__init__": {"get_runtime_session": 1},
@@ -440,6 +448,7 @@ ALLOWLIST: dict[str, dict[str, dict[str, int]]] = {
     },
     "oeapp/ui/project_workspace.py": {
         "ProjectUI._can_reload_current_project": {"app_context.session": 1},
+        "ProjectUI._chapter_and_section_ids": {"get_runtime_session": 1},
         "ProjectUI._on_annotation_applied": {"app_context.session": 1},
         "ProjectUI._reload_after_structure_change": {"get_runtime_session": 1},
         "ProjectUI.load_section": {"get_runtime_session": 1},
@@ -454,6 +463,7 @@ ALLOWLIST: dict[str, dict[str, dict[str, int]]] = {
         "SentenceCardController.on_save_oe_clicked": {"get_runtime_session": 1},
         "SentenceCardController.open_token_modal": {"get_runtime_session": 1},
     },
+    "oeapp/ui/session_task.py": {"_worker_engine": {"get_runtime_session": 1}},
     "oeapp/ui/undo_presenter.py": {
         "UndoPresenter.apply_translation": {"get_runtime_session": 1},
         "UndoPresenter.undo_translation": {"get_runtime_session": 1},

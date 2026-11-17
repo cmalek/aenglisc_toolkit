@@ -1,6 +1,9 @@
 """Full translation side-by-side window."""
 
 import re
+import shutil
+import subprocess
+from contextlib import suppress
 from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar, Final, cast
 
@@ -12,8 +15,10 @@ from PySide6.QtCore import (
     QTimer,
     QUrl,
     Signal,
+    Slot,
 )
 from PySide6.QtGui import (
+    QCloseEvent,
     QColor,
     QDesktopServices,
     QFont,
@@ -30,6 +35,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMainWindow,
+    QProgressDialog,
     QPushButton,
     QScrollArea,
     QSizePolicy,
@@ -42,9 +48,11 @@ from PySide6.QtWidgets import (
 from oeapp.models.headings import HeadingRole
 from oeapp.models.text_flow import plain_text_separator, sentence_separator_kind
 from oeapp.services.export_pdf import FullTranslationPDFExporter
+from oeapp.services.pdf_engine import PDFEngineError, tectonic_compile_command
 from oeapp.ui.highlighting import SearchHighlighter
 from oeapp.ui.mixins import ThemeMixin
 from oeapp.ui.oe_text_edit import OldEnglishTextEdit, OldEnglishTextSelector
+from oeapp.ui.pdf_export_job import PdfExportJob
 from oeapp.ui.token_details_sidebar import FullTranslationSidebar
 from oeapp.ui.widgets import HorizontalSeparatorWidget
 
@@ -1101,6 +1109,16 @@ class FullTranslationWindow(QMainWindow):
         self.project_notes_dialog: QDialog | None = None
         #: Project notes dialog text.
         self.project_notes_dialog_text: QTextEdit | None = None
+        #: In-flight PDF compile.
+        self._pdf_job: PdfExportJob | None = None
+        #: Work directory for the in-flight PDF compile.
+        self._pdf_work_dir: Path | None = None
+        #: Destination for the in-flight PDF compile.
+        self._pdf_output_path: Path | None = None
+        #: Exporter that built the in-flight PDF.
+        self._pdf_exporter: FullTranslationPDFExporter | None = None
+        #: Progress dialog for the in-flight PDF compile.
+        self._pdf_dialog: QProgressDialog | None = None
         self._collect_project_notes()
         self.build()
 
@@ -1531,6 +1549,24 @@ class FullTranslationWindow(QMainWindow):
                 card.focus()
                 break
 
+    def closeEvent(self, event: QCloseEvent) -> None:  # noqa: N802
+        """
+        Stop an in-flight PDF compile when the window closes.
+
+        Args:
+            event: Close event.
+
+        """
+        job = self._pdf_job
+        if job is not None:
+            with suppress(RuntimeError):
+                job.finished.disconnect(self._on_pdf_finished)
+            job.cancel()
+            job.wait_until_finished()
+            self._pdf_job = None
+        self._discard_pdf_work_dir()
+        super().closeEvent(event)
+
     def _export_pdf(self) -> None:
         """
         Event handler for :attr:`export_btn.clicked` signal: Export to PDF.
@@ -1541,29 +1577,190 @@ class FullTranslationWindow(QMainWindow):
             f"{self.project.name}_side_by_side.pdf",
             "PDF Files (*.pdf)",
         )
-        if file_path:
-            if not file_path.lower().endswith(".pdf"):
-                file_path += ".pdf"
-            output_path = Path(file_path)
-            exporter = FullTranslationPDFExporter()
-            if exporter.export_side_by_side_pdf(self.project.id, output_path):
-                self.main_window.messages.show_message("Exported successfully")
-                if not QDesktopServices.openUrl(
-                    QUrl.fromLocalFile(str(output_path.resolve()))
-                ):
-                    self.main_window.messages.show_warning(
-                        (
-                            "The PDF was exported, but it could not be opened "
-                            f"automatically.\n\n{output_path}"
-                        ),
-                        title="Open Exported PDF Failed",
-                    )
+        if not file_path:
+            return
+        if not file_path.lower().endswith(".pdf"):
+            file_path += ".pdf"
+        output_path = Path(file_path)
+        exporter = FullTranslationPDFExporter()
+        prepared = exporter.prepare_side_by_side_tex(self.project.id, output_path)
+        if prepared is None:
+            self._show_pdf_failure(exporter)
+            return
+        work_dir, tex_path = prepared
+        try:
+            command = tectonic_compile_command(tex_path, work_dir)
+        except PDFEngineError as exc:
+            exporter.finalize_side_by_side_pdf(
+                self.project.id,
+                output_path,
+                work_dir,
+                None,
+                engine_error=str(exc),
+            )
+            shutil.rmtree(work_dir, ignore_errors=True)
+            self._show_pdf_failure(exporter)
+            return
+        self._start_pdf_process(exporter, output_path, work_dir, command)
+
+    def _start_pdf_process(
+        self,
+        exporter: FullTranslationPDFExporter,
+        output_path: Path,
+        work_dir: Path,
+        command: list[str],
+    ) -> None:
+        """
+        Show progress and start Tectonic.
+
+        Args:
+            exporter: Exporter that wrote the LaTeX.
+            output_path: Destination PDF.
+            work_dir: Directory Tectonic writes into.
+            command: Absolute program path plus arguments.
+
+        """
+        self._pdf_exporter = exporter
+        self._pdf_output_path = output_path
+        self._pdf_work_dir = work_dir
+        self._pdf_job = PdfExportJob(self)
+        self._pdf_dialog = QProgressDialog("Compiling PDF…", "Cancel", 0, 0, self)
+        self._pdf_dialog.setWindowTitle("Export PDF")
+        self._pdf_dialog.setWindowModality(Qt.WindowModality.WindowModal)
+        self._pdf_dialog.setMinimumDuration(0)
+        self._pdf_dialog.setAutoClose(False)
+        self._pdf_dialog.setAutoReset(False)
+        self._pdf_job.status_text.connect(self._on_pdf_status)
+        self._pdf_job.finished.connect(self._on_pdf_finished)
+        self._pdf_dialog.canceled.connect(self._pdf_job.cancel)
+        self.export_btn.setEnabled(False)
+        self._pdf_job.start(command[0], command[1:])
+        self._pdf_dialog.show()
+
+    @Slot(str)
+    def _on_pdf_status(self, text: str) -> None:
+        """
+        Show the latest Tectonic line on the progress dialog.
+
+        Args:
+            text: One line of compiler output.
+
+        """
+        if self._pdf_dialog is not None:
+            self._pdf_dialog.setLabelText(text)
+
+    @Slot(bool, int, str, str)
+    def _on_pdf_finished(
+        self, cancelled: bool, code: int, stdout: str, stderr: str
+    ) -> None:
+        """
+        Copy the PDF into place, or show the compile error.
+
+        Args:
+            cancelled: Whether the user stopped the compile.
+            code: Process exit code. ``-1`` means the program did not start.
+            stdout: Text Tectonic wrote to stdout.
+            stderr: Text Tectonic wrote to stderr.
+
+        """
+        if self._pdf_dialog is not None:
+            self._pdf_dialog.hide()
+        work_dir = self._pdf_work_dir
+        exporter = self._pdf_exporter
+        output_path = self._pdf_output_path
+        self._pdf_job = None
+        self._pdf_dialog = None
+        self.export_btn.setEnabled(True)
+        try:
+            if work_dir is None or exporter is None or output_path is None:
+                return
+            if cancelled:
+                self.main_window.messages.show_message("PDF export cancelled")
+                return
+            if self._accept_pdf(exporter, output_path, work_dir, code, stdout, stderr):
+                self._open_exported_pdf(output_path)
             else:
-                detail = exporter.last_error or "Unknown export error."
-                self.main_window.messages.show_error(
-                    f"Export failed.\n\n{detail}",
-                    title="PDF Export Failed",
-                )
+                self._show_pdf_failure(exporter)
+        finally:
+            self._discard_pdf_work_dir()
+
+    def _accept_pdf(  # noqa: PLR0913, PLR0917
+        self,
+        exporter: FullTranslationPDFExporter,
+        output_path: Path,
+        work_dir: Path,
+        code: int,
+        stdout: str,
+        stderr: str,
+    ) -> bool:
+        """
+        Turn a finished process into a PDF file.
+
+        Args:
+            exporter: Exporter that wrote the LaTeX.
+            output_path: Destination PDF.
+            work_dir: Directory Tectonic wrote into.
+            code: Process exit code.
+            stdout: Text Tectonic wrote to stdout.
+            stderr: Text Tectonic wrote to stderr.
+
+        Returns:
+            ``True`` when ``output_path`` holds the PDF.
+
+        """
+        if code < 0:
+            return exporter.finalize_side_by_side_pdf(
+                self.project.id,
+                output_path,
+                work_dir,
+                None,
+                engine_error=stderr or "Failed to start the PDF engine.",
+            )
+        result = subprocess.CompletedProcess(
+            args=[], returncode=code, stdout=stdout, stderr=stderr
+        )
+        return exporter.finalize_side_by_side_pdf(
+            self.project.id, output_path, work_dir, result
+        )
+
+    def _open_exported_pdf(self, output_path: Path) -> None:
+        """
+        Tell the user the export worked and open the file.
+
+        Args:
+            output_path: PDF that was written.
+
+        """
+        self.main_window.messages.show_message("Exported successfully")
+        if not QDesktopServices.openUrl(QUrl.fromLocalFile(str(output_path.resolve()))):
+            self.main_window.messages.show_warning(
+                (
+                    "The PDF was exported, but it could not be opened "
+                    f"automatically.\n\n{output_path}"
+                ),
+                title="Open Exported PDF Failed",
+            )
+
+    def _show_pdf_failure(self, exporter: FullTranslationPDFExporter) -> None:
+        """
+        Show the exporter's last error.
+
+        Args:
+            exporter: Exporter that failed.
+
+        """
+        detail = exporter.last_error or "Unknown export error."
+        self.main_window.messages.show_error(
+            f"Export failed.\n\n{detail}",
+            title="PDF Export Failed",
+        )
+
+    def _discard_pdf_work_dir(self) -> None:
+        """Delete the temporary LaTeX directory, if this export still has one."""
+        work_dir = self._pdf_work_dir
+        self._pdf_work_dir = None
+        if work_dir is not None:
+            shutil.rmtree(work_dir, ignore_errors=True)
 
 
 class FullProjectNoteWidget(ThemeMixin, QWidget):

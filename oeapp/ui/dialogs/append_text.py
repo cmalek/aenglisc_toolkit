@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
 from oeapp.db import get_runtime_session
 from oeapp.models.project import Project
 from oeapp.services.wyrdcraeft_ingest import WyrdcraeftIngestService
+from oeapp.ui.session_task import run_session_task
 
 from .mixins import TextInputMixin
 
@@ -122,11 +123,22 @@ class AppendTextDialog(TextInputMixin):
             self.app_context.show_error(str(e))
             return
 
-        WyrdcraeftIngestService().append_to_project(
-            project=project,
-            text=text,
-            source_path=source_path,
-        )
+        self.main_window.action_service.autosave()
+
+        def work() -> None:
+            worker_session = get_runtime_session()
+            current = Project.get(project_id, session=worker_session)
+            if current is None:
+                msg = "Project not found."
+                raise ValueError(msg)
+            WyrdcraeftIngestService().append_to_project(
+                project=current,
+                text=text,
+                source_path=source_path,
+            )
+
+        run_session_task(self.dialog, "Appending text…", work)
+        get_runtime_session().expire_all()
         # Undo history refers to the pre-append structure, so drop it.
         self.app_context.undo_stack.clear()
 

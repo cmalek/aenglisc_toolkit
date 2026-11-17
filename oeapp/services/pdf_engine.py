@@ -145,26 +145,26 @@ def resolve_tectonic_engine_paths() -> TectonicEnginePaths:
     return TectonicEnginePaths(binary_path=binary_path, bundle_path=bundle_path)
 
 
-def compile_latex_with_tectonic(
-    tex_path: Path, output_dir: Path
-) -> subprocess.CompletedProcess[str]:
+def tectonic_compile_command(tex_path: Path, output_dir: Path) -> list[str]:
     """
-    Compile a LaTeX file to PDF using bundled Tectonic.
+    Build the Tectonic command line for one compile.
 
-    This uses offline mode by pointing Tectonic to the bundled package set and
-    enforcing ``--only-cached``.
+    The program path is absolute so ``QProcess`` will not search ``PATH``.
 
     Args:
         tex_path: The path to the LaTeX file to compile.
         output_dir: The directory to write the compiled PDF to.
 
     Returns:
-        The result of the subprocess call.
+        Program plus arguments.
+
+    Raises:
+        PDFEngineError: If the bundled engine cannot be resolved.
 
     """
     engine = resolve_tectonic_engine_paths()
     cmd = [
-        str(engine.binary_path),
+        str(engine.binary_path.resolve()),
         "-X",
         "compile",
         str(tex_path),
@@ -175,9 +175,44 @@ def compile_latex_with_tectonic(
     ]
     if engine.bundle_path is not None:
         cmd.extend(["--bundle", str(engine.bundle_path), "--only-cached"])
-    return subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    return cmd
+
+
+def compile_latex_with_tectonic(
+    tex_path: Path,
+    output_dir: Path,
+    timeout: float | None = None,
+) -> subprocess.CompletedProcess[str]:
+    """
+    Compile a LaTeX file to PDF using bundled Tectonic.
+
+    This uses offline mode by pointing Tectonic to the bundled package set and
+    enforcing ``--only-cached``. The GUI uses :func:`tectonic_compile_command`
+    with ``QProcess`` instead of this blocking call.
+
+    Args:
+        tex_path: The path to the LaTeX file to compile.
+        output_dir: The directory to write the compiled PDF to.
+
+    Keyword Args:
+        timeout: Seconds to wait for Tectonic. ``None`` waits until it exits.
+
+    Returns:
+        The result of the subprocess call.
+
+    Raises:
+        PDFEngineError: If Tectonic does not finish within ``timeout``.
+
+    """
+    cmd = tectonic_compile_command(tex_path, output_dir)
+    try:
+        return subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as exc:
+        msg = f"Tectonic timed out after {timeout} seconds."
+        raise PDFEngineError(msg) from exc

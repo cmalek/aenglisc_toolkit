@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import re
 import shutil
+import subprocess
+import sys
 from pathlib import Path
-from tempfile import TemporaryDirectory
+from tempfile import mkdtemp
 from typing import TYPE_CHECKING, Final
 
 from oeapp.db import get_runtime_session
@@ -21,7 +23,7 @@ from oeapp.services.logs import get_logger
 from oeapp.services.pdf_engine import PDFEngineError, compile_latex_with_tectonic
 
 if TYPE_CHECKING:
-    import subprocess
+    from collections.abc import Callable
 
     from oeapp.models.glossary import GlossaryEntry
     from oeapp.models.note import Note
@@ -30,7 +32,14 @@ if TYPE_CHECKING:
 
 
 class FullTranslationPDFExporter(AnnotationTextualMixin):
-    """Exports the full translation view as a LaTeX-driven PDF document."""
+    """
+    Exports the full translation view as a LaTeX-driven PDF document.
+
+    Args:
+        compile_pdf: Replacement for the Tectonic compile call. ``None`` uses
+            bundled Tectonic.
+
+    """
 
     #: A lookup map for part of speech codes to their long form, for
     #: the glossary legend.
@@ -123,16 +132,28 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
         HeadingRole.SUBSECTION: "textit",
     }
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        compile_pdf: Callable[[Path, Path], subprocess.CompletedProcess[str]]
+        | None = None,
+    ) -> None:
         """
         Initialize the instance.
+
+        Keyword Args:
+            compile_pdf: Replacement for the Tectonic compile call. Tests pass
+                a fake. ``None`` uses :func:`compile_latex_with_tectonic`,
+                looked up when the export runs.
+
         """
         #: The logger instance.
         self.logger = get_logger(__name__)
         #: The last error message.
         self.last_error: str | None = None
+        #: Optional compile replacement. ``None`` uses bundled Tectonic.
+        self._compile = compile_pdf
 
-    def export_side_by_side_pdf(self, project_id: int, output_path: Path) -> bool:  # noqa: PLR0911
+    def export_side_by_side_pdf(self, project_id: int, output_path: Path) -> bool:
         """
         Export project text as PDF using bundled Tectonic.
 
@@ -144,124 +165,231 @@ class FullTranslationPDFExporter(AnnotationTextualMixin):
             ``True`` on success, ``False`` on failure.
 
         """
+        prepared = self.prepare_side_by_side_tex(project_id, output_path)
+        if prepared is None:
+            return False
+        work_dir, tex_path = prepared
+        try:
+            return self._compile_prepared(project_id, output_path, work_dir, tex_path)
+        finally:
+            shutil.rmtree(work_dir, ignore_errors=True)
+
+    def prepare_side_by_side_tex(
+        self, project_id: int, output_path: Path
+    ) -> tuple[Path, Path] | None:
+        """
+        Write the export's LaTeX into a new work directory.
+
+        The caller deletes the work directory. The GUI keeps it until
+        ``QProcess`` finishes.
+
+        Args:
+            project_id: The ID of the project to export.
+            output_path: The path to the output PDF file.
+
+        Returns:
+            ``(work_dir, tex_path)``, or ``None`` when setup fails.
+
+        """
         session = get_runtime_session()
         self.last_error = None
         project = Project.get(project_id, session=session)
         if project is None:
-            self.last_error = f"Project not found: {project_id}"
-            self.logger.error(
-                "pdf_export.failed",
-                project_id=project_id,
-                reason=self.last_error,
-            )
-            return False
-
+            self._fail(project_id, output_path, f"Project not found: {project_id}")
+            return None
         try:
             output_path.parent.mkdir(parents=True, exist_ok=True)
         except OSError as exc:
-            self.last_error = f"Cannot create output directory: {exc!s}"
-            self.logger.exception(
-                "pdf_export.failed",
-                project_id=project_id,
-                output_path=str(output_path),
-                reason=self.last_error,
+            self._fail(
+                project_id, output_path, f"Cannot create output directory: {exc!s}"
             )
-            return False
-
+            return None
+        work_dir = Path(mkdtemp(prefix="aenglisc-pdf-"))
+        tex_path = work_dir / "full_translation.tex"
         try:
-            with TemporaryDirectory(prefix="aenglisc-pdf-") as tmp_dir:
-                work_dir = Path(tmp_dir)
-                tex_path = work_dir / "full_translation.tex"
-                pdf_path = work_dir / "full_translation.pdf"
-
-                tex_path.write_text(self._build_document_tex(project), encoding="utf-8")
-
-                try:
-                    result = compile_latex_with_tectonic(tex_path, work_dir)
-                except PDFEngineError as exc:
-                    artifacts = self._copy_debug_artifacts(
-                        work_dir=work_dir,
-                        output_path=output_path,
-                        compile_result=None,
-                    )
-                    self.last_error = f"Failed to run PDF engine: {exc!s}"
-                    self.logger.exception(
-                        "pdf_export.failed",
-                        project_id=project_id,
-                        output_path=str(output_path),
-                        reason=self.last_error,
-                        artifacts=[str(path) for path in artifacts],
-                    )
-                    return False
-                except Exception as exc:  # pragma: no cover - safety net
-                    artifacts = self._copy_debug_artifacts(
-                        work_dir=work_dir,
-                        output_path=output_path,
-                        compile_result=None,
-                    )
-                    self.last_error = f"Failed to run PDF engine: {exc!s}"
-                    self.logger.exception(
-                        "pdf_export.failed",
-                        project_id=project_id,
-                        output_path=str(output_path),
-                        reason=self.last_error,
-                        artifacts=[str(path) for path in artifacts],
-                    )
-                    return False
-
-                if result.returncode != 0 or not pdf_path.exists():
-                    artifacts = self._copy_debug_artifacts(
-                        work_dir=work_dir,
-                        output_path=output_path,
-                        compile_result=result,
-                    )
-                    stderr = (result.stderr or "").strip()
-                    stdout = (result.stdout or "").strip()
-                    output_preview = stderr or stdout or "Unknown compile error"
-                    first_line = output_preview.splitlines()[0]
-                    self.last_error = (
-                        f"LaTeX compilation failed (exit {result.returncode}): "
-                        f"{first_line}"
-                    )
-                    self.logger.error(
-                        "pdf_export.failed",
-                        project_id=project_id,
-                        output_path=str(output_path),
-                        returncode=result.returncode,
-                        stderr=stderr,
-                        stdout=stdout,
-                        reason=self.last_error,
-                        artifacts=[str(path) for path in artifacts],
-                    )
-                    return False
-
-                try:
-                    shutil.copy2(pdf_path, output_path)
-                except OSError as exc:
-                    self.last_error = f"Unable to write PDF file: {exc!s}"
-                    self.logger.exception(
-                        "pdf_export.failed",
-                        project_id=project_id,
-                        output_path=str(output_path),
-                        reason=self.last_error,
-                    )
-                    return False
-        except Exception as exc:  # pragma: no cover - safety net
-            self.last_error = f"Unexpected PDF export error: {exc!s}"
-            self.logger.exception(
-                "pdf_export.failed",
-                project_id=project_id,
-                output_path=str(output_path),
-                reason=self.last_error,
+            tex_path.write_text(self._build_document_tex(project), encoding="utf-8")
+        except Exception as exc:  # noqa: BLE001
+            shutil.rmtree(work_dir, ignore_errors=True)
+            self._fail(
+                project_id, output_path, f"Unexpected PDF export error: {exc!s}"
             )
-            return False
+            return None
+        return work_dir, tex_path
 
+    def finalize_side_by_side_pdf(
+        self,
+        project_id: int,
+        output_path: Path,
+        work_dir: Path,
+        result: subprocess.CompletedProcess[str] | None,
+        *,
+        engine_error: str | None = None,
+    ) -> bool:
+        """
+        Copy a compiled PDF into place, or record the compile failure.
+
+        Args:
+            project_id: The ID of the project to export.
+            output_path: The path to the output PDF file.
+            work_dir: Directory that holds ``full_translation.pdf``.
+            result: Tectonic's exit status and logs. ``None`` when it did not
+                run.
+
+        Keyword Args:
+            engine_error: Why the engine did not produce a result.
+
+        Returns:
+            ``True`` on success, ``False`` on failure.
+
+        """
+        if engine_error is not None or result is None:
+            return self._fail_engine(project_id, output_path, work_dir, engine_error)
+        pdf_path = work_dir / "full_translation.pdf"
+        if result.returncode != 0 or not pdf_path.exists():
+            return self._fail_compile(project_id, output_path, work_dir, result)
+        try:
+            shutil.copy2(pdf_path, output_path)
+        except OSError as exc:
+            self._fail(project_id, output_path, f"Unable to write PDF file: {exc!s}")
+            return False
         self.logger.info(
             "pdf_export.success",
             project_id=project_id,
             output_path=str(output_path),
         )
         return True
+
+    def _compile_prepared(
+        self, project_id: int, output_path: Path, work_dir: Path, tex_path: Path
+    ) -> bool:
+        """
+        Compile prepared LaTeX and finalize the PDF.
+
+        Args:
+            project_id: The ID of the project to export.
+            output_path: The path to the output PDF file.
+            work_dir: Directory that holds the ``.tex`` file.
+            tex_path: LaTeX file to compile.
+
+        Returns:
+            ``True`` on success, ``False`` on failure.
+
+        """
+        compile_pdf = self._compile or compile_latex_with_tectonic
+        try:
+            result = compile_pdf(tex_path, work_dir)
+        except subprocess.TimeoutExpired:
+            return self.finalize_side_by_side_pdf(
+                project_id,
+                output_path,
+                work_dir,
+                None,
+                engine_error="PDF engine timed out.",
+            )
+        except PDFEngineError as exc:
+            return self.finalize_side_by_side_pdf(
+                project_id, output_path, work_dir, None, engine_error=str(exc)
+            )
+        except Exception as exc:  # noqa: BLE001
+            return self.finalize_side_by_side_pdf(
+                project_id, output_path, work_dir, None, engine_error=str(exc)
+            )
+        return self.finalize_side_by_side_pdf(project_id, output_path, work_dir, result)
+
+    def _fail(self, project_id: int, output_path: Path, reason: str) -> None:
+        """
+        Record a setup or copy failure.
+
+        Args:
+            project_id: The ID of the project to export.
+            output_path: The path to the output PDF file.
+            reason: Message stored on :attr:`last_error`.
+
+        """
+        self.last_error = reason
+        log = self.logger.exception if sys.exc_info()[0] else self.logger.error
+        log(
+            "pdf_export.failed",
+            project_id=project_id,
+            output_path=str(output_path),
+            reason=reason,
+        )
+
+    def _fail_engine(
+        self,
+        project_id: int,
+        output_path: Path,
+        work_dir: Path,
+        engine_error: str | None,
+    ) -> bool:
+        """
+        Record a failure to launch Tectonic.
+
+        Args:
+            project_id: The ID of the project to export.
+            output_path: The path to the output PDF file.
+            work_dir: Directory that holds the ``.tex`` file.
+            engine_error: Why the engine did not produce a result.
+
+        Returns:
+            ``False``.
+
+        """
+        artifacts = self._copy_debug_artifacts(
+            work_dir=work_dir, output_path=output_path, compile_result=None
+        )
+        self.last_error = f"Failed to run PDF engine: {engine_error}"
+        log = self.logger.exception if sys.exc_info()[0] else self.logger.error
+        log(
+            "pdf_export.failed",
+            project_id=project_id,
+            output_path=str(output_path),
+            reason=self.last_error,
+            artifacts=[str(path) for path in artifacts],
+        )
+        return False
+
+    def _fail_compile(
+        self,
+        project_id: int,
+        output_path: Path,
+        work_dir: Path,
+        result: subprocess.CompletedProcess[str],
+    ) -> bool:
+        """
+        Record a non-zero Tectonic exit.
+
+        Args:
+            project_id: The ID of the project to export.
+            output_path: The path to the output PDF file.
+            work_dir: Directory that holds the ``.tex`` file.
+            result: Tectonic's exit status and logs.
+
+        Returns:
+            ``False``.
+
+        """
+        artifacts = self._copy_debug_artifacts(
+            work_dir=work_dir, output_path=output_path, compile_result=result
+        )
+        stderr = (result.stderr or "").strip()
+        stdout = (result.stdout or "").strip()
+        preview = stderr or stdout or "Unknown compile error"
+        self.last_error = (
+            f"LaTeX compilation failed (exit {result.returncode}): "
+            f"{preview.splitlines()[0]}"
+        )
+        self.logger.error(
+            "pdf_export.failed",
+            project_id=project_id,
+            output_path=str(output_path),
+            returncode=result.returncode,
+            stderr=stderr,
+            stdout=stdout,
+            reason=self.last_error,
+            artifacts=[str(path) for path in artifacts],
+        )
+        return False
 
     def _copy_debug_artifacts(
         self,

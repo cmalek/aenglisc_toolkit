@@ -1,14 +1,18 @@
+import os
+import sys
 from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
 from oeapp.db import get_runtime_session
+from oeapp.services.pdf_engine import PDFEngineError
 from oeapp.models.chapter import Chapter
 from oeapp.models.note import Note
 from oeapp.models.paragraph import Paragraph
 from oeapp.models.project import Project
 from oeapp.models.section import Section
 from oeapp.models.sentence import Sentence
+from oeapp.ui.pdf_export_job import PdfExportJob
 from oeapp.ui.full_translation_window import (
     NOTE_HIGHLIGHT_PROPERTY,
     FullProjectNotesArea,
@@ -29,6 +33,53 @@ def full_window(qapp, db_session, mock_main_window):
     )
     window = FullTranslationWindow(project, mock_main_window)
     return window
+
+
+def _stub_async_pdf_export(
+    monkeypatch: pytest.MonkeyPatch, *, opened: bool
+) -> tuple[str, list[tuple[int, Path]], list[object], list[str]]:
+    """Stub the file dialog, LaTeX prepare, and QProcess start."""
+    selected_path = "/tmp/test-full-translation.pdf"
+    calls: list[tuple[int, Path]] = []
+    jobs: list[object] = []
+    open_calls: list[str] = []
+
+    monkeypatch.setattr(
+        "oeapp.ui.full_translation_window.QFileDialog.getSaveFileName",
+        lambda *args, **kwargs: (selected_path, "PDF Files (*.pdf)"),
+    )
+
+    def fake_prepare(
+        self: object, project_id: int, output_path: Path
+    ) -> tuple[Path, Path]:
+        calls.append((project_id, output_path))
+        return Path("/tmp/pdf-work"), Path("/tmp/pdf-work/full_translation.tex")
+
+    monkeypatch.setattr(
+        "oeapp.ui.full_translation_window.FullTranslationPDFExporter.prepare_side_by_side_tex",
+        fake_prepare,
+    )
+    monkeypatch.setattr(
+        "oeapp.ui.full_translation_window.tectonic_compile_command",
+        lambda tex_path, work_dir: ["/usr/bin/true", str(tex_path)],
+    )
+    monkeypatch.setattr(
+        "oeapp.ui.full_translation_window.FullTranslationPDFExporter.finalize_side_by_side_pdf",
+        lambda self, *args, **kwargs: True,
+    )
+
+    def fake_start(self: object, program: str, arguments: list[str]) -> None:
+        jobs.append(self)
+
+    monkeypatch.setattr(
+        "oeapp.ui.full_translation_window.PdfExportJob.start",
+        fake_start,
+    )
+    monkeypatch.setattr(
+        "oeapp.ui.full_translation_window.QDesktopServices.openUrl",
+        lambda url: open_calls.append(url.toLocalFile()) or opened,
+    )
+    return selected_path, calls, jobs, open_calls
 
 
 class TestFullTranslationWindow:
@@ -360,30 +411,13 @@ class TestFullTranslationWindow:
         assert full_window.export_btn.text() == "Export PDF"
 
     def test_export_pdf_invokes_pdf_exporter(self, full_window, monkeypatch):
-        """Export action should call the PDF exporter with selected path."""
-        selected_path = "/tmp/test-full-translation.pdf"
-        calls: list[tuple[int, Path]] = []
-        open_calls: list[str] = []
-
-        monkeypatch.setattr(
-            "oeapp.ui.full_translation_window.QFileDialog.getSaveFileName",
-            lambda *args, **kwargs: (selected_path, "PDF Files (*.pdf)"),
-        )
-
-        def fake_export(self, project_id: int, output_path: Path) -> bool:
-            calls.append((project_id, output_path))
-            return True
-
-        monkeypatch.setattr(
-            "oeapp.ui.full_translation_window.FullTranslationPDFExporter.export_side_by_side_pdf",
-            fake_export,
-        )
-        monkeypatch.setattr(
-            "oeapp.ui.full_translation_window.QDesktopServices.openUrl",
-            lambda url: open_calls.append(url.toLocalFile()) or True,
+        """Export action should prepare LaTeX and open the PDF after compile."""
+        selected_path, calls, jobs, open_calls = _stub_async_pdf_export(
+            monkeypatch, opened=True
         )
 
         full_window._export_pdf()
+        jobs[0].finished.emit(False, 0, "", "")
 
         assert calls == [(full_window.project.id, Path(selected_path))]
         assert open_calls == [str(Path(selected_path).resolve())]
@@ -392,22 +426,12 @@ class TestFullTranslationWindow:
 
     def test_export_pdf_warns_when_auto_open_fails(self, full_window, monkeypatch):
         """Successful export should warn if the PDF cannot be opened automatically."""
-        selected_path = "/tmp/test-full-translation.pdf"
-
-        monkeypatch.setattr(
-            "oeapp.ui.full_translation_window.QFileDialog.getSaveFileName",
-            lambda *args, **kwargs: (selected_path, "PDF Files (*.pdf)"),
-        )
-        monkeypatch.setattr(
-            "oeapp.ui.full_translation_window.FullTranslationPDFExporter.export_side_by_side_pdf",
-            lambda *args, **kwargs: True,
-        )
-        monkeypatch.setattr(
-            "oeapp.ui.full_translation_window.QDesktopServices.openUrl",
-            lambda url: False,
+        selected_path, _calls, jobs, _open_calls = _stub_async_pdf_export(
+            monkeypatch, opened=False
         )
 
         full_window._export_pdf()
+        jobs[0].finished.emit(False, 0, "", "")
 
         full_window.main_window.messages.show_message.assert_called_once()
         full_window.main_window.messages.show_warning.assert_called_once()
@@ -417,21 +441,27 @@ class TestFullTranslationWindow:
         assert kwargs["title"] == "Open Exported PDF Failed"
 
     def test_export_pdf_failure_shows_detailed_error(self, full_window, monkeypatch):
-        """Failed export should display exporter-provided error details."""
+        """A missing Tectonic binary should display the engine error."""
         selected_path = "/tmp/test-full-translation.pdf"
 
         monkeypatch.setattr(
             "oeapp.ui.full_translation_window.QFileDialog.getSaveFileName",
             lambda *args, **kwargs: (selected_path, "PDF Files (*.pdf)"),
         )
+        monkeypatch.setattr(
+            "oeapp.ui.full_translation_window.FullTranslationPDFExporter.prepare_side_by_side_tex",
+            lambda self, project_id, output_path: (
+                Path("/tmp/pdf-work"),
+                Path("/tmp/pdf-work/full_translation.tex"),
+            ),
+        )
 
-        def fake_export(self, project_id: int, output_path: Path) -> bool:  # noqa: ARG001
-            self.last_error = "Bundled Tectonic binary is missing."
-            return False
+        def missing_binary(tex_path: Path, work_dir: Path) -> list[str]:
+            raise PDFEngineError("Bundled Tectonic binary is missing.")
 
         monkeypatch.setattr(
-            "oeapp.ui.full_translation_window.FullTranslationPDFExporter.export_side_by_side_pdf",
-            fake_export,
+            "oeapp.ui.full_translation_window.tectonic_compile_command",
+            missing_binary,
         )
         open_url = MagicMock()
         monkeypatch.setattr(
@@ -446,6 +476,23 @@ class TestFullTranslationWindow:
         args, kwargs = full_window.main_window.messages.show_error.call_args
         assert "Bundled Tectonic binary is missing." in args[0]
         assert kwargs["title"] == "PDF Export Failed"
+
+    def test_close_stops_the_pdf_process(self, full_window, tmp_path: Path):
+        """Closing the window kills Tectonic before the process object is destroyed."""
+        job = PdfExportJob(full_window)
+        full_window._pdf_job = job
+        work = tmp_path / "pdf-work"
+        work.mkdir()
+        full_window._pdf_work_dir = work
+        job.finished.connect(full_window._on_pdf_finished)
+        job._process.start(sys.executable, ["-c", "import time; time.sleep(30)"])
+        assert job._process.waitForStarted(3000)
+        pid = job._process.processId()
+        assert pid > 0
+        full_window.close()
+        assert not work.exists()
+        with pytest.raises(ProcessLookupError):
+            os.kill(pid, 0)
 
     def test_full_translation_hides_auto_titles_and_renders_gapless_verse(
         self, db_session, mock_main_window

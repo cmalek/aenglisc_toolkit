@@ -2,6 +2,9 @@
 
 import logging
 import os
+import threading
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final, cast
 
@@ -55,6 +58,8 @@ class _RuntimeState:
 
 #: Runtime state.
 _RUNTIME_STATE = _RuntimeState()
+#: Per-thread session installed by :func:`thread_runtime_session`.
+_THREAD_SESSION = threading.local()
 
 
 class Base(DeclarativeBase):
@@ -261,16 +266,118 @@ def get_runtime_session(create: bool = True) -> Session:
     Raises:
         RuntimeError: If no runtime session is registered and creation is disabled.
 
+    A thread inside :func:`thread_runtime_session` receives that session so a
+    worker does not touch the UI thread's session.
+
     Returns:
-        Shared runtime session.
+        Shared runtime session, or the current thread's override.
 
     """
+    override = getattr(_THREAD_SESSION, "session", None)
+    if override is not None:
+        return override
     if _RUNTIME_STATE.session is None:
         if not create:
             msg = "Runtime database session is not configured."
             raise RuntimeError(msg)
         _RUNTIME_STATE.session = SessionLocal()
     return _RUNTIME_STATE.session
+
+
+@contextmanager
+def thread_runtime_session(session: Session) -> Iterator[Session]:
+    """
+    Bind ``session`` as the runtime session on this thread only.
+
+    The process session used by the UI thread is left in place.
+
+    Args:
+        session: Session the calling thread should see from
+            :func:`get_runtime_session`.
+
+    Yields:
+        ``session``.
+
+    """
+    previous = getattr(_THREAD_SESSION, "session", None)
+    _THREAD_SESSION.session = session
+    try:
+        yield session
+    finally:
+        _THREAD_SESSION.session = previous
+
+
+class _DbBusy:
+    """How many background database jobs are in flight."""
+
+    #: In-flight job count.
+    count = 0
+
+
+#: Called when the last of those jobs finishes.
+_UI_DB_IDLE: list[Callable[[], None]] = []
+
+
+def ui_db_busy() -> bool:
+    """
+    Return whether a background database job is in flight.
+
+    Returns:
+        True while a pool task has reserved the UI database connection.
+
+    """
+    return _DbBusy.count > 0
+
+
+def push_ui_db_busy() -> None:
+    """
+    Reserve the UI database connection for one background job.
+
+    Side Effects:
+        Increments the in-flight count. Autosave and automatic backup wait.
+
+    """
+    _DbBusy.count += 1
+
+
+def pop_ui_db_busy() -> None:
+    """
+    Release one background database job.
+
+    Side Effects:
+        Decrements the in-flight count and runs idle callbacks at zero.
+
+    """
+    _DbBusy.count = max(0, _DbBusy.count - 1)
+    if _DbBusy.count == 0:
+        for callback in tuple(_UI_DB_IDLE):
+            callback()
+
+
+def on_ui_db_idle(callback: Callable[[], None]) -> None:
+    """
+    Run ``callback`` when no background database job is in flight.
+
+    Args:
+        callback: Called on the GUI thread, including immediately from
+            :func:`pop_ui_db_busy`.
+
+    """
+    _UI_DB_IDLE.append(callback)
+
+
+def drop_ui_db_idle(callback: Callable[[], None]) -> None:
+    """
+    Remove an idle callback registered with :func:`on_ui_db_idle`.
+
+    Args:
+        callback: The same callable that was registered.
+
+    """
+    try:
+        _UI_DB_IDLE.remove(callback)
+    except ValueError:
+        return
 
 
 def set_runtime_session(session: Session) -> None:

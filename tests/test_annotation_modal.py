@@ -651,6 +651,63 @@ class TestAnnotationModal:
         assert captured["parent"] is main_window
         assert captured["save_mode"] is True
 
+    def test_modal_keeps_the_tokens_own_annotation(self, qtbot, token, db_session):
+        """Opening a token uses that token's annotation."""
+        own = token.annotation
+        if own is None:
+            own = Annotation(token_id=token.id, pos="N", gender="m")
+            db_session.add(own)
+            db_session.commit()
+            db_session.refresh(token)
+            own = token.annotation
+        assert own is not None
+        own.pos = "N"
+        own.gender = "m"
+        own.save()
+
+        modal = AnnotationModal(token=token, annotation=own)
+        qtbot.addWidget(modal)
+
+        assert modal.annotation is own
+        assert modal.pos_combo.currentText() == "Noun (N)"
+
+    def test_modal_keeps_a_different_annotation(self, qtbot, token, db_session):
+        """An explicit annotation is the one the form edits."""
+        own = token.annotation
+        if own is None:
+            own = Annotation(token_id=token.id, pos="N")
+            db_session.add(own)
+            db_session.commit()
+            db_session.refresh(token)
+            own = token.annotation
+        assert own is not None
+        own.pos = "N"
+        own.save()
+
+        other = Annotation(pos="V", modern_english_meaning="DIVERGENT")
+        modal = AnnotationModal(token=token, annotation=other)
+        qtbot.addWidget(modal)
+
+        assert modal.annotation is other
+        assert modal.pos_combo.currentText() == "Verb (V)"
+        assert modal.modern_english_edit.text() == "DIVERGENT"
+
+    def test_modal_uses_the_token_when_no_annotation_is_passed(
+        self, qtbot, token, db_session
+    ):
+        """A missing argument falls back to the token's annotation."""
+        own = token.annotation
+        if own is None:
+            own = Annotation(token_id=token.id, pos="N")
+            db_session.add(own)
+            db_session.commit()
+            db_session.refresh(token)
+            own = token.annotation
+        assert own is not None
+        modal = AnnotationModal(token=token, annotation=None)
+        qtbot.addWidget(modal)
+        assert modal.annotation is own
+
 
 class TestAnnotationModalLifecycle:
     """Test cases for the lifecycle and repeated opening of AnnotationModal."""
